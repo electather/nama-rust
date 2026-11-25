@@ -32,6 +32,9 @@ export function ServerLink() {
         link={link}
         enterUnder="Link a Server"
         start={start}
+        redirect={() => {
+          start.mutate({ returnUrl: globalThis.location.href });
+        }}
         unlink={unlink}
         failure={linkFailure(start.error ?? unlink.error)}
       />

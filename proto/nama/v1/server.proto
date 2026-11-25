@@ -112,9 +112,12 @@ service ServerService {
   // `unavailable` if the Plugin failed.
   rpc GetServerLink(GetServerLinkRequest) returns (GetServerLinkResponse) {}
   // Starts Linking the Server, replacing a code it was showing, and returns the new one. Needs
-  // `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. Fails with
-  // `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and with
-  // `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+  // `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. With a `return_url`, the client sends
+  // the Admin to `url`, where they approve on the Hub, which sends them back to `return_url`.
+  // Fails with `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` or
+  // `REFUSAL_REASON_NOT_A_SERVER_ADDRESS` for a `return_url` `StartAccountSignIn` would refuse so,
+  // with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
+  // with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
   rpc StartServerLink(StartServerLinkRequest) returns (StartServerLinkResponse) {}
   // Unlinks the Server, which revokes its identity on the Hub, or stops showing a code. Needs
   // `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. Unlinking a Server that isn't Linked
@@ -133,7 +136,7 @@ message GetServerLinkResponse {
 message ServerLink {
   // Set while the Server waits for someone to enter `code`.
   string code = 1;
-  // Where to enter `code`, set with it.
+  // Where to enter `code`, set with it: the Hub's page approving it when Linking by redirect.
   string url = 2;
   // The Account the Server is Linked to, as its email, once it is.
   string account = 3;
@@ -151,7 +154,12 @@ message ServerLink {
   repeated string names = 6;
 }
 
-message StartServerLinkRequest {}
+message StartServerLinkRequest {
+  // Where the Hub sends the Admin back once they approve, for Linking by redirect (ADR 0105): on
+  // the Server URL or the LAN address the Server reports. Empty to show a code to enter instead,
+  // as on a Server whose Admin is on another device.
+  string return_url = 1;
+}
 
 message StartServerLinkResponse {
   ServerLink link = 1;

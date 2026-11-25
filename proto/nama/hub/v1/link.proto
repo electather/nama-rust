@@ -9,7 +9,9 @@ import "nama/hub/v1/viewing.proto";
 // The Hub never calls a Server. Anyone may call it, since a Server not yet Linked has no identity.
 service ServerLinkService {
   // Starts registering the calling Server: the code a person enters on the Hub, and the device code
-  // the Server polls with. Both stop working after `expires_in_seconds`.
+  // the Server polls with. Both stop working after `expires_in_seconds`. Fails with
+  // `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for a `return_url` that isn't an `http` or
+  // `https` URL.
   rpc StartServerLink(StartServerLinkRequest) returns (StartServerLinkResponse);
   // Whether someone entered the code yet. Once they have, the first poll gets the Server's
   // credential and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device
@@ -25,7 +27,7 @@ service LinkService {
   // 10 minutes, with `REFUSAL_REASON_EMAIL_NOT_PROVEN` until a Sign-in Link proved the Account's
   // email (ADR 0100), or with `REFUSAL_REASON_SIGN_IN_LINKS_OFF` instead on a Hub without mail,
   // where nothing can prove it, and with `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no Server
-  // is waiting on.
+  // is waiting on. The Hub's page for approving a code is `/link-server/<code>`.
   rpc ApproveServerLink(ApproveServerLinkRequest) returns (ApproveServerLinkResponse);
   // Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
   // with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
@@ -226,6 +228,10 @@ message StartServerLinkRequest {
   // The Server's name, which its Account's list of Servers shows: up to 100 characters, cut there
   // if longer.
   string name = 1;
+  // Where the Hub's page sends the person once they approve, for Linking by redirect (ADR 0105):
+  // an `http` or `https` URL, which the Server checks is one of its own addresses, as the Hub
+  // can't before it is Linked. Empty when the person enters the code instead.
+  string return_url = 2;
 }
 
 message StartServerLinkResponse {
@@ -263,6 +269,8 @@ message ApproveServerLinkRequest {
 message ApproveServerLinkResponse {
   // The Server just Linked, listed from now on. It gets its credential when it next polls.
   LinkedServer server = 1;
+  // Where to send the person back to: the `return_url` the Server started with, empty for none.
+  string return_url = 2;
 }
 
 message ListLinkedServersRequest {}

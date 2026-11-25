@@ -38,9 +38,21 @@ pub(super) async fn get(linking: &Linking) -> ServiceResult<GetServerLinkRespons
     })
 }
 
-/// Starts Linking the Server, which the Hub lists as `name`.
-pub(super) async fn start(linking: &Linking, name: &str) -> ServiceResult<StartServerLinkResponse> {
-    let link = linking.start_server_link(name).await?;
+/// Starts Linking the Server, which the Hub lists as `name`: by redirect, back to `return_url`,
+/// one of the Server Addresses the Server reports given its Server URL `server_url` and
+/// `listening`, or by a code to enter on the Hub without one.
+pub(super) async fn start(
+    linking: &Linking,
+    name: &str,
+    return_url: &str,
+    server_url: &ServerUrl,
+    listening: SocketAddr,
+) -> ServiceResult<StartServerLinkResponse> {
+    if !return_url.is_empty() {
+        // Only the Server can check it: the Hub has no Server Addresses of a Server not Linked.
+        refuse_unless_own_address(return_url, server_url, listening)?;
+    }
+    let link = linking.start_server_link(name, return_url).await?;
     Response::ok(StartServerLinkResponse {
         link: link_to_proto(link).into(),
         ..Default::default()
@@ -84,6 +96,23 @@ pub(super) async fn start_account_sign_in(
     listening: SocketAddr,
 ) -> ServiceResult<StartAccountSignInResponse> {
     // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
+    refuse_unless_own_address(return_url, server_url, listening)?;
+    let started =
+        (linking.start_account_sign_in(return_url).await).map_err(account_sign_in_failed)?;
+    Response::ok(StartAccountSignInResponse {
+        url: started.url,
+        handle: started.handle,
+        ..Default::default()
+    })
+}
+
+/// Refuses a `return_url` that isn't one of the Server Addresses the Server reports given its
+/// Server URL `server_url` and `listening`, saying which address to open, as the Hub can't.
+fn refuse_unless_own_address(
+    return_url: &str,
+    server_url: &ServerUrl,
+    listening: SocketAddr,
+) -> Result<(), ConnectError> {
     if !is_web_address(return_url) {
         return Err(refuse(
             RefusalReason::REFUSAL_REASON_NOT_A_URL,
@@ -92,23 +121,16 @@ pub(super) async fn start_account_sign_in(
         .field("return_url")
         .into());
     }
-    // As above, and the client can say which address to open, as the Hub's refusal can't.
     if !server_addresses::is_reported(return_url, server_url, listening) {
         return Err(refuse(
             RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
-            "open the Server at its Server URL to sign in with an Account",
+            "open the Server at its Server URL, where the Hub can send you back",
         )
         .field("return_url")
         .param("serverUrl", &server_url.url())
         .into());
     }
-    let started =
-        (linking.start_account_sign_in(return_url).await).map_err(account_sign_in_failed)?;
-    Response::ok(StartAccountSignInResponse {
-        url: started.url,
-        handle: started.handle,
-        ..Default::default()
-    })
+    Ok(())
 }
 
 /// `answer`, `None` when the Server's config names no Hub.

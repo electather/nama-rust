@@ -241,6 +241,49 @@ async fn the_server_links_and_unlinks_with_the_hub_with_no_plugin() {
     assert_eq!(link(&server).await, Some(proto::ServerLink::default()));
 }
 
+async fn start_server_link(
+    server: &TestServer,
+    return_url: &str,
+) -> Result<proto::StartServerLinkResponse, ConnectError> {
+    Ok(settings(server)
+        .start_server_link(StartServerLinkRequest {
+            return_url: return_url.to_owned(),
+            ..Default::default()
+        })
+        .await?
+        .into_owned())
+}
+
+#[tokio::test]
+async fn linking_by_redirect_opens_the_hubs_approval_which_returns_only_to_the_server() {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
+    set_server_url(&server, "https://nama.example").await;
+    assert_refused(
+        start_server_link(&server, "javascript:alert(1)").await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_NOT_A_URL,
+    );
+    assert_refused(
+        start_server_link(&server, "https://elsewhere.example/settings").await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
+    );
+    assert_eq!(hub.started_as(), None);
+
+    let started = start_server_link(&server, "https://nama.example/settings")
+        .await
+        .unwrap();
+
+    let approval = format!("{}/link-server/{CODE}", hub.url());
+    assert_eq!(started.link.into_option().unwrap().url, approval);
+    let returns_to = hub.returns_to();
+    assert_eq!(returns_to.as_deref(), Some("https://nama.example/settings"));
+    assert_eq!(link(&server).await.unwrap().url, approval);
+    hub.enter_code();
+    assert_eq!(link(&server).await.unwrap().account, EMAIL);
+}
+
 #[tokio::test]
 async fn a_hub_that_cant_be_reached_leaves_the_server_as_it_was() {
     let (hub, down) = (FakeHub::start().await, FakeHub::start().await);

@@ -112,7 +112,7 @@ struct State {
     unlinks_fail: bool,
     /// The User the Server last invited, by id, name and email.
     invited: Option<(i64, String, String)>,
-    /// Where the sign-in with an Account the Server last started returns to.
+    /// Where the sign-in with an Account or the Link the Server last started returns to.
     returns_to: Option<String>,
     /// Whether every User is Linked to [`EMAIL`]'s Account but those in `unlinked_on_hub`.
     everyone_linked: bool,
@@ -350,7 +350,7 @@ impl FakeHub {
         lock(&self.state).invited.clone()
     }
 
-    /// Where the sign-in with an Account the Server last started returns to.
+    /// Where the sign-in with an Account or the Link the Server last started returns to.
     pub(crate) fn returns_to(&self) -> Option<String> {
         lock(&self.state).returns_to.clone()
     }
@@ -548,6 +548,7 @@ fn start(
     _: &Ed25519KeyPair,
 ) -> Result<StartServerLinkResponse, ConnectError> {
     state.starting = Some(request.name.clone());
+    state.returns_to = Some(request.return_url.clone());
     Ok(StartServerLinkResponse {
         device_code: DEVICE_CODE.to_owned(),
         user_code: CODE.to_owned(),

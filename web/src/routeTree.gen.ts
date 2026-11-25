@@ -34,6 +34,7 @@ import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/s
 import { Route as SignedOutSignInAccountRouteImport } from './routes/_signed-out/sign-in.account'
 import { Route as SignedOutSwitchUserIndexRouteImport } from './routes/_signed-out/switch-user.index'
 import { Route as SignedOutSwitchUserUserIdRouteImport } from './routes/_signed-out/switch-user.$userId'
+import { Route as MemberHubLinkServerCodeRouteImport } from './routes/_member/_hub/link-server.$code'
 import { Route as MemberHubServerSignInIdRouteImport } from './routes/_member/_hub/server-sign-in.$id'
 import { Route as MemberServerBoxSetsBoxSetIdRouteImport } from './routes/_member/_server/box-sets/$boxSetId'
 import { Route as MemberServerLibrariesIndexRouteImport } from './routes/_member/_server/libraries/index'
@@ -175,6 +176,11 @@ const SignedOutSwitchUserUserIdRoute =
     path: '/$userId',
     getParentRoute: () => SignedOutSwitchUserRoute,
   } as any)
+const MemberHubLinkServerCodeRoute = MemberHubLinkServerCodeRouteImport.update({
+  id: '/link-server/$code',
+  path: '/link-server/$code',
+  getParentRoute: () => MemberHubRoute,
+} as any)
 const MemberHubServerSignInIdRoute = MemberHubServerSignInIdRouteImport.update({
   id: '/server-sign-in/$id',
   path: '/server-sign-in/$id',
@@ -281,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/code/': typeof MemberCodeIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
   '/switch-user/': typeof SignedOutSwitchUserIndexRoute
+  '/link-server/$code': typeof MemberHubLinkServerCodeRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
   '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
   '/switch-user': typeof SignedOutSwitchUserIndexRoute
+  '/link-server/$code': typeof MemberHubLinkServerCodeRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
   '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
@@ -356,6 +364,7 @@ export interface FileRoutesById {
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
   '/_signed-out/switch-user/': typeof SignedOutSwitchUserIndexRoute
+  '/_member/_hub/link-server/$code': typeof MemberHubLinkServerCodeRoute
   '/_member/_hub/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/_member/_server/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
   '/_member/_server/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
@@ -394,6 +403,7 @@ export interface FileRouteTypes {
     | '/code/'
     | '/sign-in/'
     | '/switch-user/'
+    | '/link-server/$code'
     | '/server-sign-in/$id'
     | '/box-sets/$boxSetId'
     | '/movies/$movieId'
@@ -427,6 +437,7 @@ export interface FileRouteTypes {
     | '/code'
     | '/sign-in'
     | '/switch-user'
+    | '/link-server/$code'
     | '/server-sign-in/$id'
     | '/box-sets/$boxSetId'
     | '/movies/$movieId'
@@ -468,6 +479,7 @@ export interface FileRouteTypes {
     | '/_member/code/'
     | '/_signed-out/sign-in/'
     | '/_signed-out/switch-user/'
+    | '/_member/_hub/link-server/$code'
     | '/_member/_hub/server-sign-in/$id'
     | '/_member/_server/box-sets/$boxSetId'
     | '/_member/_server/movies/$movieId'
@@ -666,6 +678,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSwitchUserUserIdRouteImport
       parentRoute: typeof SignedOutSwitchUserRoute
     }
+    '/_member/_hub/link-server/$code': {
+      id: '/_member/_hub/link-server/$code'
+      path: '/link-server/$code'
+      fullPath: '/link-server/$code'
+      preLoaderRoute: typeof MemberHubLinkServerCodeRouteImport
+      parentRoute: typeof MemberHubRoute
+    }
     '/_member/_hub/server-sign-in/$id': {
       id: '/_member/_hub/server-sign-in/$id'
       path: '/server-sign-in/$id'
@@ -768,10 +787,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberHubRouteChildren {
+  MemberHubLinkServerCodeRoute: typeof MemberHubLinkServerCodeRoute
   MemberHubServerSignInIdRoute: typeof MemberHubServerSignInIdRoute
 }
 
 const MemberHubRouteChildren: MemberHubRouteChildren = {
+  MemberHubLinkServerCodeRoute: MemberHubLinkServerCodeRoute,
   MemberHubServerSignInIdRoute: MemberHubServerSignInIdRoute,
 }
 

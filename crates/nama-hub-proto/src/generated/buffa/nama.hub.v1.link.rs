@@ -391,13 +391,28 @@ pub struct StartServerLinkRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub name: ::buffa::alloc::string::String,
+    /// Where the Hub's page sends the person once they approve, for Linking by redirect (ADR 0105):
+    /// an `http` or `https` URL, which the Server checks is one of its own addresses, as the Hub
+    /// can't before it is Linked. Empty when the person enters the code instead.
+    ///
+    /// Field 2: `return_url`
+    #[serde(
+        rename = "returnUrl",
+        alias = "return_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub return_url: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for StartServerLinkRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("StartServerLinkRequest").field("name", &self.name).finish()
+        f.debug_struct("StartServerLinkRequest")
+            .field("name", &self.name)
+            .field("return_url", &self.return_url)
+            .finish()
     }
 }
 impl StartServerLinkRequest {
@@ -430,6 +445,9 @@ impl ::buffa::Message for StartServerLinkRequest {
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -442,6 +460,9 @@ impl ::buffa::Message for StartServerLinkRequest {
         use ::buffa::Enumeration as _;
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.name, buf);
+        }
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.return_url, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -463,6 +484,13 @@ impl ::buffa::Message for StartServerLinkRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.name, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.return_url, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -472,6 +500,7 @@ impl ::buffa::Message for StartServerLinkRequest {
     }
     fn clear(&mut self) {
         self.name.clear();
+        self.return_url.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1156,6 +1185,16 @@ pub struct ApproveServerLinkResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub server: ::buffa::MessageField<LinkedServer, ::buffa::Inline<LinkedServer>>,
+    /// Where to send the person back to: the `return_url` the Server started with, empty for none.
+    ///
+    /// Field 2: `return_url`
+    #[serde(
+        rename = "returnUrl",
+        alias = "return_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub return_url: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1164,6 +1203,7 @@ impl ::core::fmt::Debug for ApproveServerLinkResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ApproveServerLinkResponse")
             .field("server", &self.server)
+            .field("return_url", &self.return_url)
             .finish()
     }
 }
@@ -1202,6 +1242,9 @@ impl ::buffa::Message for ApproveServerLinkResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1219,6 +1262,9 @@ impl ::buffa::Message for ApproveServerLinkResponse {
                 buf,
             );
             self.server.write_to(__cache, buf);
+        }
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.return_url, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1244,6 +1290,13 @@ impl ::buffa::Message for ApproveServerLinkResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.return_url, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1253,6 +1306,7 @@ impl ::buffa::Message for ApproveServerLinkResponse {
     }
     fn clear(&mut self) {
         self.server = ::buffa::MessageField::none();
+        self.return_url.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

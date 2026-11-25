@@ -534,7 +534,7 @@ pub struct ServerLinkView<'a> {
     ///
     /// Field 1: `code`
     pub code: &'a str,
-    /// Where to enter `code`, set with it.
+    /// Where to enter `code`, set with it: the Hub's page approving it when Linking by redirect.
     ///
     /// Field 2: `url`
     pub url: &'a str,
@@ -863,7 +863,7 @@ impl ServerLinkOwnedView {
     pub fn code(&self) -> &'_ str {
         self.0.reborrow().code
     }
-    /// Where to enter `code`, set with it.
+    /// Where to enter `code`, set with it: the Hub's page approving it when Linking by redirect.
     ///
     /// Field 2: `url`
     #[must_use]
@@ -937,6 +937,12 @@ impl ::serde::Serialize for ServerLinkOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct StartServerLinkRequestView<'a> {
+    /// Where the Hub sends the Admin back once they approve, for Linking by redirect (ADR 0105): on
+    /// the Server URL or the LAN address the Server reports. Empty to show a code to enter instead,
+    /// as on a Server whose Admin is on another device.
+    ///
+    /// Field 1: `return_url`
+    pub return_url: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for StartServerLinkRequestView<'a> {
@@ -969,6 +975,13 @@ impl<'a> ::buffa::MessageView<'a> for StartServerLinkRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.return_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -997,6 +1010,7 @@ impl<'a> ::buffa::MessageView<'a> for StartServerLinkRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::StartServerLinkRequest {
+            return_url: self.return_url.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1008,6 +1022,9 @@ impl<'a> ::buffa::ViewEncode<'a> for StartServerLinkRequestView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1019,6 +1036,9 @@ impl<'a> ::buffa::ViewEncode<'a> for StartServerLinkRequestView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.return_url, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -1040,6 +1060,9 @@ impl<'__a> ::serde::Serialize for StartServerLinkRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.return_url) {
+            __map.serialize_entry("returnUrl", self.return_url)?;
+        }
         __map.end()
     }
 }
@@ -1134,6 +1157,15 @@ impl StartServerLinkRequestOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// Where the Hub sends the Admin back once they approve, for Linking by redirect (ADR 0105): on
+    /// the Server URL or the LAN address the Server reports. Empty to show a code to enter instead,
+    /// as on a Server whose Admin is on another device.
+    ///
+    /// Field 1: `return_url`
+    #[must_use]
+    pub fn return_url(&self) -> &'_ str {
+        self.0.reborrow().return_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<StartServerLinkRequestView<'static>>>

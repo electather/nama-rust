@@ -1,12 +1,17 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { type ServerState, fakeServer, newUser } from "@/test-app";
+import { refused } from "@/test-refusal";
 import { openSettings } from "@/test-settings";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const manageSettings = [...newUser, Permission.MANAGE_SETTINGS];
 
@@ -33,7 +38,50 @@ test("without the Hub Plugin, the Server pane has no Hub section", async () => {
   expect(screen.queryByRole("heading", { name: "Hub" })).toBeNull();
 });
 
-test("starting to Link shows the code to enter on the Hub, and cancelling stops showing it", async () => {
+test("linking to the Hub opens its approval, which comes back to this page", async () => {
+  // Going to another site would end the test's page, so where it went is only noted.
+  const went: string[] = [];
+  vi.spyOn(globalThis.location, "assign").mockImplementation((url) => {
+    went.push(String(url));
+  });
+  const returnUrls: string[] = [];
+  openServer({
+    getServerLink: () => ({ link: {} }),
+    startServerLink: ({ returnUrl }) => {
+      returnUrls.push(returnUrl);
+      return { link: { code: "BDFH-JKLM", url: "https://hub.example/link-server/BDFH-JKLM" } };
+    },
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Link to the Hub" }));
+
+  await vi.waitFor(() => {
+    expect(went).toStrictEqual(["https://hub.example/link-server/BDFH-JKLM"]);
+  });
+  expect(returnUrls).toStrictEqual([globalThis.location.href]);
+});
+
+test("a Server opened off its own addresses says to show a code instead", async () => {
+  openServer({
+    getServerLink: () => ({ link: {} }),
+    startServerLink: () => {
+      throw refused(Code.InvalidArgument, "open the Server at its Server URL", {
+        reason: RefusalReason.NOT_A_SERVER_ADDRESS,
+        field: "return_url",
+      });
+    },
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Link to the Hub" }));
+
+  await expect(
+    screen.findByText(
+      "Open the Server at its Server URL to Link it this way, or show a code instead.",
+    ),
+  ).resolves.toBeDefined();
+});
+
+test("showing a code instead shows the code to enter on the Hub, and cancelling stops showing it", async () => {
   let link: Shown = {};
   const calls: string[] = [];
   openServer({
@@ -51,7 +99,7 @@ test("starting to Link shows the code to enter on the Hub, and cancelling stops 
   });
 
   await expect(screen.findByText("Not Linked")).resolves.toBeDefined();
-  fireEvent.click(screen.getByRole("button", { name: "Link to the Hub" }));
+  fireEvent.click(screen.getByRole("button", { name: "Show a code instead" }));
 
   await expect(screen.findByText("BDFH-JKLM")).resolves.toBeDefined();
   expect(screen.getByRole("link", { name: "the Hub" }).getAttribute("href")).toBe(

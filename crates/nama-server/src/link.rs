@@ -213,9 +213,15 @@ impl Linking {
         }
     }
 
-    /// Starts Linking the Server, which the Hub lists as `server_name`, and answers the code.
-    pub(crate) async fn start_server_link(&self, server_name: &str) -> Result<Link, Error> {
-        let link = (self.ask_hub(async |server| server.start(server_name).await)).await?;
+    /// Starts Linking the Server, which the Hub lists as `server_name`, and answers the code: by
+    /// redirect, back to `return_url`, when it isn't empty.
+    pub(crate) async fn start_server_link(
+        &self,
+        server_name: &str,
+        return_url: &str,
+    ) -> Result<Link, Error> {
+        let started = self.ask_hub(async |server| server.start(server_name, return_url).await);
+        let link = started.await?;
         self.saw(Whose::Server, Some(&link));
         Ok(link)
     }

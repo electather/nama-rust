@@ -188,7 +188,10 @@ pub(crate) enum Error {
     SignInNotFound,
     #[error("your Account has no User on this Server; ask its Admin to create one from it")]
     NoUserOnServer,
-    #[error("the return address must be on one of the Server's Server Addresses")]
+    #[error(
+        "the return address must be an http or https URL, on one of the Server's Server Addresses \
+         once it is Linked"
+    )]
     UrlInvalid,
     #[error(
         "a Server Address must be an http or https URL of up to {ADDRESS_LENGTH} characters, \
@@ -255,8 +258,13 @@ impl Links {
     }
 
     /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
-    /// every Linked Server whose codes expired before it collected its credential.
-    pub(crate) async fn start(&self, name: &str) -> Result<Started, Error> {
+    /// every Linked Server whose codes expired before it collected its credential. Approving its
+    /// code sends the person back to `return_url`, when it isn't empty: only the Server can check
+    /// that it is one of its own addresses, as it has none here yet.
+    pub(crate) async fn start(&self, name: &str, return_url: &str) -> Result<Started, Error> {
+        if !return_url.is_empty() && !server_sign_ins::is_web_url(return_url) {
+            return Err(Error::UrlInvalid);
+        }
         let name = kept_name(name);
         let device_code = random_token()?;
         let user_code = random_code()?;
@@ -271,11 +279,13 @@ impl Links {
         .execute(&mut *tx)
         .await?;
         sqlx::query!(
-            "INSERT INTO server_link_codes (device_code_hash, user_code, server_name, expires_at)
-             VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
+            "INSERT INTO server_link_codes
+             (device_code_hash, user_code, server_name, return_url, expires_at)
+             VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))",
             &hash(&device_code)[..],
             user_code,
             name,
+            return_url,
             CODE_LIFETIME_MINS,
         )
         .execute(&mut *tx)
@@ -288,17 +298,17 @@ impl Links {
     }
 
     /// Makes the Server waiting on `code` a Linked Server of `session`'s Account, if it has Recent
-    /// Authentication and a proven email.
+    /// Authentication and a proven email, and answers it with the `return_url` it started with.
     pub(crate) async fn approve(
         &self,
         session: &AccountSession,
         code: &str,
-    ) -> Result<ListedServer, Error> {
+    ) -> Result<(ListedServer, String), Error> {
         self.may_link(session)?;
         let code = typed_code(code);
         let mut tx = self.db.begin().await?;
         let waiting = sqlx::query!(
-            "SELECT id, server_name FROM server_link_codes
+            "SELECT id, server_name, return_url FROM server_link_codes
              WHERE user_code = $1 AND expires_at > now() AND linked_server_id IS NULL
              FOR UPDATE",
             code,
@@ -322,13 +332,14 @@ impl Links {
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
-        Ok(ListedServer {
+        let server = ListedServer {
             id: LinkedServerId(linked.id),
             name: waiting.server_name,
             linked_at: linked.linked_at,
             url: String::new(),
             addresses: Vec::new(),
-        })
+        };
+        Ok((server, waiting.return_url))
     }
 
     /// Whether the code of the Server polling with `device_code` was entered. The first poll after

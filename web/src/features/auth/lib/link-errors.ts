@@ -7,6 +7,22 @@ export function linkErrors(error: unknown): FormErrors {
   return sayHubRefusal(error, wording, "The Hub couldn’t Link it just now. Try again.");
 }
 
+/** What a Link by redirect whose code expired or was used says. */
+const LINK_EXPIRED =
+  "This Link expired or was used. Start Linking again in your Server’s Settings.";
+
+/**
+ * Why the Hub refused to approve a Server's Link by redirect, if it did, for the whole page: it has
+ * no code field.
+ */
+export function linkApprovalErrors(error: unknown): FormErrors {
+  if (error === null) {
+    return {};
+  }
+  const { linkCode, ...errors } = linkErrors(error);
+  return linkCode === undefined ? errors : { form: LINK_EXPIRED };
+}
+
 const wording: HubWording = {
   [RefusalReason.LINK_CODE_NOT_FOUND]: () => ({
     linkCode:

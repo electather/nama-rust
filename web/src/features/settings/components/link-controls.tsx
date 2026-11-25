@@ -9,12 +9,15 @@ export function LinkControls({
   link,
   enterUnder,
   start,
+  redirect,
   unlink,
   failure,
 }: {
   link: ShownLink;
   /** The Hub's form the code goes in, such as “Link a Server”. */
   enterUnder: string;
+  /** Links by redirect to the Hub's approval instead, leaving the code for “Show a code instead”. */
+  redirect?: () => void;
   /** Why the last change failed, if it did. */
   failure: string | undefined;
 } & Record<
@@ -31,6 +34,13 @@ export function LinkControls({
           unlink.reset();
           start.mutate({});
         }}
+        onRedirect={
+          redirect &&
+          (() => {
+            unlink.reset();
+            redirect();
+          })
+        }
         onUnlink={() => {
           start.reset();
           unlink.mutate({});

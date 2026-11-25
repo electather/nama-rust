@@ -19,8 +19,8 @@ use linking::*;
 use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, ListMostWatchlistedTitlesRequest, ListSimilarTitlesRequest, PullWatchStatesRequest,
-    PushWatchStatesRequest, RefusalReason, SyncWatchlistRequest, TitleKind, UnlinkServerRequest,
-    WatchStateChange, WatchlistEntry,
+    PushWatchStatesRequest, RefusalReason, StartServerLinkRequest, StartServerLinkResponse,
+    SyncWatchlistRequest, TitleKind, UnlinkServerRequest, WatchStateChange, WatchlistEntry,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -62,6 +62,41 @@ async fn entering_the_code_links_the_server_which_collects_its_credential_once(d
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_LINK_CODE_NOT_FOUND,
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn approving_a_code_sends_the_person_back_where_the_server_started_linking_from(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    assert_refused(
+        start_returning_to(&hub, "javascript:alert(1)").await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_URL_INVALID,
+    );
+    let by_code = start(&hub, "Attic").await;
+    let by_redirect = start_returning_to(&hub, "https://nama.example/settings")
+        .await
+        .unwrap();
+
+    let by_code = approve(&hub, &ada, &by_code.user_code).await.unwrap();
+    let by_redirect = approve(&hub, &ada, &by_redirect.user_code).await.unwrap();
+
+    assert_eq!(by_code, "");
+    assert_eq!(by_redirect, "https://nama.example/settings");
+}
+
+async fn start_returning_to(
+    hub: &TestHub,
+    return_url: &str,
+) -> Result<StartServerLinkResponse, connectrpc::ConnectError> {
+    Ok(server(hub)
+        .start_server_link(StartServerLinkRequest {
+            name: "Living room".to_owned(),
+            return_url: return_url.to_owned(),
+            ..Default::default()
+        })
+        .await?
+        .into_owned())
 }
 
 #[sqlx::test(migrations = false)]

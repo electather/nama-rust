@@ -243,15 +243,22 @@ impl Links {
 /// that finishes the sign-in, so an address anyone else chose would hand it to them, and any other
 /// scheme, such as `javascript:`, would run on the Hub's origin.
 fn is_on_server<'a>(url: &str, addresses: impl IntoIterator<Item = &'a str>) -> bool {
-    // WHATWG's parser, as the browser reads the address the page navigates to.
     let Ok(parsed) = Url::parse(url) else {
         return false;
     };
-    url.len() <= URL_LENGTH
-        && matches!(parsed.scheme(), "http" | "https")
+    is_web_url(url)
         && addresses.into_iter().any(|address| {
             Url::parse(address).is_ok_and(|address| address.origin() == parsed.origin())
         })
+}
+
+/// Whether the Hub's page may send a person to `url`: an `http` or `https` URL of up to
+/// [`URL_LENGTH`] characters. Any other scheme, such as `javascript:`, would run on the Hub's
+/// origin.
+pub(super) fn is_web_url(url: &str) -> bool {
+    // WHATWG's parser, as the browser reads the address the page navigates to.
+    url.len() <= URL_LENGTH
+        && Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
 }
 
 /// Whether `a` equals `b`, taking as long whatever bytes differ, so a guess's timing tells nothing.

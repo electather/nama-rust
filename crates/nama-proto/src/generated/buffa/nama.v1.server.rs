@@ -616,7 +616,7 @@ pub struct ServerLink {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub code: ::buffa::alloc::string::String,
-    /// Where to enter `code`, set with it.
+    /// Where to enter `code`, set with it: the Hub's page approving it when Linking by redirect.
     ///
     /// Field 2: `url`
     #[serde(
@@ -868,13 +868,27 @@ pub const __SERVER_LINK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct StartServerLinkRequest {
+    /// Where the Hub sends the Admin back once they approve, for Linking by redirect (ADR 0105): on
+    /// the Server URL or the LAN address the Server reports. Empty to show a code to enter instead,
+    /// as on a Server whose Admin is on another device.
+    ///
+    /// Field 1: `return_url`
+    #[serde(
+        rename = "returnUrl",
+        alias = "return_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub return_url: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for StartServerLinkRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("StartServerLinkRequest").finish()
+        f.debug_struct("StartServerLinkRequest")
+            .field("return_url", &self.return_url)
+            .finish()
     }
 }
 impl StartServerLinkRequest {
@@ -904,6 +918,9 @@ impl ::buffa::Message for StartServerLinkRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -914,6 +931,9 @@ impl ::buffa::Message for StartServerLinkRequest {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.return_url, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -927,6 +947,13 @@ impl ::buffa::Message for StartServerLinkRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.return_url, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -935,6 +962,7 @@ impl ::buffa::Message for StartServerLinkRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.return_url.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

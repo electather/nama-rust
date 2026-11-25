@@ -140,18 +140,20 @@ pub(crate) async fn poll(
         .into_owned())
 }
 
+/// Approves `code` as the Account signed in with `token`, answering where to send them back to.
 pub(crate) async fn approve(
     hub: &TestHub,
     token: &str,
     code: &str,
-) -> Result<(), connectrpc::ConnectError> {
-    links(hub, token)
+) -> Result<String, connectrpc::ConnectError> {
+    Ok(links(hub, token)
         .approve_server_link(ApproveServerLinkRequest {
             code: code.to_owned(),
             ..Default::default()
         })
-        .await?;
-    Ok(())
+        .await?
+        .into_owned()
+        .return_url)
 }
 
 #[expect(

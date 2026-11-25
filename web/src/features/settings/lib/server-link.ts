@@ -28,7 +28,15 @@ export function linkFailure(error: ConnectError | null) {
 }
 
 function wording(error: ConnectError) {
-  return refusalOf(error).reason === RefusalReason.NO_SERVER_LINKER
-    ? "The Hub Plugin isn’t enabled any more. Enable it under Plugins."
-    : "The Server couldn’t reach the Hub. Try again; the Hub Plugin’s page under Plugins says why.";
+  return (
+    linkWording[refusalOf(error).reason] ??
+    "The Server couldn’t reach the Hub. Try again; the Hub Plugin’s page under Plugins says why."
+  );
 }
+
+const linkWording: Partial<Record<RefusalReason, string>> = {
+  [RefusalReason.NO_SERVER_LINKER]:
+    "The Hub Plugin isn’t enabled any more. Enable it under Plugins.",
+  [RefusalReason.NOT_A_SERVER_ADDRESS]:
+    "Open the Server at its Server URL to Link it this way, or show a code instead.",
+};

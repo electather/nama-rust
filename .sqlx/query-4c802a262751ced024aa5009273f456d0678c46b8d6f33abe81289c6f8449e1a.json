@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, server_name FROM server_link_codes\n             WHERE user_code = $1 AND expires_at > now() AND linked_server_id IS NULL\n             FOR UPDATE",
+  "query": "SELECT id, server_name, return_url FROM server_link_codes\n             WHERE user_code = $1 AND expires_at > now() AND linked_server_id IS NULL\n             FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -24,6 +24,17 @@
             "name": "server_name"
           }
         }
+      },
+      {
+        "ordinal": 2,
+        "name": "return_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_link_codes",
+            "name": "return_url"
+          }
+        }
       }
     ],
     "parameters": {
@@ -33,8 +44,9 @@
     },
     "nullable": [
       false,
+      false,
       false
     ]
   },
-  "hash": "cceb7cd18b263ae99908c5fdb1d2aee23b2700c1f59c3c338cb4adeaebb69bfa"
+  "hash": "4c802a262751ced024aa5009273f456d0678c46b8d6f33abe81289c6f8449e1a"
 }
