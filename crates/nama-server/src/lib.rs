@@ -36,6 +36,7 @@ mod status;
 mod sync;
 mod tls;
 pub mod users;
+mod viewing;
 mod watch_sync;
 mod watchlist;
 #[cfg(feature = "web")]
@@ -223,6 +224,9 @@ pub fn serve(
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let viewing_events =
+        viewing::ViewingEvents::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let taking_over = Arc::clone(&db);
     let watch_sync_imports =
         watch_sync::WatchSyncImports::new(Arc::clone(&db), plugins.extension_points());
     let linking = users.linking().clone();
@@ -267,11 +271,17 @@ pub fn serve(
         load_settings.await;
         make_web_push_key.await;
         fill_sort_titles(&contents).await;
+        // Before the first send to the Hub, so it takes them with the rest.
+        if let Err(err) = automation::take_over_hub_viewing_events(&taking_over).await {
+            tracing::error!("taking over the Hub Plugin's unsent Viewing Events failed: {err}");
+        }
         // Before the scans start, so it sees their Matching finish.
         let scan_follower = syncing.follow_scans(&events);
         // Before serving, so it hears the first look at each Link.
         let link_follower = syncing.follow_links();
         let sending_to_hub = syncing.keep_sending();
+        // Before serving, so it sees every play start.
+        let viewing_follower = viewing_events.follow_plays(&events);
         let importing_watch_states = watch_sync_imports.start();
         scanner.start_all().await;
         preview_frames.start();
@@ -350,6 +360,8 @@ pub fn serve(
         link_follower.abort();
         // What waits for the Hub is kept, and goes from the next start.
         sending_to_hub.abort();
+        // A play the shutdown ends may go unrecorded.
+        viewing_follower.abort();
         // Each import runs in its Plugin's scope, which shutting the Plugins down joins.
         importing_watch_states.abort();
         plugins.shutdown().await;

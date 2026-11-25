@@ -1,6 +1,6 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL, and for the
 //! Server's Link with it and its Users', which the Kernel keeps ([`KernelLink`]). It serves one
-//! Linked Server, its Viewing Events, the titles like The Matrix, what's trending and most
+//! Linked Server, the titles like The Matrix, what's trending and most
 //! watchlisted, and two titles recommended to each Linked User, as the Hub's API
 //! (`proto/nama/hub/v1/`) says the Hub does.
 
@@ -11,9 +11,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use connectrpc::{
-    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
-};
+use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetRelayTokenRequest, GetRelayTokenResponse, GetUserLinkRequest,
     GetUserLinkResponse, InviteUserRequest, InviteUserResponse, LinkedServerService,
@@ -28,7 +26,7 @@ use nama_hub_proto::nama::hub::v1::{
     SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerSignInRequest,
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
     SyncWatchlistResponse, TitleKind, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchlistedTitle,
+    UnlinkUserRequest, UnlinkUserResponse, WatchlistedTitle,
 };
 use nama_plugin_api::{BoxFuture, PluginError};
 use tokio::{net::TcpListener, task::JoinHandle};
@@ -48,10 +46,6 @@ struct State {
     credentials: usize,
     /// The email of the Account each Linked User is Linked to, by id.
     user_accounts: HashMap<i64, String>,
-    /// Each Viewing Event recorded, in order.
-    viewing_events: Vec<UserViewingEvent>,
-    /// What recording Viewing Events fails with, if it does.
-    recording_failure: Option<ErrorCode>,
     /// Why every call with the Linked Server's credential fails, as if the Hub were failing, while
     /// it does.
     server_failure: Option<&'static str>,
@@ -109,7 +103,6 @@ impl FakeHub {
         Arc::new(KeptLink {
             url: self.url(),
             kept: Arc::clone(&self.kept),
-            state: Arc::clone(&self.state),
         })
     }
 
@@ -129,17 +122,6 @@ impl FakeHub {
     /// Has every call with the Linked Server's credential fail, as a Hub that answers but fails.
     pub(super) fn fail_server_calls(&self) {
         lock(&self.state).server_failure = Some("the Hub is failing");
-    }
-
-    /// Each Viewing Event recorded, in order.
-    pub(super) fn viewing_events(&self) -> Vec<UserViewingEvent> {
-        lock(&self.state).viewing_events.clone()
-    }
-
-    /// Has recording Viewing Events fail with `failure`, such as `unavailable` for a Hub that is
-    /// down, or work again with `None`.
-    pub(super) fn fail_recording(&self, failure: Option<ErrorCode>) {
-        lock(&self.state).recording_failure = failure;
     }
 
     /// Goes down, as if unreachable.
@@ -290,16 +272,10 @@ impl LinkedServerService for Linked {
 
     async fn record_viewing_events(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, RecordViewingEventsRequest>,
     ) -> ServiceResult<RecordViewingEventsResponse> {
-        let mut state = self.caller(&ctx)?;
-        if let Some(failure) = state.recording_failure {
-            return Err(ConnectError::new(failure, "recording failed"));
-        }
-        let recorded = request.to_owned_message().events;
-        state.viewing_events.extend(recorded);
-        Response::ok(RecordViewingEventsResponse::default())
+        Err(kernels_call())
     }
 
     /// The Matrix's sequel and Alien, by IMDb id, for a Movie asked about by The Matrix's TMDB id;
@@ -459,12 +435,10 @@ fn kernels_call() -> ConnectError {
     ConnectError::unimplemented("the Kernel makes this call, not the Plugin")
 }
 
-/// The Kernel's Link with the fake: the credential the Server keeps, and its Users' Links as the
-/// fake has them.
+/// The Kernel's Link with the fake: the credential the Server keeps.
 struct KeptLink {
     url: String,
     kept: Arc<Mutex<Option<String>>>,
-    state: Arc<Mutex<State>>,
 }
 
 impl std::fmt::Debug for KeptLink {
@@ -487,13 +461,5 @@ impl KernelLink for KeptLink {
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
         lock(&self.kept).take_if(|kept| kept == credential);
         Box::pin(future::ready(Ok(())))
-    }
-
-    /// Whether the fake has `user_id` Linked, as the Kernel last heard: the Kernel's caching is
-    /// its own to test.
-    fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
-        let linked =
-            lock(&self.kept).is_some() && lock(&self.state).user_accounts.contains_key(&user_id);
-        Box::pin(future::ready(Ok(linked)))
     }
 }

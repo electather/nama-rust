@@ -14,20 +14,16 @@ import { Route as SignedOutRouteImport } from './routes/_signed-out'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberHubRouteImport } from './routes/_member/_hub'
+import { Route as MemberServerRouteImport } from './routes/_member/_server'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as SignedOutHubRouteImport } from './routes/_signed-out/_hub'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
 import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
-import { Route as MemberBoxSetsBoxSetIdRouteImport } from './routes/_member/box-sets/$boxSetId'
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
 import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
-import { Route as MemberLibrariesIndexRouteImport } from './routes/_member/libraries/index'
-import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
-import { Route as MemberPeoplePersonIdRouteImport } from './routes/_member/people/$personId'
 import { Route as MemberReauthenticateAccountRouteImport } from './routes/_member/reauthenticate.account'
-import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
 import { Route as SignedOutHubCreateAccountRouteImport } from './routes/_signed-out/_hub/create-account'
 import { Route as SignedOutHubSendSignInLinkRouteImport } from './routes/_signed-out/_hub/send-sign-in-link'
 import { Route as SignedOutHubSignInLinkRouteImport } from './routes/_signed-out/_hub/sign-in-link'
@@ -36,14 +32,19 @@ import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/i
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as SignedOutSignInAccountRouteImport } from './routes/_signed-out/sign-in.account'
 import { Route as MemberHubServerSignInIdRouteImport } from './routes/_member/_hub/server-sign-in.$id'
-import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
+import { Route as MemberServerBoxSetsBoxSetIdRouteImport } from './routes/_member/_server/box-sets/$boxSetId'
+import { Route as MemberServerLibrariesIndexRouteImport } from './routes/_member/_server/libraries/index'
+import { Route as MemberServerMoviesMovieIdRouteImport } from './routes/_member/_server/movies/$movieId'
+import { Route as MemberServerPeoplePersonIdRouteImport } from './routes/_member/_server/people/$personId'
+import { Route as MemberServerShowsShowIdRouteImport } from './routes/_member/_server/shows/$showId'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
-import { Route as MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/index'
-import { Route as MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/play'
-import { Route as MemberLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/index'
-import { Route as MemberLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport } from './routes/_member/libraries/$libraryId/unmatched/$versionId/play'
-import { Route as MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
+import { Route as MemberServerLibrariesLibraryIdIndexRouteImport } from './routes/_member/_server/libraries/$libraryId/index'
+import { Route as MemberServerLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/_server/libraries/$libraryId/movies/$movieId/index'
+import { Route as MemberServerLibrariesLibraryIdMoviesMovieIdPlayRouteImport } from './routes/_member/_server/libraries/$libraryId/movies/$movieId/play'
+import { Route as MemberServerLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/_server/libraries/$libraryId/shows/$showId/index'
+import { Route as MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport } from './routes/_member/_server/libraries/$libraryId/unmatched/$versionId/play'
+import { Route as MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport } from './routes/_member/_server/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
 
 const MemberRoute = MemberRouteImport.update({
   id: '/_member',
@@ -65,6 +66,10 @@ const MemberSplatRoute = MemberSplatRouteImport.update({
 } as any)
 const MemberHubRoute = MemberHubRouteImport.update({
   id: '/_hub',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberServerRoute = MemberServerRouteImport.update({
+  id: '/_server',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberCodeRoute = MemberCodeRouteImport.update({
@@ -91,11 +96,6 @@ const SignedOutSignInRoute = SignedOutSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => SignedOutRoute,
 } as any)
-const MemberBoxSetsBoxSetIdRoute = MemberBoxSetsBoxSetIdRouteImport.update({
-  id: '/box-sets/$boxSetId',
-  path: '/box-sets/$boxSetId',
-  getParentRoute: () => MemberRoute,
-} as any)
 const MemberCodeIndexRoute = MemberCodeIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -111,32 +111,12 @@ const MemberCodeDoneRoute = MemberCodeDoneRouteImport.update({
   path: '/done',
   getParentRoute: () => MemberCodeRoute,
 } as any)
-const MemberLibrariesIndexRoute = MemberLibrariesIndexRouteImport.update({
-  id: '/libraries/',
-  path: '/libraries/',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberMoviesMovieIdRoute = MemberMoviesMovieIdRouteImport.update({
-  id: '/movies/$movieId',
-  path: '/movies/$movieId',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberPeoplePersonIdRoute = MemberPeoplePersonIdRouteImport.update({
-  id: '/people/$personId',
-  path: '/people/$personId',
-  getParentRoute: () => MemberRoute,
-} as any)
 const MemberReauthenticateAccountRoute =
   MemberReauthenticateAccountRouteImport.update({
     id: '/reauthenticate/account',
     path: '/reauthenticate/account',
     getParentRoute: () => MemberRoute,
   } as any)
-const MemberShowsShowIdRoute = MemberShowsShowIdRouteImport.update({
-  id: '/shows/$showId',
-  path: '/shows/$showId',
-  getParentRoute: () => MemberRoute,
-} as any)
 const SignedOutHubCreateAccountRoute =
   SignedOutHubCreateAccountRouteImport.update({
     id: '/create-account',
@@ -180,12 +160,35 @@ const MemberHubServerSignInIdRoute = MemberHubServerSignInIdRouteImport.update({
   path: '/server-sign-in/$id',
   getParentRoute: () => MemberHubRoute,
 } as any)
-const MemberLibrariesLibraryIdIndexRoute =
-  MemberLibrariesLibraryIdIndexRouteImport.update({
-    id: '/libraries/$libraryId/',
-    path: '/libraries/$libraryId/',
-    getParentRoute: () => MemberRoute,
+const MemberServerBoxSetsBoxSetIdRoute =
+  MemberServerBoxSetsBoxSetIdRouteImport.update({
+    id: '/box-sets/$boxSetId',
+    path: '/box-sets/$boxSetId',
+    getParentRoute: () => MemberServerRoute,
   } as any)
+const MemberServerLibrariesIndexRoute =
+  MemberServerLibrariesIndexRouteImport.update({
+    id: '/libraries/',
+    path: '/libraries/',
+    getParentRoute: () => MemberServerRoute,
+  } as any)
+const MemberServerMoviesMovieIdRoute =
+  MemberServerMoviesMovieIdRouteImport.update({
+    id: '/movies/$movieId',
+    path: '/movies/$movieId',
+    getParentRoute: () => MemberServerRoute,
+  } as any)
+const MemberServerPeoplePersonIdRoute =
+  MemberServerPeoplePersonIdRouteImport.update({
+    id: '/people/$personId',
+    path: '/people/$personId',
+    getParentRoute: () => MemberServerRoute,
+  } as any)
+const MemberServerShowsShowIdRoute = MemberServerShowsShowIdRouteImport.update({
+  id: '/shows/$showId',
+  path: '/shows/$showId',
+  getParentRoute: () => MemberServerRoute,
+} as any)
 const SignedOutSignInCodeIndexRoute =
   SignedOutSignInCodeIndexRouteImport.update({
     id: '/code/',
@@ -198,36 +201,42 @@ const SignedOutSignInCodeWaitingRoute =
     path: '/code/waiting',
     getParentRoute: () => SignedOutSignInRoute,
   } as any)
-const MemberLibrariesLibraryIdMoviesMovieIdIndexRoute =
-  MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
+const MemberServerLibrariesLibraryIdIndexRoute =
+  MemberServerLibrariesLibraryIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/',
+    path: '/libraries/$libraryId/',
+    getParentRoute: () => MemberServerRoute,
+  } as any)
+const MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute =
+  MemberServerLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
     id: '/libraries/$libraryId/movies/$movieId/',
     path: '/libraries/$libraryId/movies/$movieId/',
-    getParentRoute: () => MemberRoute,
+    getParentRoute: () => MemberServerRoute,
   } as any)
-const MemberLibrariesLibraryIdMoviesMovieIdPlayRoute =
-  MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport.update({
+const MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute =
+  MemberServerLibrariesLibraryIdMoviesMovieIdPlayRouteImport.update({
     id: '/libraries/$libraryId/movies/$movieId/play',
     path: '/libraries/$libraryId/movies/$movieId/play',
-    getParentRoute: () => MemberRoute,
+    getParentRoute: () => MemberServerRoute,
   } as any)
-const MemberLibrariesLibraryIdShowsShowIdIndexRoute =
-  MemberLibrariesLibraryIdShowsShowIdIndexRouteImport.update({
+const MemberServerLibrariesLibraryIdShowsShowIdIndexRoute =
+  MemberServerLibrariesLibraryIdShowsShowIdIndexRouteImport.update({
     id: '/libraries/$libraryId/shows/$showId/',
     path: '/libraries/$libraryId/shows/$showId/',
-    getParentRoute: () => MemberRoute,
+    getParentRoute: () => MemberServerRoute,
   } as any)
-const MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute =
-  MemberLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport.update({
+const MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute =
+  MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport.update({
     id: '/libraries/$libraryId/unmatched/$versionId/play',
     path: '/libraries/$libraryId/unmatched/$versionId/play',
-    getParentRoute: () => MemberRoute,
+    getParentRoute: () => MemberServerRoute,
   } as any)
-const MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute =
-  MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport.update(
+const MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute =
+  MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport.update(
     {
       id: '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play',
       path: '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play',
-      getParentRoute: () => MemberRoute,
+      getParentRoute: () => MemberServerRoute,
     } as any,
   )
 
@@ -238,13 +247,9 @@ export interface FileRoutesByFullPath {
   '/search': typeof MemberSearchRoute
   '/setup': typeof SignedOutSetupRoute
   '/sign-in': typeof SignedOutSignInRouteWithChildren
-  '/box-sets/$boxSetId': typeof MemberBoxSetsBoxSetIdRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
-  '/movies/$movieId': typeof MemberMoviesMovieIdRoute
-  '/people/$personId': typeof MemberPeoplePersonIdRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
-  '/shows/$showId': typeof MemberShowsShowIdRoute
   '/create-account': typeof SignedOutHubCreateAccountRoute
   '/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
   '/sign-in-link': typeof SignedOutHubSignInLinkRoute
@@ -252,30 +257,30 @@ export interface FileRoutesByFullPath {
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code/': typeof MemberCodeIndexRoute
-  '/libraries/': typeof MemberLibrariesIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
+  '/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
+  '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
+  '/people/$personId': typeof MemberServerPeoplePersonIdRoute
+  '/shows/$showId': typeof MemberServerShowsShowIdRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
-  '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/libraries/': typeof MemberServerLibrariesIndexRoute
   '/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
-  '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
-  '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
-  '/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
-  '/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
-  '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
+  '/libraries/$libraryId/': typeof MemberServerLibrariesLibraryIdIndexRoute
+  '/libraries/$libraryId/movies/$movieId/play': typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
+  '/libraries/$libraryId/movies/$movieId/': typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/libraries/$libraryId/shows/$showId/': typeof MemberServerLibrariesLibraryIdShowsShowIdIndexRoute
+  '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof MemberIndexRoute
   '/$': typeof MemberSplatRoute
   '/search': typeof MemberSearchRoute
   '/setup': typeof SignedOutSetupRoute
-  '/box-sets/$boxSetId': typeof MemberBoxSetsBoxSetIdRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
-  '/movies/$movieId': typeof MemberMoviesMovieIdRoute
-  '/people/$personId': typeof MemberPeoplePersonIdRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
-  '/shows/$showId': typeof MemberShowsShowIdRoute
   '/create-account': typeof SignedOutHubCreateAccountRoute
   '/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
   '/sign-in-link': typeof SignedOutHubSignInLinkRoute
@@ -283,17 +288,21 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code': typeof MemberCodeIndexRoute
-  '/libraries': typeof MemberLibrariesIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
+  '/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
+  '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
+  '/people/$personId': typeof MemberServerPeoplePersonIdRoute
+  '/shows/$showId': typeof MemberServerShowsShowIdRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
-  '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
+  '/libraries': typeof MemberServerLibrariesIndexRoute
   '/sign-in/code': typeof SignedOutSignInCodeIndexRoute
-  '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
-  '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
-  '/libraries/$libraryId/movies/$movieId': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
-  '/libraries/$libraryId/shows/$showId': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
-  '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
+  '/libraries/$libraryId': typeof MemberServerLibrariesLibraryIdIndexRoute
+  '/libraries/$libraryId/movies/$movieId/play': typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
+  '/libraries/$libraryId/movies/$movieId': typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/libraries/$libraryId/shows/$showId': typeof MemberServerLibrariesLibraryIdShowsShowIdIndexRoute
+  '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -301,19 +310,16 @@ export interface FileRoutesById {
   '/_signed-out': typeof SignedOutRouteWithChildren
   '/_member/$': typeof MemberSplatRoute
   '/_member/_hub': typeof MemberHubRouteWithChildren
+  '/_member/_server': typeof MemberServerRouteWithChildren
   '/_member/code': typeof MemberCodeRouteWithChildren
   '/_member/search': typeof MemberSearchRoute
   '/_signed-out/_hub': typeof SignedOutHubRouteWithChildren
   '/_signed-out/setup': typeof SignedOutSetupRoute
   '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
   '/_member/': typeof MemberIndexRoute
-  '/_member/box-sets/$boxSetId': typeof MemberBoxSetsBoxSetIdRoute
   '/_member/code/approve': typeof MemberCodeApproveRoute
   '/_member/code/done': typeof MemberCodeDoneRoute
-  '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
-  '/_member/people/$personId': typeof MemberPeoplePersonIdRoute
   '/_member/reauthenticate/account': typeof MemberReauthenticateAccountRoute
-  '/_member/shows/$showId': typeof MemberShowsShowIdRoute
   '/_signed-out/_hub/create-account': typeof SignedOutHubCreateAccountRoute
   '/_signed-out/_hub/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
   '/_signed-out/_hub/sign-in-link': typeof SignedOutHubSignInLinkRoute
@@ -321,17 +327,21 @@ export interface FileRoutesById {
   '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
   '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
   '/_member/code/': typeof MemberCodeIndexRoute
-  '/_member/libraries/': typeof MemberLibrariesIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
   '/_member/_hub/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
+  '/_member/_server/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
+  '/_member/_server/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
+  '/_member/_server/people/$personId': typeof MemberServerPeoplePersonIdRoute
+  '/_member/_server/shows/$showId': typeof MemberServerShowsShowIdRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
-  '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/_member/_server/libraries/': typeof MemberServerLibrariesIndexRoute
   '/_signed-out/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
-  '/_member/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
-  '/_member/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
-  '/_member/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
-  '/_member/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
-  '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
+  '/_member/_server/libraries/$libraryId/': typeof MemberServerLibrariesLibraryIdIndexRoute
+  '/_member/_server/libraries/$libraryId/movies/$movieId/play': typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/_member/_server/libraries/$libraryId/unmatched/$versionId/play': typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
+  '/_member/_server/libraries/$libraryId/movies/$movieId/': typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/_member/_server/libraries/$libraryId/shows/$showId/': typeof MemberServerLibrariesLibraryIdShowsShowIdIndexRoute
+  '/_member/_server/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -342,13 +352,9 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/sign-in'
-    | '/box-sets/$boxSetId'
     | '/code/approve'
     | '/code/done'
-    | '/movies/$movieId'
-    | '/people/$personId'
     | '/reauthenticate/account'
-    | '/shows/$showId'
     | '/create-account'
     | '/send-sign-in-link'
     | '/sign-in-link'
@@ -356,12 +362,16 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/sign-in/account'
     | '/code/'
-    | '/libraries/'
     | '/sign-in/'
     | '/server-sign-in/$id'
+    | '/box-sets/$boxSetId'
+    | '/movies/$movieId'
+    | '/people/$personId'
+    | '/shows/$showId'
     | '/sign-in/code/waiting'
-    | '/libraries/$libraryId/'
+    | '/libraries/'
     | '/sign-in/code/'
+    | '/libraries/$libraryId/'
     | '/libraries/$libraryId/movies/$movieId/play'
     | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId/'
@@ -373,13 +383,9 @@ export interface FileRouteTypes {
     | '/$'
     | '/search'
     | '/setup'
-    | '/box-sets/$boxSetId'
     | '/code/approve'
     | '/code/done'
-    | '/movies/$movieId'
-    | '/people/$personId'
     | '/reauthenticate/account'
-    | '/shows/$showId'
     | '/create-account'
     | '/send-sign-in-link'
     | '/sign-in-link'
@@ -387,12 +393,16 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/sign-in/account'
     | '/code'
-    | '/libraries'
     | '/sign-in'
     | '/server-sign-in/$id'
+    | '/box-sets/$boxSetId'
+    | '/movies/$movieId'
+    | '/people/$personId'
+    | '/shows/$showId'
     | '/sign-in/code/waiting'
-    | '/libraries/$libraryId'
+    | '/libraries'
     | '/sign-in/code'
+    | '/libraries/$libraryId'
     | '/libraries/$libraryId/movies/$movieId/play'
     | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId'
@@ -404,19 +414,16 @@ export interface FileRouteTypes {
     | '/_signed-out'
     | '/_member/$'
     | '/_member/_hub'
+    | '/_member/_server'
     | '/_member/code'
     | '/_member/search'
     | '/_signed-out/_hub'
     | '/_signed-out/setup'
     | '/_signed-out/sign-in'
     | '/_member/'
-    | '/_member/box-sets/$boxSetId'
     | '/_member/code/approve'
     | '/_member/code/done'
-    | '/_member/movies/$movieId'
-    | '/_member/people/$personId'
     | '/_member/reauthenticate/account'
-    | '/_member/shows/$showId'
     | '/_signed-out/_hub/create-account'
     | '/_signed-out/_hub/send-sign-in-link'
     | '/_signed-out/_hub/sign-in-link'
@@ -424,17 +431,21 @@ export interface FileRouteTypes {
     | '/_signed-out/invite/$token'
     | '/_signed-out/sign-in/account'
     | '/_member/code/'
-    | '/_member/libraries/'
     | '/_signed-out/sign-in/'
     | '/_member/_hub/server-sign-in/$id'
+    | '/_member/_server/box-sets/$boxSetId'
+    | '/_member/_server/movies/$movieId'
+    | '/_member/_server/people/$personId'
+    | '/_member/_server/shows/$showId'
     | '/_signed-out/sign-in/code/waiting'
-    | '/_member/libraries/$libraryId/'
+    | '/_member/_server/libraries/'
     | '/_signed-out/sign-in/code/'
-    | '/_member/libraries/$libraryId/movies/$movieId/play'
-    | '/_member/libraries/$libraryId/unmatched/$versionId/play'
-    | '/_member/libraries/$libraryId/movies/$movieId/'
-    | '/_member/libraries/$libraryId/shows/$showId/'
-    | '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
+    | '/_member/_server/libraries/$libraryId/'
+    | '/_member/_server/libraries/$libraryId/movies/$movieId/play'
+    | '/_member/_server/libraries/$libraryId/unmatched/$versionId/play'
+    | '/_member/_server/libraries/$libraryId/movies/$movieId/'
+    | '/_member/_server/libraries/$libraryId/shows/$showId/'
+    | '/_member/_server/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -479,6 +490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberHubRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/_server': {
+      id: '/_member/_server'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MemberServerRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/code': {
       id: '/_member/code'
       path: '/code'
@@ -514,13 +532,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInRouteImport
       parentRoute: typeof SignedOutRoute
     }
-    '/_member/box-sets/$boxSetId': {
-      id: '/_member/box-sets/$boxSetId'
-      path: '/box-sets/$boxSetId'
-      fullPath: '/box-sets/$boxSetId'
-      preLoaderRoute: typeof MemberBoxSetsBoxSetIdRouteImport
-      parentRoute: typeof MemberRoute
-    }
     '/_member/code/': {
       id: '/_member/code/'
       path: '/'
@@ -542,39 +553,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberCodeDoneRouteImport
       parentRoute: typeof MemberCodeRoute
     }
-    '/_member/libraries/': {
-      id: '/_member/libraries/'
-      path: '/libraries'
-      fullPath: '/libraries/'
-      preLoaderRoute: typeof MemberLibrariesIndexRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/_member/movies/$movieId': {
-      id: '/_member/movies/$movieId'
-      path: '/movies/$movieId'
-      fullPath: '/movies/$movieId'
-      preLoaderRoute: typeof MemberMoviesMovieIdRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/_member/people/$personId': {
-      id: '/_member/people/$personId'
-      path: '/people/$personId'
-      fullPath: '/people/$personId'
-      preLoaderRoute: typeof MemberPeoplePersonIdRouteImport
-      parentRoute: typeof MemberRoute
-    }
     '/_member/reauthenticate/account': {
       id: '/_member/reauthenticate/account'
       path: '/reauthenticate/account'
       fullPath: '/reauthenticate/account'
       preLoaderRoute: typeof MemberReauthenticateAccountRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/_member/shows/$showId': {
-      id: '/_member/shows/$showId'
-      path: '/shows/$showId'
-      fullPath: '/shows/$showId'
-      preLoaderRoute: typeof MemberShowsShowIdRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_signed-out/_hub/create-account': {
@@ -633,12 +616,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberHubServerSignInIdRouteImport
       parentRoute: typeof MemberHubRoute
     }
-    '/_member/libraries/$libraryId/': {
-      id: '/_member/libraries/$libraryId/'
-      path: '/libraries/$libraryId'
-      fullPath: '/libraries/$libraryId/'
-      preLoaderRoute: typeof MemberLibrariesLibraryIdIndexRouteImport
-      parentRoute: typeof MemberRoute
+    '/_member/_server/box-sets/$boxSetId': {
+      id: '/_member/_server/box-sets/$boxSetId'
+      path: '/box-sets/$boxSetId'
+      fullPath: '/box-sets/$boxSetId'
+      preLoaderRoute: typeof MemberServerBoxSetsBoxSetIdRouteImport
+      parentRoute: typeof MemberServerRoute
+    }
+    '/_member/_server/libraries/': {
+      id: '/_member/_server/libraries/'
+      path: '/libraries'
+      fullPath: '/libraries/'
+      preLoaderRoute: typeof MemberServerLibrariesIndexRouteImport
+      parentRoute: typeof MemberServerRoute
+    }
+    '/_member/_server/movies/$movieId': {
+      id: '/_member/_server/movies/$movieId'
+      path: '/movies/$movieId'
+      fullPath: '/movies/$movieId'
+      preLoaderRoute: typeof MemberServerMoviesMovieIdRouteImport
+      parentRoute: typeof MemberServerRoute
+    }
+    '/_member/_server/people/$personId': {
+      id: '/_member/_server/people/$personId'
+      path: '/people/$personId'
+      fullPath: '/people/$personId'
+      preLoaderRoute: typeof MemberServerPeoplePersonIdRouteImport
+      parentRoute: typeof MemberServerRoute
+    }
+    '/_member/_server/shows/$showId': {
+      id: '/_member/_server/shows/$showId'
+      path: '/shows/$showId'
+      fullPath: '/shows/$showId'
+      preLoaderRoute: typeof MemberServerShowsShowIdRouteImport
+      parentRoute: typeof MemberServerRoute
     }
     '/_signed-out/sign-in/code/': {
       id: '/_signed-out/sign-in/code/'
@@ -654,40 +665,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInCodeWaitingRouteImport
       parentRoute: typeof SignedOutSignInRoute
     }
-    '/_member/libraries/$libraryId/movies/$movieId/': {
-      id: '/_member/libraries/$libraryId/movies/$movieId/'
+    '/_member/_server/libraries/$libraryId/': {
+      id: '/_member/_server/libraries/$libraryId/'
+      path: '/libraries/$libraryId'
+      fullPath: '/libraries/$libraryId/'
+      preLoaderRoute: typeof MemberServerLibrariesLibraryIdIndexRouteImport
+      parentRoute: typeof MemberServerRoute
+    }
+    '/_member/_server/libraries/$libraryId/movies/$movieId/': {
+      id: '/_member/_server/libraries/$libraryId/movies/$movieId/'
       path: '/libraries/$libraryId/movies/$movieId'
       fullPath: '/libraries/$libraryId/movies/$movieId/'
-      preLoaderRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport
-      parentRoute: typeof MemberRoute
+      preLoaderRoute: typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRouteImport
+      parentRoute: typeof MemberServerRoute
     }
-    '/_member/libraries/$libraryId/movies/$movieId/play': {
-      id: '/_member/libraries/$libraryId/movies/$movieId/play'
+    '/_member/_server/libraries/$libraryId/movies/$movieId/play': {
+      id: '/_member/_server/libraries/$libraryId/movies/$movieId/play'
       path: '/libraries/$libraryId/movies/$movieId/play'
       fullPath: '/libraries/$libraryId/movies/$movieId/play'
-      preLoaderRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport
-      parentRoute: typeof MemberRoute
+      preLoaderRoute: typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRouteImport
+      parentRoute: typeof MemberServerRoute
     }
-    '/_member/libraries/$libraryId/shows/$showId/': {
-      id: '/_member/libraries/$libraryId/shows/$showId/'
+    '/_member/_server/libraries/$libraryId/shows/$showId/': {
+      id: '/_member/_server/libraries/$libraryId/shows/$showId/'
       path: '/libraries/$libraryId/shows/$showId'
       fullPath: '/libraries/$libraryId/shows/$showId/'
-      preLoaderRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRouteImport
-      parentRoute: typeof MemberRoute
+      preLoaderRoute: typeof MemberServerLibrariesLibraryIdShowsShowIdIndexRouteImport
+      parentRoute: typeof MemberServerRoute
     }
-    '/_member/libraries/$libraryId/unmatched/$versionId/play': {
-      id: '/_member/libraries/$libraryId/unmatched/$versionId/play'
+    '/_member/_server/libraries/$libraryId/unmatched/$versionId/play': {
+      id: '/_member/_server/libraries/$libraryId/unmatched/$versionId/play'
       path: '/libraries/$libraryId/unmatched/$versionId/play'
       fullPath: '/libraries/$libraryId/unmatched/$versionId/play'
-      preLoaderRoute: typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport
-      parentRoute: typeof MemberRoute
+      preLoaderRoute: typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRouteImport
+      parentRoute: typeof MemberServerRoute
     }
-    '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': {
-      id: '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
+    '/_member/_server/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': {
+      id: '/_member/_server/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
       path: '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
       fullPath: '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
-      preLoaderRoute: typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport
-      parentRoute: typeof MemberRoute
+      preLoaderRoute: typeof MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport
+      parentRoute: typeof MemberServerRoute
     }
   }
 }
@@ -702,6 +720,44 @@ const MemberHubRouteChildren: MemberHubRouteChildren = {
 
 const MemberHubRouteWithChildren = MemberHubRoute._addFileChildren(
   MemberHubRouteChildren,
+)
+
+interface MemberServerRouteChildren {
+  MemberServerBoxSetsBoxSetIdRoute: typeof MemberServerBoxSetsBoxSetIdRoute
+  MemberServerMoviesMovieIdRoute: typeof MemberServerMoviesMovieIdRoute
+  MemberServerPeoplePersonIdRoute: typeof MemberServerPeoplePersonIdRoute
+  MemberServerShowsShowIdRoute: typeof MemberServerShowsShowIdRoute
+  MemberServerLibrariesIndexRoute: typeof MemberServerLibrariesIndexRoute
+  MemberServerLibrariesLibraryIdIndexRoute: typeof MemberServerLibrariesLibraryIdIndexRoute
+  MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
+  MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute: typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
+  MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute: typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
+  MemberServerLibrariesLibraryIdShowsShowIdIndexRoute: typeof MemberServerLibrariesLibraryIdShowsShowIdIndexRoute
+  MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute: typeof MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
+}
+
+const MemberServerRouteChildren: MemberServerRouteChildren = {
+  MemberServerBoxSetsBoxSetIdRoute: MemberServerBoxSetsBoxSetIdRoute,
+  MemberServerMoviesMovieIdRoute: MemberServerMoviesMovieIdRoute,
+  MemberServerPeoplePersonIdRoute: MemberServerPeoplePersonIdRoute,
+  MemberServerShowsShowIdRoute: MemberServerShowsShowIdRoute,
+  MemberServerLibrariesIndexRoute: MemberServerLibrariesIndexRoute,
+  MemberServerLibrariesLibraryIdIndexRoute:
+    MemberServerLibrariesLibraryIdIndexRoute,
+  MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute:
+    MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute,
+  MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute:
+    MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute,
+  MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute:
+    MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute,
+  MemberServerLibrariesLibraryIdShowsShowIdIndexRoute:
+    MemberServerLibrariesLibraryIdShowsShowIdIndexRoute,
+  MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute:
+    MemberServerLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute,
+}
+
+const MemberServerRouteWithChildren = MemberServerRoute._addFileChildren(
+  MemberServerRouteChildren,
 )
 
 interface MemberCodeRouteChildren {
@@ -723,46 +779,21 @@ const MemberCodeRouteWithChildren = MemberCodeRoute._addFileChildren(
 interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
   MemberHubRoute: typeof MemberHubRouteWithChildren
+  MemberServerRoute: typeof MemberServerRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
   MemberIndexRoute: typeof MemberIndexRoute
-  MemberBoxSetsBoxSetIdRoute: typeof MemberBoxSetsBoxSetIdRoute
-  MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
-  MemberPeoplePersonIdRoute: typeof MemberPeoplePersonIdRoute
   MemberReauthenticateAccountRoute: typeof MemberReauthenticateAccountRoute
-  MemberShowsShowIdRoute: typeof MemberShowsShowIdRoute
-  MemberLibrariesIndexRoute: typeof MemberLibrariesIndexRoute
-  MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
-  MemberLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
-  MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute: typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
-  MemberLibrariesLibraryIdMoviesMovieIdIndexRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
-  MemberLibrariesLibraryIdShowsShowIdIndexRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
-  MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute: typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 
 const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
   MemberHubRoute: MemberHubRouteWithChildren,
+  MemberServerRoute: MemberServerRouteWithChildren,
   MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
   MemberIndexRoute: MemberIndexRoute,
-  MemberBoxSetsBoxSetIdRoute: MemberBoxSetsBoxSetIdRoute,
-  MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,
-  MemberPeoplePersonIdRoute: MemberPeoplePersonIdRoute,
   MemberReauthenticateAccountRoute: MemberReauthenticateAccountRoute,
-  MemberShowsShowIdRoute: MemberShowsShowIdRoute,
-  MemberLibrariesIndexRoute: MemberLibrariesIndexRoute,
-  MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
-  MemberLibrariesLibraryIdMoviesMovieIdPlayRoute:
-    MemberLibrariesLibraryIdMoviesMovieIdPlayRoute,
-  MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute:
-    MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute,
-  MemberLibrariesLibraryIdMoviesMovieIdIndexRoute:
-    MemberLibrariesLibraryIdMoviesMovieIdIndexRoute,
-  MemberLibrariesLibraryIdShowsShowIdIndexRoute:
-    MemberLibrariesLibraryIdShowsShowIdIndexRoute,
-  MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute:
-    MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute,
 }
 
 const MemberRouteWithChildren =

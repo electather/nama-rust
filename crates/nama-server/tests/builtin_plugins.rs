@@ -234,10 +234,6 @@ impl KernelLink for Uncalled {
     fn forget<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async { Ok(()) })
     }
-
-    fn user_linked(&self, _: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
-        Box::pin(async { Err("not called".into()) })
-    }
 }
 
 /// ADR 0006: the workspace crates a crate in `plugins/` may depend on, as `plugins/AGENTS.md` says.

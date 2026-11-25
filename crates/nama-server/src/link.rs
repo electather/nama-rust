@@ -1,7 +1,8 @@
 //! Every Link call the Server makes, answered in the Kernel's terms: a [`Link`], or an [`Error`]
 //! that tells "nothing to ask" from "it couldn't tell". The Server's own Link, its Users' Links and
 //! signing in with an Account are the Kernel's, with the Hub its config names ([`ServerLink`], ADR
-//! 0105), and so is syncing its Linked Users with the Hub. Each call's bound is named once:
+//! 0105), and so is syncing its Linked Users with the Hub and sending it their Viewing Events. Each
+//! call's bound is named once:
 //!
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
@@ -46,10 +47,13 @@ pub use self::sharing::ShareWithHub;
 /// What waits for the Hub, for the upgrade test that hands it the Hub Plugin's queues, which only
 /// the Plugin Store's tests may write.
 #[cfg(test)]
-pub(crate) use self::sync::waiting as queued_for_hub;
+pub(crate) use self::sync::{Kind as QueuedKind, waiting as queued_for_hub};
 pub(crate) use self::{
     server::ServerLink,
-    sync::{queue_track_preferences, queue_watch_states},
+    sync::{
+        ViewingEvent, queue_track_preferences, queue_viewing_events, queue_watch_states,
+        take_over_viewing_events,
+    },
 };
 use crate::{
     config::Config,
@@ -361,7 +365,7 @@ impl Linking {
 
     /// Whether the User `user_id` is Linked, so what they do moves between the Server and the Hub.
     /// Not, without a Hub.
-    pub(super) async fn is_user_linked(&self, user_id: i64) -> Result<bool, Error> {
+    pub(crate) async fn is_user_linked(&self, user_id: i64) -> Result<bool, Error> {
         match self.user_link(user_id).await {
             Ok(link) => Ok(matches!(link, Some(Link::Linked { .. }))),
             Err(Error::NoHub) => Ok(false),
@@ -369,8 +373,8 @@ impl Linking {
         }
     }
 
-    /// Sends the Hub Linked Users' changes waiting for it. A failure, such as the Hub being
-    /// unreachable, is logged, and what didn't go waits for the next send.
+    /// Sends the Hub Linked Users' changes and Viewing Events waiting for it. A failure, such as the
+    /// Hub being unreachable, is logged, and what didn't go waits for the next send.
     pub(crate) async fn send_queued(&self) -> Result<(), Error> {
         self.ask_hub(async |server| server.send_queued(self).await)
             .await

@@ -67,3 +67,35 @@ fn a_shows_preference_goes_once_under_each_id_the_hub_takes_and_comes_back_as_de
     assert_eq!(sent.len(), 1);
     assert_eq!(back, [under_its_id]);
 }
+
+fn viewed(id: &str, duration_ms: i64) -> ViewingEvent {
+    ViewingEvent {
+        id: id.to_owned(),
+        show_id: None,
+        started_at: 1_700_000_000,
+        time_of_day_minutes: 1260,
+        stop_position_ms: 7_400_000,
+        duration_ms,
+        device_kind: DeviceKind::DEVICE_KIND_TV,
+    }
+}
+
+#[test]
+fn a_play_past_nine_tenths_is_finished() {
+    let sent = viewing_event_to_proto(&viewed("tmdb-603", 8_160_000)).unwrap();
+
+    assert!(sent.finished);
+    assert_eq!(
+        sent.device_kind.as_known(),
+        Some(HubDeviceKind::DEVICE_KIND_TV)
+    );
+}
+
+#[test]
+fn a_play_the_hub_wouldnt_take_stays_behind() {
+    assert_eq!(
+        viewing_event_to_proto(&viewed(&"1".repeat(101), 8_160_000)),
+        None
+    );
+    assert_eq!(viewing_event_to_proto(&viewed("tmdb-603", 0)), None);
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM plugin_store\n                 WHERE plugin_id = 'hub' AND user_id IS NULL AND key = 'viewing-events'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "7feefe940aa06c9347e3fe7278291374cd04519beb8754c3a4fcf4dbb81152f0"
+}

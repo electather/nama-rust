@@ -19,7 +19,7 @@ export function EditImages({
   images,
   ref,
 }: TitleImages & { title: string; ref: Ref<Opener> }) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+  const { signedIn } = useRouteContext({ from: "/_member/_server" });
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
   // How many times it has opened, which keys the list, so each opening asks for the artwork anew.

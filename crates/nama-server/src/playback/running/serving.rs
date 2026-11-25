@@ -10,12 +10,12 @@ use axum::{
 use tower_http::compression::CompressionLayer;
 
 use super::{INIT, PLAYLIST, RunningPlans, run::Running};
-use crate::users::Caller;
+use crate::playback::direct_play::viewer_of;
 
 /// Serves `GET /media/plans/<id>/<file>`: the playlist and segments of the plan `id`, to the
-/// Device it belongs to, and 404 to any other. It compresses the playlist with brotli or gzip when
-/// the request accepts one. Whether the caller has a session is up to the layers the router is put
-/// behind.
+/// Device it belongs to, by its session or a URL signed for it, and 404 to any other. It
+/// compresses the playlist with brotli or gzip when the request accepts one. Whether the caller
+/// has a session is up to the layers the router is put behind.
 pub(crate) fn router(plans: RunningPlans) -> Router {
     // A playlist grows a line per segment. Only its route is layered: MP4 is compressed already,
     // and the layer answers 406 to a request refusing every encoding it offers, even uncompressed.
@@ -65,6 +65,6 @@ async fn serve_file(
 
 /// The HLS files of the plan `id`, if it runs any for the caller's Device.
 fn asked(plans: &RunningPlans, id: u64, request: &Request) -> Option<Arc<Running>> {
-    let device = request.extensions().get::<Caller>()?.device.id;
+    let device = viewer_of(request)?.device;
     plans.ask(id, device)?.hls.clone()
 }

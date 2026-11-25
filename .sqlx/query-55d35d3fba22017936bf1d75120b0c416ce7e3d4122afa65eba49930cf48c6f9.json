@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO hub_sync_queue (kind, user_id, change) SELECT ?, id, ? FROM users WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "55d35d3fba22017936bf1d75120b0c416ce7e3d4122afa65eba49930cf48c6f9"
+}

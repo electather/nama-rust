@@ -1,19 +1,23 @@
 //! What of Linked Users' Watch State, Subtitle and Audio Preferences and Watchlists goes to the Hub
-//! and comes back (ADR 0008, ADR 0056, ADR 0092), in the Hub API's terms. A Watch State or
-//! Preference change waits in `hub_sync_queue`, queued in the write that made it, until
-//! [`ServerLink`](super::ServerLink) sends it, so what's made while the Hub is unreachable goes once
-//! it's back. A Preference describes a Track, never names one, so each Server matches it against
-//! its own (ADR 0035); a Show's or Movie's goes to the Hub once under each of its ids, as the Hub
-//! keeps a row under each, and comes back under one. What the Hub wouldn't take never leaves the
-//! Server, as it would refuse the whole call.
+//! and comes back (ADR 0008, ADR 0056, ADR 0092), and their plays as Viewing Events (ADR 0093), in
+//! the Hub API's terms. A Watch State or Preference change waits in `hub_sync_queue`, queued in the
+//! write that made it, as does a Viewing Event, until [`ServerLink`](super::ServerLink) sends it,
+//! so what's made while the Hub is unreachable goes once it's back. A Preference describes a Track,
+//! never names one, so each Server matches it against its own (ADR 0035); a Show's or Movie's goes
+//! to the Hub once under each of its ids, as the Hub keeps a row under each, and comes back under
+//! one. What the Hub wouldn't take never leaves the Server, as it would refuse the whole call.
 
 use std::cmp::Reverse;
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use buffa::Message as _;
 use nama_hub_proto::nama::hub::v1::{
-    TitleKind, TrackPreferenceChange as PreferenceProto, WatchStateChange as WatchStateProto,
-    WatchlistEntry as EntryProto,
+    DeviceKind as HubDeviceKind, RecordViewingEventsRequest, TitleKind,
+    TrackPreferenceChange as PreferenceProto, UserViewingEvent, ViewingEvent as ViewingEventProto,
+    WatchStateChange as WatchStateProto, WatchlistEntry as EntryProto,
 };
 use nama_plugin_api::{
+    contract::DeviceKind,
     points::{TrackDescription, TrackPreference, TrackPreferenceFor, WatchStateChange},
     server_link::WatchlistEntry,
 };
@@ -22,6 +26,32 @@ use sqlx::SqliteConnection;
 
 use super::{hub, server};
 use crate::db::Database;
+
+/// What a change waiting for the Hub is, as `hub_sync_queue.kind` keeps it. Each kind is sent apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[repr(i64)]
+pub(crate) enum Kind {
+    WatchState = 0,
+    Preference = 1,
+    ViewingEvent = 2,
+}
+
+/// One play of a Movie or Episode, as the Hub records it under the User's Account (ADR 0093).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ViewingEvent {
+    /// The External ID its Watch State is kept under, such as `tmdb-603`.
+    pub(crate) id: String,
+    /// An Episode's Show's External ID, such as `tmdb-1399`; `None` for a Movie.
+    pub(crate) show_id: Option<String>,
+    /// When it started, in seconds since the Unix epoch.
+    pub(crate) started_at: i64,
+    /// The minute of the day it started, in the Server's time zone.
+    pub(crate) time_of_day_minutes: i32,
+    pub(crate) stop_position_ms: i64,
+    pub(crate) duration_ms: i64,
+    /// What kind of Device played it.
+    pub(crate) device_kind: DeviceKind,
+}
 
 /// A change waiting for the Hub.
 pub(crate) struct Queued {
@@ -39,7 +69,7 @@ pub(crate) async fn queue_watch_states(
     changes: &[WatchStateChange],
 ) -> Result<(), sqlx::Error> {
     let to_send = (changes.iter()).filter_map(|change| watch_state_to_proto(user_id, change));
-    queue(conn, user_id, false, to_send).await
+    queue(conn, user_id, Kind::WatchState, to_send).await
 }
 
 /// Queues the User `user_id`'s Track `preferences` for the Hub through `conn`, in the write that
@@ -51,13 +81,56 @@ pub(crate) async fn queue_track_preferences(
 ) -> Result<(), sqlx::Error> {
     let to_send =
         (preferences.iter()).flat_map(|preference| preference_to_proto(user_id, preference));
-    queue(conn, user_id, true, to_send).await
+    queue(conn, user_id, Kind::Preference, to_send).await
+}
+
+/// Queues the User `user_id`'s `viewed` for the Hub through `conn`, while the Server is Linked, each
+/// with a key of its own.
+pub(crate) async fn queue_viewing_events(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    viewed: Vec<ViewingEvent>,
+) -> Result<(), sqlx::Error> {
+    let mut to_send = Vec::new();
+    for event in viewed.iter().filter_map(viewing_event_to_proto) {
+        let key = random_key().map_err(|err| sqlx::Error::Encode(err.into()))?;
+        to_send.push(UserViewingEvent {
+            user_id,
+            key,
+            event: event.into(),
+            ..Default::default()
+        });
+    }
+    queue(conn, user_id, Kind::ViewingEvent, to_send.into_iter()).await
+}
+
+/// Queues through `conn` the Viewing Events `unsent` holds, the request a Hub Plugin of v0.2.0 kept
+/// them in, which no migration can read; those of Users the Server no longer has are left out.
+pub(crate) async fn take_over_viewing_events(
+    conn: &mut SqliteConnection,
+    unsent: &[u8],
+) -> Result<(), sqlx::Error> {
+    let unsent = RecordViewingEventsRequest::decode_from_slice(unsent)
+        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    for event in unsent.events {
+        let change =
+            serde_json::to_string(&event).map_err(|err| sqlx::Error::Encode(err.into()))?;
+        sqlx::query!(
+            "INSERT INTO hub_sync_queue (kind, user_id, change) SELECT ?, id, ? FROM users WHERE id = ?",
+            Kind::ViewingEvent,
+            change,
+            event.user_id
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
 }
 
 async fn queue(
     conn: &mut SqliteConnection,
     user_id: i64,
-    preference: bool,
+    kind: Kind,
     changes: impl Iterator<Item = impl Serialize>,
 ) -> Result<(), sqlx::Error> {
     // A Server that isn't Linked has nowhere to send them, and Linking pushes a User's whole Watch
@@ -71,8 +144,8 @@ async fn queue(
         let change =
             serde_json::to_string(&change).map_err(|err| sqlx::Error::Encode(err.into()))?;
         sqlx::query!(
-            "INSERT INTO hub_sync_queue (preference, user_id, change) VALUES (?, ?, ?)",
-            preference,
+            "INSERT INTO hub_sync_queue (kind, user_id, change) VALUES (?, ?, ?)",
+            kind,
             user_id,
             change
         )
@@ -82,32 +155,32 @@ async fn queue(
     Ok(())
 }
 
-/// The oldest [`hub::PUSH_CHANGES`] Track Preference changes waiting, if `preference`, else Watch
-/// State changes, oldest first.
-pub(crate) async fn waiting(db: &Database, preference: bool) -> Result<Vec<Queued>, sqlx::Error> {
+/// The oldest [`hub::PUSH_CHANGES`] changes of `kind` waiting, oldest first: fewer Viewing Events
+/// than one call takes.
+pub(crate) async fn waiting(db: &Database, kind: Kind) -> Result<Vec<Queued>, sqlx::Error> {
     let per_call = i64::try_from(hub::PUSH_CHANGES).unwrap_or(i64::MAX);
     sqlx::query_as!(
         Queued,
-        "SELECT id, user_id, change FROM hub_sync_queue WHERE preference = ? ORDER BY id LIMIT ?",
-        preference,
+        "SELECT id, user_id, change FROM hub_sync_queue WHERE kind = ? ORDER BY id LIMIT ?",
+        kind,
         per_call
     )
     .fetch_all(db.reader())
     .await
 }
 
-/// Forgets the Track Preference changes waiting, if `preference`, else the Watch State changes, up
-/// to and including `last`, once the Hub took them or they can't go.
+/// Forgets the changes of `kind` waiting up to and including `last`, once the Hub took them or they
+/// can't go.
 pub(super) async fn forget_through(
     db: &Database,
-    preference: bool,
+    kind: Kind,
     last: i64,
 ) -> Result<(), sqlx::Error> {
     db.write(move |tx| {
         Box::pin(async move {
             sqlx::query!(
-                "DELETE FROM hub_sync_queue WHERE preference = ? AND id <= ?",
-                preference,
+                "DELETE FROM hub_sync_queue WHERE kind = ? AND id <= ?",
+                kind,
                 last
             )
             .execute(&mut **tx)
@@ -271,6 +344,47 @@ pub(super) fn entry_from_proto(entry: EntryProto) -> Option<WatchlistEntry> {
         removed: entry.removed,
         changed_at_ms: entry.changed_at_ms,
     })
+}
+
+/// `viewed` as the Hub takes it, or `None` if it wouldn't take one of its ids or its duration.
+fn viewing_event_to_proto(viewed: &ViewingEvent) -> Option<ViewingEventProto> {
+    let ids = std::iter::once(&viewed.id).chain(&viewed.show_id);
+    if !ids.into_iter().all(|id| hub::takes_external_id(id))
+        || !hub::takes_duration(viewed.duration_ms)
+    {
+        return None;
+    }
+    let stop_position_ms = hub::stop_position_taken(viewed.stop_position_ms, viewed.duration_ms);
+    Some(ViewingEventProto {
+        episode: viewed.show_id.is_some(),
+        external_id: viewed.id.clone(),
+        show_external_id: viewed.show_id.clone().unwrap_or_default(),
+        started_at: viewed.started_at,
+        time_of_day_minutes: viewed.time_of_day_minutes,
+        stop_position_ms,
+        duration_ms: viewed.duration_ms,
+        // As the Server marks a title played.
+        finished: i128::from(stop_position_ms) * 10 > i128::from(viewed.duration_ms) * 9,
+        device_kind: hub_device_kind(viewed.device_kind).into(),
+        ..Default::default()
+    })
+}
+
+fn hub_device_kind(kind: DeviceKind) -> HubDeviceKind {
+    match kind {
+        DeviceKind::DEVICE_KIND_COMPUTER => HubDeviceKind::DEVICE_KIND_COMPUTER,
+        DeviceKind::DEVICE_KIND_PHONE => HubDeviceKind::DEVICE_KIND_PHONE,
+        DeviceKind::DEVICE_KIND_TABLET => HubDeviceKind::DEVICE_KIND_TABLET,
+        DeviceKind::DEVICE_KIND_TV => HubDeviceKind::DEVICE_KIND_TV,
+        DeviceKind::DEVICE_KIND_UNSPECIFIED => HubDeviceKind::DEVICE_KIND_UNSPECIFIED,
+    }
+}
+
+/// A key naming a Viewing Event apart from every other, so the Hub records one sent twice once.
+fn random_key() -> Result<String, getrandom::Error> {
+    let mut key = [0; 16];
+    getrandom::fill(&mut key)?;
+    Ok(URL_SAFE_NO_PAD.encode(key))
 }
 
 #[cfg(test)]
