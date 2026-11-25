@@ -1,5 +1,6 @@
 import type { InboxNotification } from "@/gen/nama/v1/inbox_pb";
 import { NotificationKind } from "@/gen/nama/v1/user_pb";
+import { seasonName } from "@/shared/lib/title-facts";
 
 /** What happened to the Request, after its title, for each kind of notification. */
 const happened: Record<NotificationKind, string> = {
@@ -15,6 +16,6 @@ const happened: Record<NotificationKind, string> = {
 
 /** What a notification says, such as "Severance Season 2 is Approved". */
 export function notificationText({ kind, title, seasonNumber }: InboxNotification) {
-  const what = seasonNumber === undefined ? title : `${title} Season ${seasonNumber}`;
+  const what = seasonNumber === undefined ? title : `${title} ${seasonName(seasonNumber)}`;
   return `${what} ${happened[kind]}`;
 }

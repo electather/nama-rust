@@ -86,6 +86,15 @@ describe("the notification inbox", () => {
     expect(screen.getByRole("button", { name: "Notifications" }).textContent).toBe("");
   });
 
+  test("a notification about Season 0 names it Specials", async () => {
+    openWithInbox([{ ...approved, seasonNumber: 0 }]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Notifications" }));
+
+    const item = await screen.findByRole("menuitem", { name: /^Severance/u });
+    expect(item.textContent).toBe("Severance Specials is Approved");
+  });
+
   test("opening a notification marks it read and opens your Requests", async () => {
     const router = openWithInbox([{ ...available }]);
 

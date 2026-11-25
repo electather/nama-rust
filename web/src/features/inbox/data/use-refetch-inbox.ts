@@ -7,6 +7,7 @@ import { inboxKey } from "@/features/inbox/data/inbox-key";
 export function useRefetchInbox() {
   const queryClient = useQueryClient();
   const transport = useTransport();
+  // Waits for the inbox to be read back, so "Mark all read" stays busy until the count shows.
   return {
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: inboxKey(transport) });
