@@ -25,11 +25,12 @@ use connectrpc::{
 use http::fetch;
 use nama_proto::nama::v1::{
     BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, ExternalId, GetMovieRequest,
-    GetShowRequest, HomeRowTitle, LibraryKind, LibraryServiceClient, ListEpisodesRequest,
-    ListHomeRowTitlesRequest, ListMoviesRequest, ListShowsRequest, ListUsersRequest,
-    LookUpMovieRequest, MaximumAge, Permission, PlanPlaybackRequest, PlaybackServiceClient,
-    RefusalReason, RequestServiceClient, SetMaximumAgeRequest, UserServiceClient,
-    home_row_title::MovieOrShow,
+    GetShowRequest, GetUnmatchedVersionRequest, HomeRowTitle, LibraryKind, LibraryServiceClient,
+    ListContinueWatchingRequest, ListEpisodesRequest, ListHomeRowTitlesRequest, ListMoviesRequest,
+    ListShowsRequest, ListUnmatchedRequest, ListUsersRequest, LookUpMovieRequest, MaximumAge,
+    Permission, PlanPlaybackRequest, PlaybackServiceClient, RefusalReason, ReportProgressRequest,
+    RequestServiceClient, SetMaximumAgeRequest, UserServiceClient, WatchStateServiceClient,
+    continue_watching_entry::MovieOrEpisode, home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
 use server::{
@@ -40,6 +41,8 @@ use server::{
 const ALIEN_FILE: &str = "Alien (1979)/Alien (1979).mkv";
 const HEAT_FILE: &str = "Heat (1995) {tmdb-949}/Heat (1995).mkv";
 const DARK_FILE: &str = "Dark (2017)/Season 01/Dark - S01E03.mkv";
+/// A file the fake TMDB finds nothing for, so it stays Unmatched.
+const HOME_MOVIES_FILE: &str = "Home Movies (2019)/Home Movies (2019).mkv";
 
 /// A Server with Alien and Heat in a Movies Library and Dark in a Shows Library, Newt with
 /// whatever Maximum Age a test gives her and Hicks with none.
@@ -117,11 +120,11 @@ impl Fixture {
         Ok(got.await?.into_owned())
     }
 
-    /// The id of the one Version of Alien.
-    async fn alien_version(&self) -> i64 {
+    /// The id of the one Version of the Movie with the TMDB id `tmdb`.
+    async fn version(&self, tmdb: i64) -> i64 {
         let admin = self.server.client_config();
-        let alien = self.movie(&admin, ALIEN).await.unwrap().movie.into_option();
-        alien.unwrap().versions.first().unwrap().id
+        let movie = self.movie(&admin, tmdb).await.unwrap().movie.into_option();
+        movie.unwrap().versions.first().unwrap().id
     }
 }
 
@@ -336,10 +339,84 @@ async fn a_plugin_row_judges_titles_on_the_server_and_missing_alike_by_their_rat
 }
 
 #[tokio::test]
+async fn continue_watching_leaves_out_a_started_title_over_the_age() {
+    let fx = Fixture::start().await;
+    let newt = fx.newt.client_config();
+    let watch_states = WatchStateServiceClient::new(HttpClient::plaintext(), newt.clone());
+    for movie in [ALIEN, HEAT] {
+        let report = ReportProgressRequest {
+            version_id: fx.version(movie).await,
+            position_ms: 60_000,
+            duration_ms: 7_200_000,
+            ..Default::default()
+        };
+        watch_states.report_progress(report).await.unwrap();
+    }
+    let started = async || {
+        let client = browse(&newt);
+        let listed = client.list_continue_watching(ListContinueWatchingRequest::default());
+        let entries = listed.await.unwrap().into_owned().entries;
+        (entries.iter())
+            .filter_map(|entry| match &entry.movie_or_episode {
+                Some(MovieOrEpisode::Movie(movie)) => Some(movie.id.value.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(started().await.len(), 2);
+
+    fx.cap_newt(13, true).await;
+
+    assert_eq!(started().await, [HEAT.to_string()]);
+}
+
+#[tokio::test]
+async fn unmatched_items_count_as_unrated() {
+    let fx = Fixture::start().await;
+    let library = (fx.server)
+        .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[HOME_MOVIES_FILE])
+        .await;
+    let listed = async |who: &ClientConfig| {
+        let request = ListUnmatchedRequest {
+            library_id: library.id,
+            ..Default::default()
+        };
+        let listed = browse(who).list_unmatched(request).await.unwrap();
+        listed.into_owned().items
+    };
+    let version_id = listed(&fx.server.client_config()).await[0].version_id;
+    let got = async || {
+        let request = GetUnmatchedVersionRequest {
+            library_id: library.id,
+            version_id,
+            ..Default::default()
+        };
+        browse(&fx.newt.client_config())
+            .get_unmatched_version(request)
+            .await
+    };
+
+    fx.cap_newt(18, false).await;
+    let kept_out = listed(&fx.newt.client_config()).await;
+    let refused = got().await;
+    fx.cap_newt(18, true).await;
+    let let_through = listed(&fx.newt.client_config()).await;
+
+    assert!(kept_out.is_empty(), "{kept_out:?}");
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+    );
+    assert_eq!(let_through.len(), 1);
+    got().await.unwrap();
+}
+
+#[tokio::test]
 async fn a_version_of_a_title_over_the_age_neither_plans_nor_direct_plays() {
     let fx = Fixture::start().await;
     fx.cap_newt(13, true).await;
-    let alien = fx.alien_version().await;
+    let alien = fx.version(ALIEN).await;
     let plan = async |who: &SignedIn| {
         let playback = PlaybackServiceClient::new(HttpClient::plaintext(), who.client_config());
         let request = PlanPlaybackRequest {

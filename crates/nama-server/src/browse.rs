@@ -271,7 +271,8 @@ impl Browse {
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
-    /// recently first. Its token holds no path, which a User may not see (ADR 0069).
+    /// recently first: none if its Maximum Age keeps unrated titles out, as an Unmatched Item has
+    /// no Content Rating. Its token holds no path, which a User may not see (ADR 0069).
     pub(crate) async fn unmatched(
         &self,
         library: i64,
@@ -279,6 +280,13 @@ impl Browse {
     ) -> Result<(Vec<Unmatched>, PageResponse), Error> {
         let library = self.library(library).await?;
         let page = Page::read(asked, format!("ListUnmatched {}", library.id).as_bytes())?;
+        if !self.max_age.allows(None) {
+            let none = PageResponse {
+                total_size: page.is_first().then_some(0),
+                ..Default::default()
+            };
+            return Ok((Vec::new(), none));
+        }
         let newest_first = (
             UnmatchedItemSort::UNMATCHED_ITEM_SORT_FOUND,
             SortDirection::SORT_DIRECTION_DESCENDING,
@@ -290,13 +298,17 @@ impl Browse {
     }
 
     /// The Version `version` of the Library `library`, with its Tracks and its first Unmatched
-    /// Item, for playing it. [`NotFound::NoSuchVersion`] unless it holds one.
+    /// Item, for playing it. [`NotFound::NoSuchVersion`] unless it holds one and its Maximum Age
+    /// lets unrated titles through.
     pub(crate) async fn unmatched_version(
         &self,
         library: i64,
         version: i64,
     ) -> Result<(Unmatched, Version), Error> {
         let library = self.library(library).await?;
+        if !self.max_age.allows(None) {
+            return Err(NotFound::NoSuchVersion.into());
+        }
         let unmatched = (self
             .contents
             .unmatched_in_version(library.id, version)
