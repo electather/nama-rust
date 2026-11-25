@@ -22,10 +22,9 @@ import "nama/v1/playback.proto";
 // failed `Setup`s, `SignIn`s, `Reauthenticate`s, `AcceptInvite`s and `SignInWithHubToken`s
 // together from one IP address, within 15 minutes, further attempts fail with
 // `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
-// wait. A successful `SignIn` or `Reauthenticate` clears
-// its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
-// `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
-// approvals fail with `resource_exhausted`.
+// wait. A successful `SignIn` or `Reauthenticate` clears its name's failures. In the same way,
+// after 10 failed `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15
+// minutes, its further lookups and approvals fail with `resource_exhausted`.
 //
 // Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
 // are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
