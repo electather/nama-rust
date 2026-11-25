@@ -11,6 +11,7 @@ import {
 } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
+import { type LinksHub, serveLinks } from "@/test-hub-links";
 
 /** The Account the fake Hubs know, whose password is "correct horse". */
 export const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
@@ -23,7 +24,7 @@ export function hubRefused(code: Code, reason: RefusalReason, params: Record<str
 }
 
 /** What a fake Hub's Account holds, which a test may read and change as it goes. */
-export interface AccountHub {
+export interface AccountHub extends LinksHub {
   /** Whether this browser's session is live; another browser may end it. */
   signedIn: boolean;
   hasPassword: boolean;
@@ -42,8 +43,8 @@ export interface AccountHub {
 
 /**
  * A fake Hub where Ada, signed in, has a password, a passkey named "Laptop", and is signed in on
- * this browser and on "Safari on iPhone", over what `state` says. Signing in, with "correct
- * horse", gives Recent Authentication again.
+ * this browser and on "Safari on iPhone", with no Server, User, Invite or Viewing Event, over what
+ * `state` says. Signing in, with "correct horse", gives Recent Authentication again.
  */
 export function accountHub(state: Partial<AccountHub> = {}) {
   const hub: AccountHub = {
@@ -59,6 +60,11 @@ export function accountHub(state: Partial<AccountHub> = {}) {
     passkeyWait: 0,
     signOutFails: false,
     deleted: false,
+    servers: [],
+    users: [],
+    invites: [],
+    events: [],
+    pooling: true,
     ...state,
   };
   const signedInOnly = () => {
@@ -148,6 +154,7 @@ export function accountHub(state: Partial<AccountHub> = {}) {
         return {};
       },
     });
+    serveLinks(service, hub);
   });
   return { hub, transport };
 }

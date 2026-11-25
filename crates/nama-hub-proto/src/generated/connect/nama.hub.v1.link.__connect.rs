@@ -90,6 +90,14 @@ pub type OwnedApproveServerSignInResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<CreateServerTokenRequestView<'static>>`.
+pub type OwnedCreateServerTokenRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CreateServerTokenResponseView<'static>>`.
+pub type OwnedCreateServerTokenResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<UnlinkServerRequestView<'static>>`.
 pub type OwnedUnlinkServerRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkServerRequestView<'static>,
@@ -632,6 +640,40 @@ for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInResponseView<
         'static,
     >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::CreateServerTokenResponse>
+for crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::CreateServerTokenResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -1982,6 +2024,12 @@ pub const LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC: ::connectrpc::Spec = ::conne
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `CreateServerToken` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINK_SERVICE_CREATE_SERVER_TOKEN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkService/CreateServerToken",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Linking a Server to the signed-in Account, and listing the Servers it owns, for the Hub's web
 /// pages. Every call fails with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
 ///
@@ -2258,6 +2306,32 @@ pub trait LinkService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::ApproveServerSignInResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Signs a token naming the signed-in Account's User on one of its Linked Servers, which the web
+    /// app at the Hub trades at that Server for a Device with a bearer token (ADR 0105). The token
+    /// works once, for 5 minutes, at that Server only. Fails with `REFUSAL_REASON_NO_USER_ON_SERVER`
+    /// unless the Account has a User Linked there.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn create_server_token<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::CreateServerTokenRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::CreateServerTokenResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -2554,6 +2628,35 @@ impl<S: LinkService> LinkServiceExt for S {
                 },
             )
             .with_spec(LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC)
+            .route_view(
+                LINK_SERVICE_SERVICE_NAME,
+                "CreateServerToken",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::CreateServerTokenRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.create_server_token(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::CreateServerTokenResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINK_SERVICE_CREATE_SERVER_TOKEN_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -2660,6 +2763,12 @@ impl<T: LinkService> ::connectrpc::Dispatcher for LinkServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC),
+                )
+            }
+            "CreateServerToken" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINK_SERVICE_CREATE_SERVER_TOKEN_SPEC),
                 )
             }
             _ => None,
@@ -2872,6 +2981,28 @@ impl<T: LinkService> ::connectrpc::Dispatcher for LinkServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::ApproveServerSignInResponse,
+                        >(format)
+                })
+            }
+            "CreateServerToken" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::CreateServerTokenRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::CreateServerTokenRequest,
+                    >::from_parts(&req, &body);
+                    svc.create_server_token(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::CreateServerTokenResponse,
                         >(format)
                 })
             }
@@ -3402,6 +3533,51 @@ where
                 &self.transport,
                 &self.config,
                 LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CreateServerToken RPC. Sends a request to /nama.hub.v1.LinkService/CreateServerToken.
+    pub async fn create_server_token(
+        &self,
+        request: crate::messages::nama::hub::v1::CreateServerTokenRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.create_server_token_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CreateServerToken RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn create_server_token_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::CreateServerTokenRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::CreateServerTokenResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINK_SERVICE_CREATE_SERVER_TOKEN_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

@@ -118,6 +118,14 @@ pub type OwnedSignInWithAccountRequestView = ::buffa::view::OwnedView<
 pub type OwnedSignInWithAccountResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SignInWithAccountResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SignInWithHubTokenRequestView<'static>>`.
+pub type OwnedSignInWithHubTokenRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignInWithHubTokenRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SignInWithHubTokenResponseView<'static>>`.
+pub type OwnedSignInWithHubTokenResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignInWithHubTokenResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SetupResponse>
 for crate::messages::nama::v1::__buffa::view::SetupResponseView<'_> {
     fn encode(
@@ -628,6 +636,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SignInWithHubTokenResponse>
+for crate::messages::nama::v1::__buffa::view::SignInWithHubTokenResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SignInWithHubTokenResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignInWithHubTokenResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SIGN_IN_SERVICE_SERVICE_NAME: &str = "nama.v1.SignInService";
 /// Static [`Spec`](::connectrpc::Spec) for the `Setup` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -720,6 +762,12 @@ pub const SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC: ::connectrpc::Spec = ::conn
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SignInWithHubToken` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_SIGN_IN_WITH_HUB_TOKEN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/SignInWithHubToken",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
 ///
 /// A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
@@ -735,12 +783,12 @@ pub const SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC: ::connectrpc::Spec = ::conn
 /// A Device that goes unused for 90 days expires, and its session stops working.
 ///
 /// Guessing is slowed down: after 10 failed `SignIn`s and `Reauthenticate`s for one name, or 50
-/// failed `Setup`s, `SignIn`s, `Reauthenticate`s and `AcceptInvite`s together from one IP address,
-/// within 15 minutes, further attempts fail with `resource_exhausted`, without being checked, and a
-/// `Retry-After` header gives the seconds to wait. A successful `SignIn` or `Reauthenticate` clears
-/// its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
-/// `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
-/// approvals fail with `resource_exhausted`.
+/// failed `Setup`s, `SignIn`s, `Reauthenticate`s, `AcceptInvite`s and `SignInWithHubToken`s
+/// together from one IP address, within 15 minutes, further attempts fail with
+/// `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
+/// wait. A successful `SignIn` or `Reauthenticate` clears its name's failures. In the same way,
+/// after 10 failed `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15
+/// minutes, its further lookups and approvals fail with `resource_exhausted`.
 ///
 /// Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
 /// are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
@@ -1218,6 +1266,36 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Signs a new Device in as the User a token from the Hub's `CreateServerToken` names, for the web
+    /// app at the Hub (ADR 0105), handing out its session as a bearer token in the response body. It
+    /// is listed and revoked as any other Device, and keeps working while the Hub is down. Fails with
+    /// `unauthenticated` and `REFUSAL_REASON_HUB_TOKEN_REFUSED` for a token the Hub didn't sign, one
+    /// for another Server, expired or used already, which counts toward the limits above; with
+    /// `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted; with
+    /// `invalid_argument` if the Device name breaks the rules; and like `StartAccountSignIn` when
+    /// the Hub can't be asked for the key it signed with.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sign_in_with_hub_token<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SignInWithHubTokenRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SignInWithHubTokenResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -1679,6 +1757,35 @@ impl<S: SignInService> SignInServiceExt for S {
                 },
             )
             .with_spec(SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "SignInWithHubToken",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SignInWithHubTokenRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SignInWithHubTokenRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sign_in_with_hub_token(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SignInWithHubTokenResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_SIGN_IN_WITH_HUB_TOKEN_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1821,6 +1928,12 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC),
+                )
+            }
+            "SignInWithHubToken" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_SIGN_IN_WITH_HUB_TOKEN_SPEC),
                 )
             }
             _ => None,
@@ -2155,6 +2268,28 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SignInWithAccountResponse,
+                        >(format)
+                })
+            }
+            "SignInWithHubToken" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SignInWithHubTokenRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SignInWithHubTokenRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SignInWithHubTokenRequest,
+                    >::from_parts(&req, &body);
+                    svc.sign_in_with_hub_token(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SignInWithHubTokenResponse,
                         >(format)
                 })
             }
@@ -2922,6 +3057,51 @@ where
                 &self.transport,
                 &self.config,
                 SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SignInWithHubToken RPC. Sends a request to /nama.v1.SignInService/SignInWithHubToken.
+    pub async fn sign_in_with_hub_token(
+        &self,
+        request: crate::messages::nama::v1::SignInWithHubTokenRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SignInWithHubTokenResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sign_in_with_hub_token_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SignInWithHubToken RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sign_in_with_hub_token_with_options(
+        &self,
+        request: crate::messages::nama::v1::SignInWithHubTokenRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SignInWithHubTokenResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_SIGN_IN_WITH_HUB_TOKEN_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

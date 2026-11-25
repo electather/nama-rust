@@ -18,15 +18,17 @@ use nama_proto::nama::v1::{
     ListNotificationPreferencesResponse, ListPersonalSettingsRequest, ListPersonalSettingsResponse,
     ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
     ListUsersResponse, NotificationKind, NotificationPreference, Permission, PluginConnection,
-    PluginConnectionState, RefusalReason, ReorderHomeRowsRequest, ReorderHomeRowsResponse,
-    ResetHomeLayoutRequest, ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetHomeLayoutRequest,
-    SetHomeLayoutResponse, SetLibraryAccessRequest, SetLibraryAccessResponse, SetMaximumAgeRequest,
-    SetMaximumAgeResponse, SetNotificationPreferenceRequest, SetNotificationPreferenceResponse,
-    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest,
-    UnlinkUserResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    PluginConnectionState, PollWatchSyncLinkRequest, PollWatchSyncLinkResponse, RefusalReason,
+    ReorderHomeRowsRequest, ReorderHomeRowsResponse, ResetHomeLayoutRequest,
+    ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
+    SetLibraryAccessRequest, SetLibraryAccessResponse, SetMaximumAgeRequest, SetMaximumAgeResponse,
+    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
+    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartUserLinkRequest, StartUserLinkResponse, StartWatchSyncLinkRequest,
+    StartWatchSyncLinkResponse, UnlinkUserRequest, UnlinkUserResponse,
+    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
     home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
@@ -39,7 +41,7 @@ use crate::{
     images::PluginLogos,
     link::Linking,
     playback::limit_to_proto,
-    plugin_settings::{Personal, PluginSettings},
+    plugin_settings::PluginSettings,
     server_settings::{ServerUrl, Settings},
     users::{
         self, AskedHomeLayout, Caller, LibraryAccess, Permissions, User, UserHomeLayout, Users,
@@ -50,11 +52,12 @@ use crate::{
 use super::{
     browse::home_rows_of,
     caller, calling_device, database_failed,
+    personal_settings::{self, personal_to_proto},
     playback::cap_from_proto,
-    plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
+    plugins::{change_refused, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
-    server_link, signed_out, unknown_enum_value, url_signer,
+    server_link, signed_out, unknown_enum_value,
 };
 
 mod refusals;
@@ -454,19 +457,7 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, ListPersonalSettingsRequest>,
     ) -> ServiceResult<ListPersonalSettingsResponse> {
         let user = caller(&ctx)?.user.id;
-        let listed = self
-            .plugin_settings
-            .list_personal(user)
-            .await
-            .map_err(list_failed)?;
-        let mut plugins = Vec::new();
-        for personal in listed {
-            plugins.push(self.personal_to_proto(personal, &ctx).await);
-        }
-        Response::ok(ListPersonalSettingsResponse {
-            plugins,
-            ..Default::default()
-        })
+        personal_settings::list(&self.plugin_settings, &self.plugin_logos, user, &ctx).await
     }
 
     async fn update_personal_settings(
@@ -484,7 +475,9 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePersonalSettingsResponse {
-            plugin: self.personal_to_proto(saved, &ctx).await.into(),
+            plugin: personal_to_proto(&self.plugin_logos, saved, &ctx)
+                .await
+                .into(),
             ..Default::default()
         })
     }
@@ -500,6 +493,26 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(DeletePersonalSettingsResponse::default())
+    }
+
+    async fn start_watch_sync_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartWatchSyncLinkRequest>,
+    ) -> ServiceResult<StartWatchSyncLinkResponse> {
+        caller(&ctx)?;
+        personal_settings::start_watch_sync_link(&self.plugin_settings, request.plugin_id).await
+    }
+
+    async fn poll_watch_sync_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PollWatchSyncLinkRequest>,
+    ) -> ServiceResult<PollWatchSyncLinkResponse> {
+        let user = caller(&ctx)?.user.id;
+        let (plugin, device_code) = (request.plugin_id, request.device_code);
+        personal_settings::poll_watch_sync_link(&self.plugin_settings, user, plugin, device_code)
+            .await
     }
 
     async fn list_notification_preferences(
@@ -660,27 +673,6 @@ impl UserServiceHandler {
                 .collect(),
             ..Default::default()
         })
-    }
-
-    /// A User's personal settings for a Plugin, with its Manifest's logo as `ctx`'s caller gets it.
-    async fn personal_to_proto(
-        &self,
-        Personal {
-            plugin,
-            manifest,
-            values,
-        }: Personal,
-        ctx: &RequestContext,
-    ) -> proto::PersonalSettings {
-        proto::PersonalSettings {
-            plugin_id: plugin.id.to_string(),
-            logo_url: logo_url(&self.plugin_logos, &plugin, url_signer(ctx)).await,
-            settings: (manifest.personal_settings.fields.iter())
-                .map(|field| setting_to_proto(field, values.get(&field.key)))
-                .collect(),
-            name: manifest.name,
-            ..Default::default()
-        }
     }
 }
 

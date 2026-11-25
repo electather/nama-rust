@@ -179,6 +179,175 @@ impl ::buffa::Enumeration for PluginConnectionState {
         ]
     }
 }
+/// Where linking an account at a Watch sync Plugin's tracker stands.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum WatchSyncLinkState {
+    WATCH_SYNC_LINK_STATE_UNSPECIFIED = 0i32,
+    /// The caller hasn't entered the code yet.
+    WATCH_SYNC_LINK_STATE_PENDING = 1i32,
+    /// The caller entered the code, and the account is linked.
+    WATCH_SYNC_LINK_STATE_LINKED = 2i32,
+    /// The code expired or the caller refused it: start again.
+    WATCH_SYNC_LINK_STATE_EXPIRED = 3i32,
+}
+impl WatchSyncLinkState {
+    ///Idiomatic alias for [`Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::WATCH_SYNC_LINK_STATE_PENDING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Pending: Self = Self::WATCH_SYNC_LINK_STATE_PENDING;
+    ///Idiomatic alias for [`Self::WATCH_SYNC_LINK_STATE_LINKED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Linked: Self = Self::WATCH_SYNC_LINK_STATE_LINKED;
+    ///Idiomatic alias for [`Self::WATCH_SYNC_LINK_STATE_EXPIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Expired: Self = Self::WATCH_SYNC_LINK_STATE_EXPIRED;
+}
+impl ::core::default::Default for WatchSyncLinkState {
+    fn default() -> Self {
+        Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for WatchSyncLinkState {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WatchSyncLinkState {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = WatchSyncLinkState;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(WatchSyncLinkState)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<WatchSyncLinkState, E> {
+                <WatchSyncLinkState as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<WatchSyncLinkState, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <WatchSyncLinkState as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<WatchSyncLinkState, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <WatchSyncLinkState as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<WatchSyncLinkState, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for WatchSyncLinkState {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for WatchSyncLinkState {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_PENDING),
+            2i32 => ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_LINKED),
+            3i32 => ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_EXPIRED),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED => {
+                "WATCH_SYNC_LINK_STATE_UNSPECIFIED"
+            }
+            Self::WATCH_SYNC_LINK_STATE_PENDING => "WATCH_SYNC_LINK_STATE_PENDING",
+            Self::WATCH_SYNC_LINK_STATE_LINKED => "WATCH_SYNC_LINK_STATE_LINKED",
+            Self::WATCH_SYNC_LINK_STATE_EXPIRED => "WATCH_SYNC_LINK_STATE_EXPIRED",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "WATCH_SYNC_LINK_STATE_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED)
+            }
+            "WATCH_SYNC_LINK_STATE_PENDING" => {
+                ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_PENDING)
+            }
+            "WATCH_SYNC_LINK_STATE_LINKED" => {
+                ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_LINKED)
+            }
+            "WATCH_SYNC_LINK_STATE_EXPIRED" => {
+                ::core::option::Option::Some(Self::WATCH_SYNC_LINK_STATE_EXPIRED)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::WATCH_SYNC_LINK_STATE_UNSPECIFIED,
+            Self::WATCH_SYNC_LINK_STATE_PENDING,
+            Self::WATCH_SYNC_LINK_STATE_LINKED,
+            Self::WATCH_SYNC_LINK_STATE_EXPIRED,
+        ]
+    }
+}
 /// A kind of Request notification a User may get. Values are API contract: one is never
 /// renumbered or reused.
 #[allow(non_camel_case_types)]
@@ -7249,6 +7418,17 @@ pub struct PersonalSettings {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub settings: ::buffa::alloc::vec::Vec<Setting>,
+    /// Whether the Plugin is a Watch sync, whose account the caller links with
+    /// `StartWatchSyncLink` rather than by typing these settings.
+    ///
+    /// Field 5: `watch_sync`
+    #[serde(
+        rename = "watchSync",
+        alias = "watch_sync",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub watch_sync: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7260,6 +7440,7 @@ impl ::core::fmt::Debug for PersonalSettings {
             .field("name", &self.name)
             .field("logo_url", &self.logo_url)
             .field("settings", &self.settings)
+            .field("watch_sync", &self.watch_sync)
             .finish()
     }
 }
@@ -7307,6 +7488,9 @@ impl ::buffa::Message for PersonalSettings {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.watch_sync {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7333,6 +7517,9 @@ impl ::buffa::Message for PersonalSettings {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.watch_sync {
+            ::buffa::types::put_bool_field(5u32, self.watch_sync, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7380,6 +7567,13 @@ impl ::buffa::Message for PersonalSettings {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.settings.push(elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.watch_sync = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7392,6 +7586,7 @@ impl ::buffa::Message for PersonalSettings {
         self.name.clear();
         self.logo_url.clear();
         self.settings.clear();
+        self.watch_sync = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7964,6 +8159,656 @@ pub const __DELETE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY: ::buffa::type_registry::
     type_url: "type.googleapis.com/nama.v1.DeletePersonalSettingsResponse",
     to_json: ::buffa::type_registry::any_to_json::<DeletePersonalSettingsResponse>,
     from_json: ::buffa::type_registry::any_from_json::<DeletePersonalSettingsResponse>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct StartWatchSyncLinkRequest {
+    /// The Plugin's id, such as `trakt`.
+    ///
+    /// Field 1: `plugin_id`
+    #[serde(
+        rename = "pluginId",
+        alias = "plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub plugin_id: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for StartWatchSyncLinkRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("StartWatchSyncLinkRequest")
+            .field("plugin_id", &self.plugin_id)
+            .finish()
+    }
+}
+impl StartWatchSyncLinkRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartWatchSyncLinkRequest";
+}
+::buffa::impl_default_instance!(StartWatchSyncLinkRequest);
+impl ::buffa::MessageName for StartWatchSyncLinkRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "StartWatchSyncLinkRequest";
+    const FULL_NAME: &'static str = "nama.v1.StartWatchSyncLinkRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartWatchSyncLinkRequest";
+}
+impl ::buffa::Message for StartWatchSyncLinkRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.plugin_id, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.plugin_id.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for StartWatchSyncLinkRequest {
+    const PROTO_FQN: &'static str = "nama.v1.StartWatchSyncLinkRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for StartWatchSyncLinkRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __START_WATCH_SYNC_LINK_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.StartWatchSyncLinkRequest",
+    to_json: ::buffa::type_registry::any_to_json::<StartWatchSyncLinkRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<StartWatchSyncLinkRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct StartWatchSyncLinkResponse {
+    /// The code the caller enters at `verification_url`.
+    ///
+    /// Field 1: `user_code`
+    #[serde(
+        rename = "userCode",
+        alias = "user_code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub user_code: ::buffa::alloc::string::String,
+    /// Where the caller enters `user_code`, such as `https://trakt.tv/activate`.
+    ///
+    /// Field 2: `verification_url`
+    #[serde(
+        rename = "verificationUrl",
+        alias = "verification_url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub verification_url: ::buffa::alloc::string::String,
+    /// How long `user_code` works, in seconds.
+    ///
+    /// Field 3: `expires_in_seconds`
+    #[serde(
+        rename = "expiresInSeconds",
+        alias = "expires_in_seconds",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub expires_in_seconds: u32,
+    /// How often to call `PollWatchSyncLink`, in seconds.
+    ///
+    /// Field 4: `interval_seconds`
+    #[serde(
+        rename = "intervalSeconds",
+        alias = "interval_seconds",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub interval_seconds: u32,
+    /// What `PollWatchSyncLink` asks with. Only the caller holds it, so keep it to themself.
+    ///
+    /// Field 5: `device_code`
+    #[serde(
+        rename = "deviceCode",
+        alias = "device_code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub device_code: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for StartWatchSyncLinkResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("StartWatchSyncLinkResponse")
+            .field("user_code", &self.user_code)
+            .field("verification_url", &self.verification_url)
+            .field("expires_in_seconds", &self.expires_in_seconds)
+            .field("interval_seconds", &self.interval_seconds)
+            .field("device_code", &self.device_code)
+            .finish()
+    }
+}
+impl StartWatchSyncLinkResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartWatchSyncLinkResponse";
+}
+::buffa::impl_default_instance!(StartWatchSyncLinkResponse);
+impl ::buffa::MessageName for StartWatchSyncLinkResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "StartWatchSyncLinkResponse";
+    const FULL_NAME: &'static str = "nama.v1.StartWatchSyncLinkResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartWatchSyncLinkResponse";
+}
+impl ::buffa::Message for StartWatchSyncLinkResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.user_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.user_code) as u64;
+        }
+        if !self.verification_url.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.verification_url) as u64;
+        }
+        if self.expires_in_seconds != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.expires_in_seconds) as u64;
+        }
+        if self.interval_seconds != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.interval_seconds) as u64;
+        }
+        if !self.device_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.user_code.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.user_code, buf);
+        }
+        if !self.verification_url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.verification_url, buf);
+        }
+        if self.expires_in_seconds != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.expires_in_seconds, buf);
+        }
+        if self.interval_seconds != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.interval_seconds, buf);
+        }
+        if !self.device_code.is_empty() {
+            ::buffa::types::put_string_field(5u32, &self.device_code, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.user_code, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.verification_url, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.expires_in_seconds = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.interval_seconds = ::buffa::types::decode_uint32(buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.device_code, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.user_code.clear();
+        self.verification_url.clear();
+        self.expires_in_seconds = 0u32;
+        self.interval_seconds = 0u32;
+        self.device_code.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for StartWatchSyncLinkResponse {
+    const PROTO_FQN: &'static str = "nama.v1.StartWatchSyncLinkResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for StartWatchSyncLinkResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __START_WATCH_SYNC_LINK_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.StartWatchSyncLinkResponse",
+    to_json: ::buffa::type_registry::any_to_json::<StartWatchSyncLinkResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<StartWatchSyncLinkResponse>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PollWatchSyncLinkRequest {
+    /// The Plugin's id, such as `trakt`.
+    ///
+    /// Field 1: `plugin_id`
+    #[serde(
+        rename = "pluginId",
+        alias = "plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub plugin_id: ::buffa::alloc::string::String,
+    /// What `StartWatchSyncLink` returned as `device_code`.
+    ///
+    /// Field 2: `device_code`
+    #[serde(
+        rename = "deviceCode",
+        alias = "device_code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub device_code: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PollWatchSyncLinkRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PollWatchSyncLinkRequest")
+            .field("plugin_id", &self.plugin_id)
+            .field("device_code", &self.device_code)
+            .finish()
+    }
+}
+impl PollWatchSyncLinkRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PollWatchSyncLinkRequest";
+}
+::buffa::impl_default_instance!(PollWatchSyncLinkRequest);
+impl ::buffa::MessageName for PollWatchSyncLinkRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PollWatchSyncLinkRequest";
+    const FULL_NAME: &'static str = "nama.v1.PollWatchSyncLinkRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PollWatchSyncLinkRequest";
+}
+impl ::buffa::Message for PollWatchSyncLinkRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        if !self.device_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        if !self.device_code.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.device_code, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.plugin_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.device_code, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.plugin_id.clear();
+        self.device_code.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PollWatchSyncLinkRequest {
+    const PROTO_FQN: &'static str = "nama.v1.PollWatchSyncLinkRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PollWatchSyncLinkRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __POLL_WATCH_SYNC_LINK_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PollWatchSyncLinkRequest",
+    to_json: ::buffa::type_registry::any_to_json::<PollWatchSyncLinkRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<PollWatchSyncLinkRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PollWatchSyncLinkResponse {
+    /// Field 1: `state`
+    #[serde(
+        rename = "state",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub state: ::buffa::EnumValue<WatchSyncLinkState>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PollWatchSyncLinkResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PollWatchSyncLinkResponse").field("state", &self.state).finish()
+    }
+}
+impl PollWatchSyncLinkResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PollWatchSyncLinkResponse";
+}
+::buffa::impl_default_instance!(PollWatchSyncLinkResponse);
+impl ::buffa::MessageName for PollWatchSyncLinkResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PollWatchSyncLinkResponse";
+    const FULL_NAME: &'static str = "nama.v1.PollWatchSyncLinkResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PollWatchSyncLinkResponse";
+}
+impl ::buffa::Message for PollWatchSyncLinkResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.state = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.state = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PollWatchSyncLinkResponse {
+    const PROTO_FQN: &'static str = "nama.v1.PollWatchSyncLinkResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PollWatchSyncLinkResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __POLL_WATCH_SYNC_LINK_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PollWatchSyncLinkResponse",
+    to_json: ::buffa::type_registry::any_to_json::<PollWatchSyncLinkResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<PollWatchSyncLinkResponse>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]

@@ -353,4 +353,7 @@ enum RefusalReason {
   // `invalid_argument`: a push subscription's `endpoint` isn't an https URL, `p256dh` isn't a
   // P-256 public key or `auth` isn't 16 bytes. `field` names which.
   REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID = 106;
+  // `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
+  // already. `field` is `hub_token`.
+  REFUSAL_REASON_HUB_TOKEN_REFUSED = 107;
 }

@@ -321,6 +321,9 @@ pub enum RefusalReason {
     /// `invalid_argument`: a push subscription's `endpoint` isn't an https URL, `p256dh` isn't a
     /// P-256 public key or `auth` isn't 16 bytes. `field` names which.
     REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID = 106i32,
+    /// `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
+    /// already. `field` is `hub_token`.
+    REFUSAL_REASON_HUB_TOKEN_REFUSED = 107i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -635,6 +638,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WebPushSubscriptionInvalid: Self = Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_HUB_TOKEN_REFUSED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HubTokenRefused: Self = Self::REFUSAL_REASON_HUB_TOKEN_REFUSED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -964,6 +970,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
                 )
             }
+            107i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_HUB_TOKEN_REFUSED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1174,6 +1183,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID => {
                 "REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID"
             }
+            Self::REFUSAL_REASON_HUB_TOKEN_REFUSED => "REFUSAL_REASON_HUB_TOKEN_REFUSED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1522,6 +1532,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
                 )
             }
+            "REFUSAL_REASON_HUB_TOKEN_REFUSED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_HUB_TOKEN_REFUSED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1631,6 +1644,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_WRONG_SWITCH_PIN,
             Self::REFUSAL_REASON_SWITCH_PIN_INVALID,
             Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
+            Self::REFUSAL_REASON_HUB_TOKEN_REFUSED,
         ]
     }
 }

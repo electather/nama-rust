@@ -158,6 +158,16 @@ service UserService {
   rpc DeletePersonalSettings(DeletePersonalSettingsRequest) returns (DeletePersonalSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Starts linking the caller's account at a Watch sync Plugin's tracker, such as Trakt, by device
+  // code: the caller enters `user_code` at `verification_url`, then polls with `device_code` until
+  // `PollWatchSyncLink` says how it went. Unlinking is `DeletePersonalSettings`. Fails with
+  // `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or isn't a Watch sync, and
+  // with `unavailable` if the Plugin couldn't start.
+  rpc StartWatchSyncLink(StartWatchSyncLinkRequest) returns (StartWatchSyncLinkResponse);
+  // Asks a Watch sync Plugin whether the caller entered the code `StartWatchSyncLink` gave. Once
+  // they did, the Server keeps the tracker's tokens as the caller's secret Personal settings,
+  // which no response ever holds. Fails as `StartWatchSyncLink` does.
+  rpc PollWatchSyncLink(PollWatchSyncLinkRequest) returns (PollWatchSyncLinkResponse);
   // Lists which Request notifications the caller gets on every Notifier, through their Plugin
   // Connections and Personal settings. Each kind is on until they turn it off.
   // `NOTIFICATION_KIND_NEW_PENDING` is listed only to a caller with `PERMISSION_MANAGE_REQUESTS`.
@@ -486,6 +496,9 @@ message PersonalSettings {
   // Each Personal setting the Manifest declares, in its order, with the caller's value. A
   // secret's value is never set: see `Setting.secret_set`.
   repeated Setting settings = 4;
+  // Whether the Plugin is a Watch sync, whose account the caller links with
+  // `StartWatchSyncLink` rather than by typing these settings.
+  bool watch_sync = 5;
 }
 
 message UpdatePersonalSettingsRequest {
@@ -507,6 +520,46 @@ message DeletePersonalSettingsRequest {
 }
 
 message DeletePersonalSettingsResponse {}
+
+message StartWatchSyncLinkRequest {
+  // The Plugin's id, such as `trakt`.
+  string plugin_id = 1;
+}
+
+message StartWatchSyncLinkResponse {
+  // The code the caller enters at `verification_url`.
+  string user_code = 1;
+  // Where the caller enters `user_code`, such as `https://trakt.tv/activate`.
+  string verification_url = 2;
+  // How long `user_code` works, in seconds.
+  uint32 expires_in_seconds = 3;
+  // How often to call `PollWatchSyncLink`, in seconds.
+  uint32 interval_seconds = 4;
+  // What `PollWatchSyncLink` asks with. Only the caller holds it, so keep it to themself.
+  string device_code = 5;
+}
+
+message PollWatchSyncLinkRequest {
+  // The Plugin's id, such as `trakt`.
+  string plugin_id = 1;
+  // What `StartWatchSyncLink` returned as `device_code`.
+  string device_code = 2;
+}
+
+message PollWatchSyncLinkResponse {
+  WatchSyncLinkState state = 1;
+}
+
+// Where linking an account at a Watch sync Plugin's tracker stands.
+enum WatchSyncLinkState {
+  WATCH_SYNC_LINK_STATE_UNSPECIFIED = 0;
+  // The caller hasn't entered the code yet.
+  WATCH_SYNC_LINK_STATE_PENDING = 1;
+  // The caller entered the code, and the account is linked.
+  WATCH_SYNC_LINK_STATE_LINKED = 2;
+  // The code expired or the caller refused it: start again.
+  WATCH_SYNC_LINK_STATE_EXPIRED = 3;
+}
 
 message ListNotificationPreferencesRequest {}
 

@@ -183,6 +183,14 @@ mod exports {
         #[cfg(feature = "watch-sync")]
         let manifest = Manifest {
             points: [manifest.points, vec![nama_pdk::point(services::WATCH_SYNC)]].concat(),
+            settings: [
+                manifest.settings,
+                vec![setting(
+                    crate::watch_sync::APPROVED,
+                    SettingKind::SETTING_KIND_TEXT,
+                )],
+            ]
+            .concat(),
             ..manifest
         };
         #[cfg(feature = "contract-0-1")]
@@ -717,12 +725,17 @@ mod similar_source {
 #[cfg(feature = "watch-sync")]
 mod watch_sync {
     use nama_pdk::{
-        ImportAsked, Imported, ScrobbleAsked, Scrobbled, SyncedWatchState, WatchSync,
-        extism_pdk::Error, nama_plugin_proto::nama::plugin::v1::TitleRefKind,
+        ImportAsked, Imported, LinkPolled, LinkStarted, PollLinkAsked, ScrobbleAsked, Scrobbled,
+        StartLinkAsked, SyncedWatchState, WatchSync, extism_pdk::Error,
+        nama_plugin_proto::nama::plugin::v1::TitleRefKind,
     };
 
-    /// A Watch sync that logs each change it is told, with the User's `handle`, and imports
-    /// nothing.
+    /// The setting naming the device code its tracker's User approved; every other code waits.
+    pub(super) const APPROVED: &str = "approved";
+
+    /// A Watch sync that logs each change it is told, with the User's `handle`, imports nothing,
+    /// and links an account once its [`APPROVED`] setting names the device code polled, its
+    /// `token` naming that code.
     struct LoggedScrobbles;
 
     impl WatchSync for LoggedScrobbles {
@@ -739,6 +752,28 @@ mod watch_sync {
             Ok(Imported {
                 cursor: asked.since,
                 ..Imported::default()
+            })
+        }
+
+        fn start_link(_asked: StartLinkAsked) -> Result<LinkStarted, Error> {
+            Ok(LinkStarted {
+                user_code: "TEST-CODE".to_owned(),
+                verification_url: "https://tracker.example/activate".to_owned(),
+                expires_in_seconds: 600,
+                interval_seconds: 5,
+                device_code: "test-device".to_owned(),
+                ..LinkStarted::default()
+            })
+        }
+
+        fn poll_link(asked: PollLinkAsked) -> Result<LinkPolled, Error> {
+            if nama_pdk::setting(APPROVED)?.as_deref() != Some(asked.device_code.as_str()) {
+                return Ok(LinkPolled::default());
+            }
+            let token = format!("token-of-{}", asked.device_code);
+            Ok(LinkPolled {
+                personal_settings: [("token".to_owned(), token)].into_iter().collect(),
+                ..LinkPolled::default()
             })
         }
     }

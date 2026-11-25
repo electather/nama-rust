@@ -13415,6 +13415,11 @@ pub struct PersonalSettingsView<'a> {
         'a,
         super::super::__buffa::view::SettingView<'a>,
     >,
+    /// Whether the Plugin is a Watch sync, whose account the caller links with
+    /// `StartWatchSyncLink` rather than by typing these settings.
+    ///
+    /// Field 5: `watch_sync`
+    pub watch_sync: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PersonalSettingsView<'a> {
@@ -13468,6 +13473,13 @@ impl<'a> ::buffa::MessageView<'a> for PersonalSettingsView<'a> {
                 )?;
                 view.logo_url = ::buffa::types::borrow_str(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.watch_sync = ::buffa::types::decode_bool(&mut cur)?;
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -13516,6 +13528,7 @@ impl<'a> ::buffa::MessageView<'a> for PersonalSettingsView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            watch_sync: self.watch_sync,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -13544,6 +13557,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PersonalSettingsView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.watch_sync {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -13571,6 +13587,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PersonalSettingsView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.watch_sync {
+            ::buffa::types::put_bool_field(5u32, self.watch_sync, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -13604,6 +13623,9 @@ impl<'__a> ::serde::Serialize for PersonalSettingsView<'__a> {
         }
         if !self.settings.is_empty() {
             __map.serialize_entry("settings", &*self.settings)?;
+        }
+        if self.watch_sync {
+            __map.serialize_entry("watchSync", &self.watch_sync)?;
         }
         __map.end()
     }
@@ -13728,6 +13750,14 @@ impl PersonalSettingsOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::SettingView<'_>> {
         &self.0.reborrow().settings
+    }
+    /// Whether the Plugin is a Watch sync, whose account the caller links with
+    /// `StartWatchSyncLink` rather than by typing these settings.
+    ///
+    /// Field 5: `watch_sync`
+    #[must_use]
+    pub fn watch_sync(&self) -> bool {
+        self.0.reborrow().watch_sync
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PersonalSettingsView<'static>>>
@@ -14963,6 +14993,1200 @@ impl ::buffa::HasMessageView for super::super::DeletePersonalSettingsResponse {
     type ViewHandle = DeletePersonalSettingsResponseOwnedView;
 }
 impl ::serde::Serialize for DeletePersonalSettingsResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct StartWatchSyncLinkRequestView<'a> {
+    /// The Plugin's id, such as `trakt`.
+    ///
+    /// Field 1: `plugin_id`
+    pub plugin_id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for StartWatchSyncLinkRequestView<'a> {
+    type Owned = super::super::StartWatchSyncLinkRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::StartWatchSyncLinkRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::StartWatchSyncLinkRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::StartWatchSyncLinkRequest {
+            plugin_id: self.plugin_id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for StartWatchSyncLinkRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for StartWatchSyncLinkRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.plugin_id) {
+            __map.serialize_entry("pluginId", self.plugin_id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for StartWatchSyncLinkRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "StartWatchSyncLinkRequest";
+    const FULL_NAME: &'static str = "nama.v1.StartWatchSyncLinkRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartWatchSyncLinkRequest";
+}
+::buffa::impl_default_view_instance!(StartWatchSyncLinkRequestView);
+::buffa::impl_view_reborrow!(StartWatchSyncLinkRequestView);
+/** Self-contained, `'static` owned view of a `StartWatchSyncLinkRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`StartWatchSyncLinkRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`StartWatchSyncLinkRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct StartWatchSyncLinkRequestOwnedView(
+    ::buffa::OwnedView<StartWatchSyncLinkRequestView<'static>>,
+);
+impl StartWatchSyncLinkRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartWatchSyncLinkRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartWatchSyncLinkRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::StartWatchSyncLinkRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartWatchSyncLinkRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`StartWatchSyncLinkRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &StartWatchSyncLinkRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::StartWatchSyncLinkRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Plugin's id, such as `trakt`.
+    ///
+    /// Field 1: `plugin_id`
+    #[must_use]
+    pub fn plugin_id(&self) -> &'_ str {
+        self.0.reborrow().plugin_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<StartWatchSyncLinkRequestView<'static>>>
+for StartWatchSyncLinkRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<StartWatchSyncLinkRequestView<'static>>) -> Self {
+        StartWatchSyncLinkRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<StartWatchSyncLinkRequestOwnedView>
+for ::buffa::OwnedView<StartWatchSyncLinkRequestView<'static>> {
+    fn from(wrapper: StartWatchSyncLinkRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<StartWatchSyncLinkRequestView<'static>>>
+for StartWatchSyncLinkRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<StartWatchSyncLinkRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::StartWatchSyncLinkRequest {
+    type View<'a> = StartWatchSyncLinkRequestView<'a>;
+    type ViewHandle = StartWatchSyncLinkRequestOwnedView;
+}
+impl ::serde::Serialize for StartWatchSyncLinkRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct StartWatchSyncLinkResponseView<'a> {
+    /// The code the caller enters at `verification_url`.
+    ///
+    /// Field 1: `user_code`
+    pub user_code: &'a str,
+    /// Where the caller enters `user_code`, such as `https://trakt.tv/activate`.
+    ///
+    /// Field 2: `verification_url`
+    pub verification_url: &'a str,
+    /// How long `user_code` works, in seconds.
+    ///
+    /// Field 3: `expires_in_seconds`
+    pub expires_in_seconds: u32,
+    /// How often to call `PollWatchSyncLink`, in seconds.
+    ///
+    /// Field 4: `interval_seconds`
+    pub interval_seconds: u32,
+    /// What `PollWatchSyncLink` asks with. Only the caller holds it, so keep it to themself.
+    ///
+    /// Field 5: `device_code`
+    pub device_code: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for StartWatchSyncLinkResponseView<'a> {
+    type Owned = super::super::StartWatchSyncLinkResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.user_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.verification_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.expires_in_seconds = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.interval_seconds = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.device_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::StartWatchSyncLinkResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::StartWatchSyncLinkResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::StartWatchSyncLinkResponse {
+            user_code: self.user_code.to_string(),
+            verification_url: self.verification_url.to_string(),
+            expires_in_seconds: self.expires_in_seconds,
+            interval_seconds: self.interval_seconds,
+            device_code: self.device_code.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for StartWatchSyncLinkResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.user_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.user_code) as u64;
+        }
+        if !self.verification_url.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.verification_url) as u64;
+        }
+        if self.expires_in_seconds != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.expires_in_seconds) as u64;
+        }
+        if self.interval_seconds != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.interval_seconds) as u64;
+        }
+        if !self.device_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.user_code.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.user_code, buf);
+        }
+        if !self.verification_url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.verification_url, buf);
+        }
+        if self.expires_in_seconds != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.expires_in_seconds, buf);
+        }
+        if self.interval_seconds != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.interval_seconds, buf);
+        }
+        if !self.device_code.is_empty() {
+            ::buffa::types::put_string_field(5u32, &self.device_code, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for StartWatchSyncLinkResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.user_code) {
+            __map.serialize_entry("userCode", self.user_code)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.verification_url) {
+            __map.serialize_entry("verificationUrl", self.verification_url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.expires_in_seconds) {
+            __map
+                .serialize_entry(
+                    "expiresInSeconds",
+                    &::buffa::json_helpers::ProtoJson(&self.expires_in_seconds),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.interval_seconds) {
+            __map
+                .serialize_entry(
+                    "intervalSeconds",
+                    &::buffa::json_helpers::ProtoJson(&self.interval_seconds),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.device_code) {
+            __map.serialize_entry("deviceCode", self.device_code)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for StartWatchSyncLinkResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "StartWatchSyncLinkResponse";
+    const FULL_NAME: &'static str = "nama.v1.StartWatchSyncLinkResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartWatchSyncLinkResponse";
+}
+::buffa::impl_default_view_instance!(StartWatchSyncLinkResponseView);
+::buffa::impl_view_reborrow!(StartWatchSyncLinkResponseView);
+/** Self-contained, `'static` owned view of a `StartWatchSyncLinkResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`StartWatchSyncLinkResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`StartWatchSyncLinkResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct StartWatchSyncLinkResponseOwnedView(
+    ::buffa::OwnedView<StartWatchSyncLinkResponseView<'static>>,
+);
+impl StartWatchSyncLinkResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartWatchSyncLinkResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartWatchSyncLinkResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::StartWatchSyncLinkResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartWatchSyncLinkResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`StartWatchSyncLinkResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &StartWatchSyncLinkResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::StartWatchSyncLinkResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The code the caller enters at `verification_url`.
+    ///
+    /// Field 1: `user_code`
+    #[must_use]
+    pub fn user_code(&self) -> &'_ str {
+        self.0.reborrow().user_code
+    }
+    /// Where the caller enters `user_code`, such as `https://trakt.tv/activate`.
+    ///
+    /// Field 2: `verification_url`
+    #[must_use]
+    pub fn verification_url(&self) -> &'_ str {
+        self.0.reborrow().verification_url
+    }
+    /// How long `user_code` works, in seconds.
+    ///
+    /// Field 3: `expires_in_seconds`
+    #[must_use]
+    pub fn expires_in_seconds(&self) -> u32 {
+        self.0.reborrow().expires_in_seconds
+    }
+    /// How often to call `PollWatchSyncLink`, in seconds.
+    ///
+    /// Field 4: `interval_seconds`
+    #[must_use]
+    pub fn interval_seconds(&self) -> u32 {
+        self.0.reborrow().interval_seconds
+    }
+    /// What `PollWatchSyncLink` asks with. Only the caller holds it, so keep it to themself.
+    ///
+    /// Field 5: `device_code`
+    #[must_use]
+    pub fn device_code(&self) -> &'_ str {
+        self.0.reborrow().device_code
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<StartWatchSyncLinkResponseView<'static>>>
+for StartWatchSyncLinkResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<StartWatchSyncLinkResponseView<'static>>) -> Self {
+        StartWatchSyncLinkResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<StartWatchSyncLinkResponseOwnedView>
+for ::buffa::OwnedView<StartWatchSyncLinkResponseView<'static>> {
+    fn from(wrapper: StartWatchSyncLinkResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<StartWatchSyncLinkResponseView<'static>>>
+for StartWatchSyncLinkResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<StartWatchSyncLinkResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::StartWatchSyncLinkResponse {
+    type View<'a> = StartWatchSyncLinkResponseView<'a>;
+    type ViewHandle = StartWatchSyncLinkResponseOwnedView;
+}
+impl ::serde::Serialize for StartWatchSyncLinkResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PollWatchSyncLinkRequestView<'a> {
+    /// The Plugin's id, such as `trakt`.
+    ///
+    /// Field 1: `plugin_id`
+    pub plugin_id: &'a str,
+    /// What `StartWatchSyncLink` returned as `device_code`.
+    ///
+    /// Field 2: `device_code`
+    pub device_code: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PollWatchSyncLinkRequestView<'a> {
+    type Owned = super::super::PollWatchSyncLinkRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.device_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PollWatchSyncLinkRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PollWatchSyncLinkRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PollWatchSyncLinkRequest {
+            plugin_id: self.plugin_id.to_string(),
+            device_code: self.device_code.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PollWatchSyncLinkRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        if !self.device_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        if !self.device_code.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.device_code, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PollWatchSyncLinkRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.plugin_id) {
+            __map.serialize_entry("pluginId", self.plugin_id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.device_code) {
+            __map.serialize_entry("deviceCode", self.device_code)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PollWatchSyncLinkRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PollWatchSyncLinkRequest";
+    const FULL_NAME: &'static str = "nama.v1.PollWatchSyncLinkRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PollWatchSyncLinkRequest";
+}
+::buffa::impl_default_view_instance!(PollWatchSyncLinkRequestView);
+::buffa::impl_view_reborrow!(PollWatchSyncLinkRequestView);
+/** Self-contained, `'static` owned view of a `PollWatchSyncLinkRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PollWatchSyncLinkRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PollWatchSyncLinkRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PollWatchSyncLinkRequestOwnedView(
+    ::buffa::OwnedView<PollWatchSyncLinkRequestView<'static>>,
+);
+impl PollWatchSyncLinkRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollWatchSyncLinkRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollWatchSyncLinkRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PollWatchSyncLinkRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollWatchSyncLinkRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PollWatchSyncLinkRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PollWatchSyncLinkRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PollWatchSyncLinkRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Plugin's id, such as `trakt`.
+    ///
+    /// Field 1: `plugin_id`
+    #[must_use]
+    pub fn plugin_id(&self) -> &'_ str {
+        self.0.reborrow().plugin_id
+    }
+    /// What `StartWatchSyncLink` returned as `device_code`.
+    ///
+    /// Field 2: `device_code`
+    #[must_use]
+    pub fn device_code(&self) -> &'_ str {
+        self.0.reborrow().device_code
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PollWatchSyncLinkRequestView<'static>>>
+for PollWatchSyncLinkRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<PollWatchSyncLinkRequestView<'static>>) -> Self {
+        PollWatchSyncLinkRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PollWatchSyncLinkRequestOwnedView>
+for ::buffa::OwnedView<PollWatchSyncLinkRequestView<'static>> {
+    fn from(wrapper: PollWatchSyncLinkRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PollWatchSyncLinkRequestView<'static>>>
+for PollWatchSyncLinkRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PollWatchSyncLinkRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PollWatchSyncLinkRequest {
+    type View<'a> = PollWatchSyncLinkRequestView<'a>;
+    type ViewHandle = PollWatchSyncLinkRequestOwnedView;
+}
+impl ::serde::Serialize for PollWatchSyncLinkRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PollWatchSyncLinkResponseView<'a> {
+    /// Field 1: `state`
+    pub state: ::buffa::EnumValue<super::super::WatchSyncLinkState>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PollWatchSyncLinkResponseView<'a> {
+    type Owned = super::super::PollWatchSyncLinkResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.state = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PollWatchSyncLinkResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PollWatchSyncLinkResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PollWatchSyncLinkResponse {
+            state: self.state,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PollWatchSyncLinkResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PollWatchSyncLinkResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.state) {
+            __map.serialize_entry("state", &self.state)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PollWatchSyncLinkResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PollWatchSyncLinkResponse";
+    const FULL_NAME: &'static str = "nama.v1.PollWatchSyncLinkResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PollWatchSyncLinkResponse";
+}
+::buffa::impl_default_view_instance!(PollWatchSyncLinkResponseView);
+::buffa::impl_view_reborrow!(PollWatchSyncLinkResponseView);
+/** Self-contained, `'static` owned view of a `PollWatchSyncLinkResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PollWatchSyncLinkResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PollWatchSyncLinkResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PollWatchSyncLinkResponseOwnedView(
+    ::buffa::OwnedView<PollWatchSyncLinkResponseView<'static>>,
+);
+impl PollWatchSyncLinkResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollWatchSyncLinkResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollWatchSyncLinkResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PollWatchSyncLinkResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollWatchSyncLinkResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PollWatchSyncLinkResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PollWatchSyncLinkResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PollWatchSyncLinkResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `state`
+    #[must_use]
+    pub fn state(&self) -> ::buffa::EnumValue<super::super::WatchSyncLinkState> {
+        self.0.reborrow().state
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PollWatchSyncLinkResponseView<'static>>>
+for PollWatchSyncLinkResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<PollWatchSyncLinkResponseView<'static>>) -> Self {
+        PollWatchSyncLinkResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PollWatchSyncLinkResponseOwnedView>
+for ::buffa::OwnedView<PollWatchSyncLinkResponseView<'static>> {
+    fn from(wrapper: PollWatchSyncLinkResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PollWatchSyncLinkResponseView<'static>>>
+for PollWatchSyncLinkResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PollWatchSyncLinkResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PollWatchSyncLinkResponse {
+    type View<'a> = PollWatchSyncLinkResponseView<'a>;
+    type ViewHandle = PollWatchSyncLinkResponseOwnedView;
+}
+impl ::serde::Serialize for PollWatchSyncLinkResponseOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
