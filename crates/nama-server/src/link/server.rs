@@ -30,7 +30,7 @@ use tokio::sync::{Mutex, watch};
 use super::{
     Linking,
     hub::{Failure, Hub, LinkDropped, LinkedHub, Polling},
-    sync::{self, Queued},
+    sync::{self, Kind, Queued},
     token::{self, Claims, Rejected},
     users::KnownUsers,
 };
@@ -306,50 +306,55 @@ impl ServerLink {
         Ok(token.await?.ok_or(NOT_LINKED)?)
     }
 
-    /// Sends the changes waiting for the Hub, a page per call, oldest first, each kind apart, so one
-    /// the Hub refuses holds back only its own. Those of a User `linking` says isn't Linked are
-    /// forgotten unsent, as Linking pushes their whole Watch State and Preferences anyway. A page
-    /// the Hub refuses as invalid is dropped, as it would refuse it again, and without the Server's
-    /// Link every change is, having nowhere to go. Any other failure, such as the Hub being down,
-    /// keeps the page and the rest.
+    /// Sends the changes and Viewing Events waiting for the Hub, a page per call, oldest first, each
+    /// kind apart, so one the Hub refuses holds back only its own. Those of a User `linking` says
+    /// isn't Linked are forgotten unsent, as Linking pushes their whole Watch State and Preferences
+    /// anyway, and their plays are never the Hub's. A page the Hub refuses as invalid is dropped,
+    /// as it would refuse it again, and without the Server's Link everything is, having nowhere to
+    /// go. Any other failure, such as the Hub being down, keeps the page and the rest.
     pub(super) async fn send_queued(&self, linking: &Linking) -> Result<(), Failure> {
         let _sending = self.sending.lock().await;
-        let watch_states = self.send_waiting(false, linking).await;
-        let preferences = self.send_waiting(true, linking).await;
-        watch_states.and(preferences)
+        let watch_states = self.send_waiting(Kind::WatchState, linking).await;
+        let preferences = self.send_waiting(Kind::Preference, linking).await;
+        let viewing_events = self.send_waiting(Kind::ViewingEvent, linking).await;
+        watch_states.and(preferences).and(viewing_events)
     }
 
-    /// [`ServerLink::send_queued`] of the Track Preference changes, if `preference`, else of the
-    /// Watch State changes.
-    async fn send_waiting(&self, preference: bool, linking: &Linking) -> Result<(), Failure> {
+    /// [`ServerLink::send_queued`] of what waits of `kind`.
+    async fn send_waiting(&self, kind: Kind, linking: &Linking) -> Result<(), Failure> {
         let mut linked = HashMap::new();
         loop {
-            let page = sync::waiting(&self.db, preference).await?;
+            let page = sync::waiting(&self.db, kind).await?;
             let Some(last) = page.last().map(|queued| queued.id) else {
                 return Ok(());
             };
             let to_send = of_linked_users(page, linking, &mut linked).await?;
             let sent = if to_send.is_empty() {
                 Ok(Some(()))
-            } else if preference {
-                let changes = parsed(&to_send);
-                self.call(|hub| hub.push_track_preferences(changes)).await
             } else {
-                let changes = parsed(&to_send);
-                self.call(|hub| hub.push_watch_states(changes)).await
+                self.push(kind, &to_send).await
             };
             match sent {
                 Ok(Some(())) => {}
                 Ok(None) => return Ok(sync::forget_all(&self.db).await?),
                 Err(err) if refused_as_invalid(&err) => {
                     tracing::warn!(
-                        preference,
+                        ?kind,
                         "the Hub refused a page of changes as invalid, so it was dropped: {err}"
                     );
                 }
                 Err(err) => return Err(err),
             }
-            sync::forget_through(&self.db, preference, last).await?;
+            sync::forget_through(&self.db, kind, last).await?;
+        }
+    }
+
+    /// Sends `page`, of `kind`, in the one Hub call that takes it, as [`ServerLink::call`] answers.
+    async fn push(&self, kind: Kind, page: &[Queued]) -> Result<Option<()>, Failure> {
+        match kind {
+            Kind::WatchState => (self.call(|hub| hub.push_watch_states(parsed(page)))).await,
+            Kind::Preference => (self.call(|hub| hub.push_track_preferences(parsed(page)))).await,
+            Kind::ViewingEvent => (self.call(|hub| hub.record_viewing_events(parsed(page)))).await,
         }
     }
 
@@ -661,13 +666,6 @@ impl KernelLink for ServerLink {
 
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async { Ok(self.forget_link(credential).await?) })
-    }
-
-    fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
-        Box::pin(async move {
-            let link = self.user_link(user_id).await?;
-            Ok(matches!(link, Some(Link::Linked { .. })))
-        })
     }
 }
 

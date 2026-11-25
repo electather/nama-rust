@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
-use nama_hub_proto::nama::hub::v1::{TrackPreferenceChange, WatchStateChange};
+use buffa::Message as _;
+use nama_hub_proto::nama::hub::v1::{
+    RecordViewingEventsRequest, TrackPreferenceChange, UserViewingEvent, WatchStateChange,
+};
 use nama_plugin_api::PluginId;
 use nama_plugin_hub::KernelLink;
 use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
-use super::{Error, delete, get, put, put_within};
+use super::{Error, delete, get, put, put_within, take_over_hub_viewing_events};
 use crate::{
     db::{self, Database},
     link::{self, Link, Linking, ServerLink},
@@ -224,9 +227,10 @@ async fn upgrading_hands_the_kernel_the_links_the_hub_plugin_kept_but_those_it_i
     // Nothing listens there: the kept Link is read without asking the Hub.
     let server = Arc::new(ServerLink::new("http://127.0.0.1:1", Arc::clone(&db)).unwrap());
     let credential = KernelLink::credential(server.as_ref()).await.unwrap();
-    let grace = KernelLink::user_linked(server.as_ref(), 1).await.unwrap();
-    let hedy = KernelLink::user_linked(server.as_ref(), 2).await.unwrap();
-    let link = Linking::new(Some(server)).server_link().await.unwrap();
+    let linking = Linking::new(Some(server));
+    let grace = linking.is_user_linked(1).await.unwrap();
+    let hedy = linking.is_user_linked(2).await.unwrap();
+    let link = linking.server_link().await.unwrap();
     let left: Vec<String> = sqlx::query_scalar("SELECT key FROM plugin_store")
         .fetch_all(db.reader())
         .await
@@ -248,9 +252,12 @@ async fn upgrading_hands_the_kernel_the_links_the_hub_plugin_kept_but_those_it_i
 /// The version of the migration that moves the Hub Plugin's queues into the Kernel.
 const HUB_SYNC_QUEUE: i64 = 20_261_124_215_157;
 
-/// A database migrated up to just before [`HUB_SYNC_QUEUE`], holding `store` in its Plugin Store,
-/// then opened, which runs the rest.
-async fn upgraded_with_queues(store: &'static str) -> (TempDir, Database) {
+/// The version of the migration that moves the Hub Plugin's queued Viewing Events into the Kernel.
+const HUB_VIEWING_EVENTS: i64 = 20_261_125_020_924;
+
+/// A database migrated up to just before the migration `version`, holding `store` in its Plugin
+/// Store, then opened, which runs the rest.
+async fn upgraded_with_queues(version: i64, store: &'static str) -> (TempDir, Database) {
     let data_dir = tempfile::tempdir().unwrap();
     let options = SqliteConnectOptions::new()
         .filename(data_dir.path().join(db::FILE_NAME))
@@ -258,7 +265,7 @@ async fn upgraded_with_queues(store: &'static str) -> (TempDir, Database) {
     let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
     let migrations = sqlx::migrate!();
     let before = (migrations.iter().map(|migration| migration.version))
-        .filter(|&version| version < HUB_SYNC_QUEUE)
+        .filter(|&before| before < version)
         .max();
     migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
     sqlx::raw_sql(
@@ -275,8 +282,11 @@ async fn upgraded_with_queues(store: &'static str) -> (TempDir, Database) {
 }
 
 /// What waits of a kind, as the Hub API's messages.
-async fn waiting_as<T: serde::de::DeserializeOwned>(db: &Database, preference: bool) -> Vec<T> {
-    (link::queued_for_hub(db, preference).await.unwrap().iter())
+async fn waiting_as<T: serde::de::DeserializeOwned>(
+    db: &Database,
+    kind: link::QueuedKind,
+) -> Vec<T> {
+    (link::queued_for_hub(db, kind).await.unwrap().iter())
         .map(|queued| serde_json::from_str(&queued.change).unwrap())
         .collect()
 }
@@ -286,6 +296,7 @@ async fn upgrading_queues_what_the_hub_plugin_had_queued_in_order_and_empties_it
     // Pages as the Plugin kept them: a header, then numbered JSON arrays, and an older Plugin's one
     // array of Preferences. User 8 is gone.
     let (_dir, db) = upgraded_with_queues(
+        HUB_SYNC_QUEUE,
         r#"INSERT INTO plugin_store (plugin_id, user_id, key, value) VALUES
            ('hub', NULL, 'watch-state-queue', CAST('{"first":9,"next":11}' AS BLOB)),
            ('hub', NULL, 'watch-state-queue/10', CAST('[{"userId":"7","ids":["tmdb-2"],"changedAtMs":"2000"}]' AS BLOB)),
@@ -293,12 +304,13 @@ async fn upgrading_queues_what_the_hub_plugin_had_queued_in_order_and_empties_it
            ('hub', NULL, 'track-preference-queue', CAST('[{"userId":"7","language":"eng","changedAtMs":"500"}]' AS BLOB)),
            ('hub', NULL, 'track-preferences', CAST('{"first":0,"next":1}' AS BLOB)),
            ('hub', NULL, 'track-preferences/0', CAST('[{"userId":"7","audio":true,"language":"jpn","changedAtMs":"700"}]' AS BLOB)),
-           ('hub', NULL, 'viewing-event-queue', CAST('{"first":0,"next":0}' AS BLOB))"#,
+           ('hub', NULL, 'similar-cache', CAST('{}' AS BLOB))"#,
     )
     .await;
 
-    let watch_states: Vec<WatchStateChange> = waiting_as(&db, false).await;
-    let preferences: Vec<TrackPreferenceChange> = waiting_as(&db, true).await;
+    let watch_states: Vec<WatchStateChange> = waiting_as(&db, link::QueuedKind::WatchState).await;
+    let preferences: Vec<TrackPreferenceChange> =
+        waiting_as(&db, link::QueuedKind::Preference).await;
     let left: Vec<String> = sqlx::query_scalar("SELECT key FROM plugin_store")
         .fetch_all(db.reader())
         .await
@@ -313,5 +325,55 @@ async fn upgrading_queues_what_the_hub_plugin_had_queued_in_order_and_empties_it
         .map(|change| (change.audio, change.language.as_str()))
         .collect();
     assert_eq!(languages, [(false, "eng"), (true, "jpn")]);
-    assert_eq!(left, ["viewing-event-queue"]);
+    assert_eq!(left, ["similar-cache"]);
+}
+
+#[tokio::test]
+async fn upgrading_queues_the_viewing_events_the_hub_plugin_had_queued_and_empties_its_store() {
+    // Pages as the Plugin kept them. User 8 is gone.
+    let (_dir, db) = upgraded_with_queues(
+        HUB_VIEWING_EVENTS,
+        r#"INSERT INTO plugin_store (plugin_id, user_id, key, value) VALUES
+           ('hub', NULL, 'viewing-event-queue', CAST('{"first":9,"next":11}' AS BLOB)),
+           ('hub', NULL, 'viewing-event-queue/10', CAST('[{"userId":"7","key":"c","event":{"externalId":"tmdb-3"}}]' AS BLOB)),
+           ('hub', NULL, 'viewing-event-queue/9', CAST('[{"userId":"7","key":"a","event":{"externalId":"tmdb-1","startedAt":"1700000000"}},{"userId":"8","key":"b"}]' AS BLOB)),
+           ('hub', NULL, 'similar-cache', CAST('{}' AS BLOB))"#,
+    )
+    .await;
+    // As a Plugin of v0.2.0 kept them, the request that sends them, which the Kernel takes over as
+    // it starts, once the migrations have run.
+    let unsent = RecordViewingEventsRequest {
+        events: [(7, "z"), (8, "y")]
+            .map(|(user_id, key)| UserViewingEvent {
+                user_id,
+                key: key.to_owned(),
+                ..Default::default()
+            })
+            .into(),
+        ..Default::default()
+    };
+    let hub = PluginId::from_static("hub");
+    (put(
+        &db,
+        &hub,
+        None,
+        "viewing-events".into(),
+        unsent.encode_to_vec(),
+    ))
+    .await
+    .unwrap();
+
+    take_over_hub_viewing_events(&db).await.unwrap();
+
+    let events: Vec<UserViewingEvent> = waiting_as(&db, link::QueuedKind::ViewingEvent).await;
+    let left: Vec<String> = sqlx::query_scalar("SELECT key FROM plugin_store")
+        .fetch_all(db.reader())
+        .await
+        .unwrap();
+    let keys: Vec<_> = (events.iter())
+        .map(|queued| (queued.user_id, queued.key.as_str()))
+        .collect();
+    assert_eq!(keys, [(7, "a"), (7, "c"), (7, "z")]);
+    assert_eq!(events[0].event.started_at, 1_700_000_000);
+    assert_eq!(left, ["similar-cache"]);
 }

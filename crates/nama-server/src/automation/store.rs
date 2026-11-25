@@ -3,7 +3,7 @@
 use nama_plugin_api::PluginId;
 use sqlx::SqliteConnection;
 
-use crate::db::Database;
+use crate::{db::Database, link};
 
 /// The longest key a Plugin may keep, in bytes.
 const MAX_KEY: usize = 256;
@@ -169,6 +169,35 @@ pub(crate) async fn delete_plugin(
         .execute(conn)
         .await?;
     Ok(())
+}
+
+/// Hands the Kernel's queue the Viewing Events a Hub Plugin of v0.2.0 kept unsent, once: they are
+/// protobuf, which the migration that took over later Plugins' can't read (ADR 0105).
+// ponytail: runs at every start for a key gone after the first; drop it once no Server can still
+// be on v0.2.0.
+pub(crate) async fn take_over_hub_viewing_events(db: &Database) -> Result<(), sqlx::Error> {
+    db.write(|tx| {
+        Box::pin(async move {
+            let unsent = sqlx::query_scalar!(
+                "SELECT value FROM plugin_store
+                 WHERE plugin_id = 'hub' AND user_id IS NULL AND key = 'viewing-events'"
+            )
+            .fetch_optional(&mut **tx)
+            .await?;
+            let Some(unsent) = unsent else {
+                return Ok(());
+            };
+            link::take_over_viewing_events(tx, &unsent).await?;
+            sqlx::query!(
+                "DELETE FROM plugin_store
+                 WHERE plugin_id = 'hub' AND user_id IS NULL AND key = 'viewing-events'"
+            )
+            .execute(&mut **tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
 }
 
 #[cfg(test)]

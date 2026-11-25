@@ -1,6 +1,7 @@
 //! A Linked User's Watch State, Subtitle and Audio Preferences and Watchlist syncing with the Hub
 //! the Server's config names, which the Kernel does (ADR 0008, ADR 0056, ADR 0092, ADR 0105), here
 //! a fake whose one Account two Servers share, which Links every User but those its test names.
+//! Their plays go to it as Viewing Events (ADR 0093).
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -21,12 +22,13 @@ use nama_hub_proto::nama::hub::v1::{
     self as hub, TrackPreferenceChange, WatchStateChange, WatchlistEntry,
 };
 use nama_proto::nama::v1::{
-    AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetTrackPreferencesRequest,
-    GetTrackPreferencesResponse, LibraryKind, ListContinueWatchingRequest, PlaybackServiceClient,
+    AddToWatchlistRequest, AudioCodec, BrowseServiceClient, Container, DeviceDecoding,
+    GetMovieRequest, GetTrackPreferencesRequest, GetTrackPreferencesResponse, LibraryKind,
+    ListContinueWatchingRequest, PlanPlaybackRequest, PlaybackServiceClient,
     RemoveFromWatchlistRequest, ReportProgressRequest, SetAudioPreferenceRequest,
-    SetSubtitlePreferenceRequest, StartUserLinkRequest, SubtitleKind, TitleKind, UserServiceClient,
-    UsersAudioPreference, UsersSubtitlePreference, WatchStateServiceClient, WatchlistServiceClient,
-    continue_watching_entry::MovieOrEpisode,
+    SetSubtitlePreferenceRequest, StartUserLinkRequest, StopPlaybackRequest, SubtitleKind,
+    TitleKind, UserServiceClient, UsersAudioPreference, UsersSubtitlePreference, VideoCodec,
+    WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use server::{TestServer, WAIT, tmdb::ALIEN};
 
@@ -472,4 +474,80 @@ async fn a_title_added_on_one_server_and_removed_on_another_ends_off_both() {
         !alien_on_watchlist(&first, &admin).await
     })
     .await;
+}
+
+/// Plays Alien to `position_ms` as whoever `who` calls as, from planning it to stopping it.
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn play_alien(fx: &Fixture, who: &ClientConfig, position_ms: u64) {
+    let playback = PlaybackServiceClient::new(HttpClient::plaintext(), who.clone());
+    let planned = playback
+        .plan_playback(PlanPlaybackRequest {
+            version_id: fx.version_ids(ALIEN).await[0],
+            device_decoding: DeviceDecoding {
+                containers: vec![Container::CONTAINER_MP4.into()],
+                video_codecs: vec![VideoCodec::VIDEO_CODEC_H264.into()],
+                audio_codecs: vec![AudioCodec::AUDIO_CODEC_AAC.into()],
+                mse: true,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    watch_alien(fx, who, position_ms).await;
+    let stopped = StopPlaybackRequest {
+        plan_id: planned.plan.into_option().unwrap().id,
+        ..Default::default()
+    };
+    playback.stop_playback(stopped).await.unwrap();
+}
+
+/// Each Viewing Event the Hub has, by its User and where it stopped.
+fn viewing_events(hub: &FakeHub) -> Vec<(i64, String, i64)> {
+    (hub.account().viewing_events.iter())
+        .map(|recorded| {
+            let event = recorded.event.as_option().cloned().unwrap_or_default();
+            (recorded.user_id, event.external_id, event.stop_position_ms)
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_linked_users_play_reaches_the_hub_as_a_viewing_event() {
+    let hub = FakeHub::start().await;
+    let fx = alien_linked_with(&hub).await;
+    start_admins_link(&fx.server).await;
+
+    play_alien(&fx, &fx.server.client_config(), 60_000).await;
+
+    until("the Hub has the Viewing Event", async || {
+        send_waiting(&fx.server).await;
+        !viewing_events(&hub).is_empty()
+    })
+    .await;
+    assert_eq!(viewing_events(&hub), [(1, format!("tmdb-{ALIEN}"), 60_000)]);
+}
+
+#[tokio::test]
+async fn an_unlinked_users_play_never_reaches_the_hub() {
+    let hub = FakeHub::start().await;
+    let fx = alien_linked_with(&hub).await;
+    let ada = fx.server.user_with_default_permissions("Ada").await;
+    hub.unlink_user_on_hub(ada.id);
+
+    play_alien(&fx, &ada.client_config(), 60_000).await;
+    play_alien(&fx, &fx.server.client_config(), 30_000).await;
+
+    until("the Hub has the Admin's Viewing Event", async || {
+        send_waiting(&fx.server).await;
+        !viewing_events(&hub).is_empty()
+    })
+    .await;
+    assert_eq!(viewing_events(&hub), [(1, format!("tmdb-{ALIEN}"), 30_000)]);
 }

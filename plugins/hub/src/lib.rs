@@ -1,9 +1,8 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
 //! Hub-facing but the Link itself and sharing Diagnostics, which the Kernel does (ADR 0105,
-//! [`KernelLink`]), and the sync of Watch State, Preferences and Watchlists, which the Kernel does
-//! too. Each play of the Users the Kernel Linked to Accounts goes to the Hub as a Viewing Event
-//! (ADR 0093).
-//! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
+//! [`KernelLink`]), and the sync of Watch State, Preferences and Watchlists and sending Viewing
+//! Events, which the Kernel does too.
+//! Once Linked, it is a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
 //! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
 //! of the Movies trending and the titles most watchlisted across Nama's Accounts (ADR 0058, 0093).
@@ -21,18 +20,12 @@ use nama_plugin_api::{
     automation::Permission,
     contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
     home_row::{HomeRowMethod, HomeRowSource},
-    job::JobRunner,
-    points::Events,
     server_link::ServerLinker,
     similar_source::SimilarSource,
 };
 
 use crate::{
-    charts::Charts,
-    hub::Hub as HubApi,
-    linker::{Jobs, Linker, ViewingEvents, send_job},
-    recommended::Recommended,
-    similar::Similar,
+    charts::Charts, hub::Hub as HubApi, linker::Linker, recommended::Recommended, similar::Similar,
 };
 
 /// The Server's Link with the Hub, which the Kernel keeps (ADR 0105): the Plugin calls the Hub as
@@ -57,16 +50,6 @@ pub trait KernelLink: fmt::Debug + Send + Sync + 'static {
     ///
     /// When the Kernel couldn't forget it.
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>>;
-
-    /// Whether the User `user_id` is Linked to an Account, as Settings shows it: the one answer
-    /// that decides whether their Watch State, Subtitle and Audio Preferences, Watchlist and plays
-    /// go to the Hub. It asks the Hub as Settings would, so a User who never opened Settings, such
-    /// as one who only signs in with their Account, counts once Linked there.
-    ///
-    /// # Errors
-    ///
-    /// When the Kernel can't answer even from what it last heard.
-    fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>>;
 }
 
 /// The Plugin.
@@ -92,18 +75,15 @@ impl Plugin for Hub {
         Manifest {
             name: "Hub".to_owned(),
             description:
-                "Sends the Hub what Linked Users play, adds the titles the Hub finds alike \
-                          to Similar titles, gives each Linked User a Recommended for you row \
-                          and Featured suggestions from what they finished, and shows Trending \
-                          on Nama and Most watchlisted on Nama rows on home."
+                "Adds the titles the Hub finds alike to Similar titles, gives each Linked \
+                          User a Recommended for you row and Featured suggestions from what they \
+                          finished, and shows Trending on Nama and Most watchlisted on Nama rows \
+                          on home."
                     .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            setup_markdown: "Link the Server under Settings, Server, and enable it. Each play \
-                             of a Matched title by a User Linked to their own Account goes to the \
-                             Hub as a Viewing Event, which their Account can see, delete and \
-                             export there. \
-                             Read Libraries, Read Watch State and Read Users tell it what was \
-                             played, how far, and on what kind of Device. \
+            setup_markdown: "Link the Server under Settings, Server, and enable it. \
+                             Read Libraries tells it which of the titles the Hub suggests the \
+                             Server has. \
                              Home's Trending on Nama row shows the Movies on the Server most \
                              Accounts finished this week and last, once at least 20 did, so it \
                              stays hidden until enough have. Most watchlisted on Nama shows the \
@@ -112,19 +92,11 @@ impl Plugin for Hub {
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
-                PointKey::observe::<Events>(),
-                PointKey::provide::<dyn JobRunner>(),
                 PointKey::provide::<dyn SimilarSource>(),
                 PointKey::provide::<dyn HomeRowSource>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
-            permissions: vec![
-                Permission::PERMISSION_STORE,
-                Permission::PERMISSION_READ_LIBRARIES,
-                Permission::PERMISSION_READ_WATCH_STATES,
-                Permission::PERMISSION_READ_USERS,
-            ],
-            jobs: vec![send_job()],
+            permissions: vec![Permission::PERMISSION_READ_LIBRARIES],
             ..Manifest::new(Self::ID)
         }
     }
@@ -136,17 +108,13 @@ impl Plugin for Hub {
             .kernel()
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
         let hub = HubApi::new(link.hub_url())?;
-        let linker = Arc::new(Linker::new(hub, link, Arc::clone(&kernel)));
+        let linker = Arc::new(Linker::new(hub, link));
         let similar: Arc<dyn SimilarSource> = Arc::new(Similar(Arc::clone(&linker)));
         let rows: Arc<dyn HomeRowSource> = Arc::new(Rows {
             recommended: Recommended::new(Arc::clone(&linker), Arc::clone(&kernel)),
             charts: Charts::new(Arc::clone(&linker), kernel),
         });
-        let viewing = ViewingEvents::new(Arc::clone(&linker));
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
-        registrar.observe::<Events>(viewing.clone());
-        let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { viewing });
-        registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, rows);
         Ok(())
