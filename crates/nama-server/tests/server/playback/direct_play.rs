@@ -159,7 +159,7 @@ async fn until_fewer_playing(fx: &Fixture, n: usize) {
 async fn a_capped_user_off_the_local_network_paused_past_a_minute_is_still_sent_their_direct_play()
 {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [_, p720], bishop) = capped_bishop(behind_proxy().moves_clock(), bin.path()).await;
+    let (fx, [_, p720], bishop) = capped_bishop(behind_proxy(), bin.path()).await;
     let remotely = (bishop.client_config()).with_default_header("x-forwarded-for", REMOTE);
     let original = picking(p720, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
     ask_for_plan_as(remotely.clone(), original.clone())

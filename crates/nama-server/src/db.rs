@@ -553,21 +553,12 @@ pub(crate) fn highest_migration_known() -> i64 {
 static OFFSET_MS: AtomicI64 = AtomicI64::new(0);
 
 /// Moves the Server's clock, which [`now`], [`now_ms`], [`instant_now`] and so a Plugin's
-/// `nama.now` read, ahead by `by`. Testing only. Process-wide, so `TestServer` tests sharing a
-/// process take turns, each starting on the real clock: see "One clock" in
+/// `nama.now` read, ahead by `by`. Testing only. Process-wide: see "One clock" in
 /// `crates/nama-server/AGENTS.md`.
 #[cfg(feature = "testing")]
 pub fn advance_clock(by: Duration) {
     let by = i64::try_from(by.as_millis()).unwrap_or(i64::MAX);
     OFFSET_MS.fetch_add(by, Ordering::Relaxed);
-}
-
-/// Puts the Server's clock back on the real clock, for a test that moves it. Testing only. Moves
-/// every clock in the process back, so only a test holding the clock alone may call it: see "One
-/// clock" in `crates/nama-server/AGENTS.md`.
-#[cfg(feature = "testing")]
-pub fn reset_clock() {
-    OFFSET_MS.store(0, Ordering::Relaxed);
 }
 
 #[cfg(feature = "testing")]

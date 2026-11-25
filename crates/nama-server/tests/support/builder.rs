@@ -12,7 +12,7 @@ use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
 
 use super::{
-    CLOCK, ClockGuard, TestServer, anonymous_config,
+    TestServer, anonymous_config,
     fulfiller::{self, FakeFulfiller, Fulfills},
     set_up, tmdb,
 };
@@ -26,7 +26,6 @@ pub(crate) struct Builder {
     ffmpeg: Ffmpeg,
     tmdb: bool,
     fulfiller: Option<(Fulfills, FakeFulfiller)>,
-    moves_clock: bool,
 }
 
 impl Builder {
@@ -63,14 +62,6 @@ impl Builder {
         self.fake_fulfiller(Fulfills::Shows, profiles)
     }
 
-    /// Has the Server hold the clock alone, so its test may call [`TestServer::advance_clock`].
-    pub(crate) fn moves_clock(self) -> Self {
-        Self {
-            moves_clock: true,
-            ..self
-        }
-    }
-
     fn fake_fulfiller(self, fulfills: Fulfills, profiles: &[&str]) -> Self {
         let fake = FakeFulfiller::default();
         fake.offer_profiles(profiles);
@@ -87,29 +78,18 @@ impl Builder {
         reason = "a test helper fails its test by panicking"
     )]
     pub(crate) async fn start(self) -> TestServer {
-        let clock = if self.moves_clock {
-            let guard = CLOCK.write().await;
-            nama_server::db::reset_clock();
-            ClockGuard::Exclusive { _held: guard }
-        } else {
-            ClockGuard::Shared {
-                _held: CLOCK.read().await,
-            }
-        };
-        self.serve(tempfile::tempdir().unwrap(), None, clock).await
+        self.serve(tempfile::tempdir().unwrap(), None).await
     }
 
     /// Stops `server` and starts serving its data directory again, as a restart does, with its
-    /// Admin still signed in. The new Server keeps the old one's hold on the clock, since locking
-    /// it again while the test holds it would deadlock.
+    /// Admin still signed in.
     pub(crate) async fn restart(self, server: TestServer) -> TestServer {
         let TestServer {
             admin_token,
             data_dir,
-            clock,
             ..
         } = server;
-        self.serve(data_dir, Some(admin_token), clock).await
+        self.serve(data_dir, Some(admin_token)).await
     }
 
     /// Serves `data_dir`, signed in as `admin_token`, or else setting the first Admin up.
@@ -117,12 +97,7 @@ impl Builder {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    async fn serve(
-        self,
-        data_dir: TempDir,
-        admin_token: Option<String>,
-        clock: ClockGuard,
-    ) -> TestServer {
+    async fn serve(self, data_dir: TempDir, admin_token: Option<String>) -> TestServer {
         let Self {
             config,
             plugins,
@@ -186,7 +161,6 @@ impl Builder {
             fulfiller,
             _stop: stop,
             data_dir,
-            clock,
         }
     }
 }

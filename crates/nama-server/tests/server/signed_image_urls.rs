@@ -109,7 +109,7 @@ async fn a_signed_url_loads_only_its_own_image() {
 
 #[tokio::test]
 async fn a_signed_url_loads_for_a_few_minutes_and_not_once_it_expires() {
-    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let fx = Fixture::alien_on(TestServer::builder()).await;
     let poster = fx.alien_as_bearer().await.poster_url.unwrap();
 
     fx.server.advance_clock(Duration::from_mins(4));

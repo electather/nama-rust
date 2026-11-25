@@ -202,7 +202,7 @@ async fn past_the_budget_a_new_request_is_refused_with_a_clear_error() {
 
 #[tokio::test]
 async fn an_unfetched_file_is_deleted_once_it_expires() {
-    let (fx, version, ada) = alien_and_ada(TestServer::builder().moves_clock()).await;
+    let (fx, version, ada) = alien_and_ada(TestServer::builder()).await;
     let (poll_url, _) = made(&fx, &ada, version, "PLAYBACK_LIMIT_480P").await;
     assert_eq!(kept_files(&fx), 1);
 
@@ -263,7 +263,7 @@ async fn a_user_without_download_is_refused_a_transcode_to_download() {
 async fn a_file_still_being_made_once_it_would_have_expired_is_stopped() {
     let bin = tempfile::tempdir().unwrap();
     let hanging = ffmpeg_writing_nothing(bin.path(), "libx264");
-    let builder = TestServer::builder().moves_clock().ffmpeg(hanging);
+    let builder = TestServer::builder().ffmpeg(hanging);
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
     fx.write(ALIEN_1080P, b"video");
     fx.scan_and_match().await;

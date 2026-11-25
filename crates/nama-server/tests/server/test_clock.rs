@@ -26,7 +26,7 @@ fn unix_seconds() -> i64 {
 
 #[tokio::test]
 async fn the_admin_is_still_signed_in_after_the_clock_moves_30_days() {
-    let server = TestServer::builder().moves_clock().start().await;
+    let server = TestServer::builder().start().await;
 
     server.advance_clock(THIRTY_DAYS);
 
@@ -38,7 +38,7 @@ async fn the_admin_is_still_signed_in_after_the_clock_moves_30_days() {
 
 #[tokio::test]
 async fn a_watch_state_reported_after_the_clock_moves_is_dated_by_the_moved_clock() {
-    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let fx = Fixture::alien_on(TestServer::builder()).await;
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
@@ -71,12 +71,4 @@ async fn a_watch_state_reported_after_the_clock_moves_is_dated_by_the_moved_cloc
         state.updated_at,
         after + moved
     );
-}
-
-#[tokio::test]
-#[should_panic(expected = "moves_clock()")]
-async fn moving_the_clock_of_a_server_built_without_moves_clock_panics() {
-    let server = TestServer::builder().start().await;
-
-    server.advance_clock(THIRTY_DAYS);
 }

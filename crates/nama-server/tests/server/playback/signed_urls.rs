@@ -135,7 +135,7 @@ async fn a_signed_url_loads_neither_another_version_or_plan_nor_its_versions_dow
 
 #[tokio::test]
 async fn a_signed_playback_url_loads_for_a_few_minutes_and_not_once_it_expires() {
-    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let fx = Fixture::alien_on(TestServer::builder()).await;
     let version = fx.version_ids(ALIEN).await[0];
     let plan = fx.plan_as_bearer(version).await;
 
@@ -149,7 +149,7 @@ async fn a_signed_playback_url_loads_for_a_few_minutes_and_not_once_it_expires()
 
 #[tokio::test]
 async fn a_signed_playback_url_outlasts_its_minutes_while_its_plan_plays_and_not_once_it_stops() {
-    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let fx = Fixture::alien_on(TestServer::builder()).await;
     let version = fx.version_ids(ALIEN).await[0];
     let plan = fx.plan_as_bearer(version).await;
 

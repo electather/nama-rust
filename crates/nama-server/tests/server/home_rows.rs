@@ -467,7 +467,7 @@ async fn home_lists_the_stored_rows_without_waiting_for_a_refresh() {
 async fn opening_home_once_the_rows_are_stale_refreshes_them() {
     let log = Log::global();
     let asked = ["test-plugin gives Home rows \"again,picks\""];
-    let server = installed(TestServer::builder().moves_clock(), "again,picks").await;
+    let server = installed(TestServer::builder(), "again,picks").await;
     enable(&server).await;
     wait_for_rows(&server, &["picks", "again"]).await;
     assert_eq!(log.count(&asked), 1, "enabling refreshes it once");
@@ -490,7 +490,7 @@ async fn a_failed_refresh_is_not_tried_again_for_15_minutes() {
         "refreshing the Plugin's Home rows failed",
         "test-plugin was set to fail",
     ];
-    let server = installed(TestServer::builder().moves_clock(), "fail").await;
+    let server = installed(TestServer::builder(), "fail").await;
     enable(&server).await;
     log.wait_for(&failed, 1).await;
 
@@ -656,7 +656,7 @@ async fn a_refresh_no_title_source_answers_keeps_the_missing_titles_and_tries_ag
     // A setting no other test sets, so only this test's refreshes log it.
     let asked = ["test-plugin gives Home rows \"missing,picks\""];
     let unanswered = ["the title source couldn't look up the Plugin's Home row titles"];
-    let server = installed(TestServer::builder().moves_clock(), "missing,picks").await;
+    let server = installed(TestServer::builder(), "missing,picks").await;
     enable(&server).await;
     wait_for_rows(&server, &["picks", "missing"]).await;
 

@@ -248,7 +248,6 @@ async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
     let log = Log::global();
     let server = TestServer::builder()
         .plugins(Registry::with_builtins())
-        .moves_clock()
         .start()
         .await;
     server.install_test_plugin("automation").await;

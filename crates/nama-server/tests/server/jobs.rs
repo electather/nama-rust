@@ -42,7 +42,7 @@ fn until_four() -> Duration {
 /// A Server moving the clock, with the test Plugin built with Jobs enabled and none of its lines
 /// kept from an earlier test.
 async fn with_jobs() -> TestServer {
-    let server = TestServer::builder().moves_clock().start().await;
+    let server = TestServer::builder().start().await;
     server.enable_test_plugin("jobs").await;
     // Kept Plugin Log lines are process-wide and enabling keeps those it finds, so an earlier
     // test's Server that left the Plugin enabled left its Runs' lines, under the ids this Server's
@@ -54,7 +54,6 @@ async fn with_jobs() -> TestServer {
 #[tokio::test]
 async fn a_job_fires_on_its_schedule_drops_a_firing_due_while_it_runs_and_stops_with_its_plugin() {
     let server = with_jobs().await;
-    // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
     let (started, ended) = (log.count(STARTED), log.count(ENDED));
     let on_ask = log.count(ON_ASK_ENDED);
@@ -135,7 +134,6 @@ async fn waits_last_outcome(server: &TestServer) -> JobRunOutcome {
 async fn an_admin_sees_each_job_and_its_runs_with_their_lines_a_disabled_plugins_come_back_and_others_are_refused()
  {
     let server = with_jobs().await;
-    // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
     let (started, ended) = (log.count(STARTED), log.count(ENDED));
 
@@ -262,7 +260,6 @@ async fn disable_and_enable(server: &TestServer) {
 #[tokio::test]
 async fn a_job_turned_off_never_fires_and_one_given_a_schedule_fires_on_it_until_reset() {
     let server = with_jobs().await;
-    // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
     let (started, ended) = (log.count(STARTED), log.count(ENDED));
 
@@ -376,7 +373,6 @@ fn run_request(job: &str) -> RunJobRequest {
 async fn an_admin_runs_a_job_now_as_themselves_once_at_a_time_and_only_one_an_enabled_plugin_declares()
  {
     let server = with_jobs().await;
-    // Once the Server holds the clock alone, so no other test's Server logs Job lines meanwhile.
     let log = Log::global();
     let (started, ended) = (log.count(STARTED), log.count(ENDED));
     let service = JobServiceClient::new(HttpClient::plaintext(), server.client_config());
