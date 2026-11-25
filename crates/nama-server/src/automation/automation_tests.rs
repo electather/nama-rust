@@ -131,13 +131,14 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
 }
 
 #[tokio::test]
-async fn list_titles_gives_genres_content_rating_and_an_episodes_show_id() {
+async fn list_titles_gives_genres_their_ids_content_rating_and_an_episodes_show_id() {
     let data = tempfile::tempdir().unwrap();
     let movies = tempfile::tempdir().unwrap();
     let shows = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let horror = Metadata {
         genres: vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+        genre_ids: vec![ExternalId::tmdb(27), ExternalId::tmdb(878)],
         content_rating: Some("R".to_owned()),
         ..tmdb_movie(ALIEN_TMDB_ID, "Alien")
     };
@@ -150,17 +151,22 @@ async fn list_titles_gives_genres_content_rating_and_an_episodes_show_id() {
         let page = kernel.ask::<ListTitles>(titles_asked(library, 0, "")).await;
         listed.extend(page.unwrap().titles.into_iter().map(|title| {
             let show = title.show_id.as_option().map(|id| id.value.clone());
-            (title.genres, title.content_rating, show)
+            let genre_ids: Vec<_> = (title.genre_ids.iter())
+                .map(|id| format!("{}-{}", id.namespace, id.value))
+                .collect();
+            (title.genres, genre_ids, title.content_rating, show)
         }));
     }
 
     let dark_episode = (
         vec!["Drama".to_owned()],
+        Vec::new(),
         Some("TV-MA".to_owned()),
         Some(DARK_TMDB_ID.to_string()),
     );
     let alien_movie = (
         vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+        vec!["tmdb-27".to_owned(), "tmdb-878".to_owned()],
         Some("R".to_owned()),
         None,
     );

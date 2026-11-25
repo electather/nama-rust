@@ -120,6 +120,7 @@ pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
         logo: None,
         still: None,
         genres: Vec::new(),
+        genre_ids: Vec::new(),
         content_rating: None,
         show_poster: None,
         show_overview: None,

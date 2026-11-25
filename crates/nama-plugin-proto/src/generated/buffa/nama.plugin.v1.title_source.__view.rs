@@ -4979,6 +4979,14 @@ pub struct MovieView<'a> {
     ///
     /// Field 17: `box_set`
     pub box_set: ::buffa::MessageFieldView<super::super::__buffa::view::BoxSetView<'a>>,
+    /// Each of `genres`' id in this source, in the same order, such as `tmdb` `35`; empty if the
+    /// source has none. The Kernel keeps none of them unless there is one for every genre.
+    ///
+    /// Field 18: `genre_ids`
+    pub genre_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -5185,6 +5193,24 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                         )?,
                     );
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.genre_ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5247,6 +5273,11 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            genre_ids: self
+                .genre_ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5326,6 +5357,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if self.box_set.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.box_set.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.genre_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -5415,6 +5454,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
             );
             self.box_set.write_to(__cache, buf);
         }
+        for v in &self.genre_ids {
+            ::buffa::types::put_len_delimited_header(
+                18u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -5489,6 +5536,9 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
             if let ::core::option::Option::Some(__v) = self.box_set.as_option() {
                 __map.serialize_entry("boxSet", __v)?;
             }
+        }
+        if !self.genre_ids.is_empty() {
+            __map.serialize_entry("genreIds", &*self.genre_ids)?;
         }
         __map.end()
     }
@@ -5700,6 +5750,16 @@ impl MovieOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::BoxSetView<'_>> {
         &self.0.reborrow().box_set
+    }
+    /// Each of `genres`' id in this source, in the same order, such as `tmdb` `35`; empty if the
+    /// source has none. The Kernel keeps none of them unless there is one for every genre.
+    ///
+    /// Field 18: `genre_ids`
+    #[must_use]
+    pub fn genre_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().genre_ids
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -6245,6 +6305,13 @@ pub struct ShowView<'a> {
     ///
     /// Field 15: `crew`
     pub crew: ::buffa::RepeatedView<'a, super::super::__buffa::view::RoleView<'a>>,
+    /// As `Movie.genre_ids`.
+    ///
+    /// Field 17: `genre_ids`
+    pub genre_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -6442,6 +6509,24 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                         )?,
                     );
             }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.genre_ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6492,6 +6577,11 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             crew: self
                 .crew
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            genre_ids: self
+                .genre_ids
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
@@ -6574,6 +6664,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.genre_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -6660,6 +6758,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        for v in &self.genre_ids {
+            ::buffa::types::put_len_delimited_header(
+                17u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6729,6 +6835,9 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if !self.crew.is_empty() {
             __map.serialize_entry("crew", &*self.crew)?;
+        }
+        if !self.genre_ids.is_empty() {
+            __map.serialize_entry("genreIds", &*self.genre_ids)?;
         }
         __map.end()
     }
@@ -6929,6 +7038,15 @@ impl ShowOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::RoleView<'_>> {
         &self.0.reborrow().crew
+    }
+    /// As `Movie.genre_ids`.
+    ///
+    /// Field 17: `genre_ids`
+    #[must_use]
+    pub fn genre_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().genre_ids
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

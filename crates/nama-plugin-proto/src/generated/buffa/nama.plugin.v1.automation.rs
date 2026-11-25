@@ -2502,6 +2502,17 @@ pub struct Title {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub show_ids: ::buffa::alloc::vec::Vec<TitleId>,
+    /// Each of `genres`' id in the title source that named it, in the same order, such as `tmdb`
+    /// `35`. Empty if that source gave none, or for a Match stored before the Kernel kept them.
+    ///
+    /// Field 12: `genre_ids`
+    #[serde(
+        rename = "genreIds",
+        alias = "genre_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genre_ids: ::buffa::alloc::vec::Vec<TitleId>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2520,6 +2531,7 @@ impl ::core::fmt::Debug for Title {
             .field("show_id", &self.show_id)
             .field("ids", &self.ids)
             .field("show_ids", &self.show_ids)
+            .field("genre_ids", &self.genre_ids)
             .finish()
     }
 }
@@ -2639,6 +2651,14 @@ impl ::buffa::Message for Title {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.genre_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2697,6 +2717,14 @@ impl ::buffa::Message for Title {
         for v in &self.show_ids {
             ::buffa::types::put_len_delimited_header(
                 11u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.genre_ids {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -2828,6 +2856,18 @@ impl ::buffa::Message for Title {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.show_ids.push(elem);
             }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.genre_ids.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2847,6 +2887,7 @@ impl ::buffa::Message for Title {
         self.show_id = ::buffa::MessageField::none();
         self.ids.clear();
         self.show_ids.clear();
+        self.genre_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

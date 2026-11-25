@@ -144,6 +144,7 @@ impl Metadata {
             logo: picked.logo.clone(),
             still: episode.still.clone(),
             genres: show.genres.clone(),
+            genre_ids: show.genre_ids.clone(),
             content_rating: show.content_rating.clone(),
             show_poster: (picked.poster.clone())
                 .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),

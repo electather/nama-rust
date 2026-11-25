@@ -334,6 +334,7 @@ fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::
         backdrop: Some("/show-backdrop.jpg".into()),
         seasons: vec![1],
         genres: Vec::new(),
+        genre_ids: Vec::new(),
         content_rating: None,
         score: None,
         original_language: None,

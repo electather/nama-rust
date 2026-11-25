@@ -262,7 +262,7 @@ async fn a_movie_has_its_details_imdb_id_and_artwork() {
 }
 
 #[tokio::test]
-async fn a_movie_has_its_genres_and_its_rating_in_the_settings_country() {
+async fn a_movie_has_its_genres_their_ids_and_its_rating_in_the_settings_country() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
@@ -270,12 +270,14 @@ async fn a_movie_has_its_genres_and_its_rating_in_the_settings_country() {
     let movie = movie.movie.unwrap();
 
     assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
+    let genre_ids = [ExternalId::tmdb(27), ExternalId::tmdb(878)];
+    assert_eq!(movie.genre_ids, genre_ids.map(|id| title_id(&id)));
     // Its first US release has no certification.
     assert_eq!(movie.content_rating.as_deref(), Some("R"));
 }
 
 #[tokio::test]
-async fn a_show_has_its_genres_and_content_rating_in_the_settings_country() {
+async fn a_show_has_its_genres_their_ids_and_content_rating_in_the_settings_country() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
@@ -283,6 +285,12 @@ async fn a_show_has_its_genres_and_content_rating_in_the_settings_country() {
     let show = show.show.unwrap();
 
     assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
+    let genre_ids = [
+        ExternalId::tmdb(80),
+        ExternalId::tmdb(18),
+        ExternalId::tmdb(9648),
+    ];
+    assert_eq!(show.genre_ids, genre_ids.map(|id| title_id(&id)));
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
 }
 

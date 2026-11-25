@@ -120,6 +120,7 @@ async fn a_page_of_episodes_gives_their_show_numbers_ids_and_added_time() {
             episode: Some(1),
             added_at: listed.added_at,
             genres: Vec::new(),
+            genre_ids: Vec::new(),
             content_rating: None,
             show_id: Some(ExternalId::tmdb(70_523)),
             ids: ExternalIds::from_iter([ExternalId::tmdb(1001)]),

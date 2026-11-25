@@ -6,7 +6,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
     Contents, ImageRef, ItemKind, Stored, any_library::library_with_movie, details, ids_from_json,
-    ids_sql, library_titles, parse_hint, primary_id_in,
+    ids_json, ids_sql, library_titles, parse_hint, primary_id_in,
 };
 use crate::library::title_source::Trailer;
 
@@ -396,7 +396,7 @@ impl Contents {
         library: i64,
         only: Option<&[ExternalId]>,
     ) -> Result<Vec<Movie>, sqlx::Error> {
-        let only = listed_ids(only);
+        let only = only.map(ids_json);
         // ponytail: whole-Library read, grouped by `library_titles`.
         macro_rules! select {
             ($ids:literal, ($($titles:tt)+)) => {
@@ -509,7 +509,7 @@ impl Contents {
         library: i64,
         only: Option<&[ExternalId]>,
     ) -> Result<Vec<Show>, sqlx::Error> {
-        let only = listed_ids(only);
+        let only = only.map(ids_json);
         // ponytail: whole-Library read, grouped by `library_titles`.
         macro_rules! select {
             ($ids:literal, ($($titles:tt)+)) => {
@@ -709,18 +709,25 @@ impl Contents {
     }
 }
 
-/// `ids` as a JSON array of their text forms, as [`Contents::movies`] and [`Contents::shows`]
-/// take them.
-fn listed_ids(ids: Option<&[ExternalId]>) -> Option<String> {
-    ids.map(|ids| serde_json::Value::from_iter(ids.iter().map(ToString::to_string)).to_string())
-}
-
 /// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored
 /// before Matches had them.
 pub(super) fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
     json.map_or(Ok(Vec::new()), |json| {
         serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))
     })
+}
+
+/// The ids in the `genre_ids` column's JSON, `json`: none where it's NULL, as for a Match stored
+/// before Matches had them, or where one doesn't parse, as they'd fall out of step with `genres`.
+pub(super) fn genre_ids(json: Option<&str>) -> Vec<ExternalId> {
+    let texts: Vec<String> = json
+        .and_then(|json| serde_json::from_str(json).ok())
+        .unwrap_or_default();
+    texts
+        .iter()
+        .map(|text| text.parse())
+        .collect::<Result<_, _>>()
+        .unwrap_or_default()
 }
 
 /// The Version of a file that [`Contents::movies`] and [`Contents::shows`] read, its columns
