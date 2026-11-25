@@ -1,16 +1,15 @@
 //! Every Link call the Server makes, answered in the Kernel's terms: a [`Link`], or an [`Error`]
 //! that tells "nothing to ask" from "it couldn't tell". The Server's own Link, its Users' Links and
 //! signing in with an Account are the Kernel's, with the Hub its config names ([`ServerLink`], ADR
-//! 0105); syncing goes to the enabled Plugin that links the Server, such as the Hub Plugin (ADR
-//! 0011, ADR 0094), speaking only the Plugin contract. Each call's bound is named once:
+//! 0105), and so is syncing its Linked Users with the Hub. Each call's bound is named once:
 //!
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
 //! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
-//! | Bulk transfers                                                     | [`BULK`]      |
-//! | The Server Addresses tick, a Relay token, sharing Diagnostics, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
+//! | Bulk transfers: a pull or a Watchlist sync                         | [`BULK`]      |
+//! | The Server Addresses tick, a Relay token, sending what waits, sharing Diagnostics, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The limit on each call to the service
@@ -23,6 +22,7 @@
 mod hub;
 mod server;
 mod sharing;
+mod sync;
 mod token;
 mod users;
 
@@ -36,28 +36,33 @@ use std::{
 use bytes::Bytes;
 pub(crate) use nama_plugin_api::server_link::Link;
 use nama_plugin_api::{
-    PluginError,
     points::{TrackPreference, WatchStateChange},
-    server_link::{AccountSignIn, ServerAddresses, ServerLinker, WatchlistEntry},
+    server_link::{AccountSignIn, ServerAddresses, WatchlistEntry},
 };
 use tokio::sync::{broadcast, watch};
 use tracing::{Instrument as _, instrument::WithSubscriber as _, subscriber::NoSubscriber};
 
-pub(crate) use self::server::ServerLink;
 pub use self::sharing::ShareWithHub;
+/// What waits for the Hub, for the upgrade test that hands it the Hub Plugin's queues, which only
+/// the Plugin Store's tests may write.
+#[cfg(test)]
+pub(crate) use self::sync::waiting as queued_for_hub;
+pub(crate) use self::{
+    server::ServerLink,
+    sync::{queue_track_preferences, queue_watch_states},
+};
 use crate::{
     config::Config,
     db::Database,
     diagnostics::{self, Signal},
-    plugins::ExtensionPoints,
 };
 
 /// How long a page waits for the Server's Link or a User's, so Server info and the Users list
 /// answer even when the Hub or the Plugin doesn't.
 const PAGE_READ: Duration = Duration::from_secs(10);
 
-/// How long a bulk transfer may take, so a Plugin that never answers can't hold up every later
-/// scan's pulls.
+/// How long a bulk transfer may take, so a Hub that never answers can't hold up every later scan's
+/// pulls.
 const BULK: Duration = Duration::from_mins(1);
 
 /// How many new Links may be told before a follower has heard them.
@@ -92,11 +97,9 @@ pub(crate) enum Whose {
     User(i64),
 }
 
-/// Asks the Kernel's Server Link and the enabled Plugin that links the Server. Cloning it gives
-/// another handle to the same.
+/// Asks the Kernel's Server Link. Cloning it gives another handle to the same.
 #[derive(Debug, Clone)]
 pub(crate) struct Linking {
-    points: ExtensionPoints,
     /// The Server's own Link, `None` when its config names no Hub.
     server: Option<Arc<ServerLink>>,
     /// Whose Link the last look found Linked.
@@ -105,10 +108,9 @@ pub(crate) struct Linking {
 }
 
 impl Linking {
-    /// Asks `server`, the Server's own Link, and the Plugins of `points`, having seen no Link yet.
-    pub(crate) fn new(points: ExtensionPoints, server: Option<Arc<ServerLink>>) -> Self {
+    /// Asks `server`, the Server's own Link, having seen no Link yet.
+    pub(crate) fn new(server: Option<Arc<ServerLink>>) -> Self {
         Self {
-            points,
             server,
             linked: Arc::default(),
             new_links: broadcast::channel(NEW_LINKS_BUFFERED).0,
@@ -118,11 +120,6 @@ impl Linking {
     /// Whose Link turns Linked from now on, as a look finds it.
     pub(crate) fn follow(&self) -> broadcast::Receiver<Whose> {
         self.new_links.subscribe()
-    }
-
-    /// Whether an enabled Plugin links the Server; most Servers have none.
-    pub(crate) fn has_linking_plugin(&self) -> bool {
-        !self.points.providers::<dyn ServerLinker>().is_empty()
     }
 
     /// Wakes each time the Hub answers a report of the Server Addresses with what it found of
@@ -362,66 +359,85 @@ impl Linking {
         tokio::spawn(unlinking.instrument(span));
     }
 
-    /// The Watch State the service keeps of the User `user_id` from every Server they use.
+    /// Whether the User `user_id` is Linked, so what they do moves between the Server and the Hub.
+    /// Not, without a Hub.
+    pub(super) async fn is_user_linked(&self, user_id: i64) -> Result<bool, Error> {
+        match self.user_link(user_id).await {
+            Ok(link) => Ok(matches!(link, Some(Link::Linked { .. }))),
+            Err(Error::NoHub) => Ok(false),
+            Err(Error::Failed) => Err(Error::Failed),
+        }
+    }
+
+    /// Sends the Hub Linked Users' changes waiting for it. A failure, such as the Hub being
+    /// unreachable, is logged, and what didn't go waits for the next send.
+    pub(crate) async fn send_queued(&self) -> Result<(), Error> {
+        self.ask_hub(async |server| server.send_queued(self).await)
+            .await
+    }
+
+    /// The Watch State the Hub keeps of the User `user_id` from every Server they use.
     pub(crate) async fn watch_states(&self, user_id: i64) -> Option<Vec<WatchStateChange>> {
-        let pull = async |linker: Arc<dyn ServerLinker>| linker.watch_states(user_id).await;
-        self.transfer(user_id, "pull a User's Watch State", pull)
-            .await
+        let pull = async |server: &ServerLink| server.pull_watch_states(user_id).await;
+        (self
+            .transfer(user_id, "pull a User's Watch State", pull)
+            .await)
+            .ok()
+            .flatten()
     }
 
-    /// The Subtitle and Audio Preferences the service keeps of the User `user_id`.
+    /// The Subtitle and Audio Preferences the Hub keeps of the User `user_id`.
     pub(crate) async fn track_preferences(&self, user_id: i64) -> Option<Vec<TrackPreference>> {
-        let pull = async |linker: Arc<dyn ServerLinker>| linker.track_preferences(user_id).await;
-        self.transfer(user_id, "pull a User's Track Preferences", pull)
-            .await
+        let pull = async |server: &ServerLink| server.pull_track_preferences(user_id).await;
+        (self
+            .transfer(user_id, "pull a User's Track Preferences", pull)
+            .await)
+            .ok()
+            .flatten()
     }
 
-    /// Hands the service the User `user_id`'s whole `watchlist`, and answers the one it keeps.
+    /// Hands the Hub the User `user_id`'s whole `watchlist`, and answers their Account's: `None`
+    /// while they aren't Linked. A failure is logged.
     pub(crate) async fn sync_watchlist(
         &self,
         user_id: i64,
         watchlist: Vec<WatchlistEntry>,
-    ) -> Option<Vec<WatchlistEntry>> {
-        let sync = async |linker: Arc<dyn ServerLinker>| {
-            linker.sync_watchlist(user_id, watchlist.clone()).await
-        };
+    ) -> Result<Option<Vec<WatchlistEntry>>, Error> {
+        let sync = async |server: &ServerLink| server.sync_watchlist(user_id, watchlist).await;
         self.transfer(user_id, "sync a User's Watchlist", sync)
             .await
     }
 
-    /// What `call` moves of the User `user_id`, `None` without a Plugin that links the Server, or
-    /// once it failed or took [`BULK`], which is logged as failing to `what`. The next sign-in,
-    /// scan or change tries again.
-    async fn transfer<T, F>(
-        &self,
+    /// What `call` moves of the User `user_id` through the Server's Link: `None` while they aren't
+    /// Linked. A failure, or a call taking longer than [`BULK`], is logged as failing to `what`.
+    async fn transfer<'a, T, F>(
+        &'a self,
         user_id: i64,
         what: &str,
-        call: impl Fn(Arc<dyn ServerLinker>) -> F,
-    ) -> Option<T>
+        call: impl FnOnce(&'a ServerLink) -> F,
+    ) -> Result<Option<T>, Error>
     where
-        F: Future<Output = Result<T, PluginError>>,
+        F: Future<Output = Result<T, hub::Failure>>,
     {
-        let answer = (self.points)
-            .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
-                within_bulk(call(linker)).await
-            })
-            .await?;
-        let plugin = &answer.plugin;
-        answer
-            .result
-            .inspect_err(|_failure| {
-                // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
-                tracing::warn!(%plugin, user = user_id, "could not {what}");
-            })
-            .ok()
+        let transferring = async {
+            if !self.is_user_linked(user_id).await? {
+                return Ok(None);
+            }
+            self.ask_hub(call).await.map(Some)
+        };
+        match tokio::time::timeout(BULK, transferring).await {
+            Ok(Ok(moved)) => Ok(moved),
+            Ok(Err(failed)) => {
+                tracing::warn!(user = user_id, "could not {what}");
+                Err(failed)
+            }
+            Err(_elapsed) => {
+                tracing::warn!(
+                    user = user_id,
+                    "could not {what}: the Hub didn't answer in time"
+                );
+                Err(Error::Failed)
+            }
+        }
     }
-}
-
-/// What `call` answers, or a failure once it has taken [`BULK`].
-async fn within_bulk<T>(
-    call: impl Future<Output = Result<T, PluginError>>,
-) -> Result<T, PluginError> {
-    tokio::time::timeout(BULK, call)
-        .await
-        .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
 }

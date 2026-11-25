@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM hub_sync_queue WHERE preference = ? AND id <= ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4dac19b3928ab7ccd87ebfd7e0ee05363a3d87ec5f25aefef0bd46e87a5481b4"
+}

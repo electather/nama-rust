@@ -1,19 +1,13 @@
-//! Provide: syncing the Users the Kernel Linked to Accounts with an outside service, once the
-//! Kernel has Linked the Server and them with the Hub (ADR 0011, ADR 0105): their Watch State and
-//! Subtitle and Audio Preferences on their other Servers come back through it (ADR 0008, ADR 0092),
-//! and their Watchlist syncs with them (ADR 0056). The Link types the Kernel answers in live here too.
-//! Only a Built-in Plugin provides it, by registering it:
+//! Provide: what is left of Linking the Server's Users, once the Kernel has Linked the Server, its
+//! Users and their sync with the Hub (ADR 0011, ADR 0105): nothing yet, until #2222 removes this
+//! Extension Point. The Link types the Kernel answers in live here too. Only a Built-in Plugin
+//! provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
 //! ```
 
 use std::net::SocketAddr;
-
-use crate::{
-    BoxFuture, PluginError,
-    points::{TrackPreference, WatchStateChange},
-};
 
 /// Where Linking the Server, or one of its Users, stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +76,8 @@ pub struct ServerAddresses {
     pub relay: Option<SocketAddr>,
 }
 
-/// A title on a User's Watchlist, or taken off it, as the change made last left it.
+/// A title on a User's Watchlist, or taken off it, as the change made last left it, as the Kernel
+/// syncs it with the Hub (ADR 0056).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WatchlistEntry {
     /// Whether it is a Show rather than a Movie, whose TMDB ids are a separate id space.
@@ -95,46 +90,5 @@ pub struct WatchlistEntry {
     pub changed_at_ms: i64,
 }
 
-/// A Provider that syncs the Server's Linked Users with an outside service.
-pub trait ServerLinker: Send + Sync + 'static {
-    /// The Watch State the service keeps of the User `user_id` from every Server they use, such as
-    /// their Account's on the Hub (ADR 0008), each title's by any of its ids, with when it last
-    /// changed; empty while they aren't Linked. The Kernel takes what is newer than its own.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be asked: the Kernel asks again at the next sign-in or scan.
-    fn watch_states(
-        &self,
-        user_id: i64,
-    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>>;
-
-    /// The Subtitle and Audio Preferences the service keeps of the User `user_id` from every
-    /// Server they use, with when each last changed; empty while they aren't Linked, and from a
-    /// service that keeps none. The Kernel takes what is newer than its own.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be asked: the Kernel asks again at the next sign-in.
-    fn track_preferences(
-        &self,
-        _user_id: i64,
-    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
-        Box::pin(async { Ok(Vec::new()) })
-    }
-
-    /// Hands the service `watchlist`, the User `user_id`'s whole Watchlist, and answers the one it
-    /// keeps from every Server they use, such as their Account's on the Hub (ADR 0056), each
-    /// title's under each of its ids apart; empty while they aren't Linked. The Kernel takes what
-    /// is newer than its own.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be asked: the Kernel syncs again at the next change, sign-in or
-    /// scan.
-    fn sync_watchlist(
-        &self,
-        user_id: i64,
-        watchlist: Vec<WatchlistEntry>,
-    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>>;
-}
+/// A Provider that Links the Server's Users to an outside service; it has no calls left.
+pub trait ServerLinker: Send + Sync + 'static {}

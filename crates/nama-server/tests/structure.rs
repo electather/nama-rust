@@ -105,6 +105,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         "src/link/server",
         &["hub_link", "hub_key_set", "hub_tokens_used"],
     ),
+    ("src/link/sync", &["hub_sync_queue"]),
     ("src/link/users", &["hub_user_links"]),
 ];
 

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM hub_link) AS \"linked!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "linked!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1d56ba7eb4a20e726d7a197e1a5afa906c3c2ee30dcb9e795626ad310d4d5005"
+}
