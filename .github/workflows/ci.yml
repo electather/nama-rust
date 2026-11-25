@@ -476,7 +476,7 @@ jobs:
       - run: cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
       # The Hub embeds the same web app. Its other tests need PostgreSQL, which `hub` has, so this
-      # runs only its web pages' unit tests, which need none.
+      # runs only its `web::` unit tests, which need none.
       - run: cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-hub --features web --lib --locked --profile ci -E 'test(/^web::/)'
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}

@@ -79,11 +79,9 @@ export default defineConfig({
     // Tests live in `__tests__` folders.
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
-    // Runs before every test file: the page tests set the same wait again in `src/test-app.tsx`,
-    // and the few that don't import it (`use-paged.test.tsx`) wait 10 s, not 1 s.
     setupFiles: ["src/test-setup.ts"],
     retry: ci ? 2 : 0,
-    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-app.tsx` and `src/test-setup.ts` raise Testing Library's wait to match).
+    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-setup.ts` raises Testing Library's wait to match).
     expect: { poll: { timeout: 10_000 } },
     // Over the 10 s waits, so one that runs out names what it missed; a cold run's first imports take seconds.
     testTimeout: 30_000,
