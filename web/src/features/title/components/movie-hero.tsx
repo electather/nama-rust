@@ -47,7 +47,14 @@ export function MovieHero({
         <MovieMoreLoader
           {...{ libraryId, movieId, movie, readOnlyFolder, version }}
           versions={choice.versions}
-          onChoose={setChosen}
+          onChoose={(versionId) => {
+            // A Version is its Server's own, so picking one keeps Play there when a Server with a
+            // bigger one answers later.
+            if (choice.server) {
+              playFrom.onChoose(choice.server.id);
+            }
+            setChosen(versionId);
+          }}
           playFrom={{
             ...playFrom,
             // Version ids are each Server's own, so a choice made on one names nothing on another.

@@ -202,3 +202,33 @@ test("a Show on two Servers plays its next Episode from the one with the best Ve
     );
   });
 });
+
+test("a Version picked before another Server answers keeps Play on the Server it's on", async () => {
+  let cabinAnswers: (() => void) | undefined;
+  const cabinAnswered = new Promise<void>((resolve) => {
+    cabinAnswers = resolve;
+  });
+  openAtHub("/libraries/1/movies/tmdb-348?server=basement", {
+    "https://basement.example": holdingAlien(1n, [
+      version(1n, 2),
+      { ...version(3n, 1), edition: "Theatrical" },
+    ]),
+    "https://cabin.example": fakeServer(7n, {
+      getMovie: async () => {
+        await cabinAnswered;
+        return { movie: { id: alien, title: "Alien", versions: [version(3n, 30)] } };
+      },
+    }),
+  });
+  await openMenu("More actions");
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Theatrical/u }));
+
+  cabinAnswers?.();
+
+  const cabin = await screen.findByRole("menuitemradio", { name: /^Cabin/u });
+  expect(cabin.getAttribute("aria-checked")).toBe("false");
+  const play = screen.getByRole("link", { name: /^Play/u, hidden: true });
+  expect(play.getAttribute("href")).toMatch(
+    /^\/libraries\/1\/movies\/tmdb-348\/play\?version=3&server=basement/u,
+  );
+});
