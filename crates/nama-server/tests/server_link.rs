@@ -525,12 +525,14 @@ async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable
 async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can_cancel_a_code() {
     let (server, hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
+    // Linked before signing in, since signing in has the Server ask the Hub whether she is, and
+    // keep the answer for a minute.
+    hub.link_user(grace);
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     hub.approve_sign_in(grace);
     let signed_in = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE)
         .await
         .unwrap();
-    hub.link_user(grace);
     let device = server.client_config_as(&signed_in.token);
     let unlink = async || {
         users(device.clone())
