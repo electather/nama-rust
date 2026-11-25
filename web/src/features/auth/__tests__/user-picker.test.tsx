@@ -154,6 +154,20 @@ test("the last wrong Switch PIN says the User was signed out, and the picker no 
   await expectPicker(["Sam", "Kim"]);
 });
 
+test("a User signed out of this Device elsewhere can't be switched to, and the picker drops them", async () => {
+  const { tv, transport } = sharedTv();
+  openApp("/switch-user", transport);
+  await expectPicker(["Sam", "Ada", "Kim"]);
+  tv.users = tv.users.filter((each) => each.id !== 3n);
+
+  fireEvent.click(screen.getByRole("button", { name: "Kim" }));
+
+  await expect(
+    screen.findByText("That User isn’t signed in to this Device. They can sign in again."),
+  ).resolves.toBeDefined();
+  await expectPicker(["Sam", "Ada"]);
+});
+
 test("a Device acting as none of its Users opens the User picker, then the page", async () => {
   const router = openApp("/code", sharedTv(0n).transport);
 
