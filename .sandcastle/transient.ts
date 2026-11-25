@@ -12,6 +12,18 @@ export function githubServerError(e: unknown): boolean {
     /Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|HTTP 50[0234]|returned error: 50[0234]/i.test(text);
 }
 
+// GitHub also answers a good token with a one-off 401 now and then: on 2026-11-24 one `gh issue view` got "Bad
+// credentials" between good calls, and the babysit loop stopped for the rest of the run. Only a gh command counts:
+// a git auth failure (SSH, 1Password) or a Claude API 401 is a real infra failure. A token that's really revoked
+// fails every call, so the caller bounds how often it believes this.
+
+/** Whether `e` is a gh command GitHub refused with "Bad credentials". */
+export function githubBadCredentials(e: unknown): boolean {
+  const err = e as { message?: string; stderr?: unknown };
+  const text = `${err?.message ?? e} ${err?.stderr ?? ""}`;
+  return /Command failed: gh /.test(text) && /HTTP 401: Bad credentials/.test(text);
+}
+
 if (import.meta.main) {
   const { default: assert } = await import("node:assert/strict");
   const failed = (cmd: string, stderr: string) =>
@@ -29,4 +41,16 @@ if (import.meta.main) {
   assert.ok(!githubServerError(new Error('API Error: 500 {"type":"api_error","message":"Internal server error"}')),
     "a Claude API error is infra");
   assert.ok(!githubServerError(failed("gh pr create", "HTTP 401: Bad credentials\n")));
+
+  assert.ok(githubBadCredentials(failed("gh issue view 2210 --json title,state,author,labels,parent",
+    "HTTP 401: Bad credentials (https://api.github.com/graphql)\nTry authenticating with:  gh auth refresh -h github.com\n")));
+  assert.ok(!githubBadCredentials(failed("git push origin agent/issue-1",
+    "sign_and_send_pubkey: signing failed for ED25519 \"github\" from agent: agent refused operation\ngit@github.com: Permission denied (publickey).\n")),
+    "git over SSH is infra");
+  assert.ok(!githubBadCredentials(failed("git fetch origin main",
+    "remote: Invalid username or token.\nfatal: Authentication failed for 'https://github.com/o/r.git/'\n")),
+    "git over HTTPS is infra");
+  assert.ok(!githubBadCredentials(new Error('API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}')),
+    "a Claude API 401 is infra");
+  assert.ok(!githubBadCredentials(failed("gh pr view 12", "HTTP 503: Service Unavailable (https://api.github.com/graphql)\n")));
 }

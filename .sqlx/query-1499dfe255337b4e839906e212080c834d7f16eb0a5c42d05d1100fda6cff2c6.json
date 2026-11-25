@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO watch_sync_cursors (user_id, plugin_id, cursor) VALUES (?, ?, ?)\n                 ON CONFLICT (user_id, plugin_id) DO UPDATE SET cursor = excluded.cursor",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1499dfe255337b4e839906e212080c834d7f16eb0a5c42d05d1100fda6cff2c6"
+}

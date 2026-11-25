@@ -19,6 +19,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 
+use super::watch_sync::scrobble;
 use crate::{
     db::{BoxFuture, Database, detached, now_ms},
     link,
@@ -274,8 +275,9 @@ impl WatchStates {
     }
 
     /// Runs `write` of the User `user`'s Watch State, queuing the changes it returns for the Hub in
-    /// the same write, then tells `WatchStatesChanged` Observers of them, in a task of its own, so
-    /// they're queued and told even if the caller stops waiting once the write is sent (ADR 0029).
+    /// the same write, then tells `WatchStatesChanged` Observers and Watch sync Plugins of them, in a
+    /// task of its own, so they're queued and told even if the caller stops waiting once the write
+    /// is sent (ADR 0029).
     async fn write_and_tell<F>(
         &self,
         user: i64,
@@ -296,6 +298,7 @@ impl WatchStates {
                     user_id: user,
                     changes: changes.clone(),
                 };
+                scrobble(&db, &points, &told);
                 points.notify::<WatchStatesChanged>(told);
             }
             Ok(changes)
@@ -306,8 +309,9 @@ impl WatchStates {
     /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of
     /// each Movie or Episode here, made after any this Server has of it under any of its ids, in
     /// one write: as of when it was made, it forgets one marked unplayed and stores any other,
-    /// under the preferred id. One once played here stays played. Returns nothing to queue for
-    /// the Hub or tell Observers: the change is the Hub's own news.
+    /// under the preferred id. One once played here stays played. Queues nothing for the Hub and tells
+    /// neither Observers nor Watch sync Plugins: the change is the service's own news, so it never
+    /// echoes back.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,

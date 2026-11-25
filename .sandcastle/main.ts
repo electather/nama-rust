@@ -19,7 +19,7 @@ import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 import { sweepLeftovers } from "./sweep.ts";
-import { githubServerError } from "./transient.ts";
+import { githubBadCredentials, githubServerError } from "./transient.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
@@ -139,6 +139,24 @@ function noteRateLimit() {
 const ghWait = async () => {
   while (Date.now() < ghResetsAt) await sleep(60_000);
 };
+
+// A loop's listing that GitHub fails with a 5xx or a one-off 401 (see transient.ts) is one missed pass, not a
+// crash: one such 401 stopped the babysit loop for the rest of a run, so three new PRs sat unbabysat and the run
+// exited 1 into the supervisor's hour-long wait. LIST_RETRIES failures in a row, such as a token that's really
+// revoked, still crash the run as before.
+const LIST_RETRIES = 5;
+function listingRetries(what: string) {
+  let failures = 0;
+  return {
+    ok: () => { failures = 0; },
+    // Whether the loop tries again on its next pass (a minute away), rather than crashing.
+    retry(e: unknown): boolean {
+      if (!(githubServerError(e) || githubBadCredentials(e)) || ++failures > LIST_RETRIES) return false;
+      log(`↻ ${what} failed (${failures}/${LIST_RETRIES} in a row), trying again next pass: ${oneLine(e)}`);
+      return true;
+    },
+  };
+}
 
 // The sandboxes share OrbStack's one VM, which runs out of memory when they peak together. Every 30s a sandbox
 // over MEM_LOG_GIB (default 4) logs its biggest processes to mem.log, so the command behind a spike has a name.
@@ -1030,6 +1048,7 @@ async function overUsage(): Promise<boolean> {
 // The implement loop: starts an issue whenever a slot is free (see slotPool). Started issues finish in the background.
 async function dispatch() {
   const running = new Set<Promise<void>>();
+  const picking = listingRetries("picking the next issue");
   for (;;) {
     await ghWait();
     await slots.acquire();
@@ -1042,9 +1061,10 @@ async function dispatch() {
     if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = pickNext();
+        picking.ok();
       } catch (e) {
         if (rateLimited(e)) noteRateLimit(); // a wait (issue stays "wait")
-        else {
+        else if (!picking.retry(e)) { // a retry is a wait too
           // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
           // the run. In-flight issues finish and release their claims; nothing new starts.
           const why = `picking the next issue failed: ${oneLine(e)}`;
@@ -1081,6 +1101,7 @@ let implementDone = false;
 let mainDone = false; // the main loop may still open a PR until then
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
+  const listing = listingRetries("listing PRs to babysit");
   for (;;) {
     if (stopping()) break; // its PRs in flight finish here; the rest are the newer run's
     await ghWait();
@@ -1089,9 +1110,14 @@ async function babysitLoop() {
     try {
       prs = openPrs();
       jobs = babysittable(prs);
+      listing.ok();
     } catch (e) {
       if (rateLimited(e)) {
         noteRateLimit();
+        continue;
+      }
+      if (listing.retry(e)) {
+        await sleep(60_000);
         continue;
       }
       const why = `listing PRs to babysit failed: ${oneLine(e)}`;
@@ -1134,6 +1160,7 @@ async function babysitLoop() {
 async function triageLoop() {
   if (!TRIAGING) return;
   const running = new Set<Promise<void>>();
+  const listing = listingRetries("listing issues to triage");
   for (;;) {
     await ghWait();
     await triageSlots.acquire(); // released by track
@@ -1146,10 +1173,16 @@ async function triageLoop() {
     if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = triageable().find((i) => !triaged.has(i.number));
+        listing.ok();
       } catch (e) {
         if (rateLimited(e)) {
           noteRateLimit();
           triageSlots.release();
+          continue;
+        }
+        if (listing.retry(e)) {
+          triageSlots.release();
+          await sleep(60_000);
           continue;
         }
         const why = `listing issues to triage failed: ${oneLine(e)}`;
