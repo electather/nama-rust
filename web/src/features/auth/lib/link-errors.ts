@@ -9,7 +9,7 @@ export function linkErrors(error: unknown): FormErrors {
 
 /** What a Link by redirect whose code expired or was used says. */
 const LINK_EXPIRED =
-  "This Link expired or was used. Start Linking again in your Server’s Settings.";
+  "This request to Link the Server expired or was used. Start Linking again in its Settings.";
 
 /**
  * Why the Hub refused to approve a Server's Link by redirect, if it did, for the whole page: it has

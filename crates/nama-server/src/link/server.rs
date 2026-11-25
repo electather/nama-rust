@@ -223,9 +223,9 @@ impl ServerLink {
         }
         let started = self.hub.start(server_name, return_url).await?;
         let url = if return_url.is_empty() {
-            self.hub.url().to_owned()
+            self.pages_url().to_owned()
         } else {
-            format!("{}/link-server/{}", self.hub.url(), started.user_code)
+            format!("{}/link-server/{}", self.pages_url(), started.user_code)
         };
         let now = db::instant_now();
         let code = Waiting {

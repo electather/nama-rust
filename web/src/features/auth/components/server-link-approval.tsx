@@ -41,7 +41,10 @@ function approvalAction(pending: boolean, linked: string | undefined) {
   return pending ? "Linking…" : "Link Server";
 }
 
-/** Sends the browser to where the Server started Linking, or the Account's page without one. */
+/**
+ * Sends the browser to where the Server started Linking, or the Account's page without one, in
+ * place of this page, as its code is used (`src/routes/AGENTS.md`).
+ */
 function goBack({ returnUrl }: { returnUrl: string }) {
-  globalThis.location.assign(returnUrl === "" ? "/" : returnUrl);
+  globalThis.location.replace(returnUrl === "" ? "/" : returnUrl);
 }

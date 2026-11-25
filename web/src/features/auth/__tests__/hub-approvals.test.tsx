@@ -128,7 +128,7 @@ test("a Link that needs the email proven offers a Sign-in Link", async () => {
 test("approving a Server Linking by redirect goes back to that Server", async () => {
   // Going to another site would end the test's page, so where it went is only noted.
   const went: string[] = [];
-  vi.spyOn(globalThis.location, "assign").mockImplementation((url) => {
+  vi.spyOn(globalThis.location, "replace").mockImplementation((url) => {
     went.push(String(url));
   });
   openApp("/link-server/SRVR-CODE", fakeHub());
@@ -157,7 +157,7 @@ test("a Linking by redirect that expired says to start again in the Server's Set
 
   await expect(
     screen.findByText(
-      "This Link expired or was used. Start Linking again in your Server’s Settings.",
+      "This request to Link the Server expired or was used. Start Linking again in its Settings.",
     ),
   ).resolves.toBeDefined();
 });

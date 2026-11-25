@@ -259,8 +259,7 @@ impl Links {
 
     /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
     /// every Linked Server whose codes expired before it collected its credential. Approving its
-    /// code sends the person back to `return_url`, when it isn't empty: only the Server can check
-    /// that it is one of its own addresses, as it has none here yet.
+    /// code sends the person back to `return_url`, when it isn't empty (`links/AGENTS.md`).
     pub(crate) async fn start(&self, name: &str, return_url: &str) -> Result<Started, Error> {
         if !return_url.is_empty() && !server_sign_ins::is_web_url(return_url) {
             return Err(Error::UrlInvalid);
