@@ -25,6 +25,12 @@ export const notificationLabels: Record<NotificationKind, SettingText> = {
   },
 };
 
+/** The "Notify this browser" switch, which `?setting=browser-push` finds. */
+export const browserPushText: SettingText = {
+  label: "Notify this browser",
+  words: "notifications notify push web push",
+};
+
 /** What the switch of the notification `kind` says. */
 export function notificationLabel(kind: NotificationKind) {
   return notificationLabels[kind]?.label ?? "";
