@@ -1,3 +1,5 @@
+import { useLocation } from "@tanstack/react-router";
+
 import { LinkRemedy } from "@/features/auth/components/link-remedy";
 import { useApproveServerLink } from "@/features/auth/data/use-approve-server-link";
 import { linkApprovalErrors } from "@/features/auth/lib/link-errors";
@@ -9,6 +11,7 @@ import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout"
  */
 export function ServerLinkApproval({ code }: { code: string }) {
   const approve = useApproveServerLink();
+  const here = useLocation({ select: (location) => location.href });
   // Once approved, the browser is on its way back to the Server.
   const going = approve.isPending || approve.isSuccess;
   return (
@@ -17,7 +20,7 @@ export function ServerLinkApproval({ code }: { code: string }) {
       action={approvalAction(going, approve.data?.server?.name)}
       pending={going}
       errors={linkApprovalErrors(approve.error)}
-      footer={<LinkRemedy error={approve.error} redirect={`/link-server/${code}`} />}
+      footer={<LinkRemedy error={approve.error} redirect={here} />}
       onSubmit={() => {
         approve.mutate({ code }, { onSuccess: goBack });
       }}

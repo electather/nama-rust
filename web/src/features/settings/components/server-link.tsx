@@ -32,7 +32,7 @@ export function ServerLink() {
         link={link}
         enterUnder="Link a Server"
         start={start}
-        redirect={() => {
+        onRedirect={() => {
           start.mutate({ returnUrl: globalThis.location.href });
         }}
         unlink={unlink}
