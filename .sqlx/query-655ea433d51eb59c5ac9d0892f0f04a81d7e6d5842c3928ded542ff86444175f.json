@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, user_id, change FROM hub_sync_queue WHERE preference = ? ORDER BY id LIMIT ?",
+  "query": "SELECT id, user_id, change FROM hub_sync_queue WHERE kind = ? ORDER BY id LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "d8919ab4bada414e5202a2c47683d5bb9d7d0f99a25af0907f96a9efcfb47ef9"
+  "hash": "655ea433d51eb59c5ac9d0892f0f04a81d7e6d5842c3928ded542ff86444175f"
 }

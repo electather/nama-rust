@@ -1,7 +1,7 @@
 //! Calling the Hub as the Server's Link needs: its API (`proto/nama/hub/v1/`) for Linking the
 //! Server and its Users, signing in with an Account, the Server Addresses, the certificate
-//! challenge, the Relay token and syncing Linked Users, what it accepts of each, its published key
-//! set, and its OTLP/HTTP paths taking shared Diagnostics.
+//! challenge, the Relay token, syncing Linked Users and recording their Viewing Events, what it
+//! accepts of each, its published key set, and its OTLP/HTTP paths taking shared Diagnostics.
 
 // ponytail: the client is copied from the Hub Plugin's `hub.rs`, which keeps its own for the calls
 // it still makes; one goes once the rest of the Plugin's Linking moves here (#2203).
@@ -26,11 +26,11 @@ use nama_hub_proto::nama::hub::v1::{
     GetRelayTokenRequest, GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
     PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
-    PushWatchStatesRequest, ServerLinkServiceClient, SetCertificateChallengeRequest,
-    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange, UnlinkServerRequest,
-    UnlinkUserRequest, WatchStateChange, WatchlistEntry,
+    PushWatchStatesRequest, RecordViewingEventsRequest, ServerLinkServiceClient,
+    SetCertificateChallengeRequest, SetServerAddressesRequest, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange,
+    UnlinkServerRequest, UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::server_link::{Reachability, ServerAddresses};
 
@@ -47,7 +47,8 @@ const MAX_KEY_SET_BYTES: usize = 64 * 1024;
 /// The most External IDs a `WatchStateChange` carries.
 pub(super) const WATCH_STATE_IDS: usize = 20;
 
-/// The most changes a `PushWatchStatesRequest` or a `PushTrackPreferencesRequest` holds.
+/// The most changes a `PushWatchStatesRequest` or a `PushTrackPreferencesRequest` holds; a
+/// `RecordViewingEventsRequest` holds twice as many.
 pub(super) const PUSH_CHANGES: usize = 500;
 
 /// The most entries a `SyncWatchlistRequest` holds.
@@ -402,6 +403,21 @@ impl LinkedHub {
         (self.client()?)
             .push_watch_states(PushWatchStatesRequest {
                 changes,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// Records `events`, the Server's Users' Viewing Events, under the Accounts they are Linked to.
+    pub(super) async fn record_viewing_events(
+        self,
+        events: Vec<UserViewingEvent>,
+    ) -> Result<(), Failure> {
+        (self.client()?)
+            .record_viewing_events(RecordViewingEventsRequest {
+                events,
                 ..Default::default()
             })
             .await

@@ -1,45 +1,31 @@
 use std::{
     collections::HashMap,
     future,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
+    sync::{Arc, Mutex},
 };
 
 use buffa::Message as _;
-use connectrpc::ErrorCode;
-use nama_hub_proto::nama::hub::v1::{DeviceKind as HubDeviceKind, ViewingEvent};
 use nama_plugin_api::{
-    BoxFuture, ObservePoint, Observer, Registrar, Registration,
+    BoxFuture, Registrar, Registration,
     automation::{
         Kernel, KernelFunction as _, KernelRefused,
-        functions::{
-            ListDevices, ListLibraries, ListTitles, ListVersionTitles, ListWatchStates,
-            StoreDelete, StoreGet, StorePut,
-        },
-    },
-    contract::{
-        Device, DeviceKind, Devices, Event, Libraries, Library, Playback, PlaybackEnded,
-        PlaybackStarted, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleId, TitleRef,
-        TitleRefKind, TitleWatchStates, Titles, VersionTitles, VersionTitlesAsked, WatchState,
-        WatchStates, WatchStatesAsked, event::Event as Happened,
+        functions::{ListLibraries, ListTitles, StoreDelete, StoreGet, StorePut},
     },
     contract::{
         FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, LibraryKind, SharedRowsAsked,
         SimilarAsked, SimilarTitle, SimilarTitles, TitleKind, TitlesAsked, UserFeaturedAsked,
         UserRowsAsked,
     },
+    contract::{
+        Libraries, Library, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleId, TitleRef,
+        TitleRefKind, Titles,
+    },
     home_row::{HomeRowMethod, HomeRowSource},
-    job::RunJob,
-    points::ObservedEvents,
     similar_source::SimilarSource,
 };
 
 use super::*;
 use crate::fake_hub::FakeHub;
-use crate::linker::queue::MAX_VALUE_BYTES;
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
 pub(crate) fn store() -> Arc<dyn Kernel> {
@@ -58,10 +44,6 @@ pub(crate) fn store() -> Arc<dyn Kernel> {
                 .encode_to_vec()
             } else if function == StorePut::NAME {
                 let entry = StoreEntry::decode_from_slice(&request).unwrap();
-                if entry.value.len() > MAX_VALUE_BYTES {
-                    let refused = KernelRefused(format!("{} is over 64 KiB", entry.key));
-                    return Box::pin(future::ready(Err(refused)));
-                }
                 entries.insert(entry.key, entry.value);
                 Stored::default().encode_to_vec()
             } else if function == StoreDelete::NAME {
@@ -94,13 +76,6 @@ fn registered(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Vec<Registration> {
 fn provider<T: ?Sized + Send + Sync + 'static>(registrations: &[Registration]) -> Arc<T> {
     (registrations.iter())
         .find_map(Registration::provider::<T>)
-        .unwrap()
-}
-
-/// What observes `P` among `registrations`.
-fn observer<P: ObservePoint>(registrations: &[Registration]) -> Arc<dyn Observer<P>> {
-    (registrations.iter())
-        .find_map(Registration::observer::<P>)
         .unwrap()
 }
 
@@ -381,20 +356,6 @@ fn links_again(hub: &FakeHub) {
 }
 
 #[tokio::test]
-async fn a_play_for_a_server_the_hub_forgot_sends_no_viewing_event() {
-    let hub = FakeHub::start().await;
-    let points = dropped(&hub, &playing());
-
-    play(observer::<Events>(&points).as_ref(), 7, MATRIX_VERSION, 1).await;
-    send(provider::<dyn JobRunner>(&points).as_ref())
-        .await
-        .unwrap();
-
-    assert_eq!(hub.viewing_events(), []);
-    links_again(&hub);
-}
-
-#[tokio::test]
 async fn similar_titles_for_a_server_the_hub_forgot_are_none() {
     let hub = FakeHub::start().await;
     let points = dropped(&hub, &store());
@@ -466,14 +427,10 @@ async fn every_call_while_the_hub_answers_failures_fails_and_keeps_the_link() {
 /// count as a dropped Link.
 async fn every_call_fails_and_keeps_the_link(outage: impl FnOnce(&FakeHub)) {
     let hub = FakeHub::start().await;
-    let points = linked_user_7(&hub, &playing());
+    let points = linked_user_7(&hub, &store());
     let rows = provider::<dyn HomeRowSource>(&points);
     outage(&hub);
 
-    play(observer::<Events>(&points).as_ref(), 7, MATRIX_VERSION, 1).await;
-    send(provider::<dyn JobRunner>(&points).as_ref())
-        .await
-        .unwrap_err();
     (provider::<dyn SimilarSource>(&points).similar(&movie(&[("tmdb", "603")])))
         .await
         .unwrap_err();
@@ -492,294 +449,6 @@ async fn every_call_fails_and_keeps_the_link(outage: impl FnOnce(&FakeHub)) {
         .unwrap_err();
 
     assert!(hub.server_keeps_link());
-}
-
-#[tokio::test]
-async fn a_user_linked_on_the_hub_has_their_plays_sent_though_settings_never_asked() {
-    let hub = FakeHub::start().await;
-    let points = registered(&hub, &playing());
-    hub.link_server();
-    hub.link_user_on_hub(7);
-
-    play(observer::<Events>(&points).as_ref(), 7, MATRIX_VERSION, 1).await;
-
-    assert_eq!(hub.viewing_events().len(), 1);
-}
-
-#[tokio::test]
-async fn a_user_the_hub_says_isnt_linked_has_nothing_sent() {
-    let hub = FakeHub::start().await;
-    let points = linked_user_7(&hub, &playing());
-    let jobs = provider::<dyn JobRunner>(&points);
-
-    play(observer::<Events>(&points).as_ref(), 8, MATRIX_VERSION, 1).await;
-    send(jobs.as_ref()).await.unwrap();
-
-    assert_eq!(hub.viewing_events(), []);
-}
-
-/// The Version holding the Movie `tmdb-603`.
-const MATRIX_VERSION: i64 = 1;
-
-/// A Version whose Item isn't Matched.
-const UNMATCHED_VERSION: i64 = 2;
-
-/// The TV each play is on.
-const TV: i64 = 3;
-
-/// How far into `tmdb-603` each play stops, and how long it is: past 90%, so finished.
-const STOPPED_MS: u64 = 7_500_000;
-const MATRIX_MS: u64 = 8_160_000;
-
-/// A Kernel keeping the Store as [`store`] does, which answers that [`MATRIX_VERSION`] holds the
-/// Movie `tmdb-603`, that any User asked about stopped it at [`STOPPED_MS`] just now, and that
-/// [`TV`] is a TV.
-fn playing() -> Arc<dyn Kernel> {
-    playing_at(Arc::new(AtomicU64::new(STOPPED_MS)))
-}
-
-/// [`playing`]'s Kernel, but any User asked about stopped `tmdb-603` where `position` says then.
-fn playing_at(position: Arc<AtomicU64>) -> Arc<dyn Kernel> {
-    let store = store();
-    Arc::new(
-        move |function: &str,
-              request: Vec<u8>|
-              -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
-            let answer = if function == ListVersionTitles::NAME {
-                let asked = VersionTitlesAsked::decode_from_slice(&request).unwrap();
-                let matrix = TitleRef {
-                    library_id: 1,
-                    kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
-                    id: TitleId {
-                        namespace: "tmdb".to_owned(),
-                        value: "603".to_owned(),
-                        ..Default::default()
-                    }
-                    .into(),
-                    ..Default::default()
-                };
-                let titles = Vec::from_iter((asked.version_id == MATRIX_VERSION).then_some(matrix));
-                VersionTitles {
-                    titles,
-                    ..Default::default()
-                }
-                .encode_to_vec()
-            } else if function == ListWatchStates::NAME {
-                let asked = WatchStatesAsked::decode_from_slice(&request).unwrap();
-                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-                let state = WatchState {
-                    user_id: asked.user_id.unwrap(),
-                    position_ms: position.load(Ordering::Relaxed),
-                    duration_ms: MATRIX_MS,
-                    updated_at_ms: i64::try_from(now.as_millis()).unwrap(),
-                    ..Default::default()
-                };
-                let titles = (asked.titles.into_iter())
-                    .map(|title_ref| TitleWatchStates {
-                        title_ref: title_ref.into(),
-                        states: vec![state.clone()],
-                        ..Default::default()
-                    })
-                    .collect();
-                WatchStates {
-                    titles,
-                    ..Default::default()
-                }
-                .encode_to_vec()
-            } else if function == ListDevices::NAME {
-                let tv = Device {
-                    id: TV,
-                    user_id: 7,
-                    kind: DeviceKind::DEVICE_KIND_TV.into(),
-                    ..Default::default()
-                };
-                Devices {
-                    devices: vec![tv],
-                    ..Default::default()
-                }
-                .encode_to_vec()
-            } else {
-                let (store, function) = (Arc::clone(&store), function.to_owned());
-                return Box::pin(async move { store.call(&function, request).await });
-            };
-            Box::pin(future::ready(Ok(answer)))
-        },
-    )
-}
-
-/// The Extension Points the Plugin serves.
-struct Points {
-    observer: Arc<dyn Observer<Events>>,
-    jobs: Arc<dyn JobRunner>,
-}
-
-/// The Plugin enabled against `hub` with `kernel`.
-fn enabled_points(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Points {
-    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::through(hub.kernel_link())
-        .register(&mut registrar)
-        .unwrap();
-    let registrations = registrar.into_registrations();
-    let mut found = registrations.iter();
-    Points {
-        observer: (found.clone())
-            .find_map(Registration::observer::<Events>)
-            .unwrap(),
-        jobs: found
-            .find_map(Registration::provider::<dyn JobRunner>)
-            .unwrap(),
-    }
-}
-
-/// The User `user_id` plays `version` on [`TV`] as the plan `plan_id`, and stops.
-async fn play(observer: &dyn Observer<Events>, user_id: i64, version: i64, plan_id: u64) {
-    let playback = on_tv(user_id, version, plan_id);
-    start(observer, playback.clone()).await;
-    end(observer, playback).await;
-}
-
-/// The User `user_id`'s play of `version` on [`TV`] as the plan `plan_id`.
-fn on_tv(user_id: i64, version: i64, plan_id: u64) -> Playback {
-    Playback {
-        user_id,
-        device_id: TV,
-        version_id: version,
-        plan_id,
-        ..Default::default()
-    }
-}
-
-/// Tells `observer` that `playback` started.
-async fn start(observer: &dyn Observer<Events>, playback: Playback) {
-    let started = PlaybackStarted {
-        playback: playback.into(),
-        ..Default::default()
-    };
-    observe(observer, started.into()).await;
-}
-
-/// Tells `observer` that `playback` ended.
-async fn end(observer: &dyn Observer<Events>, playback: Playback) {
-    let ended = PlaybackEnded {
-        playback: playback.into(),
-        ..Default::default()
-    };
-    observe(observer, ended.into()).await;
-}
-
-async fn observe(observer: &dyn Observer<Events>, happened: Happened) {
-    let batch = ObservedEvents {
-        events: vec![Event {
-            event: Some(happened),
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-    observer.observe(&batch).await.unwrap();
-}
-
-/// Runs the Job that sends the Viewing Events the Hub hasn't had yet.
-async fn send(jobs: &dyn JobRunner) -> Result<(), PluginError> {
-    let run = RunJob {
-        job_id: "send-viewing-events".to_owned(),
-        ..Default::default()
-    };
-    jobs.run(&run).await
-}
-
-#[tokio::test]
-async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
-    let hub = FakeHub::start().await;
-    let Points { observer, .. } = enabled_points(&hub, &playing());
-    hub.link_server();
-    hub.link_user_on_hub(7);
-    let before = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-
-    play(observer.as_ref(), 7, MATRIX_VERSION, 1).await;
-
-    let sent = hub.viewing_events();
-    let [sent] = sent.as_slice() else {
-        panic!("one Viewing Event: {sent:?}");
-    };
-    assert_eq!(sent.user_id, 7);
-    assert_ne!(sent.key, "");
-    let event = sent.event.as_option().unwrap();
-    let started_at = u64::try_from(event.started_at).unwrap();
-    assert!(started_at >= before.as_secs(), "{started_at}");
-    assert!((0..24 * 60).contains(&event.time_of_day_minutes));
-    assert_eq!(
-        event,
-        &ViewingEvent {
-            external_id: "tmdb-603".to_owned(),
-            started_at: event.started_at,
-            time_of_day_minutes: event.time_of_day_minutes,
-            stop_position_ms: 7_500_000,
-            duration_ms: 8_160_000,
-            finished: true,
-            device_kind: HubDeviceKind::DEVICE_KIND_TV.into(),
-            ..Default::default()
-        }
-    );
-}
-
-#[tokio::test]
-async fn a_play_left_open_keeps_where_it_stopped_though_a_later_play_of_its_title_finishes() {
-    let hub = FakeHub::start().await;
-    let position = Arc::new(AtomicU64::new(14_000));
-    let Points { observer, .. } = enabled_points(&hub, &playing_at(Arc::clone(&position)));
-    hub.link_server();
-    hub.link_user_on_hub(7);
-    let (left_open, later) = (on_tv(7, MATRIX_VERSION, 1), on_tv(7, MATRIX_VERSION, 2));
-
-    start(observer.as_ref(), left_open.clone()).await;
-    start(observer.as_ref(), later.clone()).await;
-    position.store(STOPPED_MS, Ordering::Relaxed);
-    end(observer.as_ref(), later).await;
-    end(observer.as_ref(), left_open).await;
-
-    let ends = Vec::from_iter(hub.viewing_events().iter().map(|sent| {
-        let event = sent.event.as_option().unwrap();
-        (event.stop_position_ms, event.finished)
-    }));
-    assert_eq!(
-        ends,
-        [(14_000, false), (STOPPED_MS.try_into().unwrap(), true)]
-    );
-}
-
-#[tokio::test]
-async fn plays_by_users_who_arent_linked_or_of_unmatched_items_send_nothing() {
-    let hub = FakeHub::start().await;
-    let Points { observer, jobs } = enabled_points(&hub, &playing());
-    hub.link_server();
-    hub.link_user_on_hub(7);
-
-    play(observer.as_ref(), 8, MATRIX_VERSION, 1).await;
-    play(observer.as_ref(), 7, UNMATCHED_VERSION, 2).await;
-    send(jobs.as_ref()).await.unwrap();
-
-    assert_eq!(hub.viewing_events(), []);
-}
-
-#[tokio::test]
-async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_and_then_forgotten() {
-    let hub = FakeHub::start().await;
-    let kernel = playing();
-    let Points { observer, jobs } = enabled_points(&hub, &kernel);
-    hub.link_server();
-    hub.link_user_on_hub(7);
-    hub.fail_recording(Some(ErrorCode::Unavailable));
-    play(observer.as_ref(), 7, MATRIX_VERSION, 1).await;
-    send(jobs.as_ref()).await.unwrap_err();
-    assert_eq!(hub.viewing_events(), []);
-    // The Server restarts: a new Plugin over the same Store.
-    let restarted = enabled_points(&hub, &kernel);
-
-    hub.fail_recording(None);
-    send(restarted.jobs.as_ref()).await.unwrap();
-    send(restarted.jobs.as_ref()).await.unwrap();
-
-    assert_eq!(hub.viewing_events().len(), 1);
 }
 
 /// The Movies Library that [`with_movies`]'s Kernel has.

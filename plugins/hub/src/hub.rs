@@ -1,7 +1,5 @@
 //! Talking to the Hub's API (`proto/nama/hub/v1/`) as the Linked Server, but for the Server's own
-//! Link, which the Kernel keeps (ADR 0105). What its API accepts is in `limits.rs`.
-
-pub(crate) mod limits;
+//! Link, which the Kernel keeps (ADR 0105).
 
 use std::{error::Error, fmt, net::Ipv4Addr, sync::Arc, time::Duration};
 
@@ -15,7 +13,6 @@ use nama_hub_proto::nama::hub::v1::{
     LinkedServerServiceClient, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
     ListTrendingTitlesRequest, ListTrendingTitlesResponse, RecommendedTitle,
-    RecordViewingEventsRequest, UserViewingEvent,
 };
 use nama_plugin_api::PluginError;
 
@@ -84,21 +81,6 @@ pub(crate) struct LinkedHub {
 }
 
 impl LinkedHub {
-    /// Records `events`, the Server's Viewing Events.
-    pub(crate) async fn record_viewing_events(
-        self,
-        events: Vec<UserViewingEvent>,
-    ) -> Result<(), PluginError> {
-        (self.client()?)
-            .record_viewing_events(RecordViewingEventsRequest {
-                events,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
     /// The titles like the one `request` names.
     pub(crate) async fn similar(
         self,

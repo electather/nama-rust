@@ -135,7 +135,7 @@ mod account;
 pub(crate) use account::Account;
 use account::{
     pull_track_preferences, pull_watch_states, push_track_preferences, push_watch_states,
-    sync_watchlist,
+    record_viewing_events, sync_watchlist,
 };
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -238,6 +238,10 @@ impl FakeHub {
             .route(
                 &format!("{linked}/SyncWatchlist"),
                 unary(&state, &key, sync_watchlist),
+            )
+            .route(
+                &format!("{linked}/RecordViewingEvents"),
+                unary(&state, &key, record_viewing_events),
             )
             .route("/otlp/v1/{signal}", otlp(&state));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

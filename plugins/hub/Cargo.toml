@@ -9,27 +9,18 @@ repository.workspace = true
 # Built-in Plugins depend on no workspace crate but nama-plugin-api (ADR 0006), and this one on the
 # Hub API it calls too (`plugins/AGENTS.md`).
 [dependencies]
-base64 = "0.23"
-# The Viewing Events the Hub hasn't had yet are kept as the request that sends them.
-buffa = "0.9.2"
 connectrpc = "0.9.1"
 # ring, not rustls's default aws-lc-rs (OpenSSL license), and the OS's root certificates, as the
 # TMDB Plugin does: deny.toml allows neither of the others.
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
-# The Server's time zone, which a Viewing Event's time of day is in, as the Server reads it.
-jiff = { version = "1.0", default-features = false, features = ["std", "tz-system", "tzdb-bundle-platform", "tzdb-zoneinfo"] }
 nama-hub-proto = { version = "0.1.0", path = "../../crates/nama-hub-proto" }
 nama-plugin-api = { version = "0.2.0", path = "../../crates/nama-plugin-api" }
-ring = "0.17"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["sync", "time"] }
-tracing = "0.1"
 
 [dev-dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+buffa = "0.9.2"
 connectrpc = { version = "0.9.1", features = ["axum"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 

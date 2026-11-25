@@ -2552,20 +2552,14 @@ name = "nama-plugin-hub"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64 0.23.1",
  "buffa",
  "connectrpc",
  "hyper-rustls",
  "hyper-util",
- "jiff",
  "nama-hub-proto",
  "nama-plugin-api",
- "ring",
  "rustls",
- "serde",
- "serde_json",
  "tokio",
- "tracing",
 ]
 
 [[package]]
