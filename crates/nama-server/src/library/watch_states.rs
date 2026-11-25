@@ -330,20 +330,30 @@ impl WatchStates {
     /// Takes each of `offline`, changes the User `user`'s Device made to their Watch State while
     /// offline, in the order they were made, as [`WatchStates::take_pulled`] takes a pulled one:
     /// only when made after any this Server has of it, and as of when it was made, though one dated
-    /// in the future is taken as made now. Each should be at a duration of more than zero, as a 0 of 0 unplayed one forgets it.
-    /// Unlike a pulled change, each it stores shows the title again in Continue Watching, as
-    /// [`WatchStates::report`] does, and is queued and told of. Returns each change it stored.
+    /// in the future is taken as made now. Of a title's changes in one second, only the last made
+    /// is taken. One past 90% of its duration is played, as [`WatchStates::report`] has it, and one
+    /// at a duration of zero is left out, since 0 of 0 would forget a played title. Unlike a pulled
+    /// change, each it stores shows the title again in Continue Watching and is queued and told of.
+    /// Returns each change it stored.
     pub(crate) async fn take_offline(
         &self,
         user: i64,
         mut offline: Vec<(Watched, WatchStateChange)>,
     ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+        offline.sort_by_key(|(_, change)| Reverse(change.changed_at_ms));
         let now = now_ms();
-        for (_, change) in &mut offline {
+        let mut seen = HashSet::new();
+        offline.retain_mut(|(watched, change)| {
+            let Some(progress) = Progress::new(change.position_ms, change.duration_ms) else {
+                return false;
+            };
+            change.played |= progress.is_played();
             change.changed_at_ms = change.changed_at_ms.min(now);
-        }
-        // Replayed as made, so a later change in the batch wins and an earlier played one stays.
-        offline.sort_by_key(|(_, change)| change.changed_at_ms);
+            // The Server keeps seconds, so a later change in the same second would tie and lose.
+            seen.insert((watched.title.clone(), change.changed_at_ms.div_euclid(1000)))
+        });
+        // Replayed as made, so the last made wins and an earlier played one stays played.
+        offline.reverse();
         self.write_and_tell(user, move |tx| Box::pin(take_each(tx, user, offline)))
             .await
     }
@@ -604,20 +614,20 @@ async fn take_each(
             continue;
         }
         let progress = Progress::new(change.position_ms, change.duration_ms);
-        let ms = change.changed_at_ms;
+        let changed_at_ms = change.changed_at_ms;
         taken.push(match progress {
             Some(progress) => {
                 let played = store(&mut *conn, user, &watched, progress, change.played, at).await?;
-                watched.changed(played, progress, ms)
+                watched.changed(played, progress, changed_at_ms)
             }
             None if change.played => {
                 let kept = mark_played(&mut *conn, user, kind, title, at).await?;
-                watched.changed(true, kept, ms)
+                watched.changed(true, kept, changed_at_ms)
             }
             // Unplayed at 0 of 0: marked unplayed.
             None => {
                 forget(&mut *conn, user, kind, ids).await?;
-                watched.forgotten(ms)
+                watched.forgotten(changed_at_ms)
             }
         });
     }

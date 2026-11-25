@@ -715,3 +715,31 @@ async fn offline_changes_sent_out_of_order_are_taken_in_the_order_they_were_made
         (true, 500, rewound.changed_at_ms)
     );
 }
+
+#[tokio::test]
+async fn of_offline_changes_dated_in_the_future_the_last_made_is_taken() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let made_last = made_elsewhere(1_500, false, -120);
+    let made_first = made_elsewhere(1_000, false, -60);
+
+    let sent = [made_first, made_last].map(|change| (alien_by_both_ids(), change));
+    let taken = watch_states.take_offline(user, sent.into()).await.unwrap();
+
+    assert_eq!(taken.len(), 1, "{taken:?}");
+    assert_eq!(alien_at(&watch_states, user).await.0, 1_500);
+}
+
+#[tokio::test]
+async fn an_offline_change_past_90_percent_is_played_as_reported_progress_is() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let near_the_end = made_elsewhere(1_950, false, 60);
+
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), near_the_end)]))
+        .await
+        .unwrap();
+
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert!(state.played);
+}
