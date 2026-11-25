@@ -2,24 +2,13 @@
 // `vp run fallow` runs `fallow --ci`. See web/README.md, "Checks".
 {
   "$schema": "https://fallow.tools/schema.json",
-  // Generated code: `buf generate` writes src/gen/ and hub/src/gen/, the router plugin the route
-  // trees.
-  "ignorePatterns": [
-    "src/gen/**",
-    "src/routeTree.gen.ts",
-    "hub/src/gen/**",
-    "hub/src/routeTree.gen.ts",
-  ],
+  // Generated code: `buf generate` writes src/gen/, the router plugin the route tree.
+  "ignorePatterns": ["src/gen/**", "src/routeTree.gen.ts"],
   // nama-ui's package exports make every component an entry point, so this is what still fails a
   // component, or a sub-part, that no screen uses (ui/src/components/AGENTS.md).
   "workspaces": { "settings": { "ui": { "includeEntryExports": true } } },
   // Run by `buf generate` in proto/, never imported.
   "ignoreDependencies": ["@bufbuild/protoc-gen-es"],
-  // The web app's passkey and Invite code is ported from the Hub web app, which keeps its copy
-  // until #2228 deletes it, and the two may share nothing (ADR 0101, ADR 0105).
-  "duplicates": {
-    "ignoredClones": ["dup:40bab1b1:2", "dup:54669a8f:2", "dup:b067cea5:2", "dup:d2a77138:2"],
-  },
   // web/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
   "health": {
     "maxCyclomatic": 15,
@@ -47,8 +36,6 @@
   // @bufbuild/protobuf, so it needs no zone. A file is in the first zone that matches it.
   "boundaries": {
     "zones": [
-      // The Hub web app imports only its own files and nama-ui (ADR 0101).
-      { "name": "hub", "patterns": ["hub/**"] },
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
@@ -80,10 +67,6 @@
     // Each feature PR adds its feature's zone, allowed `shared-*` and the sibling features it
     // lists, and adds the feature to `app`, `routes` and `router`.
     "rules": [
-      {
-        "from": "hub",
-        "allow": ["hub"],
-      },
       {
         "from": "shared-lib",
         "allow": ["shared-lib"],

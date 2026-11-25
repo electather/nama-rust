@@ -1,8 +1,6 @@
-# The web app is the root package; `ui` is nama-ui, its design system, and `hub` the Hub's web app
-# (ADR 0101).
+# The web app is the root package; `ui` is nama-ui, its design system (ADR 0101).
 packages:
   - ui
-  - hub
 
 # Only install versions that have been public for a day, so a compromised release has time to be
 # caught and pulled before it reaches us. In minutes.

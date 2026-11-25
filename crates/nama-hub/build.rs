@@ -1,9 +1,9 @@
 //! Build script for the Hub.
 //!
-//! With the `web` feature, it embeds the built Hub web app so a release is one binary, as the
-//! Server's does the web app. It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`,
-//! the app's `index.html`, and `asset`, which looks up every file `vp -C hub build` wrote to
-//! `web/hub/dist` by its URL path.
+//! With the `web` feature, it embeds the built web app so a release is one binary, as the Server's
+//! does (ADR 0105). It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the app's
+//! `index.html`, and `asset`, which looks up every file `vp build` wrote to `web/dist` by its URL
+//! path.
 
 use std::{
     env,
@@ -19,12 +19,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     if env::var_os("CARGO_FEATURE_WEB").is_none() {
         return Ok(());
     }
-    let dist = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../../web/hub/dist");
+    let dist = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../../web/dist");
     println!("cargo:rerun-if-changed={}", dist.display());
     let dist = dist.canonicalize().map_err(|err| {
         format!(
-            "the `web` feature embeds {}, which can't be read ({err}): run `vp -C hub build` in \
-             web/ first",
+            "the `web` feature embeds {}, which can't be read ({err}): run `vp build` in web/ first",
             dist.display()
         )
     })?;
@@ -32,17 +31,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     list_files(&dist, &mut files)?;
     let shell = dist.join("index.html");
     if !files.contains(&shell) {
-        return Err(format!(
-            "{} is missing: run `vp -C hub build` in web/",
-            shell.display()
-        )
-        .into());
+        return Err(format!("{} is missing: run `vp build` in web/", shell.display()).into());
     }
 
     // `{:?}` writes a `&str` as a Rust string literal, with any `\` or `"` escaped.
     let mut code = format!(
         "const SHELL: &[u8] = include_bytes!({:?});\n\n",
         utf8(&shell)?
+    );
+    // The real bundle always trips both: 200+ files and the 1 MB+ jassub wasm.
+    code.push_str(
+        "#[expect(clippy::too_many_lines, clippy::large_include_file, reason = \"generated from the bundle\")]\n",
     );
     code.push_str("fn asset(path: &str) -> Option<&'static [u8]> {\n    match path {\n");
     for file in &files {

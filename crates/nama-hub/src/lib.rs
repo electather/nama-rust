@@ -36,7 +36,7 @@ use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail};
 /// Must be called inside a Tokio runtime, which sends them.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
-/// protobuf bodies. With the `web` feature, any other `GET` gets the Hub's web pages.
+/// protobuf bodies. With the `web` feature, any other `GET` gets the web app (ADR 0105).
 ///
 /// # Errors
 ///

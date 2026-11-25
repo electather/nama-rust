@@ -1,5 +1,5 @@
-//! The Hub's web pages (ADR 0010): the app `vp -C hub build` writes to `web/hub/dist`, embedded in
-//! the binary by `build.rs`.
+//! The web app at the Hub (ADR 0105): the same `web/dist` that `vp build` writes and a Server
+//! serves, embedded in the binary by `build.rs`.
 
 use std::convert::Infallible;
 
@@ -21,8 +21,8 @@ include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 /// else with `index.html`, so a reloaded deep link still loads the app, which then routes to the
 /// page. A file under `/assets/` is marked to be kept for a year, and `index.html` isn't, so a new
 /// release still loads. It compresses the file with brotli or gzip when the request accepts one.
-/// Every other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev` proxies the
-/// same paths to a Hub (`web/hub/vite.config.ts`).
+/// Every other request goes on to `next`, so an unknown RPC still gets a 404. With `NAMA_HUB_URL`
+/// set, `vp dev` proxies the Hub's RPCs to it (`web/vite.config.ts`).
 pub(crate) async fn serve(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let passed_on = path.starts_with("/nama.") || path.starts_with("/.well-known/");
@@ -66,6 +66,12 @@ fn content_type(path: &str) -> &'static str {
         Some("css") => "text/css; charset=utf-8",
         Some("woff2") => "font/woff2",
         Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("ico") => "image/x-icon",
+        Some("txt") => "text/plain; charset=utf-8",
+        Some("webmanifest") => "application/manifest+json",
+        // `WebAssembly.instantiateStreaming` refuses any other.
+        Some("wasm") => "application/wasm",
         _ => "application/octet-stream",
     }
 }

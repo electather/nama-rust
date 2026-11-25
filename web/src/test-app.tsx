@@ -7,7 +7,7 @@ import {
   createRouterTransport,
 } from "@connectrpc/connect";
 import { RouterProvider } from "@tanstack/react-router";
-import { configure, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import {
   EventSchema,
@@ -28,10 +28,6 @@ import type { ServerAt } from "@/shared/lib/server";
 import { tickWorker } from "@/test-worker";
 
 import { getRouter } from "./router";
-
-// A file's first `findBy…` waits while the app's route chunks load for the first time, which took
-// over 5 s under a full parallel run (#2100); `vite.config.ts`'s `testTimeout` stays above it.
-configure({ asyncUtilTimeout: 10_000 });
 
 // Not `vi.stubGlobal`, which the files that call `vi.unstubAllGlobals` would undo after one test.
 Object.assign(globalThis, { Worker: tickWorker });
