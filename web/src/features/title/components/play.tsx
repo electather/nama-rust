@@ -1,25 +1,28 @@
+import type { Copy } from "@/features/title/lib/copies";
 import type { Version } from "@/gen/nama/v1/browse_pb";
-import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { PlayButton } from "@/shared/components/watch-state/play-button";
 
-/** Play the Movie at `params`' `version`, or Resume it with how far in you are once started. */
+/**
+ * Play the Movie `movieId`, as its URL names it, at `version` on the Server holding `copy`, or
+ * Resume it there with how far in you are once started.
+ */
 export function Play({
-  params,
+  movieId,
+  copy,
   version,
-  watchState,
 }: {
-  params: { libraryId: string; movieId: string };
+  movieId: string;
+  copy: Copy;
   version: Version;
-  watchState: WatchState | undefined;
 }) {
   return (
     <PlayButton
       link={{
         to: "/libraries/$libraryId/movies/$movieId/play",
-        params,
-        search: { version: Number(version.id) },
+        params: { libraryId: String(copy.libraryId), movieId },
+        search: { version: Number(version.id), server: copy.server?.id },
       }}
-      state={watchState}
+      state={copy.watchState}
     />
   );
 }
