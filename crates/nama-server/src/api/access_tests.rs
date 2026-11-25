@@ -1,5 +1,7 @@
 use std::fs;
 
+use nama_proto::nama::v1::Permission;
+
 use super::{ACCESS, Access};
 
 /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
@@ -44,4 +46,12 @@ fn a_path_in_no_entry_has_no_access() {
     ] {
         assert!(Access::of(path).is_none(), "{path}");
     }
+}
+
+#[test]
+fn downloading_a_versions_file_needs_download() {
+    assert!(matches!(
+        Access::of("/media/downloads/1"),
+        Some(Access::Needs(Permission::Download))
+    ));
 }

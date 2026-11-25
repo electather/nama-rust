@@ -38,7 +38,8 @@ const DOWNLOAD_SUBTITLES: [&str; 2] = [
 ];
 
 /// Every RPC that downloads a Version's file or one re-encoded as for a Transcode, which needs
-/// `PERMISSION_DOWNLOAD`: none yet (#2195, #2198).
+/// `PERMISSION_DOWNLOAD`: none yet (#2198). A Version's own file is the media path
+/// `/media/downloads/<id>`.
 const DOWNLOAD: [&str; 0] = [];
 
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.

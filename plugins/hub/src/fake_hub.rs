@@ -1,21 +1,17 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL, and for the
-//! Server's Link with it, which the Kernel keeps ([`KernelLink`]). It serves one Linked Server, its
-//! Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, its Server Addresses and whether its public port is reached, the
-//! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
-//! the titles like The Matrix, what's trending and most watchlisted, two titles recommended to
-//! each Linked User, and a key set of one Ed25519 key it signs with, as the Hub's API
-//! (`proto/nama/hub/v1/`) says the Hub does.
+//! Server's Link with it and its Users', which the Kernel keeps ([`KernelLink`]). It serves one
+//! Linked Server, the Watch State it pushes, which its Linked Users pull back, their Watchlists,
+//! its Viewing Events, the titles like The Matrix, what's trending and most watchlisted, and two
+//! titles recommended to each Linked User, as the Hub's API (`proto/nama/hub/v1/`) says the Hub
+//! does.
 
 use std::{
     collections::HashMap,
     future,
     net::SocketAddr,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{
     ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
 };
@@ -37,23 +33,9 @@ use nama_hub_proto::nama::hub::v1::{
     WatchStateChange, WatchlistEntry, WatchlistedTitle,
 };
 use nama_plugin_api::{BoxFuture, PluginError};
-use ring::signature::Ed25519KeyPair;
-use serde_json::{Value, json};
 use tokio::{net::TcpListener, task::JoinHandle};
 
 use crate::KernelLink;
-
-/// The one code the fake gives a User.
-pub(super) const USER_LINK_CODE: &str = "CDFG-HJKL";
-
-/// The device code of the one sign-in with an Account the fake starts.
-const SIGN_IN_DEVICE_CODE: &str = "sign-in-device-code";
-
-/// The id of that sign-in.
-pub(super) const SIGN_IN_ID: &str = "sign-in-id";
-
-/// The one-time code approving that sign-in sends the person back with.
-const SIGN_IN_CODE: &str = "sign-in-code";
 
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
@@ -66,15 +48,11 @@ struct State {
     /// How many credentials the fake handed out. Each Link gets a new one, as on the Hub, and only
     /// the last works.
     credentials: usize,
-    /// The name each User waiting on a code started with, by id.
-    user_codes: HashMap<i64, String>,
     /// The email of the Account each Linked User is Linked to, by id.
     user_accounts: HashMap<i64, String>,
-    /// How often a User's Link was asked about.
-    user_link_asks: usize,
     /// How many calls came with a Server's credential, known or not.
     server_calls: usize,
-    /// Why asking about a User's Link fails, as if the Hub were down, while it does.
+    /// Why the Kernel can't tell whether a User is Linked, while it can't.
     user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
     viewing_events: Vec<UserViewingEvent>,
@@ -93,11 +71,6 @@ struct State {
     watchlist: Vec<WatchlistEntry>,
     /// The User each Watchlist sync was of, in the order they came.
     watchlist_syncs: Vec<i64>,
-    /// The name and email each User created from an Account was invited with, by id.
-    invites: HashMap<i64, (String, String)>,
-    /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
-    /// approved.
-    sign_in: Option<(String, Option<i64>)>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -112,10 +85,8 @@ pub(super) struct FakeHub {
 impl FakeHub {
     pub(super) async fn start() -> Self {
         let state = Arc::default();
-        let key = Arc::new(Ed25519KeyPair::from_seed_unchecked(&[7; 32]).unwrap());
         let shared = Arc::new(Shared {
             state: Arc::clone(&state),
-            key: Arc::clone(&key),
         });
         let rpcs = connectrpc::Router::new()
             .add_service(Arc::new(Linked(shared)))
@@ -144,12 +115,6 @@ impl FakeHub {
         *lock(&self.kept) = Some(credential(state.credentials));
     }
 
-    /// The Server Unlinks, as the Kernel does it, which Unlinks its Users too.
-    pub(super) fn unlink_server(&self) {
-        self.forget_server();
-        *lock(&self.kept) = None;
-    }
-
     /// Whether the Server keeps a Link.
     pub(super) fn server_keeps_link(&self) -> bool {
         lock(&self.kept).is_some()
@@ -160,50 +125,21 @@ impl FakeHub {
         Arc::new(KeptLink {
             url: self.url(),
             kept: Arc::clone(&self.kept),
+            state: Arc::clone(&self.state),
         })
     }
 
-    /// Forgets the Server's credential and its Users' Links, as deleting its Account does.
+    /// Forgets the Server's credential, as deleting its Account does. The Kernel still has its
+    /// Users Linked, as it does until it next asks the Hub.
     pub(super) fn forget_server(&self) {
-        let mut state = lock(&self.state);
-        state.linked = false;
-        state.user_codes.clear();
-        state.user_accounts.clear();
-    }
-
-    /// The User `user_id` enters their code on the Hub, signed in to [`EMAIL`]'s Account.
-    pub(super) fn enter_user_code(&self, user_id: i64) {
-        let mut state = lock(&self.state);
-        if state.user_codes.remove(&user_id).is_some() {
-            state.user_accounts.insert(user_id, EMAIL.to_owned());
-        }
+        lock(&self.state).linked = false;
     }
 
     /// An Account Links the User `user_id` on the Hub, as through a code another Device showed.
     pub(super) fn link_user_on_hub(&self, user_id: i64) {
-        let mut state = lock(&self.state);
-        state.user_codes.remove(&user_id);
-        state.user_accounts.insert(user_id, EMAIL.to_owned());
-    }
-
-    /// The Account Unlinks the User `user_id` on the Hub.
-    pub(super) fn unlink_user_on_hub(&self, user_id: i64) {
-        lock(&self.state).user_accounts.remove(&user_id);
-    }
-
-    /// The name the User `user_id` started Linking as, while their code waits.
-    pub(super) fn user_starting(&self, user_id: i64) -> Option<String> {
-        lock(&self.state).user_codes.get(&user_id).cloned()
-    }
-
-    /// Whether the Hub has the User `user_id` Linked.
-    pub(super) fn user_linked(&self, user_id: i64) -> bool {
-        lock(&self.state).user_accounts.contains_key(&user_id)
-    }
-
-    /// How often the Server asked about a User's Link.
-    pub(super) fn user_link_asks(&self) -> usize {
-        lock(&self.state).user_link_asks
+        lock(&self.state)
+            .user_accounts
+            .insert(user_id, EMAIL.to_owned());
     }
 
     /// How many calls the Server made with its credential, whether the fake knew it or not.
@@ -211,7 +147,7 @@ impl FakeHub {
         lock(&self.state).server_calls
     }
 
-    /// Has asking about a User's Link fail, though counted, as if the Hub were down.
+    /// Has the Kernel fail to tell whether a User is Linked.
     pub(super) fn fail_user_links(&self) {
         lock(&self.state).user_link_failure = Some("the Hub is down");
     }
@@ -241,28 +177,6 @@ impl FakeHub {
         lock(&self.state).server_failure = Some("the Hub is failing");
     }
 
-    /// The name and email the User `user_id` was invited with.
-    pub(super) fn invite(&self, user_id: i64) -> Option<(String, String)> {
-        lock(&self.state).invites.get(&user_id).cloned()
-    }
-
-    /// Where the waiting sign-in returns to.
-    pub(super) fn sign_in_returns_to(&self) -> Option<String> {
-        lock(&self.state)
-            .sign_in
-            .as_ref()
-            .map(|(url, _)| url.clone())
-    }
-
-    /// An Account approves the waiting sign-in as its User `user_id`, and gets the one-time code
-    /// that finishes it.
-    pub(super) fn approve_sign_in(&self, user_id: i64) -> String {
-        if let Some((_, user)) = &mut lock(&self.state).sign_in {
-            *user = Some(user_id);
-        }
-        SIGN_IN_CODE.to_owned()
-    }
-
     /// Each Viewing Event recorded, in order.
     pub(super) fn viewing_events(&self) -> Vec<UserViewingEvent> {
         lock(&self.state).viewing_events.clone()
@@ -288,7 +202,6 @@ impl Drop for FakeHub {
 
 struct Shared {
     state: Arc<Mutex<State>>,
-    key: Arc<Ed25519KeyPair>,
 }
 
 /// `LinkedServerService`.
@@ -311,52 +224,26 @@ impl LinkedServerService for Linked {
 
     async fn start_user_link(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, StartUserLinkRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
-        let mut state = self.caller(&ctx)?;
-        if state.user_accounts.contains_key(&request.user_id) {
-            return Err(ConnectError::already_exists("the User is Linked already"));
-        }
-        state
-            .user_codes
-            .insert(request.user_id, request.name.to_owned());
-        Response::ok(StartUserLinkResponse {
-            user_code: USER_LINK_CODE.to_owned(),
-            expires_in_seconds: 600,
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn get_user_link(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, GetUserLinkRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
-        let mut state = self.caller(&ctx)?;
-        state.user_link_asks += 1;
-        if let Some(failure) = state.user_link_failure {
-            return Err(ConnectError::unavailable(failure));
-        }
-        Response::ok(GetUserLinkResponse {
-            account: state
-                .user_accounts
-                .get(&request.user_id)
-                .cloned()
-                .unwrap_or_default(),
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn unlink_user(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, UnlinkUserRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, UnlinkUserRequest>,
     ) -> ServiceResult<UnlinkUserResponse> {
-        let mut state = self.caller(&ctx)?;
-        state.user_codes.remove(&request.user_id);
-        state.user_accounts.remove(&request.user_id);
-        Response::ok(UnlinkUserResponse::default())
+        Err(kernels_call())
     }
 
     async fn push_watch_states(
@@ -459,58 +346,26 @@ impl LinkedServerService for Linked {
 
     async fn invite_user(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, InviteUserRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, InviteUserRequest>,
     ) -> ServiceResult<InviteUserResponse> {
-        let invite = (request.name.to_owned(), request.email.to_owned());
-        self.caller(&ctx)?.invites.insert(request.user_id, invite);
-        Response::ok(InviteUserResponse::default())
+        Err(kernels_call())
     }
 
     async fn start_server_sign_in(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, StartServerSignInRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, StartServerSignInRequest>,
     ) -> ServiceResult<StartServerSignInResponse> {
-        self.caller(&ctx)?.sign_in = Some((request.return_url.to_owned(), None));
-        Response::ok(StartServerSignInResponse {
-            device_code: SIGN_IN_DEVICE_CODE.to_owned(),
-            id: SIGN_IN_ID.to_owned(),
-            expires_in_seconds: 600,
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn poll_server_sign_in(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, PollServerSignInRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, PollServerSignInRequest>,
     ) -> ServiceResult<PollServerSignInResponse> {
-        let mut state = self.caller(&ctx)?;
-        let Some((_, approved)) = state
-            .sign_in
-            .as_ref()
-            .filter(|_| request.device_code == SIGN_IN_DEVICE_CODE)
-        else {
-            return Err(ConnectError::not_found("the sign-in expired"));
-        };
-        let Some(user) = *approved else {
-            return Response::ok(PollServerSignInResponse::default());
-        };
-        state.sign_in = None;
-        if request.code != SIGN_IN_CODE {
-            return Err(ConnectError::not_found("the code is wrong"));
-        }
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let claims =
-            json!({ "sub": user.to_string(), "aud": "server", "iat": now, "exp": now + 300 });
-        Response::ok(PollServerSignInResponse {
-            token: sign(&self.0.key, &claims),
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn set_certificate_challenge(
@@ -704,31 +559,25 @@ fn lock<T>(state: &Mutex<T>) -> MutexGuard<'_, T> {
     state.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-const KID: &str = "fake-key";
-
-fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {
-    let header = json!({ "alg": "EdDSA", "typ": "JWT", "kid": KID });
-    let signed = format!(
-        "{}.{}",
-        URL_SAFE_NO_PAD.encode(header.to_string()),
-        URL_SAFE_NO_PAD.encode(claims.to_string()),
-    );
-    format!(
-        "{signed}.{}",
-        URL_SAFE_NO_PAD.encode(key.sign(signed.as_bytes()))
-    )
-}
-
 /// What the fake answers a call only the Kernel makes, as the Server's own Link.
 fn kernels_call() -> ConnectError {
     ConnectError::unimplemented("the Kernel makes this call, not the Plugin")
 }
 
-/// The Kernel's Link with the fake: the credential the Server keeps.
-#[derive(Debug)]
+/// The Kernel's Link with the fake: the credential the Server keeps, and its Users' Links as the
+/// fake has them.
 struct KeptLink {
     url: String,
     kept: Arc<Mutex<Option<String>>>,
+    state: Arc<Mutex<State>>,
+}
+
+impl std::fmt::Debug for KeptLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeptLink")
+            .field("url", &self.url)
+            .finish_non_exhaustive()
+    }
 }
 
 impl KernelLink for KeptLink {
@@ -745,12 +594,14 @@ impl KernelLink for KeptLink {
         Box::pin(future::ready(Ok(())))
     }
 
-    /// The token's `sub`, unchecked: the Kernel checks the signature (`link/token.rs` there).
-    fn token_subject<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<String, PluginError>> {
-        let claims = token.split('.').nth(1).unwrap();
-        let claims: Value =
-            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(claims).unwrap()).unwrap();
-        let sub = claims["sub"].as_str().unwrap().to_owned();
-        Box::pin(future::ready(Ok(sub)))
+    /// Whether the fake has `user_id` Linked, as the Kernel last heard: the Kernel's caching is
+    /// its own to test.
+    fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
+        let state = lock(&self.state);
+        let linked = match state.user_link_failure {
+            Some(failure) => Err(failure.into()),
+            None => Ok(lock(&self.kept).is_some() && state.user_accounts.contains_key(&user_id)),
+        };
+        Box::pin(future::ready(linked))
     }
 }

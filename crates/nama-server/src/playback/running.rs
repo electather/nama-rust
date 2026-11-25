@@ -583,15 +583,16 @@ impl RunningPlans {
     /// cap.
     pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) -> bool {
         let plans = lock(&self.inner.plans);
-        let direct_plays = plans.values().filter(|plan| {
-            plan.hls.is_none()
-                && plan.playback.version_id == version
-                && plan.playback.device_id == device
-        });
+        let direct_plays = (plans.values()).filter(|plan| plan.direct_plays(version, device));
         direct_plays.fold(false, |any_kept, plan| {
             *lock(&plan.last_used) = db::instant_now();
             any_kept || plan.planned_under_remote_cap
         })
+    }
+
+    /// Whether the Device `device` has a plan that Direct Plays the Version `version`.
+    pub(super) fn has_direct_play(&self, version: i64, device: i64) -> bool {
+        (lock(&self.inner.plans).values()).any(|plan| plan.direct_plays(version, device))
     }
 
     /// `file`, the parts of the Version `version`'s file being sent to the Device `device`, which
@@ -750,6 +751,11 @@ impl Plan {
 
     fn fell_back(&self) -> bool {
         self.hls.as_ref().is_some_and(|hls| hls.fell_back())
+    }
+
+    fn direct_plays(&self, version: i64, device: i64) -> bool {
+        let playback = &self.playback;
+        self.hls.is_none() && playback.version_id == version && playback.device_id == device
     }
 }
 
