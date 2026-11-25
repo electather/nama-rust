@@ -2637,6 +2637,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-simkl"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "nama-pdk",
+ "serde",
+]
+
+[[package]]
 name = "nama-plugin-sonarr"
 version = "0.1.0"
 dependencies = [
