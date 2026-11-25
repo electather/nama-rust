@@ -124,7 +124,9 @@ export default defineConfig({
     ],
   },
   lint: {
-    ignorePatterns: generated,
+    // `public/` is copied into the build as it is, so it has no types for type-aware rules to
+    // read; `push-worker.test.ts` runs the push worker instead.
+    ignorePatterns: [...generated, "public/**"],
     plugins: ["typescript", "react", "jsx-a11y", "import", "unicorn", "promise", "oxc", "vitest"],
     jsPlugins: [
       // Runs inside oxlint, so it doesn't break "Only `vp`" (web/AGENTS.md).
