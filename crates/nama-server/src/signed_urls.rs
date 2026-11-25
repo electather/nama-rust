@@ -2,7 +2,11 @@
 //! token, so a bearer caller gets media URLs that carry a short-lived signature in place of a
 //! session: an image's for its one path, a playback URL's for every path under one Version and the
 //! plan playing it, so an HLS playlist's relative segment URLs and a Version's Preview frames load
-//! under the same `/media/signed/<grant>/<signature>/` prefix as the URL handed out.
+//! under the same `/media/signed/<grant>/<signature>/` prefix as the URL handed out. A player
+//! fetches under that prefix for as long as it plays, so a playback URL past its few minutes
+//! still loads while its plan runs for its Device, and stops once the plan does.
+
+use std::sync::Arc;
 
 use axum::{
     extract::{Request, State},
@@ -22,7 +26,8 @@ const SIGNED: &str = "/media/signed/";
 /// The media paths a signed URL may name, which [`SIGNED`] replaces.
 const MEDIA: &str = "/media/";
 
-/// How long a signed URL lasts, at least; it lasts at most twice this.
+/// How long a signed URL lasts, at least; it lasts at most twice this, or a playback URL longer
+/// while its plan runs.
 const LIFETIME_S: i64 = 5 * 60;
 
 /// Signs media URLs for bearer callers, and is what [`admit`] checks them with.
@@ -33,6 +38,10 @@ const LIFETIME_S: i64 = 5 * 60;
 pub(crate) struct UrlSigner {
     key: hmac::Key,
 }
+
+/// Whether the plan `id` runs for the Device `device`, which keeps a playback URL for it loading
+/// past its expiry.
+pub(crate) type PlanRuns = Arc<dyn Fn(u64, i64) -> bool + Send + Sync>;
 
 /// Marks a request [`admit`] let through by its URL's signature, which the access layer takes in
 /// place of a session.
@@ -134,9 +143,10 @@ impl UrlSigner {
         format!("{SIGNED}{expires}/{signature}/{rest}")
     }
 
-    /// `url` signed, for a few minutes, as `grant` says, if it is under `/media/`; any other URL,
-    /// such as the empty one of a plan that can't play, as it is. The signature covers every path
-    /// `grant` does, so a client may put another such path after its `/media/signed/.../` prefix.
+    /// `url` signed, for a few minutes and then while its plan runs, as `grant` says, if it is
+    /// under `/media/`; any other URL, such as the empty one of a plan that can't play, as it is.
+    /// The signature covers every path `grant` does, so a client may put another such path after
+    /// its `/media/signed/.../` prefix.
     pub(crate) fn sign_playback(&self, url: &str, grant: PlaybackGrant) -> String {
         let Some(rest) = url.strip_prefix(MEDIA) else {
             return url.to_owned();
@@ -147,20 +157,21 @@ impl UrlSigner {
     }
 
     /// The path `signed` was signed for, and the Viewer it acts as if it is a playback URL, if this
-    /// signer signed it for that path and it hasn't expired.
-    fn verify(&self, signed: &str) -> Option<(String, Option<Viewer>)> {
+    /// signer signed it for that path and it hasn't expired, or, for a playback URL, its plan still
+    /// runs for its Device as `plan_runs` says.
+    fn verify(&self, signed: &str, plan_runs: &PlanRuns) -> Option<(String, Option<Viewer>)> {
         let (token, rest) = signed.strip_prefix(SIGNED)?.split_once('/')?;
         let (signature, rest) = rest.split_once('/')?;
         let path = format!("{MEDIA}{rest}");
         let signature = URL_SAFE_NO_PAD.decode(signature).ok()?;
-        let (expires, viewer) = if let Some((expires, grant)) = PlaybackGrant::parse(token) {
+        if let Some((expires, grant)) = PlaybackGrant::parse(token) {
             hmac::verify(&self.key, &playback_message(token), &signature).ok()?;
-            (grant.covers(rest)).then_some((expires, Some(grant.viewer)))?
+            let plays = grant.plan != 0 && plan_runs(grant.plan, grant.viewer.device);
+            (grant.covers(rest) && (now() < expires || plays)).then_some((path, Some(grant.viewer)))
         } else {
             hmac::verify(&self.key, &image_message(token, &path), &signature).ok()?;
-            (token.parse().ok()?, None)
-        };
-        (now() < expires).then_some((path, viewer))
+            (now() < token.parse::<i64>().ok()?).then_some((path, None))
+        }
     }
 
     fn signature(&self, message: &[u8]) -> String {
@@ -203,16 +214,17 @@ fn playback_message(token: &str) -> Vec<u8> {
     format!("playback {token}").into_bytes()
 }
 
-/// Lets a request for a URL `signer` signed, before it expires, through as a request for the path
-/// it was signed for, marked [`SignedUrl`], and with its [`Viewer`] if it is a playback URL. Any
-/// other request goes on as it came, so a bad or expired signature reaches the access layer with
-/// no session. Must run before routing, which reads the rewritten path.
+/// Lets a request for a URL `signer` signed, before it expires or, for a playback URL, while its
+/// plan runs as `plan_runs` says, through as a request for the path it was signed for, marked
+/// [`SignedUrl`], and with its [`Viewer`] if it is a playback URL. Any other request goes on as it
+/// came, so a bad or expired signature reaches the access layer with no session. Must run before
+/// routing, which reads the rewritten path.
 pub(crate) async fn admit(
-    State(signer): State<UrlSigner>,
+    State((signer, plan_runs)): State<(UrlSigner, PlanRuns)>,
     mut request: Request,
     next: Next,
 ) -> Response {
-    let unsigned = signer.verify(request.uri().path());
+    let unsigned = signer.verify(request.uri().path(), &plan_runs);
     if let Some((path, viewer)) = unsigned
         && let Some(uri) = with_path(request.uri(), &path)
     {

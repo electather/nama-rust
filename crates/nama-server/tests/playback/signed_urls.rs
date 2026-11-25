@@ -118,7 +118,7 @@ async fn a_bearer_callers_ass_subtitle_and_its_fonts_load_with_no_session() {
 }
 
 #[tokio::test]
-async fn a_signed_url_loads_only_its_own_version_and_plan() {
+async fn a_signed_url_loads_neither_another_version_or_plan_nor_its_versions_download() {
     let fx = Fixture::alien().await;
     let version = fx.version_ids(ALIEN).await[0];
     let plan = fx.plan_as_bearer(version).await;
@@ -145,4 +145,22 @@ async fn a_signed_playback_url_loads_for_a_few_minutes_and_not_once_it_expires()
     let after = fx.status(&plan.url).await;
 
     assert_eq!((within, after), (200, 401));
+}
+
+#[tokio::test]
+async fn a_signed_playback_url_outlasts_its_minutes_while_its_plan_plays_and_not_once_it_stops() {
+    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let plan = fx.plan_as_bearer(version).await;
+
+    // Each fetch keeps the plan, which stops a minute after the last.
+    let mut playing = vec![];
+    for _ in 0..24 {
+        fx.server.advance_clock(Duration::from_secs(30));
+        playing.push(fx.status(&plan.url).await);
+    }
+    fx.server.advance_clock(Duration::from_mins(2));
+    let stopped = fx.status(&plan.url).await;
+
+    assert_eq!((playing, stopped), (vec![200; 24], 401));
 }

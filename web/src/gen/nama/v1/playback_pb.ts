@@ -1067,7 +1067,9 @@ export const ChapterSchema: GenMessage<Chapter> = /*@__PURE__*/
  * Where a Version's Preview frames are and how they're laid out: each sheet, fetched at
  * `/media/versions/<id>/preview-frames/<n>.jpg` with `n` counting from 0, holds `columns` by `rows`
  * frames, left to right then top to bottom, the last sheet as many as are left. Frame `i` shows the
- * Version at `i * interval_ms`, from its keyframes, so up to a few seconds early.
+ * Version at `i * interval_ms`, from its keyframes, so up to a few seconds early. A caller with a
+ * bearer token, whose plan's `url` is signed (ADR 0105), fetches each sheet with that `url`'s
+ * `/media/signed/<grant>/<signature>/` in place of `/media/`.
  *
  * @generated from message nama.v1.PreviewFrames
  */
