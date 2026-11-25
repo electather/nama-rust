@@ -106,7 +106,7 @@ fn most_watchlisted(watchlisted: Vec<HubTitle>) -> HomeRow {
 }
 
 /// `title` as home takes it.
-fn home_row_title(title: HubTitle) -> HomeRowTitle {
+pub(crate) fn home_row_title(title: HubTitle) -> HomeRowTitle {
     HomeRowTitle {
         kind: title.kind,
         id: title.id,

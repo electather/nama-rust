@@ -1,6 +1,6 @@
-//! Hub Suggestions as a Home row source (ADR 0058, 0072): the titles it recommends to each Linked User from
-//! their Account's taste vector (ADR 0095), as a "Recommended for you" row and as Featured
-//! suggestions, by External ID with weights. The Kernel stores both with their time to live.
+//! Hub Suggestions as a Home row source (ADR 0058, 0072): the titles it recommends to each Linked
+//! User from their Account's taste vector (ADR 0095), as a "Recommended for you" row and as
+//! Featured suggestions, by External ID with weights. The Kernel stores both with their time to live.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -17,6 +17,8 @@ use nama_plugin_api::{
     },
     home_row::{HomeRowMethod, HomeRowSource},
 };
+
+use crate::charts::home_row_title;
 
 /// How long an answer stays fresh: the Hub learns a title was finished only once its play ends,
 /// after the Kernel asked again at its start, so an hour keeps a finished title from lingering.
@@ -45,11 +47,7 @@ impl Recommended {
 
     async fn rows(&self, user_id: i64) -> Result<HomeRows, PluginError> {
         let titles: Vec<HomeRowTitle> = (self.titles(user_id).await?.into_iter())
-            .map(|title| HomeRowTitle {
-                kind: title.kind,
-                id: title.id,
-                ..Default::default()
-            })
+            .map(home_row_title)
             .collect();
         let row = HomeRow {
             key: "recommended".to_owned(),

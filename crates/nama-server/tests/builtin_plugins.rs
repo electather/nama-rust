@@ -72,8 +72,8 @@ async fn every_builtin_plugin_but_the_hubs_is_enabled_by_default_once_it_has_the
     let without_settings = started("").await;
     let with_settings = started("[plugins.tmdb]\napi_key = \"secret\"").await;
 
-    // TMDB can't run without an API key, and a Server isn't Linked until an Admin enables the Hub
-    // Plugin (ADR 0094).
+    // TMDB can't run without an API key, and Hub Suggestions stays off until an Admin enables it
+    // (ADR 0105).
     assert_eq!(
         without_settings,
         [
@@ -132,6 +132,40 @@ async fn hub_suggestions_an_admin_enabled_stays_enabled_across_restarts_without_
         .unwrap();
 
     assert!(restarted.registry().enabled().contains(&HubSuggestions::ID));
+}
+
+#[tokio::test]
+async fn an_admin_who_had_the_hub_plugin_enabled_has_hub_suggestions_enabled_after_the_upgrade() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    drop(start(&db, data_dir.path(), "").await);
+    // The row the Hub Plugin left: enabled, holding only the Read Libraries it requested.
+    let held = serde_json::to_string(&[Permission::PERMISSION_READ_LIBRARIES]).unwrap();
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query(
+                "UPDATE plugin_settings SET enabled = 1, granted_permissions = ? \
+                 WHERE plugin_id = 'hub'",
+            )
+            .bind(held)
+            .execute(&mut **tx)
+            .await
+        })
+    })
+    .await
+    .unwrap();
+
+    let upgraded = start(&db, data_dir.path(), "").await;
+
+    assert!(upgraded.registry().enabled().contains(&HubSuggestions::ID));
+    let hub_suggestions = upgraded.get(&HubSuggestions::ID).await.unwrap().unwrap();
+    assert_eq!(
+        hub_suggestions.granted,
+        HashSet::from([
+            Permission::PERMISSION_READ_LIBRARIES,
+            Permission::PERMISSION_READ_WATCH_STATES,
+        ])
+    );
 }
 
 #[tokio::test]

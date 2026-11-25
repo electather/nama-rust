@@ -37,7 +37,7 @@ plugins:
     strategy: all
     types: [nama.plugin.v1]
   # The Hub API's messages, service traits and clients, in a crate of their own, which the Hub
-  # serves and the Hub Plugin calls.
+  # serves and the Server calls.
   - local: protoc-gen-buffa
     out: ../crates/nama-hub-proto/src/generated/buffa
     opt: [views=true, json=true]

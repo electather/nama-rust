@@ -25,7 +25,10 @@ impl Caller {
         self,
         asked: HubRecommendedAsked,
     ) -> Result<HubTitles, KernelRefused> {
-        (self.linking().recommended_titles(asked).await).map_err(hub_unreachable)
+        self.linking()
+            .recommended_titles(asked)
+            .await
+            .map_err(hub_unreachable)
     }
 
     pub(super) async fn list_hub_trending(
@@ -42,7 +45,10 @@ impl Caller {
         self,
         _asked: HubChartAsked,
     ) -> Result<HubTitles, KernelRefused> {
-        (self.linking().most_watchlisted_titles().await).map_err(hub_unreachable)
+        self.linking()
+            .most_watchlisted_titles()
+            .await
+            .map_err(hub_unreachable)
     }
 
     fn linking(&self) -> &Linking {
