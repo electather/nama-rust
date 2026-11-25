@@ -501,6 +501,10 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_WATCH_SYNC_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_WATCH_SYNC_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__POLL_WATCH_SYNC_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__POLL_WATCH_SYNC_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_NOTIFICATION_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_NOTIFICATION_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__NOTIFICATION_PREFERENCE_JSON_ANY);
@@ -2223,6 +2227,22 @@ pub use self::__buffa::view::DeletePersonalSettingsRequestOwnedView;
 pub use self::__buffa::view::DeletePersonalSettingsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeletePersonalSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListNotificationPreferencesRequestView;
 #[doc(inline)]

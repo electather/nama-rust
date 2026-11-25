@@ -51,6 +51,7 @@ mod inbox;
 mod jobs;
 mod libraries;
 mod matches;
+mod personal_settings;
 mod playback;
 mod plugins;
 mod requests;

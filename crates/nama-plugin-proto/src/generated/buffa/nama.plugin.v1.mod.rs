@@ -244,6 +244,10 @@ pub mod __buffa {
         reg.register_json_any(super::__SUBTITLE_RESULT_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_FILE_JSON_ANY);
+        reg.register_json_any(super::__START_LINK_ASKED_JSON_ANY);
+        reg.register_json_any(super::__LINK_STARTED_JSON_ANY);
+        reg.register_json_any(super::__POLL_LINK_ASKED_JSON_ANY);
+        reg.register_json_any(super::__LINK_POLLED_JSON_ANY);
         reg.register_json_any(super::__SCROBBLE_ASKED_JSON_ANY);
         reg.register_json_any(super::__SCROBBLED_JSON_ANY);
         reg.register_json_any(super::__IMPORT_ASKED_JSON_ANY);
@@ -923,6 +927,22 @@ pub use self::__buffa::view::SubtitleDownloadOwnedView;
 pub use self::__buffa::view::SubtitleFileView;
 #[doc(inline)]
 pub use self::__buffa::view::SubtitleFileOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartLinkAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartLinkAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkStartedView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkStartedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollLinkAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollLinkAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkPolledView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkPolledOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ScrobbleAskedView;
 #[doc(inline)]
