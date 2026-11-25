@@ -27,7 +27,7 @@ export function LinkedUserItem({ user }: { user: LinkedUser }) {
           unlink.mutate({ id: user.id });
         }}
       >
-        Unlink
+        {unlink.isPending ? "Unlinking…" : "Unlink"}
       </Button>
     </ItemRow>
   );

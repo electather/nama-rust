@@ -28,7 +28,7 @@ export function ViewingEventItem({ event }: { event: ViewingEvent }) {
           remove.mutate({ id: event.id });
         }}
       >
-        Delete
+        {remove.isPending ? "Deleting…" : "Delete"}
       </Button>
     </ItemRow>
   );

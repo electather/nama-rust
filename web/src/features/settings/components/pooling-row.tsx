@@ -9,14 +9,17 @@ export function PoolingRow() {
   const pooling = usePooling();
   const setPooling = useSetPooling();
   return (
-    <SwitchRow
-      {...rowText(accountHistoryLabels, "pooling")}
-      error={setPooling.error ? "The Hub couldn’t change this just now. Try again." : undefined}
-      checked={pooling}
-      disabled={setPooling.isPending}
-      onChange={(on) => {
-        setPooling.mutate({ pooling: on });
-      }}
-    />
+    // Last in its own box, so the row gives back its bottom padding before the plays.
+    <div>
+      <SwitchRow
+        {...rowText(accountHistoryLabels, "pooling")}
+        error={setPooling.error ? "The Hub couldn’t change this just now. Try again." : undefined}
+        checked={pooling}
+        disabled={setPooling.isPending}
+        onChange={(on) => {
+          setPooling.mutate({ pooling: on });
+        }}
+      />
+    </div>
   );
 }

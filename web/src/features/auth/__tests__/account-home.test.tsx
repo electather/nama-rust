@@ -23,11 +23,13 @@ const grace = create(UserInviteSchema, {
   invitedAt: 1_700_000_000n,
 });
 
-test("accepting a User waiting for the Account Links them, and the notice goes", async () => {
+test("a User waiting for the Account shows instead of the notice, and accepting Links them", async () => {
   const { hub, transport } = accountHub({ invites: [grace] });
   openApp("/", transport);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Accept Grace on Cabin" }));
+  const accept = await screen.findByRole("button", { name: "Accept Grace on Cabin" });
+  expect(screen.queryByText(/ask a Server’s Admin for an Invite/u)).toBeNull();
+  fireEvent.click(accept);
 
   await waitFor(() => {
     expect(screen.queryByRole("heading", { name: "Users waiting for you" })).toBeNull();
