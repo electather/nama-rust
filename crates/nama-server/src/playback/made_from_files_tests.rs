@@ -3,7 +3,7 @@ use std::{fs, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use tokio::sync::oneshot::{self, error::TryRecvError};
 
-use super::{Leftovers, WholeFileReads};
+use super::{Leftovers, TranscodeDownloads, WholeFileReads};
 use crate::{
     db::Database,
     images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
@@ -35,7 +35,12 @@ impl Fixture {
         let images = ImageStore::new(data.path(), Arc::clone(&db));
         let cache = subtitles::Cache::new(data.path());
         Self {
-            leftovers: Leftovers::new(db, cache.clone(), images.clone()),
+            leftovers: Leftovers::new(
+                Arc::clone(&db),
+                cache.clone(),
+                images.clone(),
+                TranscodeDownloads::for_tests(&db, data.path()),
+            ),
             images,
             cache,
             kept,

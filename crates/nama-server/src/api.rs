@@ -28,7 +28,8 @@ use crate::{
     },
     playback::{
         Plans, PreviewFrames, Probing, RunningPlans, SubtitleCache, SubtitleDownloads,
-        TrackPreferences, WholeFileReads, preview_frames_router, running_router,
+        TrackPreferences, TranscodeDownloads, WholeFileReads, preview_frames_router,
+        running_router, transcode_downloads_router,
     },
     plugin_settings::PluginSettings,
     requests::Requests,
@@ -97,6 +98,7 @@ pub(crate) fn router(
     home_rows: HomeRows,
     settings: server_settings::Settings,
     running: RunningPlans,
+    transcode_downloads: TranscodeDownloads,
     abilities: Abilities,
     preview_frames: PreviewFrames,
     browser_spans: BrowserSpans,
@@ -113,10 +115,24 @@ pub(crate) fn router(
         Contents::new(Arc::clone(&db)),
         image_settings.clone(),
     );
+    let preferences = TrackPreferences::new(Arc::clone(&db), plugins.clone());
+    let plans = Plans::new(
+        probing,
+        abilities.clone(),
+        running.clone(),
+        settings.playback(),
+        preview_frames.clone(),
+        preferences.clone(),
+        Arc::clone(&db),
+    );
     let media =
         crate::playback::router(running.clone(), &db, Arc::clone(&ffmpeg), subtitles, reads)
             .merge(running_router(running.clone()))
-            .merge(preview_frames_router(preview_frames.clone()))
+            .merge(preview_frames_router(preview_frames))
+            .merge(transcode_downloads_router(
+                plans.clone(),
+                transcode_downloads,
+            ))
             .layer(middleware::from_fn_with_state(
                 Arc::clone(&db),
                 crate::playback::seen_versions_only,
@@ -136,7 +152,6 @@ pub(crate) fn router(
         similar,
     );
     let server_url = settings.server_url();
-    let preferences = TrackPreferences::new(Arc::clone(&db), plugins.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
@@ -144,7 +159,7 @@ pub(crate) fn router(
             linking: users.linking().clone(),
             browse: Browse::new(Arc::clone(&db), plugins.clone()),
             settings: settings.clone(),
-            abilities: abilities.clone(),
+            abilities,
             ffmpeg,
             images: image_store.clone(),
             points: plugins.clone(),
@@ -197,15 +212,7 @@ pub(crate) fn router(
             syncing,
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
-            plans: Plans::new(
-                probing,
-                abilities,
-                running.clone(),
-                settings.playback(),
-                preview_frames,
-                preferences.clone(),
-                Arc::clone(&db),
-            ),
+            plans,
             preferences,
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
             db: Arc::clone(&db),

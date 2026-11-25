@@ -38,6 +38,7 @@ mod subtitle_offsets;
 mod subtitles;
 mod track_preferences;
 mod tracks;
+mod transcode_downloads;
 
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
 pub(crate) use direct_play::{router, seen_versions_only, viewer_of_caller};
@@ -68,6 +69,7 @@ pub(crate) use tracks::{
     Chapter, Probe, Segment, SegmentKind, Segments, Track, TrackKind, Tracks, make_segments_due,
     title_ids_changed, track_to_proto,
 };
+pub(crate) use transcode_downloads::{TranscodeDownloads, router as transcode_downloads_router};
 
 use std::{collections::BTreeSet, num::NonZeroU32};
 

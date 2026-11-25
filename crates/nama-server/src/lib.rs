@@ -59,7 +59,7 @@ use crate::{
     library::{Contents, CustomImages, LocalImages},
     playback::{
         Leftovers, PreviewFrames, ProbePasses, Probing, RunningPlans, Segments, SubtitleCache,
-        TextPasses, WholeFileReads,
+        TextPasses, TranscodeDownloads, WholeFileReads,
     },
     plugin_settings::PluginSettings,
     plugins::{PluginBlobs, log_jobs_time_zone},
@@ -146,11 +146,22 @@ pub fn serve(
         passes.clone(),
         reads.clone(),
     );
-    let leftovers = Leftovers::new(Arc::clone(&db), subtitles.clone(), images.clone());
+    let contents = Contents::new(Arc::clone(&db));
+    let transcode_downloads = TranscodeDownloads::new(
+        Arc::clone(&ffmpeg),
+        settings.playback(),
+        contents.clone(),
+        config.download_budget_mib.saturating_mul(1024 * 1024),
+    );
+    let leftovers = Leftovers::new(
+        Arc::clone(&db),
+        subtitles.clone(),
+        images.clone(),
+        transcode_downloads.clone(),
+    );
     let segments = Segments::new(Arc::clone(&db), points.clone());
     // Followed now, so no pass a scan at startup finishes is missed.
     let probed_for_segments = passes.follow();
-    let contents = Contents::new(Arc::clone(&db));
     let running = RunningPlans::new(
         settings.playback(),
         Arc::clone(&ffmpeg),
@@ -254,6 +265,7 @@ pub fn serve(
         home_rows.clone(),
         settings,
         running.clone(),
+        transcode_downloads.clone(),
         abilities.clone(),
         preview_frames.clone(),
         browser_spans.clone(),
@@ -331,6 +343,7 @@ pub fn serve(
         preview_frames.shutdown().await;
         text_passes.shutdown().await;
         running.shutdown().await;
+        transcode_downloads.shutdown().await;
         abilities.shutdown().await;
         // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.
         scanner.shutdown().await;

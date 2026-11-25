@@ -226,7 +226,11 @@ async fn capped_remotely(
 /// Serves the file at `path` as `request` asks, but whole, with a 200, when its `If-Range` names
 /// the file as it was before it was replaced (an upgrade, a re-encode), so a `<video>` resuming it
 /// isn't sent the new file's bytes to splice into the old one's (RFC 9110 §13.1.5).
-async fn serve_file(path: &str, request: Request) -> io::Result<Response> {
+pub(super) async fn serve_file(
+    path: impl AsRef<std::path::Path>,
+    request: Request,
+) -> io::Result<Response> {
+    let path = path.as_ref();
     let (mut parts, body) = request.into_parts();
     let if_range = parts.headers.remove(IF_RANGE);
     let first = Request::from_parts(parts.clone(), body);

@@ -16,9 +16,12 @@ use std::{
     io,
     path::{Path, PathBuf},
     process::Stdio,
+    sync::atomic::{AtomicI64, Ordering},
     time::Duration,
 };
 
+use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
+use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
 pub(crate) use self::abilities::{Abilities, CanDo};
@@ -79,6 +82,10 @@ const REMUX_LATER_BY_MS: i64 = 1000;
 /// encoder's delay never times a frame before 0, which ffmpeg would shift, putting the run started
 /// at the file's start out of step with those started later.
 const TRANSCODE_LATER_BY_MS: i64 = 1000;
+
+/// How often a Transcode to one file forces a keyframe, in seconds, as often as a Transcode's
+/// segments start one (`SEGMENT_MS` in `playback`).
+const FILE_KEYFRAME_EVERY_S: i64 = 6;
 
 /// How long ffmpeg may take to list its filters or encoders.
 const LIST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -408,21 +415,79 @@ impl Ffmpeg {
             .args(codec)
             .arg("-force_key_frames")
             .arg(cuts.join(","));
-        // ponytail: at Original, a hardware encoder picks its own rate, which is low on NVENC and
-        // VideoToolbox; set one from the Version's bitrate if that shows.
-        if let Some(VideoLimit {
-            bits_per_second, ..
-        }) = video.limit
-        {
-            let rate = bits_per_second.to_string();
-            // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
-            command
-                .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
-                .arg((2 * u64::from(bits_per_second)).to_string());
-        }
+        keep_to_limit(&mut command, video.limit);
         convert_audio(&mut command, transcode.audio.map(|audio| audio.conversion));
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
         Ok(hls_output(command, &ffmpeg.version, dir, from.n))
+    }
+
+    /// Converts the first video of the file at `path`, and its audio Track if any, as `transcode`
+    /// says, into one MP4 at `to`, with a keyframe every [`FILE_KEYFRAME_EVERY_S`] seconds so a
+    /// player seeks in it, keeping in `made_ms` how far into the file it has got, in
+    /// milliseconds. It runs at a low OS priority, as it yields to playback. Once `stop` is
+    /// cancelled it kills ffmpeg and returns `Ok` once it has exited, so `to` can be deleted. Fails
+    /// without ffmpeg; `to` may be left partly written then.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what to convert and where, then what its caller watches and stops it by"
+    )]
+    pub(crate) async fn transcode_to_file(
+        &self,
+        path: &str,
+        transcode: &Transcode,
+        to: &Path,
+        made_ms: &AtomicI64,
+        stop: &CancellationToken,
+    ) -> Result<(), RunError> {
+        let Ok(ffmpeg) = &self.ffmpeg else {
+            return Err(RunError::Unavailable(Program::Ffmpeg));
+        };
+        debug_assert!(
+            transcode.video.burn_in.is_none(),
+            "a file is never burned in"
+        );
+        let VideoArgs {
+            input,
+            video,
+            codec,
+        } = video_args(path, &transcode.video, 0);
+        let mut command = tokio::process::Command::new(&ffmpeg.path);
+        command.args(["-v", "error", "-nostdin", "-nostats", "-progress", "pipe:1"]);
+        command.args(input).arg("-i").arg(path).args(video);
+        map_audio(&mut command, transcode.audio.map(|audio| audio.track));
+        // The encoders make keyframes only where forced (`video_args`).
+        let keyframes = format!("expr:gte(t,n_forced*{FILE_KEYFRAME_EVERY_S})");
+        command.args(codec).arg("-force_key_frames").arg(keyframes);
+        keep_to_limit(&mut command, transcode.video.limit);
+        convert_audio(&mut command, transcode.audio.map(|audio| audio.conversion));
+        // The index up front, so a player can start the file without reading to its end.
+        command.args(["-movflags", "+faststart", "-f", "mp4", "-y"]);
+        command
+            .arg(to)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = spawn_at(&mut command, Priority::Low)
+            .map_err(|err| RunError::Run(Program::Ffmpeg, err))?;
+        let (stdout, stderr) = (child.stdout.take(), child.stderr.take());
+        let read_progress = keep_progress(stdout, made_ms);
+        let mut errors = String::new();
+        let read_errors = async {
+            if let Some(mut stderr) = stderr {
+                // What it wrote before a read failed is all there is to report.
+                let _: io::Result<usize> = stderr.read_to_string(&mut errors).await;
+            }
+        };
+        let waited = tokio::select! {
+            (waited, (), ()) = async { tokio::join!(child.wait(), read_progress, read_errors) } => waited,
+            () = stop.cancelled() => {
+                // Waited for, as Windows refuses to delete a file a program still has open.
+                return child.kill().await.map_err(|err| RunError::Run(Program::Ffmpeg, err));
+            }
+        };
+        match waited.map_err(|err| RunError::Run(Program::Ffmpeg, err))? {
+            status if status.success() => Ok(()),
+            _ => Err(RunError::Failed(Program::Ffmpeg, errors.trim().to_owned())),
+        }
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
@@ -550,21 +615,9 @@ impl Ffmpeg {
         }
         command
             .args(args)
-            .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            // A fetch or probe given up on, or one cancelled at shutdown, stops the program too.
-            .kill_on_drop(true);
-        #[cfg(windows)]
-        if priority == Priority::Low {
-            // `BELOW_NORMAL_PRIORITY_CLASS`, from `windows-sys`, which the Server doesn't depend on.
-            command.creation_flags(0x0000_4000);
-        }
-        let child = command.spawn().map_err(|err| RunError::Run(program, err))?;
-        #[cfg(unix)]
-        if priority == Priority::Low {
-            lower_priority(&child);
-        }
+            .stderr(Stdio::piped());
+        let child = spawn_at(&mut command, priority).map_err(|err| RunError::Run(program, err))?;
         let output = tokio::time::timeout(timeout, child.wait_with_output())
             .await
             .map_err(|_elapsed| RunError::TimedOut(program))?
@@ -583,6 +636,56 @@ pub(crate) enum Priority {
     Normal,
     /// For background work, which yields to playback.
     Low,
+}
+
+/// Starts `command` at `priority`, with no stdin, killed once its child is dropped, so a fetch or
+/// probe given up on, or one cancelled at shutdown, stops the program too.
+fn spawn_at(
+    command: &mut tokio::process::Command,
+    priority: Priority,
+) -> io::Result<tokio::process::Child> {
+    command.stdin(Stdio::null()).kill_on_drop(true);
+    #[cfg(windows)]
+    if priority == Priority::Low {
+        // `BELOW_NORMAL_PRIORITY_CLASS`, from `windows-sys`, which the Server doesn't depend on.
+        command.creation_flags(0x0000_4000);
+    }
+    let child = command.spawn()?;
+    #[cfg(unix)]
+    if priority == Priority::Low {
+        lower_priority(&child);
+    }
+    Ok(child)
+}
+
+/// Reads what `-progress pipe:1` prints on `stdout` to its end, keeping in `made_ms` how far into
+/// the file ffmpeg has got, in milliseconds.
+async fn keep_progress(stdout: Option<tokio::process::ChildStdout>, made_ms: &AtomicI64) {
+    let Some(stdout) = stdout else { return };
+    let mut lines = BufReader::new(stdout).lines();
+    while let Ok(Some(line)) = lines.next_line().await {
+        // `out_time_us=N/A` until the first frame is written.
+        let us = (line.strip_prefix("out_time_us=")).and_then(|us| us.parse::<i64>().ok());
+        if let Some(us) = us {
+            made_ms.store(us / 1000, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Has a Transcode's `command` keep its video to `limit`'s rate, if it has one.
+fn keep_to_limit(command: &mut tokio::process::Command, limit: Option<VideoLimit>) {
+    // ponytail: at Original, a hardware encoder picks its own rate, which is low on NVENC and
+    // VideoToolbox; set one from the Version's bitrate if that shows.
+    if let Some(VideoLimit {
+        bits_per_second, ..
+    }) = limit
+    {
+        let rate = bits_per_second.to_string();
+        // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
+        command
+            .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
+            .arg((2 * u64::from(bits_per_second)).to_string());
+    }
 }
 
 /// Lowers `child`'s OS priority to `nice`'s default, or logs why it couldn't.

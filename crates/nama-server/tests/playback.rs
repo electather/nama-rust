@@ -47,6 +47,8 @@ mod signed_urls;
 mod subtitle_offsets;
 #[path = "playback/subtitle_pass.rs"]
 mod subtitle_pass;
+#[path = "playback/transcode_downloads.rs"]
+mod transcode_downloads;
 
 use std::{
     fs,
