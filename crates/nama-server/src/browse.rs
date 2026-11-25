@@ -404,7 +404,7 @@ impl Browse {
     /// The stored Content Ratings its Maximum Age lets through, the empty string for none if it
     /// lets unrated titles through, as [`Contents::title_page`] takes them: `None` for every one.
     async fn kept_ratings(&self) -> Result<Option<Vec<String>>, sqlx::Error> {
-        if self.max_age == MaximumAge::default() {
+        if self.max_age.lets_every_title() {
             return Ok(None);
         }
         let mut kept = self.contents.content_ratings().await?;
@@ -418,7 +418,7 @@ impl Browse {
     /// Whether a Library it doesn't see, or its Maximum Age, hides a title of `kind` that `ids`
     /// name: one to show nowhere, nor offer to Request, wherever else it was found.
     pub(crate) async fn hides(&self, kind: TitleKind, ids: &[ExternalId]) -> Result<bool, Error> {
-        let sees_all = self.seen == LibraryAccess::All && self.max_age == MaximumAge::default();
+        let sees_all = self.seen == LibraryAccess::All && self.max_age.lets_every_title();
         if sees_all || ids.is_empty() {
             return Ok(false);
         }

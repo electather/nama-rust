@@ -477,7 +477,7 @@ fn hidden(seen: &LibraryAccess, library: Option<i64>) -> bool {
 /// who sees `seen` and whose Maximum Age is `max_age`. A hit has no Content Rating, so it counts as
 /// unrated, and one on the Server is left to Browse's search, which knows its stored one.
 fn shown_hit(seen: &LibraryAccess, max_age: MaximumAge, library: Option<i64>) -> bool {
-    if max_age == MaximumAge::default() {
+    if max_age.lets_every_title() {
         return !hidden(seen, library);
     }
     max_age.allows(None) && library.is_none()

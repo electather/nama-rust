@@ -108,8 +108,8 @@ async fn serve(
 }
 
 /// Answers 404 to a request under `/media/versions/<id>`, for the Version's file, subtitles,
-/// fonts or Preview frames alike, from a caller who doesn't see the Library of the Version `id`.
-/// Put in front of every router serving there.
+/// fonts or Preview frames alike, from a caller who may not play the Version `id`, as
+/// [`sees_version`] judges. Put in front of every router serving there.
 pub(crate) async fn seen_versions_only(
     State(db): State<Arc<Database>>,
     request: Request,

@@ -61,6 +61,11 @@ pub(crate) struct MaximumAge {
 }
 
 impl MaximumAge {
+    /// Whether it lets every title through, as having no age does.
+    pub(crate) fn lets_every_title(&self) -> bool {
+        self.age.is_none()
+    }
+
     /// Whether a title whose Content Rating is `rating` reaches its User.
     pub(crate) fn allows(&self, rating: Option<&str>) -> bool {
         let Some(age) = self.age else {
