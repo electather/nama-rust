@@ -463,7 +463,7 @@ impl TestServer {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    async fn create_user(&self, name: &str) -> i64 {
+    pub(crate) async fn create_user(&self, name: &str) -> i64 {
         self.users()
             .create_user(CreateUserRequest {
                 name: name.to_owned(),

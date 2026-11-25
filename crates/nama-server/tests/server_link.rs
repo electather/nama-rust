@@ -185,8 +185,10 @@ async fn a_user_shows_the_code_the_hub_gives_them_and_then_whose_they_are() {
 #[tokio::test]
 async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_unreachable() {
     let (server, hub) = linked_server().await;
-    let grace = server.user_with_default_permissions("Grace").await;
-    hub.link_user(grace.id);
+    let grace = server.create_user("Grace").await;
+    // Before she signs in, as signing in asks the Hub and keeps its answer a minute.
+    hub.link_user(grace);
+    let grace = server.sign_in(grace, "Grace").await;
     assert_eq!(
         user_link(grace.client_config()).await.unwrap().account,
         EMAIL
