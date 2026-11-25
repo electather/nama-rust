@@ -8,7 +8,7 @@ use hyper::{Method, Request, body::Bytes};
 use image::{ImageFormat, RgbImage};
 use nama_proto::nama::v1::{GetShowRequest, GetShowResponse, LibraryKind};
 
-use crate::{
+use super::{
     browsing::{Fixture, tmdb_id},
     http::{Reply, send},
     server::{TestServer, tmdb::DARK},

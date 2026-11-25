@@ -1,0 +1,765 @@
+//! Installed Plugins on a running Server: listed once their `.wasm` is dropped into
+//! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused,
+//! reaching only the hosts they are allowed, and disabled when they keep crashing.
+
+use crate::support::{log, refused, server, test_plugin};
+
+use std::{
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
+
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use log::Log;
+use nama_plugin_api::{
+    PluginId, contract,
+    notifier::{Notification, Notifier, Recipient},
+};
+use nama_plugin_proto::CONTRACT_VERSION;
+use nama_proto::nama::v1::{
+    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
+    PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, event, setting_value::Value,
+};
+use nama_server::{
+    config::Config,
+    plugin_settings::{self, PluginSettings},
+    plugins::Registry,
+};
+use refused::assert_refused;
+use server::{TestServer, WAIT};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+};
+
+/// A running Server with no Installed Plugins yet.
+struct Started {
+    server: TestServer,
+    plugins: Registry,
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Started {
+    async fn new() -> Self {
+        let plugins = Registry::with_builtins();
+        let server = TestServer::builder().plugins(plugins.clone()).start().await;
+        Self { server, plugins }
+    }
+
+    /// Drops the test Plugin, built with `features`, into the Server's `plugins/` as `file`.
+    fn drop_in(&self, file: &str, features: &str) {
+        self.drop_bytes_in(file, &test_plugin::build(features));
+    }
+
+    /// Drops `bytes` into the Server's `plugins/` as `file`.
+    fn drop_bytes_in(&self, file: &str, bytes: &[u8]) {
+        let dir = self.server.data_dir().join("plugins");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(file), bytes).unwrap();
+    }
+
+    /// Saves the test Plugin's settings as the Plugins page does, each one text.
+    async fn save_settings(
+        &self,
+        settings: &[(&str, &str)],
+    ) -> Result<UpdatePluginSettingsResponse, ConnectError> {
+        let request = UpdatePluginSettingsRequest {
+            id: "test-plugin".to_owned(),
+            settings: text_values(settings),
+            ..Default::default()
+        };
+        let response = self.client().update_plugin_settings(request).await?;
+        Ok(response.into_owned())
+    }
+
+    /// Tests the test Plugin's unsaved `settings` as the Plugins page's "Test" does, each one text.
+    async fn test_settings(
+        &self,
+        settings: &[(&str, &str)],
+    ) -> Result<TestPluginSettingsResponse, ConnectError> {
+        let request = TestPluginSettingsRequest {
+            id: "test-plugin".to_owned(),
+            settings: text_values(settings),
+            ..Default::default()
+        };
+        let response = self.client().test_plugin_settings(request).await?;
+        Ok(response.into_owned())
+    }
+
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `clock`, `loop`,
+    /// `hoard` or `panic`), enables it, and returns a Library whose creation scan it is told about.
+    async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
+        self.drop_in("test.wasm", "");
+        // Listing is what reads `plugins/`.
+        self.listed("test-plugin").await.unwrap();
+        self.save_settings(&[("observer", observer)]).await.unwrap();
+        self.client()
+            .enable_plugin(enable("test-plugin"))
+            .await
+            .unwrap();
+        let media = tempfile::tempdir().unwrap();
+        std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
+        (self.library(media.path()).await, media)
+    }
+
+    fn client(&self) -> PluginServiceClient<HttpClient> {
+        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+    }
+
+    /// Creates a Movies Library of `folder`, and returns its id once the scan creating it starts
+    /// has finished Matching.
+    async fn library(&self, folder: &Path) -> i64 {
+        self.server
+            .create_and_match(CreateLibraryRequest {
+                name: "Movies".to_owned(),
+                kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+                folders: vec![folder.to_str().unwrap().to_owned()],
+                ..Default::default()
+            })
+            .await
+    }
+
+    /// Starts a scan of the Library `id`.
+    async fn scan(&self, id: i64) {
+        self.libraries()
+            .scan_library(ScanLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    fn libraries(&self) -> LibraryServiceClient<HttpClient> {
+        LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+    }
+
+    /// The Plugin `id` as the Plugins page lists it.
+    async fn listed(&self, id: &str) -> Option<PluginSummary> {
+        let listed = self
+            .client()
+            .list_plugins(ListPluginsRequest::default())
+            .await
+            .unwrap()
+            .into_owned();
+        listed.summaries.into_iter().find(|plugin| plugin.id == id)
+    }
+
+    /// The Plugin `id` with its settings, as its details page gets it.
+    async fn got(&self, id: &str) -> Plugin {
+        let request = GetPluginRequest {
+            id: id.to_owned(),
+            ..Default::default()
+        };
+        let got = self.client().get_plugin(request).await.unwrap();
+        got.into_owned().plugin.into_option().unwrap()
+    }
+}
+
+/// Starts an HTTP server on 127.0.0.1 that answers every request `204 No Content`, and returns its
+/// URL.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn http_server() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            // A GET's head comes in one read, and its answer doesn't depend on it.
+            let mut head = [0; 4096];
+            let _read = stream.read(&mut head).await;
+            let reply = b"HTTP/1.1 204 No Content\r\nconnection: close\r\nRetry-After: 120\r\n\r\n";
+            let _written = stream.write_all(reply).await;
+        }
+    });
+    url
+}
+
+/// `settings` as the Plugins page sends them, each one text.
+fn text_values<M: FromIterator<(String, SettingValue)>>(settings: &[(&str, &str)]) -> M {
+    settings
+        .iter()
+        .map(|(key, text)| {
+            let value = SettingValue {
+                value: Some(Value::TextValue((*text).to_owned())),
+                ..Default::default()
+            };
+            ((*key).to_owned(), value)
+        })
+        .collect()
+}
+
+/// The labels of the choices `tested` offers for the setting `key`.
+fn choice_labels<'a>(tested: &'a TestPluginSettingsResponse, key: &str) -> Vec<&'a str> {
+    tested.choices.get(key).map_or_else(Vec::new, |choices| {
+        choices
+            .choices
+            .iter()
+            .map(|choice| choice.label.as_str())
+            .collect()
+    })
+}
+
+fn enable(id: &str) -> EnablePluginRequest {
+    EnablePluginRequest {
+        id: id.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_and_stays_enabled() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let test_plugin = PluginId::from_static("test-plugin");
+    assert_eq!(started.listed("test-plugin").await, None);
+
+    started.drop_in("test.wasm", "");
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert_eq!(listed.kind, PluginKind::PLUGIN_KIND_INSTALLED);
+    assert_eq!(listed.version, "0.1.0");
+    assert!(!listed.enabled);
+    assert_eq!(listed.refused_reason, "");
+    // Its required settings each have a default.
+    assert!(!listed.settings_missing);
+    // As its Manifest's `providers`, then `observers`, name them, though it isn't enabled.
+    assert_eq!(
+        listed.extension_points,
+        [
+            ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER,
+            ExtensionPoint::EXTENSION_POINT_NOTIFIER,
+            ExtensionPoint::EXTENSION_POINT_EVENTS_OBSERVER
+        ]
+    );
+    // Saving its settings doesn't enable it either.
+    let updated = started
+        .client()
+        .update_plugin_settings(UpdatePluginSettingsRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    assert!(!updated.plugin.unwrap().summary.unwrap().enabled);
+
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
+    let media = tempfile::tempdir().unwrap();
+    std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
+    // Creating it scans it.
+    let library = started.library(media.path()).await;
+    log.wait_for(&["test-plugin observed", "ScanFinished"], 1)
+        .await;
+
+    // A restart enables what the database holds, as `main` does.
+    let config = Config {
+        data_dir: started.server.data_dir().to_owned(),
+        ..Config::default()
+    };
+    let restarted = PluginSettings::start(
+        Arc::clone(started.server.db()),
+        Registry::with_builtins(),
+        &config,
+    )
+    .await
+    .unwrap();
+    assert!(restarted.registry().enabled().contains(&test_plugin));
+
+    started
+        .client()
+        .disable_plugin(DisablePluginRequest {
+            id: "test-plugin".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(!started.plugins.enabled().contains(&test_plugin));
+    assert!(!started.listed("test-plugin").await.unwrap().enabled);
+
+    // Disabled, it is told nothing: of the next two scans it observes only the one after it is
+    // enabled again.
+    std::fs::write(media.path().join("Alien (1979).mkv"), b"video").unwrap();
+    (started.server)
+        .scan_until(library, |event| {
+            matches!(event, event::Event::MatchingFinished(_))
+        })
+        .await;
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    std::fs::write(media.path().join("Brazil (1985).mkv"), b"video").unwrap();
+    started.scan(library).await;
+    log.wait_for(&["test-plugin observed", "Brazil"], 1).await;
+    assert_eq!(log.count(&["test-plugin observed", "Alien"]), 0);
+}
+
+#[tokio::test]
+async fn a_plugins_name_and_description_come_from_its_manifest() {
+    let started = Started::new().await;
+
+    started.drop_in("test.wasm", "");
+
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert_eq!(listed.name, "Test Plugin");
+    assert_eq!(
+        listed.description,
+        "Stands in for an Installed Plugin in the Server's tests."
+    );
+    let got = started.got("test-plugin").await;
+    assert_eq!(got.summary.into_option(), Some(listed));
+}
+
+#[tokio::test]
+async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refused() {
+    let started = Started::new().await;
+
+    started.drop_bytes_in("not-wasm.wasm", b"not a WASM module");
+    let listed = started.listed("not-wasm.wasm").await.unwrap();
+    assert_eq!(listed.kind, PluginKind::PLUGIN_KIND_INSTALLED);
+    assert!(!listed.enabled);
+    assert_eq!(listed.refused_reason, "it is not a WASM module");
+
+    let refusal = assert_refused(
+        started
+            .client()
+            .enable_plugin(enable("not-wasm.wasm"))
+            .await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["pluginId"], "not-wasm.wasm");
+    assert_eq!(refusal.params["reason"], listed.refused_reason);
+    let got = started.got("not-wasm.wasm").await;
+    assert_eq!(got.summary.as_option(), Some(&listed));
+    assert!(got.settings.is_empty(), "{got:?}");
+    assert!(!started.listed("not-wasm.wasm").await.unwrap().enabled);
+    let update = UpdatePluginSettingsRequest {
+        id: "not-wasm.wasm".to_owned(),
+        ..Default::default()
+    };
+    assert_refused(
+        started.client().update_plugin_settings(update).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+    let stored = plugin_settings::stored(started.server.db()).await.unwrap();
+    assert!(!stored.unwrap().contains_key("not-wasm.wasm"));
+}
+
+#[tokio::test]
+async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_export() {
+    let started = Started::new().await;
+
+    started.drop_in("unexported.wasm", "unexported-connector");
+
+    let listed = started.listed("unexported.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        "its Manifest names nama.plugin.v1.ConnectorService, and it has no start_connection export"
+    );
+    assert_refused(
+        started
+            .client()
+            .enable_plugin(enable("unexported.wasm"))
+            .await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_built_for_contract_0_1_is_refused_naming_the_version() {
+    let started = Started::new().await;
+
+    started.drop_in("old.wasm", "contract-0-1");
+
+    let listed = started.listed("old.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        format!("it wants Plugin contract ^0.1.0, and this Server has {CONTRACT_VERSION}")
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_naming_no_points_is_refused() {
+    let started = Started::new().await;
+
+    started.drop_in("empty.wasm", "empty-points");
+
+    let listed = started.listed("empty.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        "its Manifest names no Extension Points, so it would do nothing; a Plugin built before \
+         Extension Points became services must name them in points"
+    );
+}
+
+#[tokio::test]
+async fn a_second_file_with_a_plugins_id_is_refused() {
+    let started = Started::new().await;
+
+    started.drop_in("a.wasm", "");
+    started.drop_in("b.wasm", "");
+
+    let first = started.listed("test-plugin").await.unwrap();
+    assert_eq!(first.refused_reason, "");
+    let second = started.listed("b.wasm").await.unwrap();
+    assert_eq!(
+        second.refused_reason,
+        "its id test-plugin is another Plugin's"
+    );
+}
+
+#[tokio::test]
+async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
+    let started = Started::new().await;
+
+    started.drop_in("test.wasm", "");
+
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert!(
+        listed
+            .logo_url
+            .starts_with("/media/plugin-logos/test-plugin/"),
+        "{listed:?}"
+    );
+    let got = started.got("test-plugin").await;
+    assert_eq!(got.summary.into_option(), Some(listed));
+}
+
+#[tokio::test]
+async fn a_plugin_reaches_a_host_and_reads_its_answer_headers_once_a_url_setting_names_it_without_a_restart()
+ {
+    let log = Log::global();
+    let server = http_server().await;
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    // Listing the Plugins, as opening the Plugins page does, reads it.
+    assert!(started.listed("test-plugin").await.is_some());
+    let media = tempfile::tempdir().unwrap();
+    let library = started.library(media.path()).await;
+
+    // Neither its Manifest nor a URL setting names the host it requests.
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    started.scan(library).await;
+    let refused = format!("HTTP request to {server} is not allowed");
+    log.wait_for(&["observer failed", &refused], 1).await;
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
+
+    // Named on the Plugins page, the host is reachable at once, and its answer's headers reach
+    // the Plugin.
+    started
+        .save_settings(&[("url", &server), ("fetch", &server)])
+        .await
+        .unwrap();
+    started.scan(library).await;
+    let fetched = format!("test-plugin fetched {server}: 204, Retry-After 120");
+    log.wait_for(&[&fetched], 1).await;
+
+    // Without the URL setting, it is refused again.
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started.scan(library).await;
+    log.wait_for(&["observer failed", &refused], 2).await;
+}
+
+#[tokio::test]
+async fn a_url_setting_that_isnt_a_url_is_refused_naming_it() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let refusal = assert_refused(
+        started.save_settings(&[("url", "sonarr.lan:8989")]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
+    );
+
+    assert_eq!(refusal.field, "settings.url");
+    assert_eq!(refusal.params["settingKind"], "SETTING_KIND_URL");
+    let stored = plugin_settings::stored(started.server.db()).await.unwrap();
+    assert!(!stored.unwrap().contains_key("test-plugin"));
+}
+
+#[tokio::test]
+async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("loop").await;
+
+    log.wait_for(&["test-plugin is looping"], 1).await;
+    // Served while its call loops, which the timeout stops only after 5 seconds.
+    assert!(started.listed("test-plugin").await.is_some());
+    let timed_out = [
+        "observer failed",
+        "test-plugin",
+        "it crashed: it didn't answer within 5s",
+    ];
+    assert_eq!(log.count(&timed_out), 0);
+    log.wait_for(&timed_out, 1).await;
+
+    assert!(started.listed("test-plugin").await.is_some());
+    started.scan(library).await;
+}
+
+#[tokio::test]
+async fn an_observer_that_runs_past_the_memory_cap_crashes_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (_library, _media) = started.observing("hoard").await;
+
+    log.wait_for(
+        &[
+            "observer failed",
+            "test-plugin",
+            "it crashed: it used more than 128 MiB of memory",
+        ],
+        1,
+    )
+    .await;
+
+    assert_eq!(log.count(&["test-plugin hoarded"]), 0);
+    assert!(started.listed("test-plugin").await.is_some());
+}
+
+#[tokio::test]
+async fn a_plugin_reads_the_servers_clock() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let millis = |time: SystemTime| time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    let before = millis(SystemTime::now());
+    // Creating the Library scans it.
+    let (_library, _media) = started.observing("clock").await;
+    log.wait_for(&["test-plugin's clock reads"], 1).await;
+    let after = millis(SystemTime::now());
+
+    let contents = log.contents();
+    let (_, logged) = contents.split_once("test-plugin's clock reads ").unwrap();
+    let digits = logged.split(|c: char| !c.is_ascii_digit()).next().unwrap();
+    let read: u128 = digits.parse().unwrap();
+    assert!(
+        (before..=after).contains(&read),
+        "{before} <= {read} <= {after}"
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can_be_enabled_again()
+{
+    let log = Log::global();
+    let started = Started::new().await;
+    let test_plugin = PluginId::from_static("test-plugin");
+    let (library, _media) = started.observing("panic").await;
+
+    let disabled_at = Instant::now();
+    while started.plugins.enabled().contains(&test_plugin) {
+        assert!(disabled_at.elapsed() < WAIT, "it was never disabled");
+        started.scan(library).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    log.wait_for(
+        &["test-plugin", "the test Plugin's Observer was set to panic"],
+        3,
+    )
+    .await;
+    log.wait_for(
+        &["test-plugin", "crashed 3 times in a row", "disabling it"],
+        1,
+    )
+    .await;
+    // Saved like an admin's disable, which the Server shows and a restart keeps.
+    assert!(!started.listed("test-plugin").await.unwrap().enabled);
+    let saved_at = Instant::now();
+    while plugin_settings::stored(started.server.db())
+        .await
+        .unwrap()
+        .unwrap()["test-plugin"]
+        .enabled
+    {
+        assert!(saved_at.elapsed() < WAIT, "its disable was never saved");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
+}
+
+#[tokio::test]
+async fn testing_offers_the_checks_choices_and_only_an_offered_one_is_saved() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    // Only listing reads `plugins/`, so finds the dropped `test.wasm`.
+    assert!(started.listed("test-plugin").await.is_some());
+    assert!(started.got("test-plugin").await.checks_settings);
+
+    let tested = started.test_settings(&[]).await.unwrap();
+
+    assert_eq!(choice_labels(&tested, "profile"), ["HD", "Ultra HD"]);
+    assert_eq!(tested.choices["profile"].choices[1].value, "2");
+    started.save_settings(&[("profile", "2")]).await.unwrap();
+    let refusal = assert_refused(
+        started.save_settings(&[("profile", "3")]).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "settings.profile");
+    let stored = plugin_settings::stored(started.server.db())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        stored["test-plugin"].settings.get("profile"),
+        Some(&nama_plugin_api::settings::SettingValue::Text(
+            "2".to_owned()
+        ))
+    );
+}
+
+#[tokio::test]
+async fn testing_an_unsaved_url_reaches_its_host_for_that_test_alone() {
+    let log = Log::global();
+    let server = http_server().await;
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let tested = started.test_settings(&[("url", &server)]).await.unwrap();
+
+    assert_eq!(choice_labels(&tested, "profile"), ["HD", "Ultra HD"]);
+    // The Plugin enabled afterwards, whose saved settings don't name the host, may not reach it.
+    let media = tempfile::tempdir().unwrap();
+    let library = started.library(media.path()).await;
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    started.scan(library).await;
+    let refused = format!("HTTP request to {server} is not allowed");
+    log.wait_for(&["observer failed", &refused], 1).await;
+}
+
+#[tokio::test]
+async fn a_check_that_loops_forever_or_panics_fails_in_plain_words_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let looped = started.test_settings(&[("fail_with", "loop")]).await;
+    let panicked = started.test_settings(&[("fail_with", "panic")]).await;
+    let hoarded = started.test_settings(&[("fail_with", "hoard")]).await;
+    log.wait_for(&["test-plugin", "it used more than 128 MiB of memory"], 1)
+        .await;
+
+    for (failed, message, timeout_seconds) in [
+        (
+            hoarded,
+            "test-plugin failed while checking its settings",
+            None,
+        ),
+        (
+            looped,
+            "test-plugin didn't finish checking its settings within 5 seconds",
+            Some("5"),
+        ),
+        (
+            panicked,
+            "test-plugin failed while checking its settings",
+            None,
+        ),
+    ] {
+        let err = failed.clone().unwrap_err();
+        let refusal = assert_refused(
+            failed,
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+        );
+        assert_eq!(err.message.as_deref(), Some(message));
+        let timeout = refusal.params.get("timeoutSeconds").map(String::as_str);
+        assert_eq!(timeout, timeout_seconds);
+    }
+    let retested = started.test_settings(&[]).await.unwrap();
+    assert_eq!(choice_labels(&retested, "profile"), ["HD", "Ultra HD"]);
+}
+
+// A Request's progress never reaches a Notifier: the Kernel's conversion leaves it out
+// (`a_request_progress_notification_gives_none`), and the contract has no message for it.
+#[tokio::test]
+async fn an_installed_notifier_is_handed_the_contracts_notification() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    started.listed("test-plugin").await.unwrap();
+    // It fails every notification for its channel, so a failure shows it was handed one.
+    started
+        .save_settings(&[("notifier", "error")])
+        .await
+        .unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    let asked = contract::Request {
+        id: 7,
+        ..Default::default()
+    };
+    let withdrawn = Notification {
+        event: Some(contract::Event {
+            event: Some(
+                contract::RequestWithdrawn {
+                    request: Some(asked.clone()).into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+            ..Default::default()
+        })
+        .into(),
+        request: Some(asked).into(),
+        ..Default::default()
+    };
+
+    let (sender, mut delivered) = tokio::sync::mpsc::unbounded_channel();
+    started
+        .plugins
+        .extension_points()
+        .tell_each(move |_, notifier: Arc<dyn Notifier>| {
+            let (sender, withdrawn) = (sender.clone(), withdrawn.clone());
+            async move {
+                let withdrawn = notifier.deliver(&withdrawn, &Recipient::Channel).await;
+                sender.send(withdrawn.is_ok()).unwrap();
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+            }
+        });
+
+    assert_eq!(delivered.recv().await, Some(false));
+}

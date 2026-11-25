@@ -1,0 +1,794 @@
+//! Managing Libraries through the generated `LibraryService` client, over a real socket.
+
+use crate::support::{refused, server};
+
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use nama_plugin_tmdb::Tmdb;
+use nama_proto::nama::v1::{
+    CreateLibraryRequest, DeleteLibraryRequest, GetLibraryRequest, Library, LibraryKind,
+    LibraryServiceClient, ListLibrariesRequest, ListTitleSourcesRequest, RefusalReason,
+    ScanLibraryRequest, TitleSource, UpdateLibraryRequest,
+};
+use nama_server::plugins::Registry;
+use refused::assert_refused;
+use server::TestServer;
+use tempfile::TempDir;
+
+/// A Server, a client for its `LibraryService`, and a scratch directory for media folders.
+struct Fixture {
+    client: LibraryServiceClient<HttpClient>,
+    media: TempDir,
+    _server: TestServer,
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Fixture {
+    async fn start() -> Self {
+        let server = TestServer::builder().start().await;
+        let client = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+        Self {
+            client,
+            media: tempfile::tempdir().unwrap(),
+            _server: server,
+        }
+    }
+
+    /// Creates a directory named `name` in the scratch directory and returns its path as a
+    /// client would send it.
+    fn folder(&self, name: &str) -> String {
+        let path = self.media.path().join(name);
+        std::fs::create_dir_all(&path).unwrap();
+        canonical(&path)
+    }
+
+    async fn create(
+        &self,
+        name: &str,
+        kind: LibraryKind,
+        folders: &[&str],
+    ) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .create_library(CreateLibraryRequest {
+                name: name.to_owned(),
+                kind: kind.into(),
+                folders: folders.iter().map(|f| (*f).to_owned()).collect(),
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(unscanned(response.library.into_option().unwrap()))
+    }
+
+    async fn get(&self, id: i64) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .get_library(GetLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(unscanned(response.library.into_option().unwrap()))
+    }
+
+    async fn update(&self, id: i64, name: &str, folders: &[&str]) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .update_library(UpdateLibraryRequest {
+                id,
+                name: name.to_owned(),
+                folders: folders.iter().map(|f| (*f).to_owned()).collect(),
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(unscanned(response.library.into_option().unwrap()))
+    }
+
+    async fn delete(&self, id: i64) -> Result<(), ConnectError> {
+        self.client
+            .delete_library(DeleteLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn scan(&self, id: i64) -> Result<(), ConnectError> {
+        self.client
+            .scan_library(ScanLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn list(&self) -> Vec<Library> {
+        self.client
+            .list_libraries(ListLibrariesRequest::default())
+            .await
+            .unwrap()
+            .into_owned()
+            .libraries
+            .into_iter()
+            .map(unscanned)
+            .collect()
+    }
+}
+
+/// `library` without its last Scan, which the scan creating it records whenever it finishes.
+fn unscanned(library: Library) -> Library {
+    Library {
+        last_scan: None.into(),
+        ..library
+    }
+}
+
+/// `path` with symlinks resolved, the form the Server stores folders in. (On macOS the temp
+/// directory sits behind a symlink.)
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn canonical(path: &Path) -> String {
+    PathBuf::from(path)
+        .canonicalize()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn a_created_library_can_be_read_back_and_is_listed_with_preview_frames_on() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let more_films = fx.folder("more-films");
+
+    let created = fx
+        .create(
+            "Movies",
+            LibraryKind::LIBRARY_KIND_MOVIES,
+            &[&films, &more_films],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(created.name, "Movies");
+    assert_eq!(created.kind, LibraryKind::LIBRARY_KIND_MOVIES);
+    assert_eq!(created.folders, [films, more_films]);
+    assert!(created.preview_frames);
+    assert_eq!(fx.get(created.id).await.unwrap(), created);
+    assert_eq!(fx.list().await, [created]);
+}
+
+#[tokio::test]
+async fn updating_a_library_renames_it_and_replaces_its_folders_but_keeps_its_kind_and_preview_frames()
+ {
+    let fx = Fixture::start().await;
+    let tv = fx.folder("tv");
+    let more_tv = fx.folder("more-tv");
+    let created = fx
+        .create("TV", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+
+    let updated = fx
+        .update(created.id, "Television", &[&more_tv, &tv])
+        .await
+        .unwrap();
+
+    assert_eq!(updated.id, created.id);
+    assert_eq!(updated.name, "Television");
+    assert_eq!(updated.kind, LibraryKind::LIBRARY_KIND_SHOWS);
+    assert_eq!(updated.folders, [more_tv, tv]);
+    assert!(
+        updated.preview_frames,
+        "an update leaving it out turned Preview frames off"
+    );
+    assert_eq!(fx.get(created.id).await.unwrap(), updated);
+}
+
+#[tokio::test]
+async fn an_update_with_bad_input_is_refused_and_leaves_the_library_as_it_was() {
+    let fx = Fixture::start().await;
+    let tv = fx.folder("tv");
+    let films = fx.folder("films");
+    let shows = fx
+        .create("TV", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+    fx.create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+
+    let cases: [(&str, &str, &[&str], _, &str); 3] = [
+        (
+            "a blank name",
+            " ",
+            &[&tv],
+            (
+                ErrorCode::InvalidArgument,
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            ),
+            "name",
+        ),
+        (
+            "the same folder twice",
+            "TV",
+            &[&tv, &tv],
+            (
+                ErrorCode::InvalidArgument,
+                RefusalReason::REFUSAL_REASON_FOLDER_REPEATED,
+            ),
+            "folders[1]",
+        ),
+        (
+            "another Library's folder",
+            "TV",
+            &[&tv, &films],
+            (
+                ErrorCode::AlreadyExists,
+                RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+            ),
+            "folders",
+        ),
+    ];
+    for (case, name, folders, (code, reason), field) in cases {
+        let refused = fx.update(shows.id, name, folders).await;
+        let refusal = assert_refused(refused, code, reason);
+        assert_eq!(refusal.field, field, "{case}");
+    }
+    assert_eq!(fx.get(shows.id).await.unwrap(), shows);
+}
+
+#[tokio::test]
+async fn a_deleted_library_is_gone_and_its_folders_can_back_another() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let first = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+
+    fx.delete(first.id).await.unwrap();
+
+    assert_refused(
+        fx.get(first.id).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    assert_eq!(fx.list().await, []);
+    assert!(
+        Path::new(&films).is_dir(),
+        "deleting a Library touched its folder"
+    );
+    let second = fx
+        .create("Films", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    assert_ne!(second.id, first.id, "a deleted Library's id was reused");
+}
+
+#[tokio::test]
+async fn reading_changing_or_deleting_a_library_that_does_not_exist_is_not_found() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+
+    let not_found = (
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    let got = assert_refused(fx.get(42).await, not_found.0, not_found.1);
+    assert_eq!(got.params.get("libraryId").map(String::as_str), Some("42"));
+    let updated = fx.update(42, "Movies", &[&films]).await;
+    assert_refused(updated, not_found.0, not_found.1);
+    assert_refused(fx.delete(42).await, not_found.0, not_found.1);
+}
+
+#[tokio::test]
+async fn a_library_with_a_blank_name_no_kind_or_no_folders_is_refused_as_an_invalid_argument() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let movies = LibraryKind::LIBRARY_KIND_MOVIES;
+
+    let required = RefusalReason::REFUSAL_REASON_FIELD_REQUIRED;
+    let cases: [(&str, &str, LibraryKind, &[&str], _, &str); 3] = [
+        ("blank name", "  ", movies, &[&films], required, "name"),
+        (
+            "unspecified kind",
+            "Movies",
+            LibraryKind::LIBRARY_KIND_UNSPECIFIED,
+            &[&films],
+            RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+            "kind",
+        ),
+        ("no folders", "Movies", movies, &[], required, "folders"),
+    ];
+    for (case, name, kind, folders, reason, field) in cases {
+        let refused = fx.create(name, kind, folders).await;
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, field, "{case}");
+    }
+    assert_eq!(fx.list().await, [], "a refused Library was created");
+
+    let created = fx.create("Movies", movies, &[&films]).await.unwrap();
+    let blank_name = fx.update(created.id, "", &[&films]).await;
+    let blank_name = assert_refused(blank_name, ErrorCode::InvalidArgument, required);
+    assert_eq!(blank_name.field, "name");
+    assert_eq!(fx.get(created.id).await.unwrap(), created);
+}
+
+#[tokio::test]
+async fn a_bad_folder_is_refused_naming_its_place_in_the_request() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let missing = fx.media.path().join("missing");
+    let missing = missing.to_str().unwrap();
+    let file = fx.media.path().join("film.mkv");
+    std::fs::write(&file, b"").unwrap();
+    let file = canonical(&file);
+
+    // Each case's bad folder is the last one.
+    let cases: [(&str, &[&str], _); 4] = [
+        (
+            "relative folder",
+            &["films"],
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+        ),
+        (
+            "missing folder",
+            &[&films, missing],
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_FOUND,
+        ),
+        (
+            "a file, not a folder",
+            &[&file],
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_READABLE,
+        ),
+        (
+            "the same folder twice, spelled differently",
+            &[&films, &format!("{films}{}", std::path::MAIN_SEPARATOR)],
+            RefusalReason::REFUSAL_REASON_FOLDER_REPEATED,
+        ),
+    ];
+    for (case, folders, reason) in cases {
+        let refused = fx
+            .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, folders)
+            .await;
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        let index = folders.len() - 1;
+        assert_eq!(refusal.field, format!("folders[{index}]"), "{case}");
+        assert_eq!(refusal.params["folder"], folders[index], "{case}");
+    }
+    assert_eq!(fx.list().await, [], "a refused Library was created");
+
+    let created = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let missing_folder = fx.update(created.id, "Movies", &[missing]).await;
+    let missing_folder = assert_refused(
+        missing_folder,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FOLDER_NOT_FOUND,
+    );
+    assert_eq!(missing_folder.field, "folders[0]");
+    assert_eq!(fx.get(created.id).await.unwrap(), created);
+}
+
+#[tokio::test]
+async fn a_folder_that_already_backs_another_library_is_refused_as_already_existing() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let tv = fx.folder("tv");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let shows = fx
+        .create("Shows", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+
+    // The same folder, also when spelled differently, whatever the kind.
+    let films_with_slash = format!("{films}{}", std::path::MAIN_SEPARATOR);
+    for folder in [&films, &films_with_slash] {
+        let refused = fx
+            .create("Anime", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv, folder])
+            .await;
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::AlreadyExists,
+            RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+        );
+        assert_eq!(refusal.field, "folders", "{folder}");
+    }
+    let updated = fx.update(shows.id, "Shows", &[&tv, &films]).await;
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+    );
+    assert_eq!(refusal.params.get("folder"), Some(&films));
+    let library = refusal.params.get("library").map(String::as_str);
+    assert_eq!(library, Some("Movies"));
+
+    assert_eq!(
+        fx.list().await,
+        [movies, shows],
+        "a refused change was kept"
+    );
+}
+
+#[tokio::test]
+async fn another_librarys_name_in_any_case_is_refused_as_already_existing() {
+    let fx = Fixture::start().await;
+    let (films, tv) = (fx.folder("films"), fx.folder("tv"));
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let created = fx
+        .create(" movies ", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await;
+    let shows = fx
+        .create("Shows", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+    let renamed = fx.update(shows.id, "MOVIES", &[&tv]).await;
+
+    for refused in [created, renamed] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::AlreadyExists,
+            RefusalReason::REFUSAL_REASON_LIBRARY_NAME_TAKEN,
+        );
+        assert_eq!(refusal.field, "name");
+        let library = refusal.params.get("library").map(String::as_str);
+        assert_eq!(library, Some("Movies"));
+    }
+    assert_eq!(
+        fx.list().await,
+        [movies, shows],
+        "a refused change was kept"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_inside_or_holding_another_librarys_is_refused_as_overlapping() {
+    let fx = Fixture::start().await;
+    let media = fx.folder("media");
+    let films = fx.folder("media/movies");
+    let hamlet = fx.folder("media/movies/Hamlet");
+    let tv = fx.folder("tv");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let shows = fx
+        .create("Shows", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+
+    for (relation, folder) in [("is inside", &hamlet), ("holds", &media)] {
+        let created = fx
+            .create("Hamlet", LibraryKind::LIBRARY_KIND_SHOWS, &[folder])
+            .await;
+        assert_overlaps(created, folder, &films, relation);
+        let updated = fx.update(shows.id, "Shows", &[&tv, folder]).await;
+        assert_overlaps(updated, folder, &films, relation);
+    }
+    assert_eq!(
+        fx.list().await,
+        [movies, shows],
+        "a refused change was kept"
+    );
+}
+
+#[tokio::test]
+async fn a_folder_beside_another_librarys_or_inside_its_own_old_one_is_accepted() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("media/movies");
+    let hamlet = fx.folder("media/movies/Hamlet");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+
+    let beside = fx.folder("media/movies2");
+    fx.create("Movies 2", LibraryKind::LIBRARY_KIND_MOVIES, &[&beside])
+        .await
+        .expect("a folder that only shares a name prefix doesn't overlap");
+    fx.update(movies.id, "Movies", &[&hamlet])
+        .await
+        .expect("a Library's own old folder doesn't overlap it");
+}
+
+/// Asserts `result` was refused because `folder` overlaps `library_folder`, the Movies Library's,
+/// with a message saying it `relation` ("is inside" or "holds") that folder.
+fn assert_overlaps<T>(
+    result: Result<T, ConnectError>,
+    folder: &str,
+    library_folder: &str,
+    relation: &str,
+) {
+    let message = result.as_ref().err().and_then(|err| err.message.clone());
+    let expected = format!("{folder} {relation} {library_folder}");
+    assert!(
+        message.as_deref().is_some_and(|m| m.contains(&expected)),
+        "{message:?} should say {expected:?}"
+    );
+    let refusal = assert_refused(
+        result,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_FOLDER_OVERLAPS,
+    );
+    assert_eq!(refusal.field, "folders", "{relation}");
+    let param = |key: &str| refusal.params.get(key).map(String::as_str);
+    assert_eq!(param("folder"), Some(folder), "{relation}");
+    assert_eq!(param("library"), Some("Movies"), "{relation}");
+    assert_eq!(param("libraryFolder"), Some(library_folder), "{relation}");
+}
+
+/// Directories the Server can't fully read: one it can't list, and one it can list but not
+/// open anything in. Unix only: Windows has no simple equivalent of taking away these permissions.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_folder_the_server_cannot_read_is_refused_as_an_invalid_argument() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let fx = Fixture::start().await;
+    for (case, mode) in [("can't list", 0o300), ("can't open files in", 0o600)] {
+        let locked = fx.folder(case);
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(mode)).unwrap();
+        if std::fs::metadata(Path::new(&locked).join(".")).is_ok()
+            && std::fs::read_dir(&locked).is_ok()
+        {
+            std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+            // Running as root, which reads anything; there's nothing to test.
+            return;
+        }
+
+        let refused = fx
+            .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&locked])
+            .await;
+
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_READABLE,
+        );
+        assert_eq!(refusal.field, "folders[0]", "{case}");
+        // So the scratch directory can be cleaned up.
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+}
+
+/// A folder named in UTF-8 can still resolve to a path that isn't: here a symlink to such a
+/// directory. Linux only: macOS refuses to create a name that isn't UTF-8.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_folder_that_resolves_to_a_path_that_isnt_utf8_is_refused_as_an_invalid_argument() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    let fx = Fixture::start().await;
+    let target = fx.media.path().join(OsStr::from_bytes(b"films\xff"));
+    std::fs::create_dir(&target).unwrap();
+    let link = fx.media.path().join("films");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let link = link.to_str().unwrap();
+
+    let refused = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[link])
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FOLDER_NOT_UTF8,
+    );
+    assert_eq!(refusal.field, "folders[0]");
+    assert_eq!(refusal.params["folder"], link);
+    assert_eq!(refusal.params["resolvedPath"], target.to_string_lossy());
+}
+
+/// A symlink is another name for the folder it points to. Unix only: creating one on Windows
+/// needs a privilege CI doesn't have.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_symlink_to_a_folder_that_backs_a_library_is_refused_as_already_existing() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    fx.create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let link = fx.media.path().join("films-link");
+    std::os::unix::fs::symlink(&films, &link).unwrap();
+
+    let refused = fx
+        .create(
+            "Also Movies",
+            LibraryKind::LIBRARY_KIND_MOVIES,
+            &[link.to_str().unwrap()],
+        )
+        .await;
+
+    assert_refused(
+        refused,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+    );
+}
+
+#[tokio::test]
+async fn a_scan_can_be_started_for_a_library_but_not_for_one_that_doesnt_exist() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+
+    fx.scan(movies.id).await.unwrap();
+    // Asking again while that scan may still be running is fine too.
+    fx.scan(movies.id).await.unwrap();
+
+    let missing = fx.scan(movies.id + 1).await;
+    assert_refused(
+        missing,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+}
+
+/// `names` as the title sources a request names.
+fn sources(names: &[&str]) -> Vec<String> {
+    names.iter().map(|&name| name.to_owned()).collect()
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Fixture {
+    /// Creates a Shows Library named after its one `folder`, so each such Library's name differs.
+    async fn create_searching(
+        &self,
+        folder: &str,
+        title_sources: &[&str],
+    ) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .create_library(CreateLibraryRequest {
+                name: folder.to_owned(),
+                kind: LibraryKind::LIBRARY_KIND_SHOWS.into(),
+                folders: vec![folder.to_owned()],
+                title_sources: sources(title_sources),
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(unscanned(response.library.into_option().unwrap()))
+    }
+
+    async fn update_searching(
+        &self,
+        library: &Library,
+        title_sources: &[&str],
+    ) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .update_library(UpdateLibraryRequest {
+                id: library.id,
+                name: library.name.clone(),
+                folders: library.folders.clone(),
+                title_sources: sources(title_sources),
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(unscanned(response.library.into_option().unwrap()))
+    }
+}
+
+#[tokio::test]
+async fn a_library_searches_tmdb_alone_unless_created_with_title_sources() {
+    let fx = Fixture::start().await;
+
+    let plain = fx.create_searching(&fx.folder("tv"), &[]).await.unwrap();
+    let ordered = (fx.create_searching(&fx.folder("anime"), &["tvdb", "tmdb"]))
+        .await
+        .unwrap();
+
+    assert_eq!(plain.title_sources, ["tmdb"]);
+    assert_eq!(fx.get(plain.id).await.unwrap().title_sources, ["tmdb"]);
+    assert_eq!(ordered.title_sources, ["tvdb", "tmdb"]);
+    assert_eq!(fx.get(ordered.id).await.unwrap(), ordered);
+}
+
+#[tokio::test]
+async fn an_update_naming_title_sources_sets_them_and_one_naming_none_keeps_them() {
+    let fx = Fixture::start().await;
+    let library = fx.create_searching(&fx.folder("tv"), &[]).await.unwrap();
+
+    let set = fx
+        .update_searching(&library, &["tvdb", "tmdb"])
+        .await
+        .unwrap();
+    let kept = fx.update_searching(&library, &[]).await.unwrap();
+
+    assert_eq!(set.title_sources, ["tvdb", "tmdb"]);
+    assert_eq!(kept.title_sources, ["tvdb", "tmdb"]);
+    assert_eq!(fx.get(library.id).await.unwrap(), kept);
+}
+
+#[tokio::test]
+async fn malformed_or_repeated_title_sources_are_refused_and_change_nothing() {
+    let fx = Fixture::start().await;
+    let library = fx.create_searching(&fx.folder("tv"), &[]).await.unwrap();
+    let other = fx.folder("other");
+
+    let cases: [(&str, &[&str], &str); 3] = [
+        ("an uppercase namespace", &["TMDB"], "TMDB"),
+        ("a namespace named twice", &["tmdb", "tvdb", "tmdb"], "tmdb"),
+        ("an empty namespace", &[""], ""),
+    ];
+    for (case, title_sources, namespace) in cases {
+        for refused in [
+            fx.create_searching(&other, title_sources).await,
+            fx.update_searching(&library, title_sources).await,
+        ] {
+            let refusal = assert_refused(
+                refused,
+                ErrorCode::InvalidArgument,
+                RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+            );
+            assert_eq!(refusal.field, "title_sources", "{case}");
+            assert_eq!(
+                refusal.params.get("namespace").map(String::as_str),
+                Some(namespace),
+                "{case}"
+            );
+        }
+    }
+    assert_eq!(fx.list().await, [library]);
+}
+
+#[tokio::test]
+async fn list_title_sources_names_tmdb_by_its_namespace() {
+    // Described as a Server describes its Built-in Plugins, so the Server knows TMDB's name.
+    let plugins = Registry::new();
+    plugins.describe_builtin(|| Arc::new(Tmdb::new()));
+    let server = TestServer::builder().plugins(plugins).tmdb().start().await;
+    let client = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let listed = client
+        .list_title_sources(ListTitleSourcesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .title_sources;
+
+    let tmdb = TitleSource {
+        namespace: "tmdb".to_owned(),
+        plugin_id: "tmdb".to_owned(),
+        plugin_name: "TMDB".to_owned(),
+        searches: true,
+        running: true,
+        ..Default::default()
+    };
+    let running: Vec<_> = listed.into_iter().filter(|source| source.running).collect();
+    assert_eq!(running, [tmdb]);
+}

@@ -94,7 +94,7 @@ ${cands.map(c => `- ${c.test} [${c.reason}]: ${c.evidence}`).join('\n')}
 For each: read the test and the code it exercises. If it claims a covering test, open that test and confirm it fails in every case this one would (same paths, same edge cases, same assertions). Keep the test (remove=false) if it covers any branch, input, error path or regression the others don't, enforces an AGENTS.md rule or ADR, or if you are unsure.
 ${dryRun
     ? 'DRY RUN: do not edit any file; set removed=false.'
-    : `For each test with remove=true, delete it from ${file}, plus imports and file-local helpers only it used. If the file is left with no tests, delete the file and its \`#[cfg(test)] mod\` declaration. Don't touch other tests or shared fixtures.`}`,
+    : `For each test with remove=true, delete it from ${file}, plus imports and file-local helpers only it used. If the file is left with no tests, delete the file and its \`mod\` declaration: \`#[cfg(test)] mod\` for a unit test file, or the line in the package's merged test program (\`tests/server/main.rs\`, \`tests/hub/main.rs\`) for an integration test module. Don't touch other tests or shared fixtures.`}`,
   { label: `verify:${file.split('/').pop()}`, phase: 'Verify', model: 'sonnet', effort: 'high', schema: VERDICTS },
 ).then(r => r && r.verdicts.map(v => ({ file, ...v })))
 

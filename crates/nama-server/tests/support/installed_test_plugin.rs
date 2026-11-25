@@ -3,7 +3,7 @@
 
 use nama_proto::nama::v1::{EnablePluginRequest, ListPluginsRequest};
 
-use crate::{server::TestServer, test_plugin};
+use super::{server::TestServer, test_plugin};
 
 impl TestServer {
     /// Installs the test Plugin built with `features`, not yet enabled.

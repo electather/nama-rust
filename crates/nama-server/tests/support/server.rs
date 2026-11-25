@@ -33,7 +33,7 @@ use nama_proto::nama::v1::{
     SubscribeRequest, SubscribeResponse, UpdateImageSettingsRequest, UserServiceClient, event,
     subscribe_response,
 };
-use nama_server::{ShareWithHub, db::Database, plugins::Registry, users::SetupCode};
+use nama_server::{ShareWithHub, db::Database, users::SetupCode};
 use tempfile::TempDir;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, oneshot};
 
@@ -55,8 +55,6 @@ pub(crate) struct TestServer {
     /// What the Server's exporter of its own traces posts through.
     pub(crate) sharing: ShareWithHub,
     db: Arc<Database>,
-    /// The Registry the Server was started with.
-    plugins: Registry,
     tmdb: Option<FakeTmdb>,
     fulfiller: Option<FakeFulfiller>,
     _stop: oneshot::Sender<()>,
@@ -71,8 +69,12 @@ static CLOCK: RwLock<()> = RwLock::const_new(());
 
 /// A [`TestServer`]'s hold on [`CLOCK`], for as long as the Server lives.
 enum ClockGuard {
-    Shared(RwLockReadGuard<'static, ()>),
-    Exclusive(RwLockWriteGuard<'static, ()>),
+    Shared {
+        _held: RwLockReadGuard<'static, ()>,
+    },
+    Exclusive {
+        _held: RwLockWriteGuard<'static, ()>,
+    },
 }
 
 /// A User signed in on a Device named Phone. Holds a session token, so it skips `Debug`.
@@ -213,7 +215,7 @@ impl TestServer {
     /// If the builder didn't call [`Builder::moves_clock`].
     pub(crate) fn advance_clock(&self, by: Duration) {
         assert!(
-            matches!(self.clock, ClockGuard::Exclusive(_)),
+            matches!(self.clock, ClockGuard::Exclusive { .. }),
             "build a Server whose test moves the clock with `Builder::moves_clock()`"
         );
         nama_server::db::advance_clock(by);

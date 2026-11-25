@@ -2,7 +2,7 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use crate::server::{TestServer, WAIT};
+use super::server::{TestServer, WAIT};
 
 /// Where `server` keeps the image at `path` from the Plugin `plugin`'s title source, as the store
 /// escapes its leading `/`.

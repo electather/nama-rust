@@ -211,20 +211,6 @@ impl TestServer {
         approve_request(&self.admin_requests(), id, Some(quality)).await
     }
 
-    /// Approves the Request `id` as the Request manager `who`.
-    pub(crate) async fn approve_as(&self, who: &SignedIn, id: i64) -> Request {
-        approve_request(&self.requests(who), id, None)
-            .await
-            .unwrap()
-    }
-
-    /// [`Self::approve_as`], changing its Quality to `quality`.
-    pub(crate) async fn approve_as_at(&self, who: &SignedIn, id: i64, quality: i64) -> Request {
-        approve_request(&self.requests(who), id, Some(quality))
-            .await
-            .unwrap()
-    }
-
     /// Retries the Failed Request `id` as the Admin.
     pub(crate) async fn retry(&self, id: i64) -> Request {
         self.try_retry(id).await.unwrap()

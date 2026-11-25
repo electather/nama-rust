@@ -45,7 +45,7 @@ use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
 use tokio::{net::TcpListener, task::JoinHandle};
 
-use crate::server::{TestServer, WAIT};
+use super::server::{TestServer, WAIT};
 
 /// The code the fake shows a Server to Link.
 pub(crate) const CODE: &str = "BDFH-JKLM";

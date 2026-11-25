@@ -30,7 +30,7 @@ use nama_proto::nama::v1::{
 use sha2::{Digest as _, Sha256};
 use tokio::{net::TcpListener, sync::Semaphore, task::JoinHandle};
 
-use crate::server::TestServer;
+use super::server::TestServer;
 
 /// The S3 Plugin's id.
 pub(crate) const S3: &str = "s3";

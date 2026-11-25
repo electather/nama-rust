@@ -1,0 +1,400 @@
+//! Runs the real `nama-server` binary.
+#![cfg(unix)]
+
+use crate::support::test_plugin;
+
+use std::{
+    io::{self, BufRead, BufReader, Read, Write},
+    net::{SocketAddr, TcpStream},
+    path::{Path, PathBuf},
+    process::{Child, Command, ExitStatus, Stdio},
+    sync::mpsc,
+    thread,
+    time::Duration,
+};
+
+// A fresh data directory compiles every bundled Plugin before the Server listens, which passes
+// 30 s under CI's full parallel load. Under nextest's 90 s kill (`.config/nextest.toml`).
+const TIMEOUT: Duration = Duration::from_secs(75);
+
+/// Kills the server if the test fails before it exits, so no process is left behind.
+struct KillOnDrop(Option<Child>);
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.as_mut() {
+            let _: io::Result<()> = child.kill();
+            let _: io::Result<ExitStatus> = child.wait();
+        }
+    }
+}
+
+/// Removes the temp dir however the test ends.
+struct RemoveOnDrop(PathBuf);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _: io::Result<()> = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Returns the first log line containing `needle`, skipping earlier lines.
+fn wait_for_line(lines: &mpsc::Receiver<String>, needle: &str) -> String {
+    wait_for_line_within(lines, needle, TIMEOUT)
+}
+
+/// [`wait_for_line`], waiting up to `timeout` for each line.
+#[expect(
+    clippy::panic,
+    reason = "a missing log line fails the test that waits for it"
+)]
+fn wait_for_line_within(lines: &mpsc::Receiver<String>, needle: &str, timeout: Duration) -> String {
+    loop {
+        let line = lines
+            .recv_timeout(timeout)
+            .unwrap_or_else(|err| panic!("server never logged {needle:?}: {err}"));
+        if line.contains(needle) {
+            return line;
+        }
+    }
+}
+
+/// The address in a "listening" log line.
+#[expect(
+    clippy::panic,
+    reason = "a line without an address fails the test that reads it"
+)]
+fn bound_addr(listening_line: &str) -> SocketAddr {
+    listening_line
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix("addr=")?.parse().ok())
+        .unwrap_or_else(|| panic!("no address in {listening_line:?}"))
+}
+
+/// The server's log lines, read on a thread so a hung server fails the test instead of blocking it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server whose log can't be read fails the test that reads it"
+)]
+fn log_lines(server: &mut Child) -> mpsc::Receiver<String> {
+    let stdout = BufReader::new(server.stdout.take().unwrap());
+    let (lines_tx, lines) = mpsc::channel();
+    thread::spawn(move || {
+        for line in stdout.lines().map_while(Result::ok) {
+            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
+        }
+    });
+    lines
+}
+
+/// Starts the server with `config_file`, listening on a free port and logging at `info`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server that can't be started fails the test that starts it"
+)]
+fn spawn_server(config_file: &Path) -> KillOnDrop {
+    KillOnDrop(Some(
+        Command::new(env!("CARGO_BIN_EXE_nama-server"))
+            .arg("--config")
+            .arg(config_file)
+            .env("NAMA_LISTEN", "127.0.0.1:0")
+            .env("RUST_LOG", "info")
+            // No ffmpeg, whatever the test machine has.
+            .env("PATH", "")
+            .env("NAMA_FFMPEG", "/nowhere/ffmpeg")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    ))
+}
+
+#[test]
+fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_on_ctrl_c() {
+    let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
+    let data_dir = dir.join("data");
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let config_file = dir.0.join("server.toml");
+    std::fs::write(
+        &config_file,
+        format!(
+            "name = \"From File\"\ndata_dir = \"{}\"\n",
+            data_dir.display()
+        ),
+    )
+    .unwrap();
+
+    let mut server = spawn_server(&config_file);
+    let child = server.0.as_mut().unwrap();
+
+    let lines = log_lines(child);
+
+    let config_line = wait_for_line(&lines, "loaded config");
+    assert!(config_line.contains("127.0.0.1:0"), "{config_line}");
+    assert!(
+        config_line.contains(&data_dir.display().to_string()),
+        "{config_line}"
+    );
+
+    let database_line = wait_for_line(&lines, "opened database");
+    let every_version: Vec<i64> = sqlx::migrate!().iter().map(|m| m.version).collect();
+    assert!(
+        database_line.contains(&format!("migrations_applied={every_version:?}")),
+        "{database_line}"
+    );
+    assert!(data_dir.join("nama.db").is_file());
+
+    // A Server with no Users yet logs the Setup Code that creates the first Admin.
+    let setup_line = wait_for_line(&lines, "Setup Code");
+    assert!(setup_line.contains("setup_code="), "{setup_line}");
+
+    // Without ffmpeg the Server still starts, and says why it can only Direct Play.
+    let ffmpeg_line = wait_for_line(&lines, "can only Direct Play");
+    assert!(
+        ffmpeg_line.contains(
+            "ffmpeg wasn't found at the configured path /nowhere/ffmpeg and ffprobe wasn't found on PATH"
+        ),
+        "{ffmpeg_line}"
+    );
+
+    // Port 0 asks the OS for a free port; the Server logs the one it got.
+    let addr = bound_addr(&wait_for_line(&lines, "listening"));
+
+    // The log-events Built-in Plugin is enabled by default and observes the start.
+    let observed_line = wait_for_line(&lines, "observed server started");
+    assert!(observed_line.contains("From File"), "{observed_line}");
+    // A Built-in's line names it in the Registry's span, and no span of the Server's own shows.
+    let named = " plugin{plugin=log-events}: nama_plugin_log_events:";
+    assert!(observed_line.contains(named), "{observed_line}");
+
+    // HTTP/1.0 so the response isn't chunked and ends when the connection closes.
+    let mut stream = TcpStream::connect(addr).unwrap();
+    stream.set_read_timeout(Some(TIMEOUT)).unwrap();
+    write!(
+        stream,
+        "POST /nama.v1.ServerService/GetServerInfo HTTP/1.0\r\n\
+         Content-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert!(response.contains(" 200 "), "{response}");
+    assert!(response.contains(r#""name":"From File""#), "{response}");
+    assert!(response.contains(r#""setupRequired":true"#), "{response}");
+
+    let kill = Command::new("kill")
+        .args(["-INT", &child.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(kill.success());
+
+    let (exited_tx, exited) = mpsc::channel();
+    let exiting = server.0.take().unwrap();
+    thread::spawn(move || exited_tx.send(exiting.wait_with_output().unwrap()));
+    let output = exited
+        .recv_timeout(TIMEOUT)
+        .expect("server did not exit after Ctrl-C");
+    // Ends once the server's stdout closes, which its exit does, or after `TIMEOUT` if a child
+    // still holds it open.
+    let last_lines = std::iter::from_fn(|| lines.recv_timeout(TIMEOUT).ok())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        output.status.success(),
+        "server exited with {}: {}\n{last_lines}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // The database closed cleanly, checkpointing its WAL, once serving had stopped.
+    assert!(
+        !data_dir.join("nama.db-wal").exists(),
+        "the WAL outlived the server, whose last log lines were:\n{last_lines}"
+    );
+}
+
+#[test]
+fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_refuses() {
+    let dir = std::env::temp_dir().join(format!("nama-server-installed-{}", std::process::id()));
+    let plugins_dir = dir.join("data").join("plugins");
+    std::fs::create_dir_all(&plugins_dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let data_dir = dir.0.join("data");
+    let config_file = dir.0.join("server.toml");
+    // Settings that enable the test Plugin, as a restart finds them stored.
+    std::fs::write(
+        &config_file,
+        format!(
+            "data_dir = \"{}\"\n\n[plugins.test-plugin]\n",
+            data_dir.display()
+        ),
+    )
+    .unwrap();
+    std::fs::write(plugins_dir.join("test.wasm"), test_plugin::build("")).unwrap();
+    std::fs::write(plugins_dir.join("panics.wasm"), test_plugin::build("panic")).unwrap();
+    std::fs::write(plugins_dir.join("not-wasm.wasm"), "not a WASM module").unwrap();
+    // WASM's magic number and version, then a byte that starts no valid section.
+    std::fs::write(plugins_dir.join("corrupt.wasm"), b"\0asm\x01\0\0\0\xff").unwrap();
+    // The smallest valid WASM module: the magic number and version, and no exports at all.
+    std::fs::write(plugins_dir.join("no-manifest.wasm"), b"\0asm\x01\0\0\0").unwrap();
+
+    let mut server = spawn_server(&config_file);
+    let lines = log_lines(server.0.as_mut().unwrap());
+
+    // The Server reads the files in name order, and logs them only once it has compiled every
+    // Plugin, the bundled ones too, into an empty cache: a busy CI runner took over 30 s (#1066).
+    // Under nextest's 90 s in CI.
+    let corrupt = wait_for_line_within(&lines, "corrupt.wasm", Duration::from_secs(75));
+    assert!(corrupt.contains("could not load it"), "{corrupt}");
+    let no_manifest = wait_for_line(&lines, "no-manifest.wasm");
+    assert!(no_manifest.contains("manifest()"), "{no_manifest}");
+    let not_wasm = wait_for_line(&lines, "not-wasm.wasm");
+    assert!(not_wasm.contains("not a WASM module"), "{not_wasm}");
+    // nama-pdk's panic hook hands the panic's message to the Server.
+    let panics = wait_for_line(&lines, "panics.wasm");
+    assert!(
+        panics.contains("its manifest() export failed: panicked at ")
+            && panics.contains(" the test Plugin was built to panic"),
+        "{panics}"
+    );
+    let found = wait_for_line(&lines, "test.wasm");
+    assert!(found.contains("id=test-plugin"), "{found}");
+    assert!(found.contains("version=0.1.0"), "{found}");
+    let enabled = wait_for_line(&lines, "enabled plugins");
+    assert!(enabled.contains("\"test-plugin\""), "{enabled}");
+
+    // The refused files don't stop the Server.
+    wait_for_line(&lines, "listening");
+    // With the `testing` feature the cache is the one every test shares, not the data directory's,
+    // so this follows the cache config the Server wrote there.
+    let config = std::fs::read_to_string(data_dir.join("wasmtime").join("cache.toml")).unwrap();
+    let cache_dir = config
+        .lines()
+        .find_map(|line| line.strip_prefix("directory = "))
+        .unwrap();
+    let cache_dir: PathBuf = serde_json::from_str(cache_dir).unwrap();
+    assert!(
+        std::fs::read_dir(cache_dir).unwrap().count() > 0,
+        "wasmtime cached nothing where the Server's cache config points"
+    );
+}
+
+#[test]
+fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_after() {
+    const API_KEY: &str = "tmdb-key-from-the-config";
+    let dir = std::env::temp_dir().join(format!("nama-server-import-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let config_file = dir.0.join("server.toml");
+    let data_dir = format!("data_dir = \"{}\"\n", dir.0.join("data").display());
+
+    std::fs::write(
+        &config_file,
+        format!(
+            "{data_dir}[plugins.tmdb]\napi_key = \"{API_KEY}\"\n\n\
+             [plugins.log-events]\nenabled = false\n"
+        ),
+    )
+    .unwrap();
+    let first_start = log_until_listening(&config_file);
+
+    std::fs::write(
+        &config_file,
+        // A value no Plugin setting takes, which an imported table would be refused for.
+        format!("{data_dir}[plugins.tmdb]\nenabled = false\nretries = 1.5\n"),
+    )
+    .unwrap();
+    let later_start = log_until_listening(&config_file);
+
+    for log in [&first_start, &later_start] {
+        let enabled = log
+            .lines()
+            .find(|line| line.contains("enabled plugins"))
+            .unwrap();
+        assert!(
+            enabled.contains(r#"["local-auth", "tmdb", "upkeep"]"#),
+            "{enabled}"
+        );
+        assert!(!log.contains(API_KEY), "a setting value was logged: {log}");
+    }
+    assert!(
+        first_start.contains("imported plugin settings"),
+        "{first_start}"
+    );
+    assert!(!first_start.contains("ignoring"), "{first_start}");
+    let ignoring = later_start
+        .lines()
+        .find(|line| line.contains("ignoring the [plugins.*] tables"))
+        .unwrap();
+    assert!(ignoring.contains(r#"["tmdb"]"#), "{ignoring}");
+}
+
+/// Runs `nama-server --config <config_file> <args>`, returning whether it succeeded and its log.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a command that can't be run fails the test that runs it"
+)]
+fn run_command(config_file: &Path, args: &[&Path]) -> (bool, String) {
+    let output = Command::new(env!("CARGO_BIN_EXE_nama-server"))
+        .arg("--config")
+        .arg(config_file)
+        .args(args)
+        .env("RUST_LOG", "info")
+        .output()
+        .unwrap();
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+    )
+}
+
+#[test]
+fn backup_runs_beside_a_serving_server_and_restore_waits_for_it_to_stop() {
+    let dir = std::env::temp_dir().join(format!("nama-server-backup-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let config_file = dir.0.join("server.toml");
+    let data_dir = dir.0.join("data");
+    std::fs::write(
+        &config_file,
+        format!("data_dir = \"{}\"\n", data_dir.display()),
+    )
+    .unwrap();
+    let backup = dir.0.join("backup.tar");
+    let mut server = spawn_server(&config_file);
+    wait_for_line(&log_lines(server.0.as_mut().unwrap()), "listening");
+
+    let (backed_up, backup_log) = run_command(&config_file, &[Path::new("backup"), &backup]);
+    assert!(backed_up, "{backup_log}");
+    let (restored_while_serving, refusal) =
+        run_command(&config_file, &[Path::new("restore"), &backup]);
+    assert!(!restored_while_serving, "{refusal}");
+    assert!(refusal.contains("stop it first"), "{refusal}");
+
+    // Killed, so its WAL is left behind, as a crash would leave it.
+    drop(server);
+    let (restored, restore_log) = run_command(&config_file, &[Path::new("restore"), &backup]);
+    assert!(restored, "{restore_log}");
+    assert!(data_dir.join("nama.db.before-restore").is_file());
+    assert!(log_until_listening(&config_file).contains("opened database"));
+}
+
+/// Starts the server with `config_file`, and returns what it logged up to "listening" once it has
+/// stopped it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server that can't be started fails the test that starts it"
+)]
+fn log_until_listening(config_file: &Path) -> String {
+    let mut server = spawn_server(config_file);
+    let lines = log_lines(server.0.as_mut().unwrap());
+    let mut log = String::new();
+    loop {
+        let line = lines.recv_timeout(TIMEOUT).unwrap();
+        log.push_str(&line);
+        log.push('\n');
+        if line.contains("listening") {
+            return log;
+        }
+    }
+}

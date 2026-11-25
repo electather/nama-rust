@@ -8,7 +8,7 @@ use std::{
 
 use tracing_subscriber::layer::SubscriberExt as _;
 
-use crate::server::WAIT;
+use super::server::WAIT;
 
 /// Everything the Server logs, to this test binary's one global subscriber: a thread-local one
 /// wouldn't see what Observers log on the runtime's other threads.

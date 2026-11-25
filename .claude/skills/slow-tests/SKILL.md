@@ -21,14 +21,14 @@ Without the Grafana MCP, or when panel 1 is empty, read the same lines from `ref
 
 ## 2. Diagnose
 
-For each offender, read the test, its fixture, and the code it waits on, and name its cause. Separate **contention** from **intrinsic** cost: run the test alone locally (`cargo nextest run -p <crate> --test <file> -E 'test(<name>)'`). Fast alone and slow in CI means it burns CPU while other tests run beside it. Measure that with `/usr/bin/time` over its whole test binary, as CPU-seconds per test. Prove a suspected cause with a throwaway local experiment before you fix it: revert the experiment and confirm `git status` is clean.
+For each offender, read the test, its fixture, and the code it waits on, and name its cause. Separate **contention** from **intrinsic** cost: run the test alone locally (`cargo nextest run -p <crate> --test <program> -E 'test(=<module>::<name>)'`, where an integration test's program is the package's merged one, `server` or `hub`, and its module the old test file's name). Fast alone and slow in CI means it burns CPU while other tests run beside it. Measure that with `/usr/bin/time` over its whole module (`-E 'test(/^<module>::/)'`), as CPU-seconds per test. Prove a suspected cause with a throwaway local experiment before you fix it: revert the experiment and confirm `git status` is clean.
 
 Causes this repo has had:
 
-- **Cold compile.** A Server compiles every bundled Plugin at start. `TestServer` and `tests/binary.rs` share one wasmtime cache through `share_compile_cache`. A new fixture or binary test that starts a Server without it pays the compile again.
+- **Cold compile.** A Server compiles every bundled Plugin at start. `TestServer` and `tests/server/binary.rs` share one wasmtime cache through `share_compile_cache`. A new fixture or binary test that starts a Server without it pays the compile again.
 - **Real timeouts.** A test that waits out `CALL_TIMEOUT` (5 s), a Plugin's retry delay such as Sonarr's `REFRESH_RETRY`, or a `sleep` past one.
 - **Heavy payloads.** Encoding or decoding multi-megapixel images or transcoding media through the whole Server.
-- **Process spawns.** `tests/binary.rs` starting the real binary, often more than once a test.
+- **Process spawns.** `tests/server/binary.rs` starting the real binary, often more than once a test.
 - **Test Plugin builds.** `test_plugin::build` runs `cargo build` under one lock across test processes, rebuilding whenever the features change.
 
 Done when every offender has a named cause, backed by a measurement or a line of code.
