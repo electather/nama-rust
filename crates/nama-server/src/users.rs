@@ -346,7 +346,7 @@ impl Users {
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
-            linking: Linking::new(plugins.clone(), None),
+            linking: Linking::new(None),
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
@@ -358,7 +358,7 @@ impl Users {
     #[must_use]
     pub(crate) fn linking_through(self, server: Option<Arc<ServerLink>>) -> Self {
         Self {
-            linking: Linking::new(self.plugins.clone(), server),
+            linking: Linking::new(server),
             ..self
         }
     }

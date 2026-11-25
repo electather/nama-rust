@@ -1,7 +1,8 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
 //! Hub-facing but the Link itself and sharing Diagnostics, which the Kernel does (ADR 0105,
-//! [`KernelLink`]). The Watch State, Subtitle and Audio Preferences and Watchlists of the Users the Kernel Linked to Accounts sync with the
-//! Hub (ADR 0092), and each play of theirs goes to the Hub as a Viewing Event (ADR 0093).
+//! [`KernelLink`]), and the sync of Watch State, Preferences and Watchlists, which the Kernel does
+//! too. Each play of the Users the Kernel Linked to Accounts goes to the Hub as a Viewing Event
+//! (ADR 0093).
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
 //! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
@@ -21,7 +22,7 @@ use nama_plugin_api::{
     contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
     home_row::{HomeRowMethod, HomeRowSource},
     job::JobRunner,
-    points::{Events, TrackPreferenceChanged, WatchStatesChanged},
+    points::Events,
     server_link::ServerLinker,
     similar_source::SimilarSource,
 };
@@ -29,9 +30,7 @@ use nama_plugin_api::{
 use crate::{
     charts::Charts,
     hub::Hub as HubApi,
-    linker::{
-        Jobs, Linker, TrackPreferenceSync, ViewingEvents, WatchStateSync, send_job, sync_job,
-    },
+    linker::{Jobs, Linker, ViewingEvents, send_job},
     recommended::Recommended,
     similar::Similar,
 };
@@ -92,17 +91,17 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Syncs Linked Users' Watch State, Subtitle and Audio Preferences and \
-                          Watchlists with Nama's Hub and sends it what they play, adds the titles the Hub \
-                          finds alike to Similar titles, gives each Linked User a Recommended \
-                          for you row and Featured suggestions from what they finished, and \
-                          shows Trending on Nama and Most watchlisted on Nama rows on home."
-                .to_owned(),
+            description:
+                "Sends the Hub what Linked Users play, adds the titles the Hub finds alike \
+                          to Similar titles, gives each Linked User a Recommended for you row \
+                          and Featured suggestions from what they finished, and shows Trending \
+                          on Nama and Most watchlisted on Nama rows on home."
+                    .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            setup_markdown: "Link the Server under Settings, Server, and enable it. Each User \
-                             Linked to their own Account from their own Settings has what they \
-                             do synced with it. Each play of a Matched title by a Linked User \
-                             goes to the Hub as a Viewing Event, which their Account can see, delete and export there. \
+            setup_markdown: "Link the Server under Settings, Server, and enable it. Each play \
+                             of a Matched title by a User Linked to their own Account goes to the \
+                             Hub as a Viewing Event, which their Account can see, delete and \
+                             export there. \
                              Read Libraries, Read Watch State and Read Users tell it what was \
                              played, how far, and on what kind of Device. \
                              Home's Trending on Nama row shows the Movies on the Server most \
@@ -113,8 +112,6 @@ impl Plugin for Hub {
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
-                PointKey::observe::<WatchStatesChanged>(),
-                PointKey::observe::<TrackPreferenceChanged>(),
                 PointKey::observe::<Events>(),
                 PointKey::provide::<dyn JobRunner>(),
                 PointKey::provide::<dyn SimilarSource>(),
@@ -127,7 +124,7 @@ impl Plugin for Hub {
                 Permission::PERMISSION_READ_WATCH_STATES,
                 Permission::PERMISSION_READ_USERS,
             ],
-            jobs: vec![sync_job(), send_job()],
+            jobs: vec![send_job()],
             ..Manifest::new(Self::ID)
         }
     }
@@ -147,10 +144,8 @@ impl Plugin for Hub {
         });
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
-        registrar.observe::<WatchStatesChanged>(WatchStateSync(Arc::clone(&linker)));
-        registrar.observe::<TrackPreferenceChanged>(TrackPreferenceSync(Arc::clone(&linker)));
         registrar.observe::<Events>(viewing.clone());
-        let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { linker, viewing });
+        let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, rows);

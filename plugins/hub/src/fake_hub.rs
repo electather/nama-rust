@@ -1,9 +1,8 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL, and for the
 //! Server's Link with it and its Users', which the Kernel keeps ([`KernelLink`]). It serves one
-//! Linked Server, the Watch State it pushes, which its Linked Users pull back, their Watchlists,
-//! its Viewing Events, the titles like The Matrix, what's trending and most watchlisted, and two
-//! titles recommended to each Linked User, as the Hub's API (`proto/nama/hub/v1/`) says the Hub
-//! does.
+//! Linked Server, its Viewing Events, the titles like The Matrix, what's trending and most
+//! watchlisted, and two titles recommended to each Linked User, as the Hub's API
+//! (`proto/nama/hub/v1/`) says the Hub does.
 
 use std::{
     collections::HashMap,
@@ -28,9 +27,8 @@ use nama_hub_proto::nama::hub::v1::{
     RecordViewingEventsResponse, SetCertificateChallengeRequest, SetCertificateChallengeResponse,
     SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerSignInRequest,
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    SyncWatchlistResponse, TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest,
-    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent,
-    WatchStateChange, WatchlistEntry, WatchlistedTitle,
+    SyncWatchlistResponse, TitleKind, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchlistedTitle,
 };
 use nama_plugin_api::{BoxFuture, PluginError};
 use tokio::{net::TcpListener, task::JoinHandle};
@@ -50,27 +48,13 @@ struct State {
     credentials: usize,
     /// The email of the Account each Linked User is Linked to, by id.
     user_accounts: HashMap<i64, String>,
-    /// How many calls came with a Server's credential, known or not.
-    server_calls: usize,
-    /// Why the Kernel can't tell whether a User is Linked, while it can't.
-    user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
     viewing_events: Vec<UserViewingEvent>,
     /// What recording Viewing Events fails with, if it does.
     recording_failure: Option<ErrorCode>,
-    /// Each push's changes, in the order they came.
-    pushes: Vec<Vec<WatchStateChange>>,
     /// Why every call with the Linked Server's credential fails, as if the Hub were failing, while
     /// it does.
     server_failure: Option<&'static str>,
-    /// Why pushes fail, as if the Hub were down, while they do.
-    push_failure: Option<&'static str>,
-    /// Each push's Track Preference changes, in the order they came.
-    preference_pushes: Vec<Vec<TrackPreferenceChange>>,
-    /// Each Watchlist entry Linked Users synced, in the order they came.
-    watchlist: Vec<WatchlistEntry>,
-    /// The User each Watchlist sync was of, in the order they came.
-    watchlist_syncs: Vec<i64>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -140,36 +124,6 @@ impl FakeHub {
         lock(&self.state)
             .user_accounts
             .insert(user_id, EMAIL.to_owned());
-    }
-
-    /// How many calls the Server made with its credential, whether the fake knew it or not.
-    pub(super) fn server_calls(&self) -> usize {
-        lock(&self.state).server_calls
-    }
-
-    /// Has the Kernel fail to tell whether a User is Linked.
-    pub(super) fn fail_user_links(&self) {
-        lock(&self.state).user_link_failure = Some("the Hub is down");
-    }
-
-    /// The User each Watchlist sync was of, in the order they came.
-    pub(super) fn watchlist_syncs(&self) -> Vec<i64> {
-        lock(&self.state).watchlist_syncs.clone()
-    }
-
-    /// Each push's changes, in the order they came.
-    pub(super) fn pushes(&self) -> Vec<Vec<WatchStateChange>> {
-        lock(&self.state).pushes.clone()
-    }
-
-    /// Each push's Track Preference changes, in the order they came.
-    pub(super) fn preference_pushes(&self) -> Vec<Vec<TrackPreferenceChange>> {
-        lock(&self.state).preference_pushes.clone()
-    }
-
-    /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
-    pub(super) fn set_down(&self, down: bool) {
-        lock(&self.state).push_failure = down.then_some("the Hub is down");
     }
 
     /// Has every call with the Linked Server's credential fail, as a Hub that answers but fails.
@@ -248,100 +202,42 @@ impl LinkedServerService for Linked {
 
     async fn push_watch_states(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, PushWatchStatesRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, PushWatchStatesRequest>,
     ) -> ServiceResult<PushWatchStatesResponse> {
-        let mut state = self.caller(&ctx)?;
-        if let Some(failure) = state.push_failure {
-            return Err(ConnectError::unavailable(failure));
-        }
-        state.pushes.push(request.to_owned_message().changes);
-        Response::ok(PushWatchStatesResponse::default())
+        Err(kernels_call())
     }
 
-    /// Every change pushed, as the asked User's, if they are Linked: the fake has one Account.
     async fn pull_watch_states(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, PullWatchStatesRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, PullWatchStatesRequest>,
     ) -> ServiceResult<PullWatchStatesResponse> {
-        let state = self.caller(&ctx)?;
-        let user_id = request.user_id;
-        let watch_states = if state.user_accounts.contains_key(&user_id) {
-            (state.pushes.iter().flatten())
-                .map(|change| WatchStateChange {
-                    user_id,
-                    ..change.clone()
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        Response::ok(PullWatchStatesResponse {
-            watch_states,
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn push_track_preferences(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, PushTrackPreferencesRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, PushTrackPreferencesRequest>,
     ) -> ServiceResult<PushTrackPreferencesResponse> {
-        let mut state = self.caller(&ctx)?;
-        if let Some(failure) = state.push_failure {
-            return Err(ConnectError::unavailable(failure));
-        }
-        state
-            .preference_pushes
-            .push(request.to_owned_message().changes);
-        Response::ok(PushTrackPreferencesResponse::default())
+        Err(kernels_call())
     }
 
-    /// Every Track Preference change pushed, as the asked User's, if they are Linked: the fake
-    /// has one Account, and merges nothing.
     async fn pull_track_preferences(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, PullTrackPreferencesRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, PullTrackPreferencesRequest>,
     ) -> ServiceResult<PullTrackPreferencesResponse> {
-        let state = self.caller(&ctx)?;
-        let user_id = request.user_id;
-        let preferences = if state.user_accounts.contains_key(&user_id) {
-            (state.preference_pushes.iter().flatten())
-                .map(|change| TrackPreferenceChange {
-                    user_id,
-                    ..change.clone()
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        Response::ok(PullTrackPreferencesResponse {
-            preferences,
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
-    /// Every entry Linked Users synced, as the asked User's Account's: the fake has one Account.
     async fn sync_watchlist(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SyncWatchlistRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, SyncWatchlistRequest>,
     ) -> ServiceResult<SyncWatchlistResponse> {
-        let mut state = self.caller(&ctx)?;
-        let SyncWatchlistRequest {
-            user_id, entries, ..
-        } = request.to_owned_message();
-        state.watchlist_syncs.push(user_id);
-        if !state.user_accounts.contains_key(&user_id) {
-            return Response::ok(SyncWatchlistResponse::default());
-        }
-        state.watchlist.extend(entries);
-        Response::ok(SyncWatchlistResponse {
-            entries: state.watchlist.clone(),
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn invite_user(
@@ -506,8 +402,7 @@ impl LinkedServerService for Linked {
 impl Linked {
     /// What the fake knows, if the call carries the credential of the Server it has Linked.
     fn caller(&self, ctx: &RequestContext) -> Result<MutexGuard<'_, State>, ConnectError> {
-        let mut state = lock(&self.0.state);
-        state.server_calls += 1;
+        let state = lock(&self.0.state);
         let bearer = format!("Bearer {}", credential(state.credentials));
         if !state.linked
             || ctx
@@ -597,11 +492,8 @@ impl KernelLink for KeptLink {
     /// Whether the fake has `user_id` Linked, as the Kernel last heard: the Kernel's caching is
     /// its own to test.
     fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
-        let state = lock(&self.state);
-        let linked = match state.user_link_failure {
-            Some(failure) => Err(failure.into()),
-            None => Ok(lock(&self.kept).is_some() && state.user_accounts.contains_key(&user_id)),
-        };
-        Box::pin(future::ready(linked))
+        let linked =
+            lock(&self.kept).is_some() && lock(&self.state).user_accounts.contains_key(&user_id);
+        Box::pin(future::ready(Ok(linked)))
     }
 }

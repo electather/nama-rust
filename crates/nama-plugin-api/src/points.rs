@@ -39,9 +39,8 @@ impl ObservePoint for Events {
     type Event = ObservedEvents;
 }
 
-/// Observe: one write changed a User's Watch State. Only Built-in Plugins observe it, as the Hub
-/// Plugin does to sync it (ADR 0008). Each change carries when it was made, since two writes may
-/// reach an Observer in either order.
+/// Observe: one write changed a User's Watch State. Only Built-in Plugins observe it. Each change
+/// carries when it was made, since two writes may reach an Observer in either order.
 #[derive(Debug)]
 pub struct WatchStatesChanged;
 
@@ -78,8 +77,8 @@ pub struct WatchStateChange {
 }
 
 /// Observe: a User's Subtitle or Audio Preference changed (ADR 0035). Only Built-in Plugins
-/// observe it, as the Hub Plugin does to sync it (ADR 0092). Each change carries when it was made,
-/// since two may reach an Observer in either order.
+/// observe it. Each change carries when it was made, since two may reach an Observer in either
+/// order.
 #[derive(Debug)]
 pub struct TrackPreferenceChanged;
 
