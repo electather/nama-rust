@@ -3,7 +3,12 @@ use axum::http::{
     header::{CONTENT_LENGTH, CONTENT_RANGE},
 };
 
-use super::length_to_the_end;
+use std::{path::PathBuf, sync::Arc};
+
+use tokio_util::sync::CancellationToken;
+
+use super::{Download, Stage, StartError, TranscodeDownloads, length_to_the_end};
+use crate::{db::Database, library::Contents, server_settings::Settings};
 
 fn parts(status: StatusCode, length: &'static str, range: Option<&'static str>) -> super::Parts {
     let mut response = Response::new(());
@@ -36,4 +41,42 @@ fn a_range_short_of_the_end_or_a_refusal_does_not_send_the_end() {
         length_to_the_end(&parts(StatusCode::NOT_MODIFIED, "0", None)),
         None
     );
+}
+
+#[tokio::test]
+async fn a_download_is_refused_once_it_and_those_kept_would_go_past_the_budget() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let settings = Settings::new(Arc::clone(&db), data.path().join("transcodes"));
+    let downloads =
+        TranscodeDownloads::new(Arc::default(), settings.playback(), Contents::new(db), 1000);
+
+    let first = downloads.reserve(1, taking(600));
+    let second = downloads.reserve(2, taking(600));
+    let third = downloads.reserve(3, taking(400));
+
+    first.unwrap();
+    assert!(matches!(
+        second,
+        Err(StartError::OverBudget {
+            kept: 600,
+            budget: 1000,
+            needed: 600
+        })
+    ));
+    third.unwrap();
+}
+
+/// A file being made that may take `bytes`.
+fn taking(bytes: u64) -> Download {
+    Download {
+        version: 1,
+        device: 1,
+        file: PathBuf::from("1.mp4"),
+        bytes,
+        duration_ms: 1000,
+        made_ms: Arc::default(),
+        stage: Stage::Making,
+        stop: CancellationToken::new(),
+    }
 }

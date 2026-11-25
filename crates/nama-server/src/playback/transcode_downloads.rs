@@ -18,7 +18,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     path::{Path as FilePath, PathBuf},
     sync::{
-        Arc, Mutex, PoisonError,
+        Arc, Mutex, PoisonError, Weak,
         atomic::{AtomicI64, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -59,6 +59,10 @@ const FOLDER: &str = "nama-plan-downloads";
 /// How long a made file waits for its Device to fetch it before it's deleted.
 const KEEP_UNFETCHED_FOR: Duration = Duration::from_hours(24);
 
+/// How often the files kept past [`KEEP_UNFETCHED_FOR`] are deleted while no Device asks about
+/// any, which deletes them too.
+const TIDY_EVERY: Duration = Duration::from_mins(10);
+
 /// The most a file's audio takes, counted against the budget: stereo AAC, which ffmpeg encodes at
 /// less.
 const AUDIO_BITS_PER_SECOND: u64 = 256_000;
@@ -83,8 +87,10 @@ struct Inner {
     budget_bytes: u64,
     next_id: AtomicU64,
     downloads: Mutex<HashMap<u64, Download>>,
-    /// The ffmpeg runs, so shutting down can wait for them.
+    /// The ffmpeg runs, deletes and [`tidy`], so shutting down can wait for them.
     tasks: TaskTracker,
+    /// Cancelled when the Server shuts down.
+    cancel: CancellationToken,
 }
 
 /// One file, being made or made.
@@ -99,7 +105,7 @@ struct Download {
     /// How far into the Version ffmpeg has got.
     made_ms: Arc<AtomicI64>,
     stage: Stage,
-    /// Cancelled to stop its ffmpeg, which then deletes the file.
+    /// Cancelled to stop its ffmpeg, after which its run deletes the file.
     stop: CancellationToken,
 }
 
@@ -131,24 +137,26 @@ enum StartError {
 
 impl TranscodeDownloads {
     /// Makes files with `ffmpeg` of the Versions `contents` finds, in the segment folder in
-    /// `settings`, taking at most `budget_bytes` at once.
+    /// `settings`, taking at most `budget_bytes` at once. Until shut down, deletes those expired
+    /// in the background.
     pub(crate) fn new(
         ffmpeg: Arc<Ffmpeg>,
         settings: PlaybackSettings,
         contents: Contents,
         budget_bytes: u64,
     ) -> Self {
-        Self {
-            inner: Arc::new(Inner {
-                ffmpeg,
-                settings,
-                contents,
-                budget_bytes,
-                next_id: AtomicU64::new(1),
-                downloads: Mutex::default(),
-                tasks: TaskTracker::new(),
-            }),
-        }
+        let inner = Arc::new(Inner {
+            ffmpeg,
+            settings,
+            contents,
+            budget_bytes,
+            next_id: AtomicU64::new(1),
+            downloads: Mutex::default(),
+            tasks: TaskTracker::new(),
+            cancel: CancellationToken::new(),
+        });
+        (inner.tasks).spawn(tidy(Arc::downgrade(&inner), inner.cancel.clone()));
+        Self { inner }
     }
 
     /// Starts making a file of the Version `version` for the Device `device` with `transcode`,
@@ -264,7 +272,7 @@ impl TranscodeDownloads {
     /// background.
     fn fetched(&self, id: u64) {
         if let Some(download) = lock(&self.inner.downloads).remove(&id) {
-            tokio::spawn(async move { delete(&download.file).await });
+            (self.inner.tasks).spawn(async move { delete(&download.file).await });
         }
     }
 
@@ -285,12 +293,12 @@ impl TranscodeDownloads {
             .map(|(_, download)| download)
             .collect();
         stop_and_delete(all).await;
+        self.inner.cancel.cancel();
         self.inner.tasks.close();
         self.inner.tasks.wait().await;
     }
 
     /// Deletes the files made or failed more than [`KEEP_UNFETCHED_FOR`] ago.
-    // Only as they're asked about: the budget, which counts them until then, bounds what waits.
     async fn delete_expired(&self) {
         let now = db::instant_now();
         let expired: Vec<Download> = lock(&self.inner.downloads)
@@ -325,13 +333,24 @@ struct Progress {
     bytes: u64,
 }
 
-/// Stops making each of `downloads`, whose ffmpeg then deletes its file, and deletes those made.
+/// Stops making each of `downloads`, whose run then deletes its file, and deletes those made.
 async fn stop_and_delete(downloads: Vec<Download>) {
     for download in downloads {
         download.stop.cancel();
         if !matches!(download.stage, Stage::Making) {
             delete(&download.file).await;
         }
+    }
+}
+
+/// Every [`TIDY_EVERY`], deletes the files of `inner` expired, until it's dropped or `cancel` is
+/// cancelled.
+async fn tidy(inner: Weak<Inner>, cancel: CancellationToken) {
+    let first = tokio::time::Instant::now() + TIDY_EVERY;
+    let mut every = tokio::time::interval_at(first, TIDY_EVERY);
+    while cancel.run_until_cancelled(every.tick()).await.is_some() {
+        let Some(inner) = inner.upgrade() else { return };
+        TranscodeDownloads { inner }.delete_expired().await;
     }
 }
 
