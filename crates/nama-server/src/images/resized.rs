@@ -145,7 +145,8 @@ pub(super) fn on_disk(bytes: Vec<u8>, dir: &Path) -> io::Result<File> {
 /// caller having found no copy in it. A JPEG XL over [`MAX_JXL_PIXELS`] is made as a JPEG instead,
 /// unless that copy is there already. Makes none where the original is to be sent as it is: it isn't a format the Server reads (such
 /// as SVG), is over [`MAX_PIXELS`] or [`MAX_BITMAP_BYTES`], is no wider than `width`, or has
-/// transparency and would be a JPEG, which has none.
+/// transparency and would be a JPEG, which has none. Widening that list renames the unresized
+/// markers' suffix (`images/AGENTS.md`).
 ///
 /// # Errors
 ///

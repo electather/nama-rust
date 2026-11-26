@@ -614,6 +614,8 @@ async fn an_svg_a_png_with_transparency_and_an_image_over_12_megapixels_are_sent
 
         assert_eq!(reply.status, 200, "{name}");
         assert!(reply.body == original, "{name} was changed");
+        // Else its marker sends the next one as stored without looking at it.
+        fs::remove_dir_all(copies_of(&fx, &poster)).unwrap();
     }
 }
 

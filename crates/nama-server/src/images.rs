@@ -482,8 +482,10 @@ impl ImageStore {
         forgotten.map_err(io::Error::other)
     }
 
-    /// Deletes the resized copies of the image at `key`, or of every image under it. Left, they
-    /// would be found by an image stored at `key` again, which then never gets a thumbhash.
+    /// Deletes the resized copies of the image at `key`, or of every image under it, with the
+    /// markers of those it goes unresized at. Left, they would be found by an image stored at
+    /// `key` again, which then never gets a thumbhash, or is sent as stored where it could be
+    /// resized.
     async fn delete_copies(&self, key: &[&str]) -> io::Result<()> {
         unless_gone(tokio::fs::remove_dir_all(self.copies_path(key)).await)
     }
