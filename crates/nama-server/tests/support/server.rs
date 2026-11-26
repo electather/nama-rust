@@ -200,6 +200,18 @@ impl TestServer {
         nama_server::db::advance_clock(by);
     }
 
+    /// Waits until the artwork work a scan, Matching or a correction began is done: the sweep of
+    /// unused images and every download after it, which run on after `MatchingFinished`. Waits
+    /// for the process's, as `Artwork::settled` does, which under nextest is this test's Server's.
+    #[expect(
+        clippy::unused_self,
+        reason = "a test waits on its Server, though the tracker is the process's"
+    )]
+    pub(crate) async fn artwork_settled(&self) {
+        let settled = tokio::time::timeout(WAIT, nama_server::Artwork::settled()).await;
+        assert!(settled.is_ok(), "artwork work never settled");
+    }
+
     /// The Server's data directory, such as for its Installed Plugins.
     pub(crate) fn data_dir(&self) -> &Path {
         self.data_dir.path()

@@ -34,6 +34,7 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
+use tokio_util::task::{TaskTracker, task_tracker::TaskTrackerToken};
 
 use crate::{
     images::{
@@ -99,6 +100,9 @@ pub struct Artwork {
     offered: Arc<Mutex<HashSet<(String, String)>>>,
     /// Taken by each background download, across every clone.
     downloads: Arc<Semaphore>,
+    /// The background work of [`Self::download_missing`], and what [`Self::working`] marks as
+    /// leading up to it, so a test can wait it out ([`Artwork::settled`]).
+    tasks: TaskTracker,
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
@@ -116,6 +120,18 @@ struct ResizingAhead {
     /// get no copy.
     custom_images: CustomImages,
     local_images: LocalImages,
+}
+
+/// What [`Artwork`] tracks its background work in: one tracker per Server, or under the `testing`
+/// feature one per process, so [`Artwork::settled`] can reach the Server a test started.
+fn background_tasks() -> TaskTracker {
+    #[cfg(feature = "testing")]
+    {
+        static TASKS: std::sync::LazyLock<TaskTracker> = std::sync::LazyLock::new(TaskTracker::new);
+        TASKS.clone()
+    }
+    #[cfg(not(feature = "testing"))]
+    TaskTracker::new()
 }
 
 /// Why an image couldn't be had.
@@ -142,9 +158,29 @@ impl Artwork {
             metadata: TitleSources::new(plugins),
             offered: Arc::default(),
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
+            tasks: background_tasks(),
             sweeping: Arc::default(),
             ahead: None,
         }
+    }
+
+    /// Marks the caller's sweep and [`Self::download_missing`] after it as under way until the
+    /// token is dropped, so [`Artwork::settled`] waits for work that hasn't spawned yet. Taken
+    /// before the event that tells clients the change is done, which a test waits on.
+    pub(crate) fn working(&self) -> TaskTrackerToken {
+        self.tasks.token()
+    }
+
+    /// Waits until no artwork work a scan, Matching or a correction began, through
+    /// [`Self::working`] or [`Self::download_missing`], is left, including each download it
+    /// started. Testing only. Process-wide, as every [`Artwork`] shares one tracker under the
+    /// `testing` feature: integration tests run one per process under nextest.
+    #[cfg(feature = "testing")]
+    pub async fn settled() {
+        let tasks = background_tasks();
+        tasks.close();
+        tasks.wait().await;
+        tasks.reopen();
     }
 
     /// This, resizing each Poster, Backdrop and Title Logo of a Library it downloads images for to
@@ -294,7 +330,7 @@ impl Artwork {
                 posters,
             );
         }
-        tokio::spawn(async move {
+        self.tasks.spawn(async move {
             let listed = tokio::try_join!(
                 contents.images(Some(library)),
                 artwork.shown_posters(&contents, library),
@@ -354,7 +390,8 @@ impl Artwork {
             let copies = ahead
                 .get(&image)
                 .map_or_else(Vec::new, |copies| copies.to_vec());
-            tokio::spawn(self.clone().download_one(image, copies, permit));
+            self.tasks
+                .spawn(self.clone().download_one(image, copies, permit));
         }
     }
 
