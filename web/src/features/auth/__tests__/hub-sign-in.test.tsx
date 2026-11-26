@@ -288,13 +288,21 @@ describe("signing in at the Hub with a passkey", () => {
   });
 
   test("a passkey signs in with no email or password, and goes on to the redirect", async () => {
-    browserGets(vi.fn<() => Promise<unknown>>().mockResolvedValue(adasPasskey));
+    const get = vi.fn<() => Promise<unknown>>().mockResolvedValue(adasPasskey);
+    browserGets(get);
     const router = openApp("/sign-in?redirect=%2Fcode", fakeHub({ passkeys: true }).transport);
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
 
     await screen.findByRole("heading", { name: "Sign in a Device" });
     expect(router.state.location.pathname).toBe("/code");
+    expect(get).toHaveBeenCalledWith({
+      publicKey: {
+        challenge: new Uint8Array(32),
+        rpId: "hub.example",
+        userVerification: "preferred",
+      },
+    });
   });
 
   test("while the browser's passkey prompt is open, the button says it's signing in", async () => {

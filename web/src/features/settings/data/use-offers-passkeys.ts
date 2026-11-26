@@ -1,9 +1,9 @@
 import { useTransport } from "@connectrpc/connect-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
-import { browserHasPasskeys } from "@/features/auth/lib/webauthn";
 import { hubInfoQuery } from "@/shared/hooks/access";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
+import { browserHasPasskeys } from "@/shared/lib/webauthn";
 
 /** Whether a passkey can be added here: the Hub offers passkeys and the browser has them. */
 export function useOffersPasskeys() {

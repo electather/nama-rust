@@ -1,9 +1,9 @@
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useMutation } from "@tanstack/react-query";
 
-import { signWithPasskey } from "@/features/auth/lib/webauthn";
 import { forgetServerSessions } from "@/features/servers/lib/server-sessions";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
+import { signWithPasskey } from "@/shared/lib/webauthn";
 
 /** Signs an Account in at the Hub with a passkey the browser offers, then calls `onSignedIn`. */
 export function useSignInWithPasskey(onSignedIn: () => Promise<void>) {

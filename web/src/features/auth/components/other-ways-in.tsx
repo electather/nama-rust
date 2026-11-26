@@ -21,22 +21,22 @@ export function OtherWaysIn({
   return (
     <>
       {sendsSignInLinks && (
-        <SwitchSignInWay
-          to="/send-sign-in-link"
-          redirect={redirect}
-          label="Email me a Sign-in Link"
-        />
+        <>
+          <SwitchSignInWay
+            to="/send-sign-in-link"
+            redirect={redirect}
+            label="Email me a Sign-in Link"
+          />
+          <p className="text-center text-xs text-pretty text-muted-foreground">
+            Forgot your password? Sign in with a Sign-in Link.
+          </p>
+        </>
       )}
       <PasskeySignIn
         redirect={redirect}
         offersPasskeys={offersPasskeys}
         withOr={!sendsSignInLinks}
       />
-      {sendsSignInLinks && (
-        <p className="text-center text-xs text-pretty text-muted-foreground">
-          Forgot your password? Sign in with a Sign-in Link.
-        </p>
-      )}
       <p className="text-center text-sm text-muted-foreground">
         New to the Hub?{" "}
         <Link to="/create-account" search={{ redirect }} className={textLink}>

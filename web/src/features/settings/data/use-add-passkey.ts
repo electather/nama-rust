@@ -2,9 +2,9 @@ import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useMutation } from "@tanstack/react-query";
 
 import { useSignInIfSessionEnded } from "@/features/auth/data/use-sign-in-if-session-ended";
-import { createPasskey } from "@/features/auth/lib/webauthn";
 import { useRefreshPasskeys } from "@/features/settings/data/use-passkeys";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
+import { createPasskey } from "@/shared/lib/webauthn";
 
 /** Has the browser create a passkey for the Account with `email`, then adds it as `name`. */
 export function useAddPasskey() {
