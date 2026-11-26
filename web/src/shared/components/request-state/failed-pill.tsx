@@ -7,11 +7,19 @@ import { StateLabel } from "@/shared/components/state-label";
 
 /**
  * "Failed" in red, with its Fulfiller's `reason`, if it gave one, on hover and on focus; `large`
- * beside a title's Play.
+ * beside a title's Play, `onPopover` on a Popover such as the command menu.
  */
-export function FailedPill({ reason, large }: { reason: string | undefined; large: boolean }) {
+export function FailedPill({
+  reason,
+  large,
+  onPopover,
+}: {
+  reason: string | undefined;
+  large: boolean;
+  onPopover: boolean;
+}) {
   const reasonId = useId();
-  const failed = <StateLabel {...shownOnTitle(RequestState.FAILED)} large={large} />;
+  const failed = <StateLabel {...shownOnTitle(RequestState.FAILED, onPopover)} large={large} />;
   if (reason === undefined) {
     return failed;
   }
