@@ -8,15 +8,15 @@ import { RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
 afterEach(cleanup);
 
 test.each([
-  ["Declined", RequestState.DECLINED, false],
-  ["Declined", RequestState.DECLINED, true],
-  ["Failed", RequestState.FAILED, false],
-  ["Failed", RequestState.FAILED, true],
+  ["Declined", false, RequestState.DECLINED],
+  ["Declined", true, RequestState.DECLINED],
+  ["Failed", false, RequestState.FAILED],
+  ["Failed", true, RequestState.FAILED],
 ])(
-  "a row's %s Request pill is red on the 10% tint over Popover, untinted on Accent (selected: %s)",
-  (label, state, selected) => {
+  "a row's %s Request pill keeps its Popover tint unless its row is selected (selected: %s)",
+  (label, selected, state) => {
     const request = create(RequestSchema, { state });
-    // The row is the `group` whose `aria-selected` drops the tint (`ActionRow`).
+    // jsdom applies no Tailwind, so the selector `group-aria-selected:` compiles to stands in for it.
     render(
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an <option> can't hold the row's pill, as in `ActionRow`
       <div role="option" aria-selected={selected} className="group">
@@ -24,20 +24,19 @@ test.each([
       </div>,
     );
     const pill = screen.getByText(label);
+    const has = (name: string) => pill.classList.contains(name);
     expect({
-      selected: pill.closest(".group")?.getAttribute("aria-selected"),
-      "bg-destructive/10": pill.classList.contains("bg-destructive/10"),
-      "bg-destructive/15": pill.classList.contains("bg-destructive/15"),
-      "group-aria-selected:bg-transparent": pill.classList.contains(
-        "group-aria-selected:bg-transparent",
-      ),
-      "text-destructive": pill.classList.contains("text-destructive"),
+      "bg-destructive/10": has("bg-destructive/10"),
+      "bg-destructive/15": has("bg-destructive/15"),
+      "text-destructive": has("text-destructive"),
+      "group-aria-selected:bg-transparent": has("group-aria-selected:bg-transparent"),
+      "in a selected group": pill.matches('.group[aria-selected="true"] *'),
     }).toStrictEqual({
-      selected: String(selected),
       "bg-destructive/10": true,
       "bg-destructive/15": false,
-      "group-aria-selected:bg-transparent": true,
       "text-destructive": true,
+      "group-aria-selected:bg-transparent": true,
+      "in a selected group": selected,
     });
   },
 );

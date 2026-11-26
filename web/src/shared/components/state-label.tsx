@@ -16,7 +16,8 @@ const TONES = {
   // Declined, Failed or a setting not saved: DESIGN.md keeps Destructive the only status colour.
   destructive: "bg-destructive/15 text-destructive",
   // The same over Popover, where red on the 15% tint falls to 4.4:1 and on 10% holds 4.8:1. On a
-  // command menu row's Accent no tint passes, so a selected row drops it: bare red holds 4.57:1.
+  // selected command menu row's Accent no tint passes, so it drops: bare red holds 4.57:1. Any
+  // `group` with `aria-selected` drops it, so keep this tone out of other selectable groups.
   destructiveOnPopover: "bg-destructive/10 text-destructive group-aria-selected:bg-transparent",
 };
 

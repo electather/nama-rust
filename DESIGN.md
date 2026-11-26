@@ -115,7 +115,7 @@ Pure neutrals and nothing else. The artwork supplies the colour, so the interfac
 - **Rim** (`oklch(0.538 0 0)`, `--input`): the edge of every control, 3:1 or better on every surface. At 30% it's the fill of an Input.
 
 ### Destructive
-- **Red** (`oklch(0.702 0.189 22.2)`): ink for something that can't be undone and for Declined and Failed, on its own 10% tint (4.8:1 or better), 15% on a state label (4.9:1 or better on the page and a card) except on the Popover of the Save toast and the command menu, where it keeps the 10% tint, and on a selected command menu row's Accent, where no tint passes and it has none (4.57:1), always with an icon and a word.
+- **Red** (`oklch(0.702 0.189 22.2)`): ink for something that can't be undone and for Declined and Failed, on its own 10% tint (4.8:1 or better), 15% on a state label (4.9:1 or better on the page and a card) except on the Popover of the Save toast and the command menu, where it keeps the 10% tint, or no tint on a selected command menu row's Accent (4.57:1), always with an icon and a word.
 
 The neutrals have no chroma. A coloured background competes with the artwork, so the ramp is pure grey. There are no status colours besides Destructive: Pending, Available and the other states are told apart by their icon and word. The values live in shadcn's `.dark` tokens, so a light theme later only needs new `:root` values (ADR 0016).
 
