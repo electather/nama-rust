@@ -235,8 +235,8 @@ pub(crate) async fn admit(
     let unsigned = signer.verify(request.uri().path(), &plan_runs);
     if let Some((path, viewer)) = unsigned
         && let Some(uri) = with_path(request.uri(), &path)
-        // Asked after `verify`, so a plan still running can't keep the URL alive for a User its
-        // Device switched away from (ADR 0106).
+        // Asked even while its plan runs, which keeps the URL alive past its expiry, since a plan
+        // belongs to its User and a Device that switched away can't keep playing it (ADR 0106).
         && match viewer {
             Some(viewer) => still_acting(viewer).await,
             None => true,

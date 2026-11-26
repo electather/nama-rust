@@ -267,8 +267,8 @@ pub(crate) fn router(
     let linking = users.linking().clone();
     let acting_users = users.clone();
     let still_acting: StillActing = Arc::new(move |viewer| {
-        let asked = acting_users.clone();
-        Box::pin(async move { asked.still_acting_as(viewer.device, viewer.user).await })
+        let acting = acting_users.clone();
+        Box::pin(async move { acting.still_acting_as(viewer.device, viewer.user).await })
     });
     let routes = axum::Router::new()
         .fallback_service(rpcs)
