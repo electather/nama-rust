@@ -52,7 +52,7 @@ async fn scrobble_to(
     let asked = ScrobbleAsked {
         user_id: user,
         personal_settings: personal_settings.into_iter().collect(),
-        changes: numbered(&Contents::new(db), &told.changes).await,
+        changes: synced_changes(&Contents::new(db), &told.changes).await,
         ..ScrobbleAsked::default()
     };
     let answer = points
@@ -72,30 +72,33 @@ async fn scrobble_to(
 
 /// `changes` as a Watch sync Plugin is told of them, each Episode the Library has with its Show,
 /// season and number.
-async fn numbered(contents: &Contents, changes: &[WatchStateChange]) -> Vec<SyncedWatchState> {
-    let mut told = Vec::with_capacity(changes.len());
+async fn synced_changes(
+    contents: &Contents,
+    changes: &[WatchStateChange],
+) -> Vec<SyncedWatchState> {
+    let mut states = Vec::with_capacity(changes.len());
     for change in changes {
-        let synced = synced(change);
+        let state = synced(change);
         let numbers = if change.episode {
             contents.episode_numbers(&external_ids(change)).await
         } else {
             Ok(None)
         };
-        told.push(match numbers {
+        states.push(match numbers {
             Ok(Some(numbers)) => SyncedWatchState {
                 show_ids: numbers.show_ids.iter().map(|id| title_id(&id)).collect(),
                 season_number: u32::try_from(numbers.season).ok(),
                 episode_number: u32::try_from(numbers.episode).ok(),
-                ..synced
+                ..state
             },
-            Ok(None) => synced,
+            Ok(None) => state,
             Err(err) => {
                 warn!("could not read an Episode's Show to scrobble it: {err}");
-                synced
+                state
             }
         });
     }
-    told
+    states
 }
 
 /// `change` as a Watch sync Plugin is told of it.

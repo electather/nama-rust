@@ -17,7 +17,7 @@ use crate::{
     db::{Database, now_ms},
     library::{
         MovieOrEpisode, Progress, WatchState, WatchStateKind, WatchStates,
-        fixture::{MatchedMovie, tmdb_movie},
+        fixture::{MatchedMovie, matched_episodes_file, tmdb_movie},
         import_cursor,
     },
     log_capture::CapturedLog,
@@ -214,8 +214,37 @@ async fn a_movie_and_an_episode_marked_played_are_scrobbled_with_the_users_perso
         assert_eq!(asked.personal_settings.len(), 1);
         let change = &asked.changes[0];
         assert_eq!((change.kind, change.played), (kind.into(), true));
+        let numbers = (
+            &change.show_ids,
+            change.season_number,
+            change.episode_number,
+        );
+        assert_eq!(numbers, (&vec![], None, None), "no Library has it");
     }
     assert_eq!(movie.changes[0].ids[0].value, ALIEN_TMDB_ID.to_string());
+}
+
+#[tokio::test]
+async fn an_episode_in_a_library_is_scrobbled_with_its_shows_ids_season_and_number() {
+    let (tracker, mut heard) = tracker(Imported::default());
+    let linked = Linked::with(tracker).await;
+    let media = tempfile::tempdir().unwrap();
+    let show_ids = ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121_361)]);
+    let second = ExternalId::tmdb(1_350_210);
+    matched_episodes_file(&linked.db, media.path(), show_ids.clone(), [1, 1_350_210]).await;
+
+    (linked.mark_played(linked.ada, MovieOrEpisode::episode(&second))).await;
+    let asked = next(&mut heard).await;
+
+    let change = &asked.changes[0];
+    let told_show: ExternalIds = (change.show_ids.iter())
+        .map(|id| ExternalId::new(&id.namespace, id.value.clone()).unwrap())
+        .collect();
+    assert_eq!(told_show, show_ids);
+    assert_eq!(
+        (change.season_number, change.episode_number),
+        (Some(1), Some(2))
+    );
 }
 
 #[tokio::test]
