@@ -1,7 +1,7 @@
 name: test-report
 
 # Records each finished CI run's test results on the ref `refs/ci/test-history`, writes a summary of
-# its flaky and slow tests, keeps one `needs-triage` issue per flaky test (ADR 0022), and sends a
+# its flaky and slow tests, keeps one `needs-triage` + `flaky` issue per flaky test (ADR 0022), and sends a
 # copy of the results to Grafana Cloud (ADR 0073).
 # `crates/nama-test-report` holds the logic; this workflow does the git and `gh` work around it.
 #
@@ -132,7 +132,7 @@ jobs:
           while IFS= read -r action; do
             field() { jq -r ".$1" <<< "$action"; }
             case "$(field action)" in
-              open) gh issue create --title "$(field title)" --body "$(field body)" --label needs-triage ;;
+              open) gh issue create --title "$(field title)" --body "$(field body)" --label needs-triage --label flaky ;;
               comment) gh issue comment "$(field issue)" --body "$(field body)" ;;
               reopen) gh issue reopen "$(field issue)" ;;
               retitle) gh issue edit "$(field issue)" --title "$(field title)" ;;
