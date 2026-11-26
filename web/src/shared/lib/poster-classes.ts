@@ -1,6 +1,6 @@
-/** The classes for a link wrapping a `Poster` or a card, which shows focus around it. */
-export const posterLink =
-  "block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+/** The `sizes` of a `Poster` in `posterGrid`: a column at each of its breakpoints. */
+export const posterGridSizes =
+  "(min-width: 1024px) 183px, (min-width: 768px) 22vw, (min-width: 640px) 30vw, 45vw";
 
 /**
  * The classes of a grid of posters: 2 columns, 3 from `sm`, 4 from `md` and 5 from `lg`, as

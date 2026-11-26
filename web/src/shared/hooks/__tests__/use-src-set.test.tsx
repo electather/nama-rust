@@ -96,7 +96,7 @@ function previewBehind(url: string) {
 test("a Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
   openApp("/libraries/1", serverWithAMovie());
 
-  await screen.findByText("Alien");
+  await screen.findByRole("link", { name: "Alien" });
 
   expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=480 480w`);
 });
@@ -124,7 +124,7 @@ test("a Backdrop and a Title Logo offer a copy at only each width the Server mak
 test("a Poster from a Server that makes none ahead offers each width it resizes to", async () => {
   openApp("/libraries/1", serverWithAMovie({ imageWidths: [320, 640] }));
 
-  await screen.findByText("Alien");
+  await screen.findByRole("link", { name: "Alien" });
 
   expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=640 640w`);
 });
@@ -132,7 +132,7 @@ test("a Poster from a Server that makes none ahead offers each width it resizes 
 test("a Poster shows its thumbhash in its box until the image covers it", async () => {
   openApp("/libraries/1", serverWithAMovie());
 
-  await screen.findByText("Alien");
+  await screen.findByRole("link", { name: "Alien" });
 
   const preview = previewBehind(poster);
   expect(preview).not.toBeNull();
@@ -143,7 +143,7 @@ test("a Poster shows its thumbhash in its box until the image covers it", async 
 test("a Poster without a thumbhash shows only its image", async () => {
   openApp("/libraries/1", serverWithAMovie());
 
-  await screen.findByText("Heat");
+  await screen.findByRole("link", { name: "Heat" });
 
   expect(previewBehind(heatPoster)).toBeNull();
 });

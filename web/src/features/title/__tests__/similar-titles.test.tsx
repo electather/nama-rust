@@ -66,7 +66,7 @@ test("a Movie's page shows its Similar titles under Similar titles, each opening
 
   expect(
     links.map((link) => [link.getAttribute("aria-label"), link.getAttribute("href")]),
-  ).toStrictEqual([["Heat", "/libraries/1/movies/tmdb-949"]]);
+  ).toStrictEqual([["Heat, 1995", "/libraries/1/movies/tmdb-949"]]);
 });
 
 test("a Movie to Request shows its Similar titles under On this Server", async () => {

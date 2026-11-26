@@ -128,3 +128,28 @@ test("choosing two genres asks for the titles with either", async () => {
   });
   expect(asked.at(-1)?.page?.token).toBe("");
 });
+
+test("a Library's posters are images alone, labelled with title and year, naming a title without art", async () => {
+  const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
+  const office = {
+    id: { namespace: "tmdb", value: "2316" },
+    title: "The Office",
+    firstAirDate: "2005-03-24",
+    posterUrl: "/media/artwork/tmdb/%2Foffice.jpg",
+  };
+  const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+    router.service(BrowseService, {
+      listUnmatched: () => ({}),
+      listGenres: () => ({}),
+      listShows: () => ({ shows: [office, dark] }),
+    });
+  });
+  openApp("/libraries/2", transport);
+
+  const officePoster = await screen.findByRole("link", { name: "The Office, 2005" });
+
+  expect(officePoster.textContent).toBe("");
+  expect(officePoster.querySelector("img")?.getAttribute("alt")).toBe("");
+  expect(screen.getByRole("link", { name: "Dark" }).textContent).toBe("Dark");
+});

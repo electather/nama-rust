@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import { NearScreen } from "@/features/home/components/near-screen";
-import { RowFrame } from "@/features/home/components/row-frame";
+import { PluginRowFrame } from "@/features/home/components/plugin-row-frame";
 import { RowLoader } from "@/features/home/components/row-loader";
 import { RowShelf } from "@/features/home/components/row-shelf";
 import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
@@ -12,9 +12,9 @@ import type { PluginHomeRow } from "@/gen/nama/v1/browse_pb";
 export function HomeRowSection({ row, eager }: { row: PluginHomeRow; eager: boolean }) {
   const headingId = useId();
   const loading = (
-    <RowFrame heading={row.heading} headingId={headingId}>
+    <PluginRowFrame row={row} headingId={headingId}>
       <ShelfSkeleton tile={posterTile} aspect="aspect-2/3" />
-    </RowFrame>
+    </PluginRowFrame>
   );
   const shelf = (
     <RowLoader loading={loading}>

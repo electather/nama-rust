@@ -1,13 +1,10 @@
-import { Link } from "@tanstack/react-router";
-
 import { Titles } from "@/features/library/components/titles";
-import { episodesWatched } from "@/features/library/lib/episodes-watched";
 import { firstPageOf } from "@/features/library/lib/title-listing";
 import type { TitlesProps } from "@/features/library/lib/titles-props";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { Poster } from "@/shared/components/poster/poster";
 import { usePaged } from "@/shared/hooks/use-paged";
-import { posterLink } from "@/shared/lib/poster-classes";
+import { posterGridSizes } from "@/shared/lib/poster-classes";
 import { yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -22,19 +19,16 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
     .map((show) => ({
       key: titleParam(show.id),
       poster: (
-        <Link
-          to="/libraries/$libraryId/shows/$showId"
-          params={{ libraryId: String(libraryId), showId: titleParam(show.id) }}
-          className={posterLink}
-        >
-          <Poster
-            url={show.posterUrl}
-            thumbhash={show.posterThumbhash}
-            title={show.title}
-            detail={yearOf(show.firstAirDate)}
-            watchState={episodesWatched(show)}
-          />
-        </Link>
+        <Poster
+          link={{
+            to: "/libraries/$libraryId/shows/$showId",
+            params: { libraryId: String(libraryId), showId: titleParam(show.id) },
+          }}
+          title={show.title}
+          detail={yearOf(show.firstAirDate)}
+          art={{ url: show.posterUrl, thumbhash: show.posterThumbhash }}
+          sizes={posterGridSizes}
+        />
       ),
     }));
   return (

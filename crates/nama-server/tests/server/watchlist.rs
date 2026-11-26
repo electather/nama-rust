@@ -344,3 +344,22 @@ async fn listing_shows_titles_newest_first_on_the_server_or_missing() {
         ]
     );
 }
+
+#[tokio::test]
+async fn a_listed_show_on_the_server_carries_when_it_first_aired() {
+    let fx = Fixture::start().await;
+    let watchlist = fx.watchlist();
+    add(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+
+    let listed = watchlist
+        .list_watchlist(ListWatchlistRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let title = listed.titles[0].title.as_option().unwrap();
+    let Some(MovieOrShow::Show(dark)) = &title.movie_or_show else {
+        panic!("Dark isn't on the Server: {title:?}");
+    };
+    assert_eq!(dark.first_air_date.as_deref(), Some("2017-12-01"));
+}

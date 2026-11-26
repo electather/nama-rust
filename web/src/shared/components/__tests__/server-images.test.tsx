@@ -1,19 +1,24 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginLogo } from "@/shared/components/plugin-logo";
-import { Poster } from "@/shared/components/poster/poster";
+import { TileArt } from "@/shared/components/tile-art";
 import { onServerAt } from "@/test-server-at";
 
 afterEach(cleanup);
 
-test("a Poster loads from the Server the page talks to", async () => {
+test("a poster's art loads from the Server the page talks to", async () => {
   const poster = "/media/artwork/tmdb/%2Fposter.jpg";
-  const { container } = render(<Poster url={poster} title="Alien" />, { wrapper: onServerAt() });
+  const look = { sizes: "150px", radius: "rounded-3xl", widths: "posterWidths" } as const;
+  const { container } = render(<TileArt url={poster} thumbhash={undefined} look={look} />, {
+    wrapper: onServerAt(),
+  });
 
-  await screen.findByText("Alien");
-
-  const img = container.querySelector("img");
+  const img = await waitFor(() => {
+    const shown = container.querySelector("img");
+    expect(shown).not.toBeNull();
+    return shown;
+  });
   expect(img?.getAttribute("src")).toBe(`https://friend.example${poster}`);
   expect(img?.getAttribute("srcset")?.startsWith("https://friend.example/")).toBe(true);
 });

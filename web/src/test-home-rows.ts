@@ -11,9 +11,14 @@ export const continueWatchingRow: HomeRowInit = {
   kernelOrPlugin: { case: "kernel", value: KernelHomeRow.CONTINUE_WATCHING },
 };
 
-/** The row `key` that the Plugin `pluginId` gives, under `heading`. */
-export function pluginRow(pluginId: string, key: string, heading: string): HomeRowInit {
-  return { kernelOrPlugin: { case: "plugin", value: { pluginId, key, heading } } };
+/** The row `key` that the Plugin `pluginId` gives, under `heading`, linked to `libraryId` if set. */
+export function pluginRow(
+  pluginId: string,
+  key: string,
+  heading: string,
+  libraryId?: bigint,
+): HomeRowInit {
+  return { kernelOrPlugin: { case: "plugin", value: { pluginId, key, heading, libraryId } } };
 }
 
 /** The Recently Added row of the Library `libraryId`, named `libraryName`, of `libraryKind`. */

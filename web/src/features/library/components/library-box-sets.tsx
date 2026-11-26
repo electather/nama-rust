@@ -1,12 +1,10 @@
-import { Link } from "@tanstack/react-router";
-
 import { TitleCount } from "@/features/library/components/title-count";
 import { TitleGrid } from "@/features/library/components/title-grid";
 import { firstBoxSetPage } from "@/features/library/lib/library-view";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { Poster } from "@/shared/components/poster/poster";
 import { usePaged } from "@/shared/hooks/use-paged";
-import { posterLink } from "@/shared/lib/poster-classes";
+import { posterGridSizes } from "@/shared/lib/poster-classes";
 import { titleParam } from "@/shared/lib/title-param";
 
 const titles = { one: "Box Set", many: "Box Sets" };
@@ -19,13 +17,12 @@ export function LibraryBoxSets({ libraryId }: { libraryId: bigint }) {
     .map((boxSet) => ({
       key: titleParam(boxSet.id),
       poster: (
-        <Link
-          to="/box-sets/$boxSetId"
-          params={{ boxSetId: titleParam(boxSet.id) }}
-          className={posterLink}
-        >
-          <Poster url={boxSet.posterUrl} title={boxSet.name} />
-        </Link>
+        <Poster
+          link={{ to: "/box-sets/$boxSetId", params: { boxSetId: titleParam(boxSet.id) } }}
+          title={boxSet.name}
+          art={{ url: boxSet.posterUrl, thumbhash: undefined }}
+          sizes={posterGridSizes}
+        />
       ),
     }));
   if (posters.length === 0) {

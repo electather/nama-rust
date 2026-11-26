@@ -65,7 +65,7 @@ test("a Movie's page shows its Box Set's Movies under its name, the Movie marked
   expect(named(posters)).toStrictEqual([
     ["Alien", "/libraries/1/movies/tmdb-348"],
     ["Aliens", "/libraries/1/movies/tmdb-679"],
-    ["Alien³", "/movies/tmdb-8077"],
+    ["Alien³, 1992", "/movies/tmdb-8077"],
   ]);
   expect(posters.map((poster) => poster.getAttribute("aria-current"))).toStrictEqual([
     "page",
@@ -95,10 +95,10 @@ test("a Box Set's page shows its name, overview and Movies in order", async () =
   expect(named(within(movies).getAllByRole("link"))).toStrictEqual([
     ["Alien", "/libraries/1/movies/tmdb-348"],
     ["Aliens", "/libraries/1/movies/tmdb-679"],
-    ["Alien³", "/movies/tmdb-8077"],
+    ["Alien³, 1992", "/movies/tmdb-8077"],
   ]);
   expect(
-    within(movies).getByRole("link", { name: "Alien³", description: "Not on this Server" }),
+    within(movies).getByRole("link", { name: "Alien³, 1992", description: "Not on this Server" }),
   ).toBeDefined();
   expect(within(movies).getByText("Not here")).toBeDefined();
 });
@@ -106,7 +106,7 @@ test("a Box Set's page shows its name, overview and Movies in order", async () =
 test("a Box Set's missing Movie opens its page to Request", async () => {
   openApp("/box-sets/tmdb-8091", server(alienBoxSet));
 
-  fireEvent.click(await screen.findByRole("link", { name: "Alien³" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Alien³, 1992" }));
 
   await expect(screen.findByRole("heading", { level: 1, name: "Alien³" })).resolves.toBeDefined();
   expect(globalThis.location.pathname).toBe("/movies/tmdb-8077");

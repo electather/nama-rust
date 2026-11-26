@@ -98,13 +98,15 @@ impl Adapter for Rows {
             let titles = to_json(&row.titles)?;
             let missing = to_json(&row.missing)?;
             sqlx::query!(
-                "INSERT INTO home_rows (plugin_id, user_id, position, key, heading, titles, missing)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO home_rows
+                 (plugin_id, user_id, position, key, heading, library_id, titles, missing)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 plugin,
                 user,
                 position,
                 row.key,
                 row.heading,
+                row.library,
                 titles,
                 missing
             )
@@ -159,7 +161,7 @@ impl Rows {
     /// `user`'s own, each in the Plugin's order, with its scope.
     pub(super) async fn stored(&self, user: i64) -> Result<Vec<(Scope, Row)>, sqlx::Error> {
         let rows = sqlx::query!(
-            "SELECT plugin_id, user_id, key, heading, titles, missing FROM home_rows
+            "SELECT plugin_id, user_id, key, heading, library_id, titles, missing FROM home_rows
              WHERE user_id IS NULL OR user_id = ?
              ORDER BY plugin_id, user_id IS NOT NULL, position",
             user
@@ -171,6 +173,7 @@ impl Rows {
                 let row_of = Row {
                     key: row.key,
                     heading: row.heading,
+                    library: row.library_id,
                     titles: from_json(&row.titles),
                     missing: from_json(&row.missing),
                 };
@@ -361,6 +364,7 @@ fn kept(given: Given) -> (Vec<Row>, Duration) {
         rows.push(Row {
             key: row.key,
             heading: row.heading.chars().take(MAX_HEADING).collect(),
+            library: row.library_id,
             titles,
             missing: Vec::new(),
         });

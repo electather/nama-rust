@@ -680,7 +680,10 @@ impl UserServiceHandler {
 fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
     let row = match row {
         KernelOrPlugin::Kernel(kernel) => LayoutRow::Kernel(kernel),
-        KernelOrPlugin::Plugin(plugin) => LayoutRow::Plugin(plugin),
+        KernelOrPlugin::Plugin(mut plugin) => {
+            plugin.library_id = None;
+            LayoutRow::Plugin(plugin)
+        }
         KernelOrPlugin::RecentlyAdded(library) => LayoutRow::RecentlyAdded(library),
     };
     HomeLayoutRow {
