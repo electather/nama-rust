@@ -2,11 +2,11 @@ import { Button } from "nama-ui/components/button";
 import { Input } from "nama-ui/components/input";
 import { useState } from "react";
 
+import { passkeyError } from "@/features/auth/lib/hub-errors";
 import { HubRefusal } from "@/features/settings/components/hub-refusal";
 import { useAddPasskey } from "@/features/settings/data/use-add-passkey";
 import { useHubAccount } from "@/features/settings/data/use-hub-account";
 import { useOffersPasskeys } from "@/features/settings/data/use-offers-passkeys";
-import { passkeyError } from "@/features/settings/lib/account-refusals";
 import { AlertText } from "@/shared/components/form-field/alert-text";
 import { SettingRow } from "@/shared/components/setting-row";
 import { formText, onSubmitted } from "@/shared/lib/forms";
