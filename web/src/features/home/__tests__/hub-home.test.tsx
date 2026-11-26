@@ -105,11 +105,15 @@ function movieTitle(id: typeof alien, title: string) {
   return { movieOrShow: { case: "movie", value: { libraryId: 1n, id, title } } } as const;
 }
 
-/** The links in Home's section headed `name`, as their names and the Server each opens on. */
-async function linksIn(name: string) {
-  const section = within(await screen.findByRole("region", { name }));
-  const links = await section.findAllByRole("link");
-  return links.map((link) => ({
+/**
+ * The links in Home's section headed `name` now, as their names and the Server each opens on.
+ * Throws till there are some, for `waitFor` to retry. It finds the section afresh each time:
+ * Home's pending page, shown while the route loads for over a second, has a Continue Watching
+ * section of its own, which the loaded page replaces, so one found early can be gone (#2461).
+ */
+function linksIn(name: string) {
+  const section = within(screen.getByRole("region", { name }));
+  return section.getAllByRole("link").map((link) => ({
     name: link.getAttribute("aria-label"),
     server: new URL(link.getAttribute("href") ?? "", "https://hub.example").searchParams.get(
       "server",
@@ -129,8 +133,8 @@ test("continue Watching at the Hub lists each title once, from the Server it was
     }),
   });
 
-  await waitFor(async () => {
-    await expect(linksIn("Continue Watching")).resolves.toStrictEqual([
+  await waitFor(() => {
+    expect(linksIn("Continue Watching")).toStrictEqual([
       { name: "Resume Alien, 1h 39m left", server: "cabin" },
       { name: "Resume Heat, 1h 39m left", server: "cabin" },
     ]);
@@ -159,14 +163,14 @@ test("home at the Hub merges each kind of row across the Account's Servers", asy
   });
 
   // Each Server's titles show as it answers, so this waits for both.
-  await waitFor(async () => {
-    await expect(linksIn("Trending this week")).resolves.toStrictEqual([
+  await waitFor(() => {
+    expect(linksIn("Trending this week")).toStrictEqual([
       { name: "Alien", server: "basement" },
       { name: "Heat", server: "cabin" },
     ]);
   });
-  await waitFor(async () => {
-    await expect(linksIn("Recently added Movies")).resolves.toStrictEqual([
+  await waitFor(() => {
+    expect(linksIn("Recently added Movies")).toStrictEqual([
       { name: "Heat", server: "basement" },
       { name: "Alien", server: "cabin" },
     ]);
@@ -180,9 +184,11 @@ test("an unreachable Server's rows are left out, and the others' still show", as
     }),
   });
 
-  const section = within(await screen.findByRole("region", { name: "Continue Watching" }));
-
-  await expect(section.findByRole("link", { name: /^Resume Heat/u })).resolves.toBeDefined();
+  await waitFor(() => {
+    expect(linksIn("Continue Watching")).toStrictEqual([
+      { name: "Resume Heat, 1h 39m left", server: "cabin" },
+    ]);
+  });
 });
 
 /** A fake Server listing Alien on Continue Watching till it's hidden, as `hidden` records. */
@@ -210,8 +216,8 @@ test("removing a title at the Hub hides it on every Server that lists it", async
     [basementAt]: serverHidingAlien(100n, hidden, basementAt),
     [cabinAt]: serverHidingAlien(300n, hidden, cabinAt),
   });
-  await waitFor(async () => {
-    await expect(linksIn("Continue Watching")).resolves.toHaveLength(1);
+  await waitFor(() => {
+    expect(linksIn("Continue Watching")).toHaveLength(1);
   });
 
   fireEvent.click(await screen.findByRole("button", { name: "More for Alien" }));
