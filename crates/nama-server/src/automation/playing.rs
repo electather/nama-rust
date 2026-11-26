@@ -1,5 +1,5 @@
 //! `list_version_titles` and `list_devices`: what a Playback event's Version and Device are, which
-//! an Observer of plays, such as the Hub Plugin's, records them by (ADR 0093).
+//! an Observer of plays records them by (ADR 0093).
 
 use std::sync::Arc;
 
