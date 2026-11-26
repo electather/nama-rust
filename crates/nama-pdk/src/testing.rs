@@ -1,6 +1,6 @@
 //! An in-process Kernel for a Plugin's native tests (ADR 0065): [`with`] installs one for a call
 //! to the Plugin, which then reads its settings from it and has its HTTP requests answered by the
-//! test, which reads back what the Plugin sent. It answers each Kernel function the test granted
+//! test, which reads back what the Plugin sent and logged. It answers each Kernel function the test granted
 //! from what the test gave it, and refuses the others as the Server does. Unstable while the
 //! 0.x versions last. The crate's README shows a test in its section 14.
 
@@ -57,6 +57,7 @@ pub struct Kernel {
     settings: HashMap<String, String>,
     http: Option<Handler>,
     sent: Vec<Sent>,
+    logged: Vec<Logged>,
     // Each `Option` is `None` when the Admin didn't grant the Plugin Permission its Kernel
     // functions need.
     store: Option<Store>,
@@ -91,6 +92,28 @@ pub struct Sent {
     pub request: HttpRequest,
     /// Its body, empty if it had none.
     pub body: Vec<u8>,
+}
+
+/// How severe a line a Plugin logged is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    /// Logged with [`debug!`](crate::debug!).
+    Debug,
+    /// Logged with [`info!`](crate::info!).
+    Info,
+    /// Logged with [`warn!`](crate::warn!).
+    Warn,
+    /// Logged with [`error!`](crate::error!).
+    Error,
+}
+
+/// A line a Plugin logged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Logged {
+    /// The level it was logged at.
+    pub level: Level,
+    /// The line, formatted.
+    pub line: String,
 }
 
 /// A `delete_media` a Plugin asked the Kernel for, whether or not it was refused.
@@ -321,6 +344,13 @@ impl Kernel {
         &self.sent
     }
 
+    /// The lines the Plugin logged with [`debug!`](crate::debug!) and the others, in order. A
+    /// line logged outside [`with`] isn't kept.
+    #[must_use]
+    pub fn logged(&self) -> &[Logged] {
+        &self.logged
+    }
+
     /// The deletes the Plugin asked for, in order, refused or not.
     #[must_use]
     pub fn deletes(&self) -> &[Delete] {
@@ -339,6 +369,7 @@ impl fmt::Debug for Kernel {
         f.debug_struct("Kernel")
             .field("settings", &self.settings)
             .field("sent", &self.sent)
+            .field("logged", &self.logged)
             .field("store", &self.store)
             .field("libraries", &self.libraries)
             .field("titles", &self.titles)
@@ -374,6 +405,25 @@ pub fn with<R>(kernel: &mut Kernel, call: impl FnOnce() -> R) -> R {
         .replace(outer)
         .expect("the Kernel stays installed through the call");
     answered
+}
+
+/// Records `line` at the `level` [`crate::write_log_line`] was given, if a Kernel is installed.
+/// A Plugin may log in a test that doesn't use [`with`], so the line is dropped then.
+pub(crate) fn log_line(level: i32, line: &str) {
+    let level = match level {
+        0 => Level::Debug,
+        1 => Level::Info,
+        2 => Level::Warn,
+        _ => Level::Error,
+    };
+    INSTALLED.with_borrow_mut(|kernel| {
+        if let Some(kernel) = kernel {
+            kernel.logged.push(Logged {
+                level,
+                line: line.to_owned(),
+            });
+        }
+    });
 }
 
 /// The setting `key` the installed Kernel holds.
@@ -686,7 +736,7 @@ mod tests {
 
     use nama_plugin_proto::nama::plugin::v1::{Users, UsersAsked};
 
-    use super::{Kernel, with};
+    use super::{Kernel, Level, Logged, with};
     use crate::{
         Library, Response, Title, TitleId, TitleKind, TitleRef, TitleRefKind, TitleWatchStates,
         User, WatchState, WatchlistTitle, kernel::functions::ListUsers,
@@ -704,6 +754,62 @@ mod tests {
         let picked = with(&mut kernel, || crate::setting_picked("ratings")).unwrap();
 
         assert_eq!(picked, values);
+    }
+
+    fn logged(level: Level, line: &str) -> Logged {
+        Logged {
+            level,
+            line: line.to_owned(),
+        }
+    }
+
+    #[test]
+    fn every_level_is_logged_in_order_with_its_formatted_line() {
+        let mut kernel = Kernel::new();
+
+        with(&mut kernel, || {
+            crate::debug!("one {}", 1);
+            crate::info!("two");
+            crate::warn!("{who} three", who = "a");
+            crate::error!("four {:?}", "x");
+        });
+
+        assert_eq!(
+            kernel.logged(),
+            [
+                logged(Level::Debug, "one 1"),
+                logged(Level::Info, "two"),
+                logged(Level::Warn, "a three"),
+                logged(Level::Error, "four \"x\""),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_line_logged_outside_with_is_dropped() {
+        crate::info!("nobody is listening");
+
+        let mut kernel = Kernel::new();
+        with(&mut kernel, || ());
+
+        assert_eq!(kernel.logged(), []);
+    }
+
+    #[test]
+    fn nested_withs_keep_each_kernels_own_lines() {
+        let (mut outer, mut inner) = (Kernel::new(), Kernel::new());
+
+        with(&mut outer, || {
+            crate::info!("before");
+            with(&mut inner, || crate::info!("inside"));
+            crate::info!("after");
+        });
+
+        assert_eq!(
+            outer.logged(),
+            [logged(Level::Info, "before"), logged(Level::Info, "after")]
+        );
+        assert_eq!(inner.logged(), [logged(Level::Info, "inside")]);
     }
 
     #[test]
