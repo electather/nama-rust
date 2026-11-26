@@ -7,8 +7,9 @@ import { openMenu } from "@/test-menu";
 
 import stylesheet from "nama-ui/styles.css?inline";
 
-const style = document.createElement("style");
+let style: HTMLStyleElement;
 beforeEach(() => {
+  style = document.createElement("style");
   style.textContent = stylesheet;
   document.head.append(style);
 });
@@ -17,8 +18,7 @@ afterEach(() => {
   style.remove();
 });
 
-// happy-dom lays nothing out, so this compares the gutter the page's width depends on: a menu's
-// scroll lock hides the scrollbar, and only a gutter kept before it keeps the width.
+/** The gutter the page's width depends on, as happy-dom lays nothing out to measure. */
 function pageGutter() {
   return getComputedStyle(document.documentElement).scrollbarGutter;
 }
@@ -34,6 +34,7 @@ test("opening and closing a title's More actions menu keeps the page's scrollbar
   const before = pageGutter();
 
   await openMenu("More actions");
+  // Base UI's scroll lock hides the body's overflow while it holds.
   await waitFor(() => {
     expect(getComputedStyle(document.body).overflowY).toBe("hidden");
   });
