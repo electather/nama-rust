@@ -17,7 +17,11 @@
 //! a session fetches it at its [`Urls`] entry, under `/media/`, resized by `?width=` as a
 //! downloaded image is (`crate::library::artwork`).
 
-use std::{collections::HashMap, io, iter, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    io, iter,
+    sync::Arc,
+};
 
 use axum::{
     Router,
@@ -39,7 +43,7 @@ use crate::{
     },
     library::{
         artwork::{Artwork, Error as ArtworkError},
-        contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
+        contents::{Contents, library_with_movie, library_with_show, matched_episodes, parse_hint},
     },
     server_settings::ImageSettings,
     signed_urls::strip_signature,
@@ -103,6 +107,8 @@ enum Error {
 }
 
 impl Role {
+    const ALL: [Self; 2] = [Self::Poster, Self::Backdrop];
+
     /// As paths and the database name it.
     pub(super) const fn name(self) -> &'static str {
         match self {
@@ -142,11 +148,15 @@ impl Slot {
 
     /// The widths the web app offers its image at, which an upload is resized to ahead of it.
     fn widths(&self) -> &'static [u32] {
-        if self.0.ends_with("/poster") {
+        if self.is_poster() {
             &POSTER_WIDTHS
         } else {
             &BACKDROP_WIDTHS
         }
+    }
+
+    fn is_poster(&self) -> bool {
+        self.0.ends_with("/poster")
     }
 
     /// The Library whose image it is, if it is a Library's.
@@ -253,17 +263,84 @@ impl CustomImages {
     // ponytail: reads every Custom Image for each response that shows images; there are as many
     // as admins uploaded. Query by slot if that ever grows.
     pub(crate) async fn urls(&self) -> Result<Urls, sqlx::Error> {
-        let rows = sqlx::query!("SELECT slot, version FROM custom_images")
-            .fetch_all(self.db.reader())
-            .await?;
+        let stored = self.stored().await?;
         Ok(Urls(
-            rows.into_iter()
-                .map(|row| {
-                    let url = url(&row.slot, &row.version);
-                    (Slot(row.slot), url)
+            (stored.into_iter())
+                .map(|(slot, version)| {
+                    let url = url(&slot.0, &version);
+                    (slot, url)
                 })
                 .collect(),
         ))
+    }
+
+    /// Every Custom Image, as its slot and version.
+    async fn stored(&self) -> sqlx::Result<Vec<(Slot, String)>> {
+        let rows = sqlx::query!("SELECT slot, version FROM custom_images")
+            .fetch_all(self.db.reader())
+            .await?;
+        Ok((rows.into_iter())
+            .map(|row| (Slot(row.slot), row.version))
+            .collect())
+    }
+
+    /// Makes `posters` of each Custom Poster and `backdrops` of each Custom Backdrop of the Library
+    /// `library` and its Movies, Shows and Seasons, where they aren't there. Each one, not only
+    /// those uploaded since, so one uploaded before its kind was copied ahead gets them too
+    /// (#2372).
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read.
+    pub(crate) async fn copy_ahead(
+        &self,
+        library: i64,
+        posters: &[Resize],
+        backdrops: &[Resize],
+    ) -> sqlx::Result<()> {
+        for (slot, version) in self.of_library(library).await? {
+            let copies = if slot.is_poster() { posters } else { backdrops };
+            let mut key = slot.key();
+            key.push(&version);
+            self.store.copy_ahead(&key, copies).await;
+        }
+        Ok(())
+    }
+
+    /// Each Custom Image, as its slot and version, of the Library `library` or a Movie, Show or
+    /// Season it has, kept under any of the title's ids.
+    async fn of_library(&self, library: i64) -> sqlx::Result<Vec<(Slot, String)>> {
+        let stored = self.stored().await?;
+        let (mut movie_ids, mut show_ids) = (Vec::new(), Vec::new());
+        for (slot, _) in &stored {
+            match Slot::parse(&slot.0) {
+                Some((_, Subject::Movie(id))) => movie_ids.push(id),
+                Some((_, Subject::Show(id) | Subject::Season(id, _))) => show_ids.push(id),
+                Some((_, Subject::Library)) | None => {}
+            }
+        }
+        // Only the titles some Custom Image names, not the whole Library.
+        let contents = Contents::new(Arc::clone(&self.db));
+        let (movies, shows) = tokio::try_join!(
+            contents.movies(library, Some(&movie_ids)),
+            contents.shows(library, Some(&show_ids))
+        )?;
+        let mut had = HashSet::from([Slot::library(library)]);
+        for movie in movies {
+            for id in iter::once(movie.id).chain(movie.ids.iter()) {
+                had.extend(Role::ALL.map(|role| Slot::movie(&id, role)));
+            }
+        }
+        for show in shows {
+            for id in iter::once(show.id).chain(show.ids.iter()) {
+                had.extend(Role::ALL.map(|role| Slot::show(&id, role)));
+                had.extend(show.seasons.keys().map(|&number| Slot::season(&id, number)));
+            }
+        }
+        Ok(stored
+            .into_iter()
+            .filter(|(slot, _)| had.contains(slot))
+            .collect())
     }
 
     /// The thumbhash of each Custom Image resized so far, by the URL clients fetch it at. A new
