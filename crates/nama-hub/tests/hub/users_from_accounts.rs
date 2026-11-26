@@ -298,7 +298,9 @@ async fn server_token(
 }
 
 #[sqlx::test(migrations = false)]
-async fn an_account_gets_a_server_token_only_for_its_user_on_that_server(db: PgPool) {
+async fn an_account_gets_a_server_token_saying_when_it_signed_in_only_for_its_user_on_that_server(
+    db: PgPool,
+) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;

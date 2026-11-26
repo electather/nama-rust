@@ -18,6 +18,6 @@ Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011
 
 ### Neighbours
 
-- Uses: `accounts` (an `AccountSession`'s proven email and its Recent Authentication check, whose error `links` passes on, whether the Hub sends Sign-in Links, an Account's email, the Account with an email, deleting an Account), `signing` (the token) and `dns` (the Server's names).
+- Uses: `accounts` (an `AccountSession`'s proven email, when it signed in and its Recent Authentication check, whose error `links` passes on, whether the Hub sends Sign-in Links, an Account's email, the Account with an email, deleting an Account), `signing` (the token) and `dns` (the Server's names).
 - Used by: `api`, whose auth layer turns a bearer credential into a `LinkedServer`, and which converts what `links.rs` re-exports, and `diagnostics` (`LinkedServerId`, each Server's volume).
 - Used by: `sync`, `viewing` and `recommendations`, handed it by `api`, for the Accounts a Linked Server's Users are Linked to.

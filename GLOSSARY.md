@@ -55,7 +55,7 @@ A way a User can prove who they are on a Server, or an Account on the Hub, such 
 _Avoid_: credential, account, login, identity
 
 **Recent Authentication**:
-A User on a Device having proved who they are there with one of their Sign-in Methods in the last 10 minutes, or a Hub session with one of its Account's, which sensitive changes need.
+A User on a Device having proved who they are there with one of their Sign-in Methods in the last 10 minutes, or a Hub session with one of its Account's, which sensitive changes need. A Device the web app at the Hub traded a token for has it for 10 minutes from its Account's Hub sign-in (ADR 0105).
 _Avoid_: sudo mode, step-up, fresh session
 
 **Sign-in Code**:
