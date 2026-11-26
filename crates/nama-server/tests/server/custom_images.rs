@@ -758,7 +758,7 @@ async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan
         (show.backdrop_url.unwrap(), &info.backdrop_widths),
         (library.backdrop_url.unwrap(), &info.backdrop_widths),
     ];
-    // As a Custom Image uploaded before its kind was copied ahead has them (#2372).
+    // Without their copies, as a Custom Image uploaded before its kind was copied ahead is (#2372).
     for (url, widths) in &images {
         assert!(url.starts_with("/media/custom-images/"), "{url}");
         until_copied(&fx, url, widths).await;

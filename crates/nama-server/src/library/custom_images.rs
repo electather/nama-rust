@@ -325,21 +325,21 @@ impl CustomImages {
             contents.movies(library, Some(&movie_ids)),
             contents.shows(library, Some(&show_ids))
         )?;
-        let mut had = HashSet::from([Slot::library(library)]);
+        let mut owned = HashSet::from([Slot::library(library)]);
         for movie in movies {
             for id in iter::once(movie.id).chain(movie.ids.iter()) {
-                had.extend(Role::ALL.map(|role| Slot::movie(&id, role)));
+                owned.extend(Role::ALL.map(|role| Slot::movie(&id, role)));
             }
         }
         for show in shows {
             for id in iter::once(show.id).chain(show.ids.iter()) {
-                had.extend(Role::ALL.map(|role| Slot::show(&id, role)));
-                had.extend(show.seasons.keys().map(|&number| Slot::season(&id, number)));
+                owned.extend(Role::ALL.map(|role| Slot::show(&id, role)));
+                owned.extend(show.seasons.keys().map(|&number| Slot::season(&id, number)));
             }
         }
         Ok(stored
             .into_iter()
-            .filter(|(slot, _)| had.contains(slot))
+            .filter(|(slot, _)| owned.contains(slot))
             .collect())
     }
 
