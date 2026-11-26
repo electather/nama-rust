@@ -52,12 +52,14 @@ pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result
 // ponytail: an expired session's row stays until its Account is deleted; sweep them once a
 // periodic job runs in the Hub.
 pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSession>, sqlx::Error> {
+    // `floor`, as a bare cast to bigint rounds: a session made late in a second would say it
+    // signed in during the next one, in the future, in a Server token's `auth_time` (#2405).
     let found = sqlx::query!(
         r#"SELECT account_sessions.id, accounts.id AS account_id, accounts.email,
              accounts.email_proven,
              account_sessions.created_at > now() - make_interval(mins => $3)
                  AS "authenticated_recently!",
-             extract(epoch FROM account_sessions.created_at)::bigint AS "signed_in_at!"
+             floor(extract(epoch FROM account_sessions.created_at))::bigint AS "signed_in_at!"
          FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id
          WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)"#,
         &token_hash(token)[..],

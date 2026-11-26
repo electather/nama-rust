@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE account_sessions\n           SET created_at = date_trunc('second', now()) + interval '750 milliseconds'\n           RETURNING extract(epoch FROM date_trunc('second', now()))::bigint AS \"second!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "second!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "62d5b29d85eb2d41e4aea3b04156bd56e717a873cbdf005854bcaaa486c7ef60"
+}
