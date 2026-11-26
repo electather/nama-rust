@@ -61,6 +61,10 @@ pub(crate) struct AccountSession {
     /// Whether the session signed in within [`RECENT_AUTHENTICATION_MINS`]: read only through
     /// [`AccountSession::require_recent_authentication`], so the rule lives here.
     authenticated_recently: bool,
+    /// When the session signed in, in seconds since the Unix epoch, which a token for the web app
+    /// at the Hub tells a Server, so the Device it trades for has Recent Authentication until then
+    /// plus [`RECENT_AUTHENTICATION_MINS`] (ADR 0105).
+    pub(crate) signed_in_at: i64,
     id: Uuid,
 }
 

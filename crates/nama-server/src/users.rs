@@ -711,7 +711,7 @@ async fn insert_first_admin(
     }
     let user = insert_user(conn, name, Permissions::ADMIN).await?;
     let method = set_password(conn, user.id, credential).await?;
-    let device = insert_device(conn, user.id, Some(method), device, token_hash).await?;
+    let device = insert_device(conn, user.id, Some(method), now(), device, token_hash).await?;
     Ok(Caller { user, device })
 }
 

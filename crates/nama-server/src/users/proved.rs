@@ -14,23 +14,45 @@ pub(crate) enum Proved {
     /// The User by this id, whose Account the Hub vouches signed in (ADR 0092). Their Link isn't
     /// a Sign-in Method the Kernel keeps (ADR 0014), so there is none to name.
     Account(i64),
+    /// The User `user`, whose Account's Hub session, signed in at `signed_in_at`, had the Hub sign
+    /// a token for the web app at the Hub to trade (ADR 0105). Like [`Proved::Account`], it names
+    /// no Sign-in Method.
+    HubSession { user: i64, signed_in_at: i64 },
 }
 
-/// The User `proved` signs a Device in as, and the Sign-in Method it proved, if any. Read in the
-/// write that inserts the Device, so a delete or sign-out since the proof was checked can't slip
-/// through.
+impl Proved {
+    /// When it proved who holds the Device, as of `now`, or 0 if it never did.
+    fn authenticated_at(&self, now: i64) -> i64 {
+        match self {
+            Self::Method { .. } => now,
+            // Whoever approved on the other Device, or on the Hub, may not be the one holding this
+            // Device (ADR 0014).
+            Self::Code(_) | Self::Account(_) => 0,
+            // The page trading the token holds that session itself.
+            Self::HubSession { signed_in_at, .. } => *signed_in_at,
+        }
+    }
+}
+
+/// The User `proved` signs a Device in as, the Sign-in Method it proved, if any, and when it proved
+/// who holds the Device, 0 for never. Read in the write that inserts the Device, so a delete or
+/// sign-out since the proof was checked can't slip through.
 pub(super) async fn proved_user(
     conn: &mut SqliteConnection,
     proved: Proved,
-) -> Result<(User, Option<i64>), Error> {
-    match proved {
+) -> Result<(User, Option<i64>, i64), Error> {
+    let authenticated_at = proved.authenticated_at(now());
+    let (user, method) = match proved {
         Proved::Method { user, method } => {
             ensure_method_exists(conn, user.id, method).await?;
-            Ok((user, Some(method)))
+            (user, Some(method))
         }
-        Proved::Code(approving) => Ok((approving_user(conn, approving).await?, None)),
-        Proved::Account(user) => Ok((user_by_id(conn, user).await?, None)),
-    }
+        Proved::Code(approving) => (approving_user(conn, approving).await?, None),
+        Proved::Account(user) | Proved::HubSession { user, .. } => {
+            (user_by_id(conn, user).await?, None)
+        }
+    };
+    Ok((user, method, authenticated_at))
 }
 
 /// Fails with [`Error::WrongNameOrPassword`] if the User `user` no longer has the Sign-in Method

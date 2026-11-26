@@ -42,9 +42,9 @@ async fn signed_in_device(data_dir: &std::path::Path) -> (Users, i64) {
     users
         .db
         .write(move |tx| {
-            Box::pin(
-                async move { insert_device(tx, ada.id, None, laptop(), &hash_token(TOKEN)).await },
-            )
+            Box::pin(async move {
+                insert_device(tx, ada.id, None, 0, laptop(), &hash_token(TOKEN)).await
+            })
         })
         .await
         .unwrap();
