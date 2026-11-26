@@ -4,13 +4,14 @@ import { useSignInIfSessionEnded } from "@/features/auth/data/use-sign-in-if-ses
 import { LinkService } from "@/gen/nama/hub/v1/link_pb";
 
 /**
- * Approves a sign-in to a Server, then goes back to the Server, which finishes it. When the
- * Account's session ended meanwhile, it signs in again and comes back here.
+ * Approves a sign-in to a Server, then goes back to the Server in place of this page, as the
+ * sign-in is used (`src/routes/AGENTS.md`). The Server finishes it. When the Account's session
+ * ended meanwhile, it signs in again and comes back here.
  */
 export function useApproveServerSignIn() {
   return useMutation(LinkService.method.approveServerSignIn, {
     onSuccess: ({ returnUrl }) => {
-      globalThis.location.assign(returnUrl);
+      globalThis.location.replace(returnUrl);
     },
     onError: useSignInIfSessionEnded(),
   });

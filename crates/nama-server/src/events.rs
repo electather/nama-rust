@@ -10,9 +10,12 @@
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
 //! place.
 
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+};
 
-use futures_util::{Stream, StreamExt, future::BoxFuture, stream};
+use futures_util::{Stream, StreamExt, stream};
 use nama_plugin_api::{
     notifier::{Notification, Notifier},
     points::{self, ObservedEvents},
@@ -32,7 +35,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use self::notifying::{Audience, deliver};
+use self::{
+    notifying::{Audience, deliver},
+    ratings::Ratings,
+};
 use crate::{
     content_ratings::MaximumAge,
     db::Database,
@@ -44,6 +50,8 @@ use crate::{
 };
 
 mod notifying;
+mod ratings;
+pub(crate) use ratings::{Rated, Removed};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -65,6 +73,11 @@ pub(crate) struct EventBus {
     /// The one task that stores personal notifications in inboxes, so they are stored in the
     /// order they were published, and pushes them to their Users' browsers.
     inboxes: Arc<Mutex<Inboxes>>,
+    /// The Requests and Followed Shows removed last, oldest first, [`BUFFERED`] at most. Each
+    /// removal publishes an event after it, so an event about one removed before those is one
+    /// every subscriber has read or lagged past. Their ids are never reused (`AUTOINCREMENT`), so
+    /// a rating kept here is never another row's.
+    removed: Arc<Mutex<VecDeque<Removed>>>,
 }
 
 /// The task that stores personal notifications in inboxes and pushes them, as
@@ -88,50 +101,26 @@ pub(crate) struct Filter {
     pub(crate) libraries: Vec<i64>,
 }
 
-/// Reads the Content Rating of the title the Item it's given is Matched to, `None` for one
-/// without, failing if the Item is no longer Matched to a title of the name it's given, so a
-/// re-Match before the event is delivered can't judge it by another title's. The Library keeps
-/// Matches, above this module.
-// ponytail: a re-Match to a title of the same name is judged by that title's rating; carry the
-// rating beside each Event on the bus if that ever matters.
-type RatingLookup = Arc<
-    dyn Fn(i64, String) -> BoxFuture<'static, Result<Option<String>, sqlx::Error>> + Send + Sync,
->;
-
-/// A subscriber's Maximum Age, and where the Content Rating of each title it judges is read.
-pub(crate) struct AgeCheck {
-    pub(crate) max_age: MaximumAge,
-    pub(crate) ratings: RatingLookup,
-}
-
-impl AgeCheck {
-    /// No Maximum Age: every title gets through, so no Content Rating is ever read.
-    #[cfg(test)]
-    pub(crate) fn uncapped() -> Self {
-        Self {
-            max_age: MaximumAge::default(),
-            ratings: Arc::new(|_, _| Box::pin(async { Ok(None) })),
-        }
-    }
-}
-
-/// Which events a subscriber may see, and what of them, from their Permissions, the Libraries
-/// they see and their Maximum Age. Only this module decides that (see the crate's `AGENTS.md`,
-/// "One owner for who sees an Event").
+/// Which events a subscriber may see, and what of them, from their Permissions and the Libraries
+/// they see. Only this module decides that (see the crate's `AGENTS.md`, "One owner for who sees
+/// an Event").
+#[derive(Debug)]
 struct Viewer {
-    /// Who they are, who alone sees their inbox's events.
+    /// Who they are, who alone sees their inbox's events, and who gets events about their own
+    /// Requests and Followed Shows whatever [`Self::max_age`] says, as the list shows them those.
     user: i64,
     /// Only Library events about these Libraries.
     libraries: LibraryAccess,
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
     requester: Option<i64>,
+    /// Only events about others' Requests and Followed Shows, and `ItemMatched` events, of titles
+    /// this lets through.
+    max_age: MaximumAge,
     /// Only playback events about this User's playing; `None` means every User's.
     player: Option<i64>,
     /// Whether they see where a Library's files are on the Server.
     sees_paths: bool,
-    /// Only `ItemMatched` events naming a title whose Content Rating this allows.
-    age_check: AgeCheck,
 }
 
 /// What an event is about.
@@ -167,7 +156,18 @@ impl EventBus {
             server_url,
             closed: CancellationToken::new(),
             inboxes: Arc::default(),
+            removed: Arc::default(),
         }
+    }
+
+    /// Keeps the Content Rating of each of `removed`, which a write is removing, for subscribers
+    /// to judge events about them by once their rows are gone. Called inside that write, before it
+    /// commits, so no subscriber finds a row gone before its rating is kept here.
+    pub(crate) fn removing(&self, removed: Vec<Removed>) {
+        let mut kept = lock(&self.removed);
+        kept.extend(removed);
+        let over = kept.len().saturating_sub(BUFFERED);
+        kept.drain(..over);
     }
 
     /// Publishes `events`, in order, to each subscriber, and those of the kinds the Plugin contract
@@ -305,29 +305,41 @@ impl EventBus {
         self.sender.subscribe()
     }
 
-    /// The events published from now on that `user`, who sees `libraries` and whose Maximum Age
-    /// `age_check` checks, may see and `filter` lets through, as `user` may see them, with a `Lagged`
+    /// The events published from now on that `user`, who sees `libraries` and has the Maximum Age
+    /// `max_age`, may see and `filter` lets through, as `user` may see them, with a `Lagged`
     /// wherever the subscriber fell too far behind. Ends when the bus is closed.
     pub(crate) fn subscribe(
         &self,
         user: &User,
         libraries: LibraryAccess,
-        age_check: AgeCheck,
+        max_age: MaximumAge,
+        filter: Filter,
+    ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
+        // Fixed for the stream's life: `api::events` ends it when its User's Permissions, Library
+        // access or Maximum Age change.
+        self.stream(Viewer::of(user, libraries, max_age), filter)
+    }
+
+    /// [`Self::subscribe`]'s stream, for `viewer`.
+    fn stream(
+        &self,
+        viewer: Viewer,
         filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
-        // Fixed for the stream's life: `api::events` ends it when its User's Permissions, Library
-        // access or Maximum Age change.
-        let viewer = Viewer::of(user, libraries, age_check);
+        let ratings = Ratings {
+            db: Arc::clone(&self.db),
+            removed: Arc::clone(&self.removed),
+        };
         stream::unfold(
-            (receiver, viewer, filter),
-            |(mut receiver, viewer, filter)| async move {
-                let message = next_message(&mut receiver, &viewer, &filter).await?;
+            (receiver, viewer, filter, ratings),
+            |(mut receiver, viewer, filter, ratings)| async move {
+                let message = next_message(&mut receiver, &viewer, &filter, &ratings).await?;
                 let response = SubscribeResponse {
                     message: Some(message),
                     ..Default::default()
                 };
-                Some((response, (receiver, viewer, filter)))
+                Some((response, (receiver, viewer, filter, ratings)))
             },
         )
         .take_until(self.closed.clone().cancelled_owned())
@@ -346,7 +358,8 @@ impl EventBus {
             permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
-        self.subscribe(&admin, LibraryAccess::All, AgeCheck::uncapped(), filter)
+        let viewer = Viewer::of(&admin, LibraryAccess::All, MaximumAge::default());
+        self.stream(viewer, filter)
     }
 
     /// Ends every subscription, as the Server shuts down, so none holds up the shutdown.
@@ -372,17 +385,18 @@ impl Filter {
 
 /// The next event from `receiver` that `viewer` may see and `filter` lets through, as `viewer`
 /// may see it, or a `Lagged` if events were dropped first. `None` once nothing more can be
-/// published.
+/// published. Reads the Content Ratings `viewer`'s Maximum Age asks for from `ratings`.
 async fn next_message(
     receiver: &mut broadcast::Receiver<Event>,
     viewer: &Viewer,
     filter: &Filter,
+    ratings: &Ratings,
 ) -> Option<subscribe_response::Message> {
     loop {
         match receiver.recv().await {
             Ok(event) if filter.lets_through(&event) => {
                 if let Some(seen) = viewer.sees(event)
-                    && viewer.allows_title_of(&seen).await
+                    && viewer.allows_title_of(ratings, &seen).await
                 {
                     return Some(seen.into());
                 }
@@ -619,21 +633,63 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 }
 
 impl Viewer {
-    fn of(user: &User, libraries: LibraryAccess, age_check: AgeCheck) -> Self {
+    fn of(user: &User, libraries: LibraryAccess, max_age: MaximumAge) -> Self {
         Self {
             user: user.id,
             libraries,
             requester: user.whose_requests(),
+            max_age,
             player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
-            age_check,
+        }
+    }
+
+    /// Whether this viewer's Maximum Age lets `event` reach them: one about another User's Request
+    /// or Followed Show, or any `ItemMatched`, of a title over it doesn't, as their lists leave
+    /// those out. One whose rating can't be read, logged, doesn't either.
+    async fn allows_title_of(&self, ratings: &Ratings, event: &Event) -> bool {
+        if self.max_age.lets_every_title() {
+            return true;
+        }
+        if let Some(event::Event::ItemMatched(matched)) = &event.event {
+            return match ratings.of_match(matched.item_id, &matched.title).await {
+                Ok(rating) => self.max_age.allows(rating.as_deref()),
+                Err(err) => {
+                    warn!(
+                        item = matched.item_id,
+                        "a subscriber with a Maximum Age wasn't told of a Match whose Content \
+                         Rating couldn't be read: {err}"
+                    );
+                    false
+                }
+            };
+        }
+        let row = match classify(event) {
+            Some((_, About::Request(request)))
+                if !users::is_requester(self.user, &request.requesters) =>
+            {
+                Rated::Request(request.id)
+            }
+            Some((_, About::FollowedShow(followed)))
+                if !users::is_requester(self.user, &followed.requesters) =>
+            {
+                Rated::FollowedShow(followed.id)
+            }
+            _ => return true,
+        };
+        match ratings.of(row).await {
+            Ok(Some(rating)) => self.max_age.allows(rating.as_deref()),
+            Ok(None) => false,
+            Err(err) => {
+                error!("could not read the Content Rating of {row:?} for a subscriber: {err}");
+                false
+            }
         }
     }
 
     /// `event` as this viewer may see it, or `None` if they may not see it at all. A Library event
     /// reaches those who see its Library, as `ListLibraries` lists it to them, but with the path
-    /// of a file left out for those who may not see `folders` there. Whether a title it names
-    /// gets past their Maximum Age is [`Self::allows_title_of`]'s to answer.
+    /// of a file left out for those who may not see `folders` there.
     fn sees(&self, mut event: Event) -> Option<Event> {
         let (_, about) = classify(&event)?;
         let visible = match about {
@@ -653,30 +709,6 @@ impl Viewer {
             added.path.clear();
         }
         Some(event)
-    }
-
-    /// Whether this viewer's Maximum Age lets them be told the title `event` names, as an
-    /// `ItemMatched` does, judged by its Match's Content Rating. One that can't be read keeps it
-    /// from a viewer with a Maximum Age.
-    async fn allows_title_of(&self, event: &Event) -> bool {
-        let Some(event::Event::ItemMatched(matched)) = &event.event else {
-            return true;
-        };
-        let AgeCheck { max_age, ratings } = &self.age_check;
-        if max_age.lets_every_title() {
-            return true;
-        }
-        match ratings(matched.item_id, matched.title.clone()).await {
-            Ok(rating) => max_age.allows(rating.as_deref()),
-            Err(err) => {
-                warn!(
-                    item = matched.item_id,
-                    "a subscriber with a Maximum Age wasn't told of a Match whose Content Rating \
-                     couldn't be read: {err}"
-                );
-                false
-            }
-        }
     }
 }
 

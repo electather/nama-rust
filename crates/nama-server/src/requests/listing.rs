@@ -14,8 +14,9 @@ use super::followed::load_followed;
 use super::quality::stored_quality;
 use super::state::{open_request, open_requests, open_season_requests, read_state, stored};
 use super::{Error, Requests};
+use crate::content_ratings::MaximumAge;
 use crate::page::Page;
-use crate::users::{User, may_see};
+use crate::users::{User, is_requester, maximum_age, may_see};
 
 /// The client API's id `value` in `namespace`.
 pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
@@ -34,22 +35,73 @@ pub(super) fn read_title_id(text: &str) -> Result<ExternalId, sqlx::Error> {
     Ok(title_id(id.namespace(), &id.value()))
 }
 
-/// Hands `$query!` the SQL for the Requests and Followed Shows the User `?1` may see, or all if
-/// it is NULL, in the state `?2`, or any if it is NULL: one row each of `is_request`, `id` and
-/// `created_at`. It asks `may_see`'s question in SQL, so a page reads only the keys it sorts.
+/// Hands `$query!` the SQL for the Requests and Followed Shows a viewer may see, as [`Seen`]
+/// binds them to `?1` and `?3` to `?5`, in the state `?2`, or any if it is NULL: one row each of
+/// `is_request`, `id` and `created_at`. It asks `may_see`'s question in SQL, so a page reads only
+/// the keys it sorts.
 macro_rules! listed_sql {
     ($query:ident) => {
         $query!(
             "SELECT 1 AS is_request, id, created_at FROM requests
              WHERE (?2 IS NULL OR state = ?2)
                AND (?1 IS NULL OR id IN (SELECT request_id FROM requesters WHERE user_id = ?1))
+               AND (?3 IS NULL OR content_rating IN (SELECT value FROM json_each(?3))
+                    OR (content_rating IS NULL AND ?4)
+                    OR id IN (SELECT request_id FROM requesters WHERE user_id = ?5))
              UNION ALL
              SELECT 0, id, created_at FROM followed_shows
              WHERE (?2 IS NULL OR state = ?2)
                AND (?1 IS NULL OR id IN (SELECT followed_show_id FROM followed_show_requesters
-                                         WHERE user_id = ?1))"
+                                         WHERE user_id = ?1))
+               AND (?3 IS NULL OR content_rating IN (SELECT value FROM json_each(?3))
+                    OR (content_rating IS NULL AND ?4)
+                    OR id IN (SELECT followed_show_id FROM followed_show_requesters
+                              WHERE user_id = ?5))"
         )
     };
+}
+
+/// Whose Requests and Followed Shows a viewer's list holds, as [`listed_sql!`] binds it: those
+/// [`User::whose_requests`] lets them see, less others' for a title over their Maximum Age (#1414).
+/// Their own stay, as they asked while it let them.
+struct Seen {
+    whose: Option<i64>,
+    /// The stored Content Ratings their Maximum Age lets through, as a JSON array, or `None` to
+    /// let every one through. Judged in Rust, as `minimum_age` is, for SQL to match.
+    ratings: Option<String>,
+    allow_unrated: bool,
+    viewer: i64,
+}
+
+impl Seen {
+    /// What `viewer`, whose Maximum Age is `max_age`, sees, read in the snapshot `conn` is in.
+    async fn read(
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        max_age: MaximumAge,
+    ) -> Result<Self, sqlx::Error> {
+        let whose = viewer.whose_requests();
+        let ratings = if whose.is_some() || max_age.lets_every_title() {
+            None
+        } else {
+            let stored = sqlx::query_scalar!(
+                r#"SELECT content_rating AS "content_rating!" FROM requests
+                   WHERE content_rating IS NOT NULL
+                   UNION
+                   SELECT content_rating FROM followed_shows WHERE content_rating IS NOT NULL"#
+            )
+            .fetch_all(conn)
+            .await?;
+            let allowed = stored.iter().filter(|rating| max_age.allows(Some(rating)));
+            Some(serde_json::Value::from_iter(allowed.map(String::as_str)).to_string())
+        };
+        Ok(Self {
+            whose,
+            ratings,
+            allow_unrated: max_age.allow_unrated,
+            viewer: viewer.id,
+        })
+    }
 }
 
 /// The sort key of [`Requests::list`]'s newest-first order, tie-broken by id: when a row opened,
@@ -68,13 +120,14 @@ impl Requests {
         let state = state.map(stored);
         let list = format!("ListRequests {}", state.unwrap_or_default());
         let page = Page::<Place>::read(asked, list.as_bytes())?;
-        let whose = viewer.whose_requests();
+        let max_age = maximum_age(&self.db, viewer.id).await?;
         // One snapshot, so the count, the page and its rows agree.
         let mut tx = self.db.reader().begin().await?;
-        let mut rows = page_rows(&mut tx, whose, state, &page).await?;
+        let seen = Seen::read(&mut tx, viewer, max_age).await?;
+        let mut rows = page_rows(&mut tx, &seen, state, &page).await?;
         let mut paging = page.finish(&mut rows, |row| ((row.created_at, row.is_request), row.id));
         if page.is_first() {
-            let total = count(&mut tx, whose, state).await?;
+            let total = count(&mut tx, &seen, state).await?;
             paging.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
         }
         let mut listed = ListRequestsResponse {
@@ -85,7 +138,7 @@ impl Requests {
         // each for Requests and Followed Shows if pages get slow.
         for row in rows {
             if row.is_request {
-                let request = self.visible(&mut tx, Some(row.id), viewer).await?;
+                let request = (self.visible_under(&mut tx, Some(row.id), viewer, max_age)).await?;
                 listed.requests.extend(request);
             } else {
                 let followed = load_followed(&mut tx, Some(row.id), None).await?;
@@ -98,13 +151,10 @@ impl Requests {
     /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
     /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
     pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
-        let mut conn = self.db.reader().acquire().await?;
-        count(
-            &mut conn,
-            viewer.whose_requests(),
-            Some(stored(RequestState::Pending)),
-        )
-        .await
+        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let mut tx = self.db.reader().begin().await?;
+        let seen = Seen::read(&mut tx, viewer, max_age).await?;
+        count(&mut tx, &seen, Some(stored(RequestState::Pending))).await
     }
 
     /// The Request `id`, if `viewer` may see it.
@@ -174,19 +224,56 @@ impl Requests {
     /// The Requests `viewer` may see, newest first, only the one with the ID `id` if given, each
     /// with what its Fulfiller is downloading for it.
     ///
-    /// The one read of a Request for a viewer, so none misses its downloads.
+    /// The one read of a Request for a viewer, so none misses its downloads or the viewer's
+    /// Maximum Age.
     async fn visible(
         &self,
         conn: &mut SqliteConnection,
         id: Option<i64>,
         viewer: &User,
     ) -> Result<Vec<Request>, sqlx::Error> {
-        let requests = load(conn, id, viewer.whose_requests()).await?;
-        Ok(requests
-            .into_iter()
-            .map(|request| self.progress.attach(request))
-            .collect())
+        let max_age = maximum_age(&self.db, viewer.id).await?;
+        self.visible_under(conn, id, viewer, max_age).await
     }
+
+    /// [`Self::visible`], for a viewer whose Maximum Age is `max_age`.
+    async fn visible_under(
+        &self,
+        conn: &mut SqliteConnection,
+        id: Option<i64>,
+        viewer: &User,
+        max_age: MaximumAge,
+    ) -> Result<Vec<Request>, sqlx::Error> {
+        let mut visible = Vec::new();
+        for request in load(conn, id, viewer.whose_requests()).await? {
+            if title_seen(conn, viewer, max_age, &request).await? {
+                visible.push(self.progress.attach(request));
+            }
+        }
+        Ok(visible)
+    }
+}
+
+/// Whether `viewer`, whose Maximum Age is `max_age`, sees the title of `request`: theirs whatever
+/// its stored Content Rating, as they asked while it let them, another's only if that rating
+/// passes (#1414), as [`listed_sql!`] asks it.
+async fn title_seen(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    max_age: MaximumAge,
+    request: &Request,
+) -> Result<bool, sqlx::Error> {
+    if max_age.lets_every_title() || is_requester(viewer.id, &request.requesters) {
+        return Ok(true);
+    }
+    let rating = sqlx::query_scalar!(
+        "SELECT content_rating FROM requests WHERE id = ?",
+        request.id
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    // Gone since it was loaded, so not there to see.
+    Ok(rating.is_some_and(|rating| max_age.allows(rating.as_deref())))
 }
 
 /// A row of [`Requests::list`], before it is read in full.
@@ -196,11 +283,11 @@ struct Row {
     created_at: i64,
 }
 
-/// The rows of `page` of the Requests and Followed Shows the User `whose` may see, or all if
-/// `None`, in the stored state `state`, or any if `None`, newest first.
+/// The rows of `page` of the Requests and Followed Shows `seen` holds, in the stored state
+/// `state`, or any if `None`, newest first.
 async fn page_rows(
     conn: &mut SqliteConnection,
-    whose: Option<i64>,
+    seen: &Seen,
     state: Option<&str>,
     page: &Page<Place>,
 ) -> Result<Vec<Row>, sqlx::Error> {
@@ -219,11 +306,14 @@ async fn page_rows(
                    FROM ("#
                     + $listed
                     + r#")
-                   WHERE ?3 IS NULL OR (created_at, is_request, id) < (?3, ?4, ?5)
+                   WHERE ?6 IS NULL OR (created_at, is_request, id) < (?6, ?7, ?8)
                    ORDER BY created_at DESC, is_request DESC, id DESC
-                   LIMIT ?6"#,
-                whose,
+                   LIMIT ?9"#,
+                seen.whose,
                 state,
+                seen.ratings,
+                seen.allow_unrated,
+                seen.viewer,
                 opened_before,
                 request_before,
                 id_before,
@@ -234,19 +324,22 @@ async fn page_rows(
     listed_sql!(page_rows).fetch_all(conn).await
 }
 
-/// How many of the Requests and Followed Shows the User `whose` may see, or all if `None`, are
-/// in the stored state `state`, or any if `None`.
+/// How many of the Requests and Followed Shows `seen` holds are in the stored state `state`, or
+/// any if `None`.
 async fn count(
     conn: &mut SqliteConnection,
-    whose: Option<i64>,
+    seen: &Seen,
     state: Option<&str>,
 ) -> Result<u32, sqlx::Error> {
     macro_rules! count {
         ($listed:literal) => {
             sqlx::query_scalar!(
                 r#"SELECT COUNT(*) AS "count!: u32" FROM ("# + $listed + ")",
-                whose,
-                state
+                seen.whose,
+                state,
+                seen.ratings,
+                seen.allow_unrated,
+                seen.viewer
             )
         };
     }

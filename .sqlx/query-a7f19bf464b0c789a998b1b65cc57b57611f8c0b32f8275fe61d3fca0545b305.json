@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT content_rating AS \"content_rating!\" FROM requests\n                   WHERE content_rating IS NOT NULL\n                   UNION\n                   SELECT content_rating FROM followed_shows WHERE content_rating IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "a7f19bf464b0c789a998b1b65cc57b57611f8c0b32f8275fe61d3fca0545b305"
+}

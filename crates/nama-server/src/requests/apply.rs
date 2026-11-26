@@ -7,16 +7,19 @@ use sqlx::{Sqlite, Transaction};
 use super::state::state_changed;
 use super::{Error, Requests};
 use crate::db::{BoxFuture, detached};
+use crate::events::Removed;
 
 /// What a write to Requests did: its `value`, the events it built for what happened, the Requests
-/// it approved, which [`Requests::apply`] hands off, and the Season Request of a Followed Show it
-/// ended, whose Show the Shows Fulfiller stops following.
+/// it approved, which [`Requests::apply`] hands off, the Season Request of a Followed Show it
+/// ended, whose Show the Shows Fulfiller stops following, and the Requests and Followed Shows it
+/// removed.
 #[derive(Debug)]
 pub(super) struct Applied<T> {
     pub(super) value: T,
     pub(super) events: Vec<Event>,
     pub(super) hand_off: Vec<Request>,
     pub(super) unfollow: Option<Request>,
+    pub(super) removed: Vec<Removed>,
 }
 
 impl<T> Applied<T> {
@@ -27,6 +30,7 @@ impl<T> Applied<T> {
             events: Vec::new(),
             hand_off: Vec::new(),
             unfollow: None,
+            removed: Vec::new(),
         }
     }
 
@@ -128,11 +132,15 @@ impl Requests {
             + 'static,
     {
         let claiming = self.hand_off.clone();
+        let bus = self.events.clone();
         let (applied, claims) = self
             .db
             .write(move |tx| {
                 Box::pin(async move {
-                    let applied = write(tx).await?;
+                    let mut applied = write(tx).await?;
+                    // Before the commit, so a subscriber reading an event about one never finds it
+                    // gone and its Content Rating unknown.
+                    bus.removing(std::mem::take(&mut applied.removed));
                     // The came-up sweep reads only committed Requests, so claiming them before the
                     // commit keeps it off this write's. A failed commit drops the claims.
                     let claims: Vec<_> = applied
@@ -149,6 +157,7 @@ impl Requests {
             events,
             hand_off,
             unfollow,
+            ..
         } = applied;
         self.events.publish(events);
         if let Some(season) = unfollow {
