@@ -6,14 +6,14 @@ import { onServer } from "@/shared/lib/server";
 /** Where a Version's Preview frames are: their layout, and the path its sheets are numbered under. */
 export interface FrameSheets {
   frames: PreviewFrames;
-  /** Such as `/media/versions/7/preview-frames` on the Server, which `/<n>.jpg` follows. */
+  /** Such as `/media/signed/<grant>/<signature>/versions/7/preview-frames` on the Server, which `/<n>.jpg` follows. */
   path: string;
 }
 
 /**
  * The Preview frames of Version `versionId` on the Server `transport` talks to, as `plan` lays
- * them out, if it has any. They load under the prefix of the plan's URL, signed or not, since an
- * `<img>` can't send a bearer token (ADR 0105).
+ * them out, if it has any. They load under what precedes `/versions/` or `/plans/` in the plan's URL, which
+ * is its signed prefix when signed (an `<img>` can't send a bearer token, ADR 0105), else `/media`.
  */
 export function frameSheets(plan: PlaybackPlan, versionId: bigint, transport: Transport) {
   const { previewFrames: frames } = plan;

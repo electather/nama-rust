@@ -18,7 +18,12 @@ test("a signed plan's Preview frames load under its signed prefix", () => {
 });
 
 test("an unsigned plan's Preview frames load from the Version's own path", () => {
-  for (const url of ["/media/versions/7/stream", "/media/plans/3/index.m3u8", ""]) {
+  for (const url of [
+    "/media/versions/7/stream",
+    "/media/plans/3/index.m3u8",
+    "/elsewhere/stream",
+    "",
+  ]) {
     expect(pathFor(url)).toBe("/media/versions/7/preview-frames");
   }
 });
