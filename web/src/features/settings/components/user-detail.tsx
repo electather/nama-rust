@@ -9,9 +9,9 @@ import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { labelsOf } from "@/shared/lib/permissions";
 
 /**
- * The User `user` in place of the list, under the crumbs back to it: resetting their password and
- * deleting them at the end of their name, then their Permissions, cap, Maximum Age and Libraries, saved as
- * they're changed when `you` may, and their Devices.
+ * The User `user` in place of the list, under the crumbs back to it: resetting their password,
+ * clearing their Switch PIN and deleting them at the end of their name, then their Permissions,
+ * cap, Maximum Age and Libraries, saved as they're changed when `you` may, and their Devices.
  */
 export function UserDetail({ user, you }: { user: User; you: User | undefined }) {
   const titleId = useId();

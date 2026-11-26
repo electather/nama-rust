@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { useClearSwitchPin } from "@/features/settings/data/use-clear-switch-pin";
 import { useSetSwitchPin } from "@/features/settings/data/use-set-switch-pin";
 import { switchPinRefused } from "@/features/settings/lib/switch-pin";
+import { useClearSwitchPin } from "@/shared/hooks/use-clear-switch-pin";
 import { formText } from "@/shared/lib/forms";
 
 /** Setting or clearing the signed-in User's own Switch PIN from the Sign-in pane. */
