@@ -79,6 +79,8 @@ export default defineConfig({
     // Tests live in `__tests__` folders.
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
+    // Compiles only nama-ui's stylesheet, for tests that check its page-wide rules; other CSS stays empty.
+    css: { include: [/ui\/src\/styles\.css/u] },
     setupFiles: ["src/test-setup.ts"],
     retry: ci ? 2 : 0,
     // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-setup.ts` raises Testing Library's wait to match).

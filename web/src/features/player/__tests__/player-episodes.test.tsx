@@ -5,7 +5,7 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
 
 beforeEach(() => {
   // Laid out, the panel's list shows 400px and each of its rows is 100px tall. Without a
@@ -45,14 +45,21 @@ function episode(seasonNumber: number, episodeNumber: number) {
 }
 
 /**
- * A fake Server with `seasons` Seasons of Dark in Library 2, autoplay `on` or off. `asked` holds
- * the Season of each `ListEpisodes` asked, `undefined` for the whole Show.
+ * A fake Server with `seasons` Seasons of Dark in Library 2, autoplay `on` or off, which anyone
+ * signs in to. `asked` holds the Season of each `ListEpisodes` asked, `undefined` for the whole Show.
  */
 function server(on = true, seasons = 2) {
   const asked: (number | undefined)[] = [];
   const numbers = Array.from({ length: seasons }, (_, index) => index + 1);
-  const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
-  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+  const state: ServerState = {
+    signedIn: newUser,
+    libraries: [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }],
+  };
+  const signIn = () => {
+    state.signedIn = newUser;
+    return {};
+  };
+  const transport = fakeServer(state, { signIn }, {}, (router) => {
     router.service(BrowseService, {
       // For the Show's page.
       listGenres: () => ({}),
@@ -82,7 +89,7 @@ function server(on = true, seasons = 2) {
     });
     router.service(WatchStateService, { reportProgress: () => ({}) });
   });
-  return { transport, asked };
+  return { transport, asked, state };
 }
 
 /** Opens Episode 2's player, of a Show with `seasons` Seasons, and its Episodes panel. */
@@ -152,4 +159,56 @@ test("next Episode links to the one after, with autoplay off too", async () => {
 
   const next = await screen.findByRole("link", { name: "Next Episode: Past and Present" });
   expect(next.getAttribute("href")).toBe(`${SHOW}/seasons/1/episodes/3/play`);
+});
+
+test("back from a player opened on the Show's page, after another Episode, leaves history as before", async () => {
+  const { transport } = server();
+  const router = openApp(SHOW, transport);
+  fireEvent.click(await screen.findByRole("link", { name: /^Play/u }));
+  fireEvent.click(await screen.findByRole("link", { name: /^Next Episode/u }));
+  await screen.findByLabelText("Lies");
+
+  fireEvent.click(screen.getByRole("link", { name: "Back" }));
+
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(router.state.location.pathname).toBe(SHOW);
+  expect(router.history.canGoBack()).toBe(false);
+});
+
+test("back from a player opened by its link opens the Show's page in its place", async () => {
+  const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, server().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Back" }));
+
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(router.state.location.href).toBe(`${SHOW}?season=1`);
+  expect(router.history.canGoBack()).toBe(false);
+});
+
+test("back from a player its link opened signed out, after signing in, opens the Show's page in its place", async () => {
+  const { transport, state } = server();
+  delete state.signedIn;
+  const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, transport);
+  fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "Sam" } });
+  fill("Password", "correct horse");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  fireEvent.click(await screen.findByRole("link", { name: "Back" }));
+
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(router.state.location.href).toBe(`${SHOW}?season=1`);
+  expect(router.history.canGoBack()).toBe(false);
+});
+
+test("a Ctrl-click on Back leaves the player playing, for the browser to open the Show's page elsewhere", async () => {
+  const { transport } = server();
+  const router = openApp(SHOW, transport);
+  fireEvent.click(await screen.findByRole("link", { name: /^Play/u }));
+  const back = await screen.findByRole("link", { name: "Back" });
+  const playing = router.state.location.pathname;
+
+  fireEvent.click(back, { ctrlKey: true });
+
+  expect(router.state.location.pathname).toBe(playing);
+  expect(playing).toMatch(/\/play$/u);
 });
