@@ -43,10 +43,7 @@ async fn a_movie_and_a_show_with_the_same_tmdb_id_have_requests_of_their_own() {
         content_rating: None,
     });
 
-    let ids = db
-        .write(move |tx| Box::pin(ask_each(tx, wanted.into(), RequestState::Pending)))
-        .await
-        .unwrap();
+    let ids = ask_each(&db, wanted.into(), RequestState::Pending).await;
 
     assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 3, "{ids:?}");
     assert_eq!(
@@ -195,10 +192,7 @@ async fn a_season_request_lists_every_id_its_show_was_asked_with_and_is_kept_und
         content_rating: None,
     };
 
-    let id = db
-        .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
-        .await
-        .unwrap()[0];
+    let id = ask_each(&db, vec![wanted], RequestState::Pending).await[0];
 
     let request = db
         .write(move |tx| Box::pin(load_one(tx, id)))
