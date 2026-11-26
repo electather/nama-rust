@@ -33,9 +33,12 @@ use sqlx::SqliteConnection;
 
 use crate::{
     db::Database,
-    images::{Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, UploadError, percent_decode},
+    images::{
+        Asked, BACKDROP_WIDTHS, CUSTOM_IMAGES_DIR, ImageStore, POSTER_WIDTHS, Received, Resize,
+        UploadError, percent_decode,
+    },
     library::{
-        artwork::{Artwork, Error as ArtworkError, poster_copies},
+        artwork::{Artwork, Error as ArtworkError},
         contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
     },
     server_settings::ImageSettings,
@@ -137,9 +140,13 @@ impl Slot {
         Self(format!("library/{id}/backdrop"))
     }
 
-    /// Whether it is a title's or a Season's Poster.
-    fn is_poster(&self) -> bool {
-        self.0.ends_with("/poster")
+    /// The widths the web app offers its image at, which an upload is resized to ahead of it.
+    fn widths(&self) -> &'static [u32] {
+        if self.0.ends_with("/poster") {
+            &POSTER_WIDTHS
+        } else {
+            &BACKDROP_WIDTHS
+        }
     }
 
     /// The Library whose image it is, if it is a Library's.
@@ -501,11 +508,7 @@ async fn upload(
         }
         Err(err) => return failed("keep", &err.into()),
     }
-    let copies = if slot.is_poster() {
-        poster_copies(&images)
-    } else {
-        Vec::new()
-    };
+    let copies = Resize::each(slot.widths(), &images);
     // The write commits even if the client goes away, so deleting what it replaced must follow
     // (ADR 0029).
     let uploaded = tokio::spawn(async move {
