@@ -22,7 +22,7 @@ export function SendSignInLink({ redirect }: { redirect: string | undefined }) {
       }}
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          <Link to="/sign-in" search={{ redirect }} className={textLink}>
+          <Link to="/sign-in" search={{ redirect }} replace className={textLink}>
             Sign in with a password
           </Link>
         </p>

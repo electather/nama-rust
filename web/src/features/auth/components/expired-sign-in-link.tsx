@@ -10,7 +10,7 @@ export function ExpiredSignInLink() {
       <p className="text-center text-base text-pretty">
         Each Sign-in Link works once, within 15 minutes. Ask for a new one to sign in.
       </p>
-      <Link to="/send-sign-in-link" className={buttonVariants({ size: "lg" })}>
+      <Link to="/send-sign-in-link" replace className={buttonVariants({ size: "lg" })}>
         Email me a new Sign-in Link
       </Link>
     </SignInCard>

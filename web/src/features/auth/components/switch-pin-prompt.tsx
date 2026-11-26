@@ -24,7 +24,7 @@ export function SwitchPinPrompt({ user, redirect }: { user: User; redirect: stri
       }}
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          <Link to="/switch-user" search={{ redirect }} className={textLink}>
+          <Link to="/switch-user" search={{ redirect }} replace className={textLink}>
             Pick another User
           </Link>
         </p>

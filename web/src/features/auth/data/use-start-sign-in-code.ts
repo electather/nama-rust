@@ -7,10 +7,10 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 const lifetime = 10 * 60 * 1000;
 
 /**
- * Asks for a Sign-in Code for this browser, then shows it at `/sign-in/code/waiting`, in place of
- * this page when `replace`, such as for a new code in place of an expired one.
+ * Asks for a Sign-in Code for this browser, then shows it at `/sign-in/code/waiting` in place of
+ * this page: signing in leaves one history entry, for finishing to take the place of (#2435).
  */
-export function useStartSignInCode(redirect: string | undefined, replace: boolean) {
+export function useStartSignInCode(redirect: string | undefined) {
   const navigate = useNavigate();
   return useMutation(SignInService.method.startSignInCode, {
     onSuccess: async ({ code, handle }, { deviceName = "" }) => {
@@ -20,7 +20,7 @@ export function useStartSignInCode(redirect: string | undefined, replace: boolea
         to: "/sign-in/code/waiting",
         search: { redirect },
         state: { waitingCode: { code, handle, deviceName, expiresAt } },
-        replace,
+        replace: true,
       });
     },
   });

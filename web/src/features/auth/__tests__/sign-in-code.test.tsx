@@ -30,7 +30,10 @@ async function nextPoll() {
   });
 }
 
-/** A signed-out Server showing "ABCD-EFGH" for "Living room TV", until `approve()` is called. */
+/**
+ * A signed-out Server showing "ABCD-EFGH" for "Living room TV", until `approve()` is called, or
+ * signing in with a password.
+ */
 function serverWaitingForApproval() {
   const state: ServerState = {};
   const transport = fakeServer(state, {
@@ -44,6 +47,10 @@ function serverWaitingForApproval() {
         return { status: SignInCodeStatus.WAITING };
       }
       return { status: SignInCodeStatus.SIGNED_IN };
+    },
+    signIn: () => {
+      state.signedIn = newUser;
+      return {};
     },
   });
   return {
@@ -68,20 +75,35 @@ test("once the code is approved, polling signs the browser in", async () => {
   expect(router.state.location.pathname).toBe("/code");
 });
 
-test("back and forward step through signing in with a code, code and all", async () => {
-  const router = openApp("/sign-in", serverWaitingForApproval().transport);
+// Each sign-in page takes the last one's place, and finishing takes the last one's: a sign-in
+// page left in history would send Back straight on to where signing in went (#2435).
+test("signing in with a code leaves no sign-in page in history", async () => {
+  const { transport, approve } = serverWaitingForApproval();
+  const router = openApp("/sign-in?redirect=%2Fcode", transport);
 
   await getCode();
   await screen.findByText("ABCD-EFGH");
-  router.history.back();
-  await screen.findByRole("button", { name: "Get a code" });
-  router.history.back();
-  await screen.findByRole("button", { name: "Sign in" });
+  expect(router.history.canGoBack()).toBe(false);
+  approve();
+  await nextPoll();
 
-  router.history.forward();
-  await screen.findByRole("button", { name: "Get a code" });
-  router.history.forward();
-  await expect(screen.findByText("ABCD-EFGH")).resolves.toBeDefined();
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  expect(router.state.location.pathname).toBe("/code");
+  expect(router.history.canGoBack()).toBe(false);
+});
+
+test("password, then code, then password again, leaves no sign-in page in history", async () => {
+  const router = openApp("/sign-in?redirect=%2Fcode", serverWaitingForApproval().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in with a code" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in with a password" }));
+  fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "Sam" } });
+  fill("Password", "correct horse");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  expect(router.state.location.pathname).toBe("/code");
+  expect(router.history.canGoBack()).toBe(false);
 });
 
 /**

@@ -177,8 +177,20 @@ test("a Device acting as none of its Users opens the User picker, then the page"
   expect(router.state.location.pathname).toBe("/code");
 });
 
+test("switching to a User with a Switch PIN leaves neither the picker nor the PIN in history", async () => {
+  const router = openApp("/code", sharedTv(0n).transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Ada" }));
+  await screen.findByRole("heading", { name: "Enter Ada’s Switch PIN" });
+  enterPin("1234");
+
+  await screen.findByRole("button", { name: "Ada’s menu" });
+  expect(router.state.location.pathname).toBe("/code");
+  expect(router.history.canGoBack()).toBe(false);
+});
+
 test("adding another User signs them in to this Device beside the others", async () => {
-  openApp("/switch-user", sharedTv().transport);
+  const router = openApp("/switch-user", sharedTv().transport);
 
   fireEvent.click(await screen.findByRole("link", { name: "Add another User" }));
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
@@ -188,6 +200,8 @@ test("adding another User signs them in to this Device beside the others", async
 
   await expectPicker(["Sam", "Ada", "Kim", "Lee"]);
   expect(screen.getByRole("button", { name: "Lee" }).getAttribute("aria-current")).toBe("true");
+  // The picker takes the sign-in page's place, which took the first picker's.
+  expect(router.history.canGoBack()).toBe(false);
 });
 
 test("signing out signs out only the User the Device acts as, and the picker offers the others", async () => {
