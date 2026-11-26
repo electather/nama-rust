@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { rgbaToThumbHash, thumbHashToDataURL } from "thumbhash";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -257,7 +257,7 @@ test("a search that finds nothing says so", async () => {
   await expect(screen.findByText("No results for “dune”")).resolves.toBeDefined();
 });
 
-test("a search that fails offers Retry, which searches again", async () => {
+test("a search that fails says so and offers Retry, which searches again", async () => {
   let answer = down;
   const search: Search = (request, context) => answer(request, context);
   openApp("/code", serverToSearch(search));
@@ -265,6 +265,9 @@ test("a search that fails offers Retry, which searches again", async () => {
 
   type(field, "office");
   const retry = await screen.findByRole("option", { name: /^Retry/u });
+  expect(
+    within(retry).getByText("Couldn’t search. Check your connection and try again."),
+  ).toBeDefined();
   answer = findsOffice;
   fireEvent.click(retry);
 
@@ -384,7 +387,7 @@ test("a search whose title source failed lists the Library's titles with a quiet
   type(field, "office");
 
   await expect(
-    screen.findByText("Titles to request couldn’t be searched, so only this Server’s are listed."),
+    screen.findByText("Titles to request couldn’t be searched, so some may be missing."),
   ).resolves.toBeDefined();
   expect(rows()).toStrictEqual(["Office Space1999Open"]);
 });

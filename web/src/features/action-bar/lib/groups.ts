@@ -83,7 +83,7 @@ function results(
   { open, openPerson, retry }: BarActions,
 ): Group[] {
   if (failed) {
-    const hint = "Couldn’t reach the Server. Check your connection and try again.";
+    const hint = "Couldn’t search. Check your connection and try again.";
     return [
       {
         heading: "Search failed",
