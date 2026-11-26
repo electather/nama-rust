@@ -292,7 +292,7 @@ impl LocalImages {
             tokio::try_join!(self.contents.titles_local_images(), custom_images.urls())?;
         // Filed from the rows just read, which `InPlaceOfDownloaded::read` would read again.
         let in_place = InPlaceOfDownloaded::new(custom, LocalImageUrls::filed(&images));
-        let shown = |image: &TitleLocalImage| {
+        let is_shown = |image: &TitleLocalImage| {
             image.library == library
                 && image.shown_as().is_some_and(|shown_as| {
                     in_place.shows_beside_media(&image.ids, shown_as, &url(library, &image.stored))
@@ -300,7 +300,7 @@ impl LocalImages {
         };
         Ok(images
             .into_iter()
-            .filter(shown)
+            .filter(is_shown)
             .map(|image| (image.stored, image.role))
             .collect())
     }
