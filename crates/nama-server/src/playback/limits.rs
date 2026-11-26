@@ -55,7 +55,7 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
             cap.name
         );
         // A cap is best-effort for a picture of unknown size, which still plays (ADR 0031).
-        if picture(facts).is_none() {
+        if picture(facts).is_none() && !has_no_video(facts) {
             return vec![limit_reason(
                 Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
                 cap,
@@ -189,7 +189,7 @@ pub(super) fn playback_limit(facts: &Facts, candidates: Option<&Candidates>) -> 
         ];
     }
     // The network step already said a remote cap can't be applied to a picture of unknown size.
-    if picture(facts).is_some() || remote_cap_of(facts) == Some(limit) {
+    if picture(facts).is_some() || remote_cap_of(facts) == Some(limit) || has_no_video(facts) {
         return vec![];
     }
     let text = format!(
@@ -222,6 +222,11 @@ pub(super) fn picture(facts: &Facts) -> Option<(i64, i64)> {
         } => Some((width, height)),
         TrackKind::Video { .. } | TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
     }
+}
+
+/// Whether the probe found no video to play, so there's no picture whose size could be unknown.
+fn has_no_video(facts: &Facts) -> bool {
+    (facts.probe.as_ref()).is_some_and(|probe| played_video(probe).is_none())
 }
 
 /// A picture `width` by `height`, scaled down to fit `limit` with its shape kept, if it's larger.
