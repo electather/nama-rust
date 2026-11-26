@@ -19,8 +19,10 @@ export function userLinkFailure(error: ConnectError | null) {
 function userWording(error: ConnectError) {
   return refusalOf(error).reason === RefusalReason.LAST_SIGN_IN_METHOD
     ? "You sign in only with your Account, so Unlinking would leave you no way in. Ask an Admin to give you a password first."
-    : "The Server couldn’t reach the Hub. Try again in a moment.";
+    : unreachableHub;
 }
+
+const unreachableHub = "The Server couldn’t reach the Hub. Try again in a moment.";
 
 /** What to say about Linking or Unlinking that failed; nothing for a cancelled "Confirm it’s you". */
 export function linkFailure(error: ConnectError | null) {
@@ -28,15 +30,12 @@ export function linkFailure(error: ConnectError | null) {
 }
 
 function wording(error: ConnectError) {
-  return (
-    linkWording[refusalOf(error).reason] ??
-    "The Server couldn’t reach the Hub. Try again; the Hub Plugin’s page under Plugins says why."
-  );
+  return linkWording[refusalOf(error).reason] ?? unreachableHub;
 }
 
 const linkWording: Partial<Record<RefusalReason, string>> = {
   [RefusalReason.NO_SERVER_LINKER]:
-    "The Hub Plugin isn’t enabled any more. Enable it under Plugins.",
+    "The Server’s config names no Hub, so it can’t be Linked. Name one in the config.",
   [RefusalReason.NOT_A_SERVER_ADDRESS]:
     "Open the Server at its Server URL to Link it this way, or show a code instead.",
 };
