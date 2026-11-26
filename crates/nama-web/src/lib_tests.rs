@@ -9,7 +9,7 @@ use axum::{
 };
 use tower::ServiceExt as _;
 
-use super::{SHELL, asset, serve};
+use super::{SHELL, serve};
 
 /// The answer to a `GET` for `path` from a client accepting `encodings`, passing `/media/` on.
 async fn get(path: &str, encodings: &[&str]) -> Response {
@@ -85,20 +85,22 @@ async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
 async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
     let script = linked_asset("js");
     let stylesheet = linked_asset("css");
-    for (path, built) in [
-        ("/", SHELL),
-        (script, asset(script).unwrap()),
-        (stylesheet, asset(stylesheet).unwrap()),
-        ("/icon.svg", asset("/icon.svg").unwrap()),
+    let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist");
+    for (path, file) in [
+        ("/", "index.html"),
+        (script, script.trim_start_matches('/')),
+        (stylesheet, stylesheet.trim_start_matches('/')),
+        ("/icon.svg", "icon.svg"),
     ] {
         let response = get(path, &[]).await;
 
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
         assert!(
             !response.headers().contains_key(header::CONTENT_ENCODING),
             "{path}"
         );
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(body, built, "{path}");
+        assert_eq!(body, fs::read(dist.join(file)).unwrap(), "{path}");
     }
 }
 
