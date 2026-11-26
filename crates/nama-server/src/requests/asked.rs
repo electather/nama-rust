@@ -161,6 +161,23 @@ pub(super) async fn leave(
     }))
 }
 
+/// The stored Content Rating of the `asked` with the ID `id`, which is `None` if there is no such
+/// `asked`, and `Some(None)` if it is unrated.
+pub(super) async fn content_rating(
+    conn: &mut SqliteConnection,
+    asked: Asked,
+    id: i64,
+) -> Result<Option<Option<String>>, sqlx::Error> {
+    macro_rules! content_rating {
+        ($table:literal, $requesters:literal, $asked_id:literal) => {
+            sqlx::query_scalar!("SELECT content_rating FROM " + $table + " WHERE id = ?", id)
+                .fetch_optional(&mut *conn)
+                .await?
+        };
+    }
+    Ok(per_kind!(asked, content_rating))
+}
+
 /// Removes the `asked` with the ID `id`, and its Requesters with it, and returns it for
 /// [`crate::events::EventBus::removing`]. Fails if there is none.
 pub(super) async fn remove(

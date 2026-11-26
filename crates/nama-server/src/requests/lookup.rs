@@ -11,9 +11,11 @@ use nama_proto::nama::v1::{
 };
 use sqlx::SqliteConnection;
 
+use super::asked::Asked;
 use super::asking::kept_under;
 use super::availability::{availability, today};
 use super::followed::{load_followed, open_followed_show, open_followed_show_by_any};
+use super::listing::title_seen;
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
@@ -399,13 +401,35 @@ impl Requests {
         ids.insert(hit.id.clone());
         let library = library_with_show(conn, &hit.id).await?;
         let request = self.visible_open_season_request(conn, viewer, &ids).await?;
-        let followed = sees_followed_show(conn, viewer, &ids).await?;
+        let followed = self.sees_followed_show(conn, viewer, &ids).await?;
         Ok(ShowToRequest {
             hit,
             library,
             request,
             followed,
         })
+    }
+
+    /// Whether the Show with any of `ids` has an open Followed Show `viewer` may see, as
+    /// [`title_seen`] judges it.
+    pub(super) async fn sees_followed_show(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        ids: &ExternalIds,
+    ) -> Result<bool, sqlx::Error> {
+        let Some(id) = open_followed_show_by_any(conn, ids).await? else {
+            return Ok(false);
+        };
+        let Some(followed) = load_followed(conn, Some(id), viewer.whose_requests())
+            .await?
+            .pop()
+        else {
+            return Ok(false);
+        };
+        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let requesters = &followed.requesters;
+        title_seen(conn, viewer, max_age, Asked::FollowedShow, id, requesters).await
     }
 
     /// Each of `seasons`, of the Show `show`, as `viewer` sees it: whether a Library has it, and its
@@ -481,18 +505,6 @@ fn shown_hit(seen: &LibraryAccess, max_age: MaximumAge, library: Option<i64>) ->
         return !hidden(seen, library);
     }
     max_age.allows(None) && library.is_none()
-}
-
-/// Whether the Show with any of `ids` has an open Followed Show `viewer` may see.
-pub(super) async fn sees_followed_show(
-    conn: &mut SqliteConnection,
-    viewer: &User,
-    ids: &ExternalIds,
-) -> Result<bool, sqlx::Error> {
-    Ok(match open_followed_show_by_any(conn, ids).await? {
-        Some(id) => !(load_followed(conn, Some(id), viewer.whose_requests()).await?).is_empty(),
-        None => false,
-    })
 }
 
 /// The year of a `YYYY-MM-DD` date.

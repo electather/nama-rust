@@ -30,6 +30,7 @@ use super::followed::follow;
 use super::state::{STATES, settle};
 use super::{Requests, qualities};
 use crate::{
+    content_ratings::MaximumAge,
     db::Database,
     events::EventBus,
     library::{
@@ -39,7 +40,7 @@ use crate::{
     },
     plugins::{Answer, ExtensionPoints, Failure, Registry},
     server_settings::ServerUrl,
-    users::{Permissions, User},
+    users::{Permissions, User, Users},
 };
 
 /// The Movie `request` asks for, panicking if it asks for a Season.
@@ -719,4 +720,45 @@ pub(super) fn user(id: i64, permissions: Permissions) -> User {
         id,
         ..ada(permissions)
     }
+}
+
+/// Ada follows Shows 1 to 3, rated TV-MA, TV-PG and not at all, and Bob follows Show 4, rated
+/// TV-MA. Then Bob, who may see others' Requests, is uncapped, capped at 13, and capped at 13
+/// allowing unrated titles: under each cap, whether `sees_followed` says Bob sees each Show,
+/// known by its TMDB id, followed.
+pub(super) async fn followed_as_bob_is_capped(
+    db: &Arc<Database>,
+    sees_followed: impl AsyncFn(&User, &ExternalId) -> bool,
+) -> Vec<Vec<bool>> {
+    let followers = [
+        (ADA, Some("TV-MA")),
+        (ADA, Some("TV-PG")),
+        (ADA, None),
+        (BOB, Some("TV-MA")),
+    ];
+    let shows: Vec<_> = (1..=4).map(ExternalId::tmdb).collect();
+    for (show, (follower, rating)) in shows.iter().zip(followers) {
+        let wanted = WantedSeasons {
+            show_id: show.clone(),
+            show_title: format!("Show {show}"),
+            content_rating: rating.map(str::to_owned),
+            ..dark()
+        };
+        follow_as(db, follower, wanted, RequestState::Pending).await;
+    }
+    let users = Users::new(Arc::clone(db), ExtensionPoints::default());
+    let bob = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
+    let caps = [(None, false), (Some(13), false), (Some(13), true)];
+    let mut seen = Vec::new();
+    for (age, allow_unrated) in caps {
+        let cap = MaximumAge { age, allow_unrated };
+        let admin = ada(Permissions::ADMIN);
+        users.set_maximum_age(&admin, BOB, cap).await.unwrap();
+        let mut followed = Vec::new();
+        for show in &shows {
+            followed.push(sees_followed(&bob, show).await);
+        }
+        seen.push(followed);
+    }
+    seen
 }

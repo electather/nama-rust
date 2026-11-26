@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use nama_plugin_api::metadata;
 use nama_proto::nama::v1::{
     ExternalId, ListRequestsResponse, PageRequest, QualityChange, Refusal, RefusalReason, Request,
-    RequestState, RequestedMovie, RequestedSeason,
+    RequestState, RequestedMovie, RequestedSeason, Requester,
 };
 use sqlx::SqliteConnection;
 
@@ -246,7 +246,16 @@ impl Requests {
     ) -> Result<Vec<Request>, sqlx::Error> {
         let mut visible = Vec::new();
         for request in load(conn, id, viewer.whose_requests()).await? {
-            if title_seen(conn, viewer, max_age, &request).await? {
+            if title_seen(
+                conn,
+                viewer,
+                max_age,
+                Asked::Request,
+                request.id,
+                &request.requesters,
+            )
+            .await?
+            {
                 visible.push(self.progress.attach(request));
             }
         }
@@ -254,24 +263,26 @@ impl Requests {
     }
 }
 
-/// Whether `viewer`, whose Maximum Age is `max_age`, sees the title of `request`: theirs whatever
-/// its stored Content Rating, as they asked while it let them, another's only if that rating
-/// passes (#1414), as [`listed_sql!`] asks it.
-async fn title_seen(
+/// Whether `viewer`, whose Maximum Age is `max_age`, sees the title of the `asked` with the ID
+/// `id`, whose Requesters are `requesters`: theirs whatever its stored Content Rating, as they
+/// asked while it let them, another's only if that rating passes (#1414), as [`listed_sql!`] asks
+/// it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Request and a Followed Show are unrelated proto types, so it takes what it reads"
+)]
+pub(super) async fn title_seen(
     conn: &mut SqliteConnection,
     viewer: &User,
     max_age: MaximumAge,
-    request: &Request,
+    asked: Asked,
+    id: i64,
+    requesters: &[Requester],
 ) -> Result<bool, sqlx::Error> {
-    if max_age.lets_every_title() || is_requester(viewer.id, &request.requesters) {
+    if max_age.lets_every_title() || is_requester(viewer.id, requesters) {
         return Ok(true);
     }
-    let rating = sqlx::query_scalar!(
-        "SELECT content_rating FROM requests WHERE id = ?",
-        request.id
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
+    let rating = asked::content_rating(conn, asked, id).await?;
     // Gone since it was loaded, so not there to see.
     Ok(rating.is_some_and(|rating| max_age.allows(rating.as_deref())))
 }
