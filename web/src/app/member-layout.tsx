@@ -1,4 +1,5 @@
 import { Outlet, useMatches } from "@tanstack/react-router";
+import type { ComponentProps } from "react";
 
 import { useEvents } from "@/app/data/use-events";
 import { SettingsLoader } from "@/app/settings-loader";
@@ -15,7 +16,7 @@ export function MemberLayout({
   chrome,
   user,
 }: {
-  chrome: { userName: string };
+  chrome: Omit<ComponentProps<typeof TopBar>, "onSearch">;
   user: User | undefined;
 }) {
   // A full-screen page that didn't load, such as an unknown Movie's player, keeps the chrome, so

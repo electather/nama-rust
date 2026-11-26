@@ -57,11 +57,28 @@ function finds(...titles: Title[]): Search {
 /** A search that never answers. */
 const hangs: Search = () => new ReadableStream<Part>();
 
-/** A fake Server that signs the Hub's Account in and answers a search with `search`. */
-function searching(search: Search, interceptors: Interceptor[]) {
+/** A search that fails. */
+const fails: Search = () => {
+  throw new ConnectError("down", Code.Internal);
+};
+
+/** A search that finds Alien Nation for "alien", and never answers for anything else. */
+const findsOnlyAlienNation: Search = (request, context) =>
+  request.query === "alien" ? finds(alienNation)(request, context) : hangs(request, context);
+
+/**
+ * A fake Server that answers once `up` has resolved, signs the Hub's Account in and answers a
+ * search with `search`.
+ */
+function searching(search: Search, interceptors: Interceptor[], up: Promise<void>) {
   return createRouterTransport(
     (router) => {
-      router.service(ServerService, { getServerInfo: () => ({ version: "0.3.0" }) });
+      router.service(ServerService, {
+        getServerInfo: async () => {
+          await up;
+          return { version: "0.3.0" };
+        },
+      });
       router.service(SignInService, {
         signInWithHubToken: () => ({ token: "session" }),
         whoAmI: () => ({ user: { id: 1n, name: "Ada" } }),
@@ -86,9 +103,9 @@ const origin = (id: string) => `https://${id}.example`;
 
 /**
  * Opens the Hub's Home for an Account on a Server named for each search in `at`, which answers
- * with it, and on Attic, which is off.
+ * with it once `up` has resolved, and on Attic, which is off.
  */
-function openAtHub(at: Record<string, Search>) {
+function openAtHub(at: Record<string, Search>, up = Promise.resolve()) {
   vi.stubGlobal("fetch", async () => {
     await Promise.resolve();
     throw new TypeError("Failed to fetch");
@@ -101,7 +118,7 @@ function openAtHub(at: Record<string, Search>) {
   const searches = new Map(Object.entries(at).map(([id, search]) => [origin(id), search]));
   return openApp("/", transport, undefined, (server, interceptors) => {
     const search = searches.get(server);
-    return search === undefined ? unreachable() : searching(search, interceptors);
+    return search === undefined ? unreachable() : searching(search, interceptors, up);
   });
 }
 
@@ -148,6 +165,40 @@ test("a slow Server holds up none of the others' results at the Hub", async () =
   openAtHub({ basement: finds(aliens), cabin: hangs });
 
   await searchFor("alien");
+
+  await waitFor(() => {
+    expect(rows()).toStrictEqual(["AliensOpen"]);
+  });
+});
+
+test("a Server that fails lists no other Server's answer to the last words at the Hub", async () => {
+  openAtHub({ basement: fails, cabin: findsOnlyAlienNation });
+  await searchFor("alien");
+  await screen.findByRole("option", { name: /^Alien Nation/u });
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Command menu" }), {
+    target: { value: "zzz" },
+  });
+
+  await expect(screen.findByText("No results for “zzz”")).resolves.toBeInstanceOf(HTMLElement);
+  expect(screen.queryByRole("option", { name: /^Alien Nation/u })).toBeNull();
+});
+
+test("a search typed before any Server is reached waits for them at the Hub", async () => {
+  let reach: (() => void) | undefined;
+  openAtHub(
+    { basement: finds(aliens) },
+    new Promise<void>((resolve) => {
+      reach = resolve;
+    }),
+  );
+  await searchFor("alien");
+  await new Promise((resolve) => {
+    setTimeout(resolve, 400);
+  });
+  expect(screen.queryByText("No results for “alien”")).toBeNull();
+
+  reach?.();
 
   await waitFor(() => {
     expect(rows()).toStrictEqual(["AliensOpen"]);

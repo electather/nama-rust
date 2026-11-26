@@ -154,13 +154,13 @@ function firstOfEach() {
 function foundOf(hits: readonly ServerHit[], note: string): Found {
   return {
     movies: hits.flatMap(({ hit: { title, status }, server }) =>
-      title.case === "movie" ? [onServer(movieFound(title.value, status), server)] : [],
+      title.case === "movie" ? [foundOn(movieFound(title.value, status), server)] : [],
     ),
     shows: hits.flatMap(({ hit: { title, status }, server }) =>
-      title.case === "show" ? [onServer(showFound(title.value, status), server)] : [],
+      title.case === "show" ? [foundOn(showFound(title.value, status), server)] : [],
     ),
     episodes: hits.flatMap(({ hit: { title }, server }) =>
-      title.case === "episode" ? [onServer(episodeFound(title.value), server)] : [],
+      title.case === "episode" ? [foundOn(episodeFound(title.value), server)] : [],
     ),
     people: hits.flatMap(({ hit: { title }, server }) =>
       title.case === "person"
@@ -179,7 +179,7 @@ function foundOf(hits: readonly ServerHit[], note: string): Found {
 }
 
 /** `title`, found at the Hub on the Linked Server `server`, or as it is on a Server's own. */
-function onServer(title: FoundTitle, server: string | undefined): FoundTitle {
+function foundOn(title: FoundTitle, server: string | undefined): FoundTitle {
   return server === undefined ? title : { ...title, id: `${server}:${title.id}`, server };
 }
 

@@ -8,7 +8,7 @@ import { SignedOutLayout } from "@/shared/components/sign-in-layout/signed-out-l
 /**
  * The signed-in Account's pages at the Hub, with the Account's Settings over them while the address
  * asks for it, and the action bar searching all its Servers. A Server's pages fill the screen, as
- * they do at the Server, where only the action bar's keys open it.
+ * they do at the Server; there, only its keys open the action bar.
  */
 export function HubMemberLayout() {
   const onAServer = useSearch({ strict: false, select: (search) => search.server !== undefined });

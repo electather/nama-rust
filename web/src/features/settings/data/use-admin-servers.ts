@@ -11,7 +11,7 @@ export type AdminServer = ReturnType<typeof useAdminServers>[number];
  * Server holds up none of the rest (ADR 0105).
  */
 export function useAdminServers() {
-  return useReachedServers(useLinkedServers()).filter(({ signedIn }) =>
+  return useReachedServers(useLinkedServers()).reached.filter(({ signedIn }) =>
     may(signedIn.user, Permission.ADMIN),
   );
 }
