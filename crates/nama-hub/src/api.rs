@@ -46,6 +46,7 @@ use crate::{
     dns::ServerNames,
     links::{LinkedServer, Links},
     mail::Mail,
+    probe::Probe,
     recommendations::Recommendations,
     signing::Keys,
     sync::{TrackPreferences, WatchStates, Watchlists},
@@ -63,7 +64,7 @@ use self::{
 /// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
 /// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
 /// through `mail`, if it is set up, and Linked Servers are named through `names`, if it is.
-/// Passkeys are for the Hub at `public_url`.
+/// Passkeys are for the Hub at `public_url`, and public ports are tried through `probe`.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the Hub is built from, as `serve`'s are"
@@ -76,9 +77,16 @@ pub(crate) fn router(
     names: Option<ServerNames>,
     diagnostics: Option<Arc<dyn Backend>>,
     public_url: Option<&Url>,
+    probe: Arc<dyn Probe>,
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail, public_url);
-    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys), names);
+    let links = Links::new(
+        db.clone(),
+        accounts.clone(),
+        Arc::clone(&keys),
+        names,
+        probe,
+    );
     let rpcs = services(db, &accounts, &links)
         .into_axum_service()
         .with_interceptor(RefuseUnserved);

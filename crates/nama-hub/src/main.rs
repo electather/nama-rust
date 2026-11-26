@@ -15,6 +15,7 @@ use nama_hub::{
     diagnostics::{Backend, Otlp, OtlpError},
     dns::{Cloudflare, DnsError, ServerNames},
     mail::{LogMailer, Mail, MailError, Mailer, Resend},
+    probe::Tcp,
     signing::Keys,
     titles,
 };
@@ -161,6 +162,7 @@ async fn run() -> ExitCode {
         names,
         diagnostics,
         config.public_url.as_ref(),
+        Arc::new(Tcp),
         shutdown,
     )
     .await;

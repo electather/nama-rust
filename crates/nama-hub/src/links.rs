@@ -1,37 +1,38 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
 //! Server's opaque credential, the Server Addresses it reports and whether its public port can be
-//! reached, its names in the Server-names zone (`names.rs`), Unlinking, and the tokens signed
+//! reached (`server_addresses.rs`), its names in the Server-names zone (`names.rs`), Unlinking, and the tokens signed
 //! for a Server once it is Linked and for the Relay it dials out to.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
 mod invites;
 mod names;
+mod server_addresses;
 mod server_sign_ins;
 mod users;
 
 use std::{
     fmt::{self, Write as _},
-    net::{IpAddr, SocketAddr},
+    net::IpAddr,
     sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
-use axum::http::Uri;
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
-use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::{
     accounts::{self, AccountId, AccountSession, Accounts, RecentAuthenticationRequired},
     dns::{DnsError, ServerNames},
+    probe::Probe,
     signing::Keys,
 };
 
 pub(crate) use self::{
     invites::{InviteId, ListedInvite},
+    server_addresses::{ADDRESS_LENGTH, MAX_LAN_ADDRESSES, ReportedAddresses},
     server_sign_ins::SignInId,
     users::{LinkId, ListedUser},
 };
@@ -52,21 +53,12 @@ const CODE_LETTERS: &[u8] = b"BCDFGHJKLMNPQRSTVWXZ";
 /// How many letters a code has: 20^8 codes, against the few waiting at once.
 const CODE_LENGTH: usize = 8;
 
-/// The most characters a Server Address may have.
-pub(crate) const ADDRESS_LENGTH: usize = 2000;
-
-/// The most LAN addresses a Server may report.
-pub(crate) const MAX_LAN_ADDRESSES: usize = 16;
-
 /// The most certificate challenge values a Server may publish at once: one for its own name, one
 /// for the wildcard under it.
 pub(crate) const MAX_CHALLENGE_VALUES: usize = 2;
 
 /// How long a DNS-01 challenge's value is: a SHA-256 digest in unpadded base64url (RFC 8555).
 const CHALLENGE_VALUE_LENGTH: usize = 43;
-
-/// How long the Hub waits for a Server's public port to take a connection.
-const REACH_WITHIN: Duration = Duration::from_secs(5);
 
 /// The audience of the token a Server shows a Relay, which the Relay checks (ADR 0057).
 const RELAY_AUDIENCE: &str = "relay";
@@ -118,34 +110,6 @@ pub(crate) struct ListedServer {
     /// The Server Addresses a client tries, best first: the Server URL, then the public address
     /// the Hub reached, then its Relay, then the LAN addresses, plain `http://<lan-ip>` (ADR 0057).
     pub(crate) addresses: Vec<String>,
-}
-
-/// The Server Addresses a Server reports.
-pub(crate) struct ReportedAddresses<'a> {
-    /// The Server URL its Admin set, or empty for none.
-    pub(crate) url: &'a str,
-    /// Such as `http://192.168.1.10:7980`.
-    pub(crate) lan_addresses: &'a [String],
-    /// Its router's public IP address with the port that reaches it, if it has one.
-    pub(crate) public: Option<SocketAddr>,
-    /// The Relay it dials out to, if any (ADR 0057).
-    pub(crate) relay: Option<SocketAddr>,
-}
-
-/// What the Hub found of a Server's addresses it reported.
-pub(crate) struct Checked {
-    /// Where it tried to reach the Server from outside, if the Server has a public port.
-    pub(crate) public: Option<PublicAddress>,
-    /// The Server's names, its own first, or none while the Hub names no Server.
-    pub(crate) names: Vec<String>,
-}
-
-/// Where the Hub tried to reach a Server from outside, and whether it could.
-#[derive(Default)]
-pub(crate) struct PublicAddress {
-    /// Such as `http://203.0.113.7:7980`.
-    pub(crate) address: String,
-    pub(crate) reachable: bool,
 }
 
 /// A Server's codes, just made.
@@ -240,6 +204,8 @@ pub(crate) struct Links {
     keys: Arc<Keys>,
     /// Without it, the Hub names no Server.
     names: Option<ServerNames>,
+    /// How the Hub tries a Server's public port.
+    probe: Arc<dyn Probe>,
 }
 
 impl Links {
@@ -248,12 +214,14 @@ impl Links {
         accounts: Accounts,
         keys: Arc<Keys>,
         names: Option<ServerNames>,
+        probe: Arc<dyn Probe>,
     ) -> Self {
         Self {
             db,
             accounts,
             keys,
             names,
+            probe,
         }
     }
 
@@ -261,7 +229,7 @@ impl Links {
     /// every Linked Server whose codes expired before it collected its credential. Approving its
     /// code sends the person back to `return_url`, when it isn't empty (`links/AGENTS.md`).
     pub(crate) async fn start(&self, name: &str, return_url: &str) -> Result<Started, Error> {
-        if !return_url.is_empty() && !server_sign_ins::is_web_url(return_url) {
+        if !return_url.is_empty() && !server_addresses::is_web_url(return_url) {
             return Err(Error::UrlInvalid);
         }
         let name = kept_name(name);
@@ -392,131 +360,6 @@ impl Links {
         Ok(Polled::Linked { credential, token })
     }
 
-    /// The Linked Servers `account` owns or has a User on, oldest first.
-    pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
-        // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
-        let servers = sqlx::query!(
-            r#"SELECT id, name, server_url, public_address, relay_address, lan_addresses,
-             floor(extract(epoch FROM created_at))::bigint AS "linked_at!"
-             FROM linked_servers WHERE account_id = $1
-             OR id IN (SELECT linked_server_id FROM user_links WHERE account_id = $1)
-             ORDER BY created_at, id"#,
-            account.0,
-        )
-        .fetch_all(&self.db)
-        .await?;
-        Ok(servers
-            .into_iter()
-            .map(|server| ListedServer {
-                id: LinkedServerId(server.id),
-                name: server.name,
-                linked_at: server.linked_at,
-                addresses: [
-                    // Clients add `/` and a path to an address, and a Server URL may end in one.
-                    server.server_url.trim_end_matches('/').to_owned(),
-                    server.public_address,
-                    // A Server the Hub can't reach may have its Relay's as its Server URL too.
-                    if server.relay_address == server.server_url {
-                        String::new()
-                    } else {
-                        server.relay_address
-                    },
-                ]
-                .into_iter()
-                .filter(|address| !address.is_empty())
-                .chain(server.lan_addresses)
-                .collect(),
-                url: server.server_url,
-            })
-            .collect())
-    }
-
-    /// Replaces the Server Addresses `server` reported before with its Server URL, LAN addresses
-    /// and Relay at once, then with its public address once the Hub has tried to connect there,
-    /// and names it after them all.
-    pub(crate) async fn set_addresses(
-        &self,
-        server: &LinkedServer,
-        reported: ReportedAddresses<'_>,
-    ) -> Result<Checked, Error> {
-        let ReportedAddresses {
-            url,
-            lan_addresses,
-            public,
-            relay,
-        } = reported;
-        let addresses_valid = lan_addresses.len() <= MAX_LAN_ADDRESSES
-            && (url.is_empty() || is_address(url))
-            && lan_addresses.iter().all(|address| is_address(address));
-        if !addresses_valid {
-            return Err(Error::AddressInvalid);
-        }
-        // Stored before the probe, which can take REACH_WITHIN, so a sign-in returning to the new
-        // Server URL meanwhile isn't refused.
-        sqlx::query!(
-            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, relay_address = $3
-             WHERE id = $4",
-            url,
-            lan_addresses,
-            self.relay_address(server.id, relay),
-            server.id.0,
-        )
-        .execute(&self.db)
-        .await?;
-        let probed = match public {
-            Some(address) => Some((address, reaches(address).await)),
-            None => None,
-        };
-        let reached = probed
-            .filter(|&(_, reachable)| reachable)
-            .map(|(address, _)| address);
-        let public_address =
-            reached.map_or_else(String::new, |address| format!("http://{address}"));
-        // Stored before naming too, so a DNS provider that is down holds back only the names.
-        self.store_public_address(server.id, &public_address)
-            .await?;
-        let names = self
-            .write_names(
-                server.id,
-                reached.map(|address| address.ip()),
-                lan_addresses,
-                relay.map(|relay| relay.ip()),
-            )
-            .await?;
-        // Stored again after naming, so a Server Unlinked meanwhile is found gone here and its
-        // names go again; no transaction waits on the DNS provider holding one of the pool's
-        // connections.
-        if !self
-            .store_public_address(server.id, &public_address)
-            .await?
-        {
-            self.forget_names(server.id).await?;
-        }
-        Ok(Checked {
-            public: probed.map(|(address, reachable)| PublicAddress {
-                address: format!("http://{address}"),
-                reachable,
-            }),
-            names,
-        })
-    }
-
-    /// Stores `address` as `server`'s public address, and answers whether it is still Linked.
-    async fn store_public_address(
-        &self,
-        server: LinkedServerId,
-        address: &str,
-    ) -> Result<bool, sqlx::Error> {
-        let stored = sqlx::query!(
-            "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
-            address,
-            server.0,
-        )
-        .execute(&self.db)
-        .await?;
-        Ok(stored.rows_affected() > 0)
-    }
-
     /// Points `server`'s own name at `public`, if any, a name under it at each private IPv4
     /// address among its `lan_addresses`, and its Relay's name at `relay`, if any, and answers its
     /// names: none while the Hub names no Server.
@@ -535,19 +378,6 @@ impl Links {
         let shown = names::shown(&own, &records);
         server_names.records.replace(&own, records).await?;
         Ok(shown)
-    }
-
-    /// Where clients reach `server` through `relay`, the Relay it dials out to, such as
-    /// `https://relay.<own name>:443`: empty without one, or while the Hub names no Server, since
-    /// only a name its certificate covers passes through the Relay.
-    fn relay_address(&self, server: LinkedServerId, relay: Option<SocketAddr>) -> String {
-        match (&self.names, relay) {
-            (Some(server_names), Some(relay)) => {
-                let own = names::own_name(server, &server_names.zone);
-                format!("https://{}:{}", names::relay_name(&own), relay.port())
-            }
-            _ => String::new(),
-        }
     }
 
     /// A token proving to a Relay that `server` holds its own name, which the Relay then routes
@@ -685,23 +515,6 @@ fn issued_at() -> u64 {
 fn is_challenge(value: &str) -> bool {
     value.len() == CHALLENGE_VALUE_LENGTH
         && (value.bytes()).all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-}
-
-/// Whether `address` may be a Server Address: an absolute `http` or `https` URL, so the Hub's pages
-/// never link to a `javascript:` one a Server sent, of at most [`ADDRESS_LENGTH`] characters.
-fn is_address(address: &str) -> bool {
-    address.len() <= ADDRESS_LENGTH
-        && address.parse::<Uri>().is_ok_and(|uri| {
-            matches!(uri.scheme_str(), Some("http" | "https")) && uri.authority().is_some()
-        })
-}
-
-/// Whether `public` takes a TCP connection within [`REACH_WITHIN`].
-// ponytail: a connection shows only that something listens there; check that it is this Server,
-// over TLS to its name, once Servers have names (#1830).
-async fn reaches(public: SocketAddr) -> bool {
-    let connected = tokio::time::timeout(REACH_WITHIN, TcpStream::connect(public)).await;
-    connected.is_ok_and(|connected| connected.is_ok())
 }
 
 /// `name` as the Hub keeps it: trimmed, and cut to [`NAME_LENGTH`] characters.

@@ -17,9 +17,6 @@ use super::{
 };
 use crate::accounts::{AccountId, AccountSession};
 
-/// The longest return address kept, as browsers handle about this much.
-const URL_LENGTH: usize = 2048;
-
 /// The id of a sign-in with an Account, which its page's address carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SignInId(Uuid);
@@ -75,22 +72,14 @@ struct SignInClaims {
 
 impl Links {
     /// Starts a sign-in to `server`, which the Hub's page sends back to `return_url`, forgetting
-    /// every expired one. Fails with [`Error::UrlInvalid`] unless `return_url` is on one of the
-    /// Server Addresses `server` reported.
+    /// every expired one. Fails with [`Error::UrlInvalid`] unless `return_url` is a return address
+    /// `server` reported (`server_addresses.rs`).
     pub(crate) async fn start_sign_in(
         &self,
         server: &LinkedServer,
         return_url: &str,
     ) -> Result<StartedSignIn, Error> {
-        let addresses = sqlx::query!(
-            "SELECT server_url, lan_addresses FROM linked_servers WHERE id = $1",
-            server.id.0,
-        )
-        .fetch_one(&self.db)
-        .await?;
-        let server_addresses = std::iter::once(addresses.server_url.as_str())
-            .chain(addresses.lan_addresses.iter().map(String::as_str));
-        if !is_on_server(return_url, server_addresses) {
+        if !self.is_return_address(server.id, return_url).await? {
             return Err(Error::UrlInvalid);
         }
         let device_code = random_token()?;
@@ -248,29 +237,6 @@ impl Links {
             exp: iat + TOKEN_LIFETIME_SECS,
         })
     }
-}
-
-/// Whether `url` is an `http` or `https` address short enough to keep, with the scheme, host and
-/// port of one of the Server's `addresses`. The Hub's page sends the person there with the code
-/// that finishes the sign-in, so an address anyone else chose would hand it to them, and any other
-/// scheme, such as `javascript:`, would run on the Hub's origin.
-fn is_on_server<'a>(url: &str, addresses: impl IntoIterator<Item = &'a str>) -> bool {
-    let Ok(parsed) = Url::parse(url) else {
-        return false;
-    };
-    is_web_url(url)
-        && addresses.into_iter().any(|address| {
-            Url::parse(address).is_ok_and(|address| address.origin() == parsed.origin())
-        })
-}
-
-/// Whether the Hub's page may send a person to `url`: an `http` or `https` URL of up to
-/// [`URL_LENGTH`] characters. Any other scheme, such as `javascript:`, would run on the Hub's
-/// origin.
-pub(super) fn is_web_url(url: &str) -> bool {
-    // WHATWG's parser, as the browser reads the address the page navigates to.
-    url.len() <= URL_LENGTH
-        && Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
 }
 
 /// Whether `a` equals `b`, taking as long whatever bytes differ, so a guess's timing tells nothing.

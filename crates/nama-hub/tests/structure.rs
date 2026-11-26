@@ -81,11 +81,13 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 /// The Hub's modules in rows of who may call whom, highest row first (ADR 0099).
 const ROWS: &[&[&str]] = &[
     &["api"],
-    &["recommendations", "diagnostics", "discovery"],
+    &["recommendations", "diagnostics"],
     &["sync", "viewing"],
     &["links"],
     &["accounts", "titles"],
-    &["signing", "dns", "mail", "https", "web", "db", "config"],
+    &[
+        "signing", "dns", "probe", "mail", "https", "web", "db", "config",
+    ],
 ];
 
 /// The modules that start the Hub, which call any row.
