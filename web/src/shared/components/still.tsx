@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Thumbhash } from "@/shared/components/thumbhash";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
@@ -18,6 +19,7 @@ export function Still({
   sizes: string;
   children?: ReactNode;
 }) {
+  const src = useServerUrl(url);
   const srcSet = useSrcSet(url);
   return (
     <span className="relative isolate block aspect-video overflow-hidden rounded-lg border bg-muted">
@@ -25,7 +27,7 @@ export function Still({
       {url !== undefined && (
         // Its title is under it, so the image itself says nothing more.
         <img
-          src={url}
+          src={src}
           srcSet={srcSet}
           sizes={sizes}
           alt=""

@@ -3,9 +3,10 @@
 use std::{sync::Arc, time::Duration};
 
 use nama_proto::nama::v1::{AdminStop, Playback};
+use tokio_util::sync::CancellationToken;
 
 use super::{Plan, RunningPlans, lock};
-use crate::{db, ffmpeg::Hardware};
+use crate::{db, ffmpeg::Hardware, signed_urls::Viewer};
 
 /// How often [`RunningPlans::until_playing`] checks again.
 const PLAYING_CHECK: Duration = Duration::from_secs(1);
@@ -40,9 +41,9 @@ pub(crate) struct PlayNow {
 
 impl RunningPlans {
     /// Stops the plan `id` whatever its Device, as an Admin asked, publishing its end with their
-    /// `message` to the viewer. Unless the Device has another plan of its Version, also cuts off
-    /// each response serving that Version's file to it until it plans it again, so a Direct Play
-    /// stops too. A plan already stopped is left alone.
+    /// `message` to the viewer. Unless its User has another plan of its Version on that Device,
+    /// also cuts off each response serving that Version's file to them there until they plan it
+    /// again, so a Direct Play stops too. A plan already stopped is left alone.
     ///
     /// # Errors
     ///
@@ -56,16 +57,15 @@ impl RunningPlans {
             return Err(MessageTooLong);
         }
         let plan = {
-            // Held while cancelling, so `insert` can't add a plan of this Version for the Device in
+            // Held while cancelling, so `insert` can't add a plan of this Version for the Viewer in
             // between and have it cut off.
             let mut plans = lock(&self.inner.plans);
             let Some(plan) = plans.remove(&id) else {
                 return Ok(());
             };
             if !plans.values().any(|other| plays_alike(other, &plan)) {
-                let to_device = (plan.playback.version_id, plan.playback.device_id);
                 lock(&self.inner.stopped)
-                    .entry(to_device)
+                    .entry(version_for_viewer(&plan))
                     .or_default()
                     .cancel();
             }
@@ -77,6 +77,16 @@ impl RunningPlans {
         };
         self.stop_telling(&plan, Some(admin_stop)).await;
         Ok(())
+    }
+
+    /// Cancelled once an Admin stops `viewer`'s last plan of the Version `version`, to cut off a
+    /// response serving its file, and at once while that stop holds; never without a Viewer.
+    pub(crate) fn stopped(&self, version: i64, viewer: Option<Viewer>) -> CancellationToken {
+        let Some(viewer) = viewer else {
+            return CancellationToken::new();
+        };
+        let mut stopped = lock(&self.inner.stopped);
+        stopped.entry((version, viewer)).or_default().child_token()
     }
 
     /// Whether any plan is playing, a Direct Play included.
@@ -111,15 +121,14 @@ impl RunningPlans {
         Ok(plays)
     }
 
-    /// Keeps `progress`, which the Device `device` reported through the Version `version`, beside
-    /// the Device's newest plan of that Version, for [`Self::plays`], and marks it asked for now, which
-    /// keeps a paused player's plan another [`STOP_UNUSED_AFTER`](super::STOP_UNUSED_AFTER). An older
-    /// one is most likely a play left without a stop, such as a reloaded tab's, so it keeps what it
-    /// last had.
-    pub(crate) fn report_progress(&self, version: i64, device: i64, progress: ReportedProgress) {
+    /// Keeps `progress`, which `viewer` reported through the Version `version`, beside their newest
+    /// plan of that Version, for [`Self::plays`], and marks it asked for now, which keeps a paused
+    /// player's plan another [`STOP_UNUSED_AFTER`](super::STOP_UNUSED_AFTER). An older one is most
+    /// likely a play left without a stop, such as a reloaded tab's, so it keeps what it last had.
+    pub(crate) fn report_progress(&self, version: i64, viewer: Viewer, progress: ReportedProgress) {
         let plans = lock(&self.inner.plans);
         let newest = (plans.values())
-            .filter(|plan| version_on_device(plan) == (version, device))
+            .filter(|plan| version_for_viewer(plan) == (version, viewer))
             .max_by_key(|plan| plan.playback.plan_id);
         if let Some(plan) = newest {
             *lock(&plan.progress) = Some(progress);
@@ -128,14 +137,14 @@ impl RunningPlans {
     }
 }
 
-/// Whether `a` and `b` play the same Version on the same Device.
+/// Whether `a` and `b` play the same Version for the same User on the same Device.
 fn plays_alike(a: &Plan, b: &Plan) -> bool {
-    version_on_device(a) == version_on_device(b)
+    version_for_viewer(a) == version_for_viewer(b)
 }
 
-/// The Version `plan` plays and the Device it plays on.
-fn version_on_device(plan: &Plan) -> (i64, i64) {
-    (plan.playback.version_id, plan.playback.device_id)
+/// The Version `plan` plays and who it plays for.
+fn version_for_viewer(plan: &Plan) -> (i64, Viewer) {
+    (plan.playback.version_id, plan.viewer())
 }
 
 #[cfg(test)]

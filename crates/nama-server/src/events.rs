@@ -2,8 +2,9 @@
 //! client subscribed through `EventService.Subscribe` and to every Observer at
 //! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
 //! Plugin Connections and Personal settings of the Users told about it, whose inbox it goes in too,
-//! and from there to their browsers by Web Push. Each Link the Server keeps or forgets goes to
-//! Observers and Notifiers alone, the Admins told of it (ADR 0105).
+//! and from there to their browsers by Web Push. Each of them is sent an `InboxChanged` once it is
+//! stored. Each Link the Server keeps or forgets goes to Observers and Notifiers alone, the Admins
+//! told of it (ADR 0105).
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
@@ -18,8 +19,8 @@ use nama_plugin_api::{
 };
 use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_proto::nama::v1::{
-    Event, EventType, FollowedShow, InboxNotification, Lagged, NotificationKind, Permission,
-    Request, RequestState, SubscribeResponse, event, subscribe_response,
+    Event, EventType, FollowedShow, InboxChanged, InboxNotification, Lagged, NotificationKind,
+    Permission, Request, RequestState, SubscribeResponse, event, subscribe_response,
 };
 use tokio::{
     sync::{
@@ -118,6 +119,8 @@ impl AgeCheck {
 /// they see and their Maximum Age. Only this module decides that (see the crate's `AGENTS.md`,
 /// "One owner for who sees an Event").
 struct Viewer {
+    /// Who they are, who alone sees their inbox's events.
+    user: i64,
     /// Only Library events about these Libraries.
     libraries: LibraryAccess,
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
@@ -138,6 +141,8 @@ enum About<'a> {
     FollowedShow(&'a FollowedShow),
     /// The User playing.
     Player(i64),
+    /// The User whose inbox it is.
+    Inbox(i64),
 }
 
 impl EventBus {
@@ -264,6 +269,7 @@ impl EventBus {
             let storing = tokio::spawn(store_and_push_each(
                 Arc::clone(&self.db),
                 self.server_url.clone(),
+                self.sender.clone(),
                 receiver,
             ));
             *inboxes = Inboxes::Storing(sender, storing);
@@ -292,9 +298,9 @@ impl EventBus {
         }
     }
 
-    /// Every event published from now on, whole, for a Kernel task that acts on them, such as
-    /// pulling Watch State after a scan; one that falls [`BUFFERED`] behind misses the oldest.
-    /// Never for a client, who sees only what [`Self::subscribe`] lets through.
+    /// Every event published from now on, and each `InboxChanged`, whole, for a Kernel task that
+    /// acts on them, such as pulling Watch State after a scan; one that falls [`BUFFERED`] behind
+    /// misses the oldest. Never for a client, who sees only what [`Self::subscribe`] lets through.
     pub(crate) fn follow(&self) -> broadcast::Receiver<Event> {
         self.sender.subscribe()
     }
@@ -327,7 +333,8 @@ impl EventBus {
         .take_until(self.closed.clone().cancelled_owned())
     }
 
-    /// [`Self::subscribe`] as an Admin, who sees every event whole.
+    /// [`Self::subscribe`] as an Admin, who sees every event whole but another User's
+    /// `InboxChanged`.
     #[cfg(test)]
     pub(crate) fn subscribe_as_admin(
         &self,
@@ -355,7 +362,7 @@ impl Filter {
         };
         let library = match about {
             About::Library(library) => Some(library),
-            About::Request(_) | About::FollowedShow(_) | About::Player(_) => None,
+            About::Request(_) | About::FollowedShow(_) | About::Player(_) | About::Inbox(_) => None,
         };
         (self.types.is_empty() || self.types.contains(&kind))
             && (self.libraries.is_empty()
@@ -394,17 +401,19 @@ async fn next_message(
 }
 
 /// [`store_in_inboxes`] for each event `published` sends, in order, logging each that fails, then
-/// pushes what it stored to its Users' browsers, linking to the Requests at `server_url`. Each
-/// event's pushes run on their own, so a slow push service holds up no other notification.
+/// tells each User it stored one for with an `InboxChanged` on `subscribers`, and pushes what it
+/// stored to their browsers, linking to the Requests at `server_url`. Each event's pushes run on
+/// their own, so a slow push service holds up no other notification.
 async fn store_and_push_each(
     db: Arc<Database>,
     server_url: ServerUrl,
+    subscribers: broadcast::Sender<Event>,
     mut published: mpsc::UnboundedReceiver<Event>,
 ) {
     let mut pusher = None;
     let mut pushing = JoinSet::new();
-    while let Some(event) = published.recv().await {
-        let stored = match store_in_inboxes(&db, &event).await {
+    while let Some(happened) = published.recv().await {
+        let stored = match store_in_inboxes(&db, &happened).await {
             Ok(stored) if !stored.is_empty() => stored,
             Ok(_) => continue,
             Err(err) => {
@@ -412,11 +421,21 @@ async fn store_and_push_each(
                 continue;
             }
         };
+        // Straight on the channel: this task holds no `EventBus` to `publish` through, and no
+        // Observer or Notifier needs it.
+        for &(user_id, _) in &stored {
+            let changed = InboxChanged {
+                user_id,
+                ..Default::default()
+            };
+            // Fails only when nobody is subscribed, which is fine.
+            let _: Result<usize, _> = subscribers.send(event(changed));
+        }
         if pusher.is_none() {
             pusher = make_pusher(&db).await;
         }
         if let Some(pusher) = pusher.clone() {
-            let link = request_link(&server_url, &event);
+            let link = request_link(&server_url, &happened);
             let db = Arc::clone(&db);
             pushing.spawn(async move { push_to_subscriptions(&db, &pusher, stored, link).await });
         }
@@ -519,7 +538,7 @@ async fn name_of(db: &Database, user_id: i64) -> Option<String> {
 
 /// An event's type and what it is about.
 fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
-    use About::{FollowedShow, Library, Player, Request};
+    use About::{FollowedShow, Inbox, Library, Player, Request};
     use EventType as T;
     use event::Event as E;
     Some(match event.event.as_ref()? {
@@ -595,12 +614,14 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
             T::EVENT_TYPE_PLAYBACK_CHANGED,
             Player(e.playback.as_option()?.user_id),
         ),
+        E::InboxChanged(e) => (T::EVENT_TYPE_INBOX_CHANGED, Inbox(e.user_id)),
     })
 }
 
 impl Viewer {
     fn of(user: &User, libraries: LibraryAccess, age_check: AgeCheck) -> Self {
         Self {
+            user: user.id,
             libraries,
             requester: user.whose_requests(),
             player: user.whose_playing(),
@@ -620,6 +641,8 @@ impl Viewer {
             About::Request(request) => users::may_see(self.requester, &request.requesters),
             About::FollowedShow(followed) => users::may_see(self.requester, &followed.requesters),
             About::Player(user) => self.player.is_none_or(|player| player == user),
+            // Admins included: an inbox is its User's alone.
+            About::Inbox(user) => self.user == user,
         };
         if !visible {
             return None;

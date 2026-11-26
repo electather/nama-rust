@@ -15,7 +15,7 @@ use crate::{
     db::Database,
     plugin_settings::{ChangeError, PluginSettings},
     plugins::{CheckError, Registry},
-    users::personal_settings_recipients,
+    users::{personal_settings_recipients, testing::insert_user},
 };
 
 const ID: PluginId = PluginId::from_static("pager");
@@ -112,24 +112,8 @@ async fn started() -> (TempDir, PluginSettings, i64) {
     let plugins = PluginSettings::start(Arc::clone(&db), registry, &config)
         .await
         .unwrap();
-    let user = insert_user(&db).await;
+    let user = insert_user(&db, "ada").await;
     (data_dir, plugins, user)
-}
-
-async fn insert_user(db: &Database) -> i64 {
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES ('ada', 'ada', 0, 0, 0) RETURNING id",
-            )
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 fn text(value: &str) -> SettingValue {

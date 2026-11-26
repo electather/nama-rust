@@ -7,9 +7,12 @@ use nama_plugin_api::{
 };
 
 use super::{Suggested, Suggestions, add_heaviest, kept_suggestions};
-use crate::home_rows::{
-    HomeRows, Kind, Title,
-    tests::{handle, insert_user, recorded, set_handle},
+use crate::{
+    home_rows::{
+        HomeRows, Kind, Title,
+        tests::{handle, recorded, set_handle},
+    },
+    users::testing::insert_user,
 };
 
 const FEATURED: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::Featured];

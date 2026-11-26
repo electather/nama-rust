@@ -13,7 +13,7 @@ import { isCode } from "@/shared/lib/connect-errors";
 import type { ServerAt } from "@/shared/lib/server";
 
 /** What the page at the Hub can do with one of the Account's Servers. */
-export type ServerReach =
+type ServerReach =
   | {
       kind: "signed-in";
       transport: Transport;

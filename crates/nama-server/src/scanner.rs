@@ -450,6 +450,8 @@ impl Scanner {
             );
         }
         let matched = self.inner.matcher.match_library(scan, &cancel).await?;
+        // Before `MatchingFinished`, so a test that waits on it can wait out the artwork work too.
+        let _artwork = self.inner.artwork.working();
         self.inner.events.publish(vec![event(MatchingFinished {
             library_id: id,
             matched: matched.matched,

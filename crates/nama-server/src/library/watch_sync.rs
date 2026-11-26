@@ -13,13 +13,13 @@ use nama_plugin_api::{
     watch_sync::WatchSync,
 };
 use sqlx::SqliteConnection;
-use tracing::warn;
+use tracing::{error, warn};
 
 use super::{Contents, title_source::title_id};
 use crate::{
     db::Database,
     plugins::{ExtensionPoints, without_secrets},
-    users::{personal_settings_of, split_personal_settings},
+    users::{personal_settings_of, renew_personal_secrets, split_personal_settings},
 };
 
 /// Tells each enabled Watch sync Plugin of `told`, for a User who set any of its Personal
@@ -32,7 +32,8 @@ pub(super) fn scrobble(db: &Arc<Database>, points: &ExtensionPoints, told: &Watc
     }
 }
 
-/// Tells the Plugin `plugin` of `told`, with the User's Personal settings for it.
+/// Tells the Plugin `plugin` of `told`, with the User's Personal settings for it, and keeps the
+/// tokens it renewed.
 async fn scrobble_to(
     db: Arc<Database>,
     points: ExtensionPoints,
@@ -52,7 +53,7 @@ async fn scrobble_to(
     let asked = ScrobbleAsked {
         user_id: user,
         personal_settings: personal_settings.into_iter().collect(),
-        changes: synced_changes(&Contents::new(db), &told.changes).await,
+        changes: synced_changes(&Contents::new(Arc::clone(&db)), &told.changes).await,
         ..ScrobbleAsked::default()
     };
     let answer = points
@@ -64,9 +65,19 @@ async fn scrobble_to(
             }
         })
         .await;
-    if let Some(Err(failure)) = answer.map(|answer| answer.result) {
-        let error = failure.message;
-        warn!(plugin = %plugin, user, error, "scrobbling a User's Watch State failed");
+    match answer.map(|answer| answer.result) {
+        Some(Ok(scrobbled)) => {
+            let renewed = renew_personal_secrets(&db, user, &plugin, scrobbled.personal_settings);
+            if let Err(err) = renewed.await {
+                let failed = "keeping the tokens a scrobble renewed failed";
+                error!(plugin = %plugin, user, "{failed}: {err}");
+            }
+        }
+        Some(Err(failure)) => {
+            let error = failure.message;
+            warn!(plugin = %plugin, user, error, "scrobbling a User's Watch State failed");
+        }
+        None => {}
     }
 }
 

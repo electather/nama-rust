@@ -11,7 +11,11 @@ function SignInRoute() {
   const { redirect } = Route.useSearch();
   const { hub } = Route.useRouteContext();
   return hub ? (
-    <HubSignIn redirect={redirect} sendsSignInLinks={hub.signInLinks} />
+    <HubSignIn
+      redirect={redirect}
+      sendsSignInLinks={hub.signInLinks}
+      offersPasskeys={hub.passkeys}
+    />
   ) : (
     <SignIn redirect={redirect} />
   );

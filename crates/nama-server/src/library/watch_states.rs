@@ -307,11 +307,11 @@ impl WatchStates {
     }
 
     /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of
-    /// each Movie or Episode here, made after any this Server has of it under any of its ids, in
-    /// one write: as of when it was made, it forgets one marked unplayed and stores any other,
-    /// under the preferred id. One once played here stays played. Queues nothing for the Hub and tells
-    /// neither Observers nor Watch sync Plugins: the change is the service's own news, so it never
-    /// echoes back.
+    /// each Movie or Episode here, made after any this Server has of it and after it was last
+    /// marked unplayed here, under any of its ids, in one write: as of when it was made, it forgets
+    /// one marked unplayed and stores any other, under the preferred id. One once played here stays
+    /// played. Queues nothing for the Hub and tells neither Observers nor Watch sync Plugins: the
+    /// change is the service's own news, so it never echoes back.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,
@@ -329,12 +329,12 @@ impl WatchStates {
 
     /// Takes each of `offline`, changes the User `user`'s Device made to their Watch State while
     /// offline, in the order they were made, as [`WatchStates::take_pulled`] takes a pulled one:
-    /// only when made after any this Server has of it, and as of when it was made, though one dated
-    /// in the future is taken as made now. Of a title's changes in one second, only the last made
-    /// is taken. One past 90% of its duration is played, as [`WatchStates::report`] has it, and one
-    /// at a duration of zero is left out, since 0 of 0 would forget a played title. Unlike a pulled
-    /// change, each it stores shows the title again in Continue Watching and is queued and told of.
-    /// Returns each change it stored.
+    /// only when made after any this Server has of it or its marking unplayed, and as of when it
+    /// was made, though one dated in the future is taken as made now. Of a title's changes in one
+    /// second, only the last made is taken. One past 90% of its duration is played, as
+    /// [`WatchStates::report`] has it, and one at a duration of zero is left out, since 0 of 0
+    /// would forget a played title. Unlike a pulled change, each it stores shows the title again in
+    /// Continue Watching and is queued and told of. Returns each change it stored.
     pub(crate) async fn take_offline(
         &self,
         user: i64,
@@ -602,8 +602,13 @@ async fn take_each(
         let at = change.changed_at_ms.div_euclid(1000);
         let (kind, title, ids) = watched.key();
         let newest = sqlx::query_scalar!(
-            r#"SELECT MAX(updated_at) AS "newest?: i64" FROM watch_states
-               WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))"#,
+            r#"SELECT MAX(at) AS "newest?: i64" FROM (
+                 SELECT updated_at AS at, title_id FROM watch_states
+                 WHERE user_id = ?1 AND kind = ?2
+                 UNION ALL
+                 SELECT forgotten_at, title_id FROM forgotten_watch_states
+                 WHERE user_id = ?1 AND kind = ?2)
+               WHERE title_id IN (SELECT value FROM json_each(?3))"#,
             user,
             kind,
             ids,
@@ -626,7 +631,7 @@ async fn take_each(
             }
             // Unplayed at 0 of 0: marked unplayed.
             None => {
-                forget(&mut *conn, user, kind, ids).await?;
+                forget(&mut *conn, user, kind, ids, at).await?;
                 watched.forgotten(changed_at_ms)
             }
         });
@@ -650,7 +655,7 @@ async fn mark_each(
             let kept = mark_played(&mut *conn, user, kind, title, now).await?;
             watched.changed(true, kept, changed_at_ms)
         } else {
-            forget(&mut *conn, user, kind, ids).await?;
+            forget(&mut *conn, user, kind, ids, now).await?;
             watched.forgotten(changed_at_ms)
         });
     }
@@ -665,10 +670,11 @@ async fn forget_each(
     entry: Vec<Watched>,
 ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
     let changed_at_ms = now_ms();
+    let now = changed_at_ms.div_euclid(1000);
     let mut forgot = false;
     for title in &titles {
         let (kind, _, ids) = title.key();
-        forgot |= forget(&mut *conn, user, kind, ids).await?;
+        forgot |= forget(&mut *conn, user, kind, ids, now).await?;
     }
     if forgot {
         hide_each(conn, user, entry, false).await?;
@@ -729,14 +735,29 @@ async fn mark_played(
 }
 
 /// Deleting the rows is how a title becomes unplayed with no position. Its rows under every id
-/// in the JSON array `ids` go, so an older one under another id doesn't come back. Says whether
-/// there were any.
+/// in the JSON array `ids` go, so an older one under another id doesn't come back, and when, `at`
+/// in seconds since the Unix epoch, is kept under each, so neither does an older change made
+/// elsewhere. Says whether there were any.
 async fn forget(
     conn: &mut SqliteConnection,
     user: i64,
     kind: &'static str,
     ids: String,
+    at: i64,
 ) -> Result<bool, sqlx::Error> {
+    // `WHERE true` keeps SQLite from reading the upsert's `ON` as a join's.
+    sqlx::query!(
+        "INSERT INTO forgotten_watch_states (user_id, kind, title_id, forgotten_at)
+         SELECT ?1, ?2, value, ?4 FROM json_each(?3) WHERE true
+         ON CONFLICT (user_id, kind, title_id) DO UPDATE
+         SET forgotten_at = max(forgotten_at, excluded.forgotten_at)",
+        user,
+        kind,
+        ids,
+        at,
+    )
+    .execute(&mut *conn)
+    .await?;
     let forgot = sqlx::query!(
         "DELETE FROM watch_states
          WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",

@@ -21,7 +21,7 @@ use crate::{
     db::Database,
     plugin_settings::PluginSettings,
     plugins::Registry,
-    users::{personal_settings_of, replace_personal_settings},
+    users::{personal_settings_of, replace_personal_settings, testing::insert_user},
 };
 
 const TRACKER: PluginId = PluginId::from_static("tracker");
@@ -137,24 +137,8 @@ async fn started() -> (TempDir, PluginSettings, Tracker, i64) {
     let plugins = PluginSettings::start(Arc::clone(&db), registry, &config)
         .await
         .unwrap();
-    let user = insert_user(&db).await;
+    let user = insert_user(&db, "ada").await;
     (data_dir, plugins, tracker, user)
-}
-
-async fn insert_user(db: &Database) -> i64 {
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES ('ada', 'ada', 0, 0, 0) RETURNING id",
-            )
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 #[tokio::test]

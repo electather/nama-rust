@@ -111,8 +111,7 @@ impl PlaybackService for PlaybackServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, StopPlaybackRequest>,
     ) -> ServiceResult<StopPlaybackResponse> {
-        let device = caller(&ctx)?.device.id;
-        self.plans.stop(request.plan_id, device).await;
+        self.plans.stop(request.plan_id, caller(&ctx)?).await;
         Response::ok(StopPlaybackResponse::default())
     }
 

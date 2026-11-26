@@ -76,8 +76,12 @@ message ScrobbleAsked {
   repeated SyncedWatchState changes = 3;
 }
 
-// What the `scrobble` export returns: nothing yet.
-message Scrobbled {}
+// What the `scrobble` export returns.
+message Scrobbled {
+  // Tokens the Plugin renewed during the call, as values of SECRET Personal settings the User
+  // already has, by key, which the Kernel keeps in place of the old. Any other key is dropped.
+  map<string, string> personal_settings = 1;
+}
 
 // What the `import` export is asked.
 message ImportAsked {
@@ -95,6 +99,8 @@ message Imported {
   repeated SyncedWatchState changes = 1;
   // Where the next ask continues from, opaque to the Kernel, which hands it back as `since`.
   string cursor = 2;
+  // As `Scrobbled.personal_settings`, kept even if taking `changes` fails.
+  map<string, string> personal_settings = 3;
 }
 
 // A Movie's or Episode's Watch State as a change left it.

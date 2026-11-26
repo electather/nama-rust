@@ -16,7 +16,7 @@ use nama_proto::nama::v1::{
     WhoAmIResponse, reauthenticate_request::Proof,
 };
 use refused::assert_refused;
-use server::{PASSWORD, SignedIn, TestServer, subscribe};
+use server::{SignedIn, TestServer, subscribe};
 
 fn sign_in_service(server: &TestServer, token: &str) -> SignInServiceClient<HttpClient> {
     SignInServiceClient::new(HttpClient::plaintext(), server.client_config_as(token))
@@ -24,27 +24,6 @@ fn sign_in_service(server: &TestServer, token: &str) -> SignInServiceClient<Http
 
 fn user_service(server: &TestServer, token: &str) -> UserServiceClient<HttpClient> {
     UserServiceClient::new(HttpClient::plaintext(), server.client_config_as(token))
-}
-
-/// Signs `name` in with their password on the Device holding the session `token`, answering the
-/// session the sign-in hands out.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn sign_in_on(server: &TestServer, token: &str, name: &str) -> String {
-    sign_in_service(server, token)
-        .sign_in(SignInRequest {
-            name: name.to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Living room TV".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .token
 }
 
 async fn who_am_i(server: &TestServer, token: &str) -> Result<WhoAmIResponse, ConnectError> {
@@ -130,7 +109,7 @@ async fn ada_and_grace_on_one_device() -> (TestServer, SignedIn, SignedIn) {
     let server = TestServer::builder().start().await;
     let ada = server.user("Ada", &[]).await;
     let grace = server.user("Grace", &[]).await;
-    let added = sign_in_on(&server, &ada.token, "Grace").await;
+    let added = server.sign_in_on(&ada.token, "Grace").await;
     assert_eq!(added, ada.token, "the Device's session changed");
     (server, ada, grace)
 }
@@ -150,7 +129,7 @@ async fn a_second_sign_in_on_a_device_adds_its_user_and_the_device_lists_exactly
 async fn signing_in_again_as_a_user_already_on_the_device_lists_them_once_and_acts_as_them() {
     let (server, ada, grace) = ada_and_grace_on_one_device().await;
 
-    let again = sign_in_on(&server, &ada.token, "Ada").await;
+    let again = server.sign_in_on(&ada.token, "Ada").await;
 
     assert_eq!(again, ada.token, "the Device's session changed");
     let me = who_am_i(&server, &ada.token).await.unwrap();
@@ -298,7 +277,7 @@ async fn a_second_sign_in_ends_the_streams_the_device_opened_as_the_user_it_acte
     server.user("Grace", &[]).await;
     let mut as_ada = subscribe(&server.client_config_as(&ada.token), &[]).await;
 
-    sign_in_on(&server, &ada.token, "Grace").await;
+    server.sign_in_on(&ada.token, "Grace").await;
 
     assert!(
         matches!(as_ada.message().await, Ok(None)),
@@ -475,7 +454,7 @@ async fn five_wrong_switch_pins_in_a_row_sign_the_user_out_of_the_device_until_t
     }
     let after = who_am_i(&server, &ada.token).await.unwrap();
     let with_the_right_one = switch_with_pin(&server, &ada.token, grace.id, GRACES_PIN).await;
-    sign_in_on(&server, &ada.token, "Grace").await;
+    server.sign_in_on(&ada.token, "Grace").await;
     switch(&server, &ada.token, ada.id).await.unwrap();
     let wrong_after_signing_in = switch_with_pin(&server, &ada.token, grace.id, "0000").await;
 

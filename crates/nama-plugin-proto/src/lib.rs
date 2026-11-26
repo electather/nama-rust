@@ -95,7 +95,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::SIMILAR_SOURCE, "1.1.0"),
     (services::JOB, "1.0.0"),
     (services::SEARCH_SOURCE, "1.0.0"),
-    (services::WATCH_SYNC, "2.1.0"),
+    (services::WATCH_SYNC, "2.2.0"),
 ];
 
 /// One of the Kernel's functions, which any Plugin calls by its name in the Wasm import namespace

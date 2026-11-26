@@ -16,7 +16,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/event.proto.
  */
 export const file_nama_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQiggsKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSAASNAoQcmVxdWVzdF9wcm9ncmVzcxgNIAEoCzIYLm5hbWEudjEuUmVxdWVzdFByb2dyZXNzSAASPQoVZm9sbG93ZWRfc2hvd19jcmVhdGVkGA4gASgLMhwubmFtYS52MS5Gb2xsb3dlZFNob3dDcmVhdGVkSAASTAodZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfYWRkZWQYDyABKAsyIy5uYW1hLnYxLkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkSAASSAobZm9sbG93ZWRfc2hvd19zdGF0ZV9jaGFuZ2VkGBAgASgLMiEubmFtYS52MS5Gb2xsb3dlZFNob3dTdGF0ZUNoYW5nZWRIABJBChdmb2xsb3dlZF9zaG93X2NhbmNlbGxlZBgRIAEoCzIeLm5hbWEudjEuRm9sbG93ZWRTaG93Q2FuY2VsbGVkSAASUAofZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfcmVtb3ZlZBgSIAEoCzIlLm5hbWEudjEuRm9sbG93ZWRTaG93UmVxdWVzdGVyUmVtb3ZlZEgAEkEKF2ZvbGxvd2VkX3Nob3dfd2l0aGRyYXduGBMgASgLMh4ubmFtYS52MS5Gb2xsb3dlZFNob3dXaXRoZHJhd25IABI0ChBwbGF5YmFja19zdGFydGVkGBQgASgLMhgubmFtYS52MS5QbGF5YmFja1N0YXJ0ZWRIABIwCg5wbGF5YmFja19lbmRlZBgVIAEoCzIWLm5hbWEudjEuUGxheWJhY2tFbmRlZEgAEjQKEHBsYXliYWNrX2NoYW5nZWQYFiABKAsyGC5uYW1hLnYxLlBsYXliYWNrQ2hhbmdlZEgAEjYKEW1hdGNoaW5nX2ZpbmlzaGVkGBcgASgLMhkubmFtYS52MS5NYXRjaGluZ0ZpbmlzaGVkSAASNAoQcHJvYmluZ19maW5pc2hlZBgYIAEoCzIYLm5hbWEudjEuUHJvYmluZ0ZpbmlzaGVkSABCBwoFZXZlbnQiIQoLU2NhblN0YXJ0ZWQSEgoKbGlicmFyeV9pZBgBIAEoAyJLCgxTY2FuUHJvZ3Jlc3MSEgoKbGlicmFyeV9pZBgBIAEoAxISCgpmaWxlc19kb25lGAIgASgEEhMKC2ZpbGVzX3RvdGFsGAMgASgEImYKDFNjYW5GaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg0KBWFkZGVkGAIgASgEEg8KB3VwZGF0ZWQYAyABKAQSDwoHcmVtb3ZlZBgEIAEoBBIRCgl1bmNoYW5nZWQYBSABKAQiXQoQTWF0Y2hpbmdGaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB21hdGNoZWQYAiABKAQSEQoJdW5tYXRjaGVkGAMgASgEEhEKCXVuZGVjaWRlZBgEIAEoBCJFCg9Qcm9iaW5nRmluaXNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIOCgZwcm9iZWQYAiABKAQSDgoGZmFpbGVkGAMgASgEIkUKEExpYnJhcnlJdGVtQWRkZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEgwKBHBhdGgYAyABKAkiOQoSTGlicmFyeUl0ZW1SZW1vdmVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAyJBCgtJdGVtTWF0Y2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDQoFdGl0bGUYAyABKAkiMwoOUmVxdWVzdENyZWF0ZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCJECg5SZXF1ZXN0ZXJBZGRlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiOAoTUmVxdWVzdFN0YXRlQ2hhbmdlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Il0KEFJlcXVlc3RDYW5jZWxsZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIXCgpkZWxldGVkX2J5GAIgASgJSACIAQFCDQoLX2RlbGV0ZWRfYnkiRgoQUmVxdWVzdGVyUmVtb3ZlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiNQoQUmVxdWVzdFdpdGhkcmF3bhIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjQKD1JlcXVlc3RQcm9ncmVzcxIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkMKE0ZvbGxvd2VkU2hvd0NyZWF0ZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IlsKGkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkgKGEZvbGxvd2VkU2hvd1N0YXRlQ2hhbmdlZBIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciRQoVRm9sbG93ZWRTaG93Q2FuY2VsbGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdyJdChxGb2xsb3dlZFNob3dSZXF1ZXN0ZXJSZW1vdmVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkUKFUZvbGxvd2VkU2hvd1dpdGhkcmF3bhIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciNgoPUGxheWJhY2tTdGFydGVkEiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjayJcCg1QbGF5YmFja0VuZGVkEiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxImCgphZG1pbl9zdG9wGAIgASgLMhIubmFtYS52MS5BZG1pblN0b3AiHAoJQWRtaW5TdG9wEg8KB21lc3NhZ2UYASABKAkiNgoPUGxheWJhY2tDaGFuZ2VkEiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjayLMAQoIUGxheWJhY2sSDwoHdXNlcl9pZBgBIAEoAxIRCglkZXZpY2VfaWQYAiABKAMSEgoKdmVyc2lvbl9pZBgDIAEoAxInCgZtZXRob2QYBCABKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEh4KBnRyYWNrcxgFIAMoCzIOLm5hbWEudjEuVHJhY2sSKAoHcmVhc29ucxgHIAMoCzIXLm5hbWEudjEuUGxheWJhY2tSZWFzb24SDwoHcGxhbl9pZBgIIAEoBEoECAYQByr2BgoJRXZlbnRUeXBlEhoKFkVWRU5UX1RZUEVfVU5TUEVDSUZJRUQQABIbChdFVkVOVF9UWVBFX1NDQU5fU1RBUlRFRBABEhwKGEVWRU5UX1RZUEVfU0NBTl9QUk9HUkVTUxACEhwKGEVWRU5UX1RZUEVfU0NBTl9GSU5JU0hFRBADEiEKHUVWRU5UX1RZUEVfTElCUkFSWV9JVEVNX0FEREVEEAQSIwofRVZFTlRfVFlQRV9MSUJSQVJZX0lURU1fUkVNT1ZFRBAFEhsKF0VWRU5UX1RZUEVfSVRFTV9NQVRDSEVEEAYSHgoaRVZFTlRfVFlQRV9SRVFVRVNUX0NSRUFURUQQBxIeChpFVkVOVF9UWVBFX1JFUVVFU1RFUl9BRERFRBAIEiQKIEVWRU5UX1RZUEVfUkVRVUVTVF9TVEFURV9DSEFOR0VEEAkSIAocRVZFTlRfVFlQRV9SRVFVRVNUX0NBTkNFTExFRBAKEiAKHEVWRU5UX1RZUEVfUkVRVUVTVEVSX1JFTU9WRUQQCxIgChxFVkVOVF9UWVBFX1JFUVVFU1RfV0lUSERSQVdOEAwSHwobRVZFTlRfVFlQRV9SRVFVRVNUX1BST0dSRVNTEA0SJAogRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX0NSRUFURUQQDhIsCihFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfUkVRVUVTVEVSX0FEREVEEA8SKgomRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1NUQVRFX0NIQU5HRUQQEBImCiJFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfQ0FOQ0VMTEVEEBESLgoqRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1JFUVVFU1RFUl9SRU1PVkVEEBISJgoiRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1dJVEhEUkFXThATEh8KG0VWRU5UX1RZUEVfUExBWUJBQ0tfU1RBUlRFRBAUEh0KGUVWRU5UX1RZUEVfUExBWUJBQ0tfRU5ERUQQFRIfChtFVkVOVF9UWVBFX1BMQVlCQUNLX0NIQU5HRUQQFhIgChxFVkVOVF9UWVBFX01BVENISU5HX0ZJTklTSEVEEBcSHwobRVZFTlRfVFlQRV9QUk9CSU5HX0ZJTklTSEVEEBgyWQoMRXZlbnRTZXJ2aWNlEkkKCVN1YnNjcmliZRIZLm5hbWEudjEuU3Vic2NyaWJlUmVxdWVzdBoaLm5hbWEudjEuU3Vic2NyaWJlUmVzcG9uc2UiA5ACATABYgZwcm90bzM", [file_nama_v1_browse, file_nama_v1_playback, file_nama_v1_request]);
+  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQisgsKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSAASNAoQcmVxdWVzdF9wcm9ncmVzcxgNIAEoCzIYLm5hbWEudjEuUmVxdWVzdFByb2dyZXNzSAASPQoVZm9sbG93ZWRfc2hvd19jcmVhdGVkGA4gASgLMhwubmFtYS52MS5Gb2xsb3dlZFNob3dDcmVhdGVkSAASTAodZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfYWRkZWQYDyABKAsyIy5uYW1hLnYxLkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkSAASSAobZm9sbG93ZWRfc2hvd19zdGF0ZV9jaGFuZ2VkGBAgASgLMiEubmFtYS52MS5Gb2xsb3dlZFNob3dTdGF0ZUNoYW5nZWRIABJBChdmb2xsb3dlZF9zaG93X2NhbmNlbGxlZBgRIAEoCzIeLm5hbWEudjEuRm9sbG93ZWRTaG93Q2FuY2VsbGVkSAASUAofZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfcmVtb3ZlZBgSIAEoCzIlLm5hbWEudjEuRm9sbG93ZWRTaG93UmVxdWVzdGVyUmVtb3ZlZEgAEkEKF2ZvbGxvd2VkX3Nob3dfd2l0aGRyYXduGBMgASgLMh4ubmFtYS52MS5Gb2xsb3dlZFNob3dXaXRoZHJhd25IABI0ChBwbGF5YmFja19zdGFydGVkGBQgASgLMhgubmFtYS52MS5QbGF5YmFja1N0YXJ0ZWRIABIwCg5wbGF5YmFja19lbmRlZBgVIAEoCzIWLm5hbWEudjEuUGxheWJhY2tFbmRlZEgAEjQKEHBsYXliYWNrX2NoYW5nZWQYFiABKAsyGC5uYW1hLnYxLlBsYXliYWNrQ2hhbmdlZEgAEjYKEW1hdGNoaW5nX2ZpbmlzaGVkGBcgASgLMhkubmFtYS52MS5NYXRjaGluZ0ZpbmlzaGVkSAASNAoQcHJvYmluZ19maW5pc2hlZBgYIAEoCzIYLm5hbWEudjEuUHJvYmluZ0ZpbmlzaGVkSAASLgoNaW5ib3hfY2hhbmdlZBgZIAEoCzIVLm5hbWEudjEuSW5ib3hDaGFuZ2VkSABCBwoFZXZlbnQiIQoLU2NhblN0YXJ0ZWQSEgoKbGlicmFyeV9pZBgBIAEoAyJLCgxTY2FuUHJvZ3Jlc3MSEgoKbGlicmFyeV9pZBgBIAEoAxISCgpmaWxlc19kb25lGAIgASgEEhMKC2ZpbGVzX3RvdGFsGAMgASgEImYKDFNjYW5GaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg0KBWFkZGVkGAIgASgEEg8KB3VwZGF0ZWQYAyABKAQSDwoHcmVtb3ZlZBgEIAEoBBIRCgl1bmNoYW5nZWQYBSABKAQiXQoQTWF0Y2hpbmdGaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB21hdGNoZWQYAiABKAQSEQoJdW5tYXRjaGVkGAMgASgEEhEKCXVuZGVjaWRlZBgEIAEoBCJFCg9Qcm9iaW5nRmluaXNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIOCgZwcm9iZWQYAiABKAQSDgoGZmFpbGVkGAMgASgEIh8KDEluYm94Q2hhbmdlZBIPCgd1c2VyX2lkGAEgASgDIkUKEExpYnJhcnlJdGVtQWRkZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEgwKBHBhdGgYAyABKAkiOQoSTGlicmFyeUl0ZW1SZW1vdmVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAyJBCgtJdGVtTWF0Y2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDQoFdGl0bGUYAyABKAkiMwoOUmVxdWVzdENyZWF0ZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCJECg5SZXF1ZXN0ZXJBZGRlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiOAoTUmVxdWVzdFN0YXRlQ2hhbmdlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Il0KEFJlcXVlc3RDYW5jZWxsZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIXCgpkZWxldGVkX2J5GAIgASgJSACIAQFCDQoLX2RlbGV0ZWRfYnkiRgoQUmVxdWVzdGVyUmVtb3ZlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiNQoQUmVxdWVzdFdpdGhkcmF3bhIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjQKD1JlcXVlc3RQcm9ncmVzcxIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkMKE0ZvbGxvd2VkU2hvd0NyZWF0ZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IlsKGkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkgKGEZvbGxvd2VkU2hvd1N0YXRlQ2hhbmdlZBIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciRQoVRm9sbG93ZWRTaG93Q2FuY2VsbGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdyJdChxGb2xsb3dlZFNob3dSZXF1ZXN0ZXJSZW1vdmVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkUKFUZvbGxvd2VkU2hvd1dpdGhkcmF3bhIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciNgoPUGxheWJhY2tTdGFydGVkEiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjayJcCg1QbGF5YmFja0VuZGVkEiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjaxImCgphZG1pbl9zdG9wGAIgASgLMhIubmFtYS52MS5BZG1pblN0b3AiHAoJQWRtaW5TdG9wEg8KB21lc3NhZ2UYASABKAkiNgoPUGxheWJhY2tDaGFuZ2VkEiMKCHBsYXliYWNrGAEgASgLMhEubmFtYS52MS5QbGF5YmFjayLMAQoIUGxheWJhY2sSDwoHdXNlcl9pZBgBIAEoAxIRCglkZXZpY2VfaWQYAiABKAMSEgoKdmVyc2lvbl9pZBgDIAEoAxInCgZtZXRob2QYBCABKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEh4KBnRyYWNrcxgFIAMoCzIOLm5hbWEudjEuVHJhY2sSKAoHcmVhc29ucxgHIAMoCzIXLm5hbWEudjEuUGxheWJhY2tSZWFzb24SDwoHcGxhbl9pZBgIIAEoBEoECAYQByqUBwoJRXZlbnRUeXBlEhoKFkVWRU5UX1RZUEVfVU5TUEVDSUZJRUQQABIbChdFVkVOVF9UWVBFX1NDQU5fU1RBUlRFRBABEhwKGEVWRU5UX1RZUEVfU0NBTl9QUk9HUkVTUxACEhwKGEVWRU5UX1RZUEVfU0NBTl9GSU5JU0hFRBADEiEKHUVWRU5UX1RZUEVfTElCUkFSWV9JVEVNX0FEREVEEAQSIwofRVZFTlRfVFlQRV9MSUJSQVJZX0lURU1fUkVNT1ZFRBAFEhsKF0VWRU5UX1RZUEVfSVRFTV9NQVRDSEVEEAYSHgoaRVZFTlRfVFlQRV9SRVFVRVNUX0NSRUFURUQQBxIeChpFVkVOVF9UWVBFX1JFUVVFU1RFUl9BRERFRBAIEiQKIEVWRU5UX1RZUEVfUkVRVUVTVF9TVEFURV9DSEFOR0VEEAkSIAocRVZFTlRfVFlQRV9SRVFVRVNUX0NBTkNFTExFRBAKEiAKHEVWRU5UX1RZUEVfUkVRVUVTVEVSX1JFTU9WRUQQCxIgChxFVkVOVF9UWVBFX1JFUVVFU1RfV0lUSERSQVdOEAwSHwobRVZFTlRfVFlQRV9SRVFVRVNUX1BST0dSRVNTEA0SJAogRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX0NSRUFURUQQDhIsCihFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfUkVRVUVTVEVSX0FEREVEEA8SKgomRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1NUQVRFX0NIQU5HRUQQEBImCiJFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfQ0FOQ0VMTEVEEBESLgoqRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1JFUVVFU1RFUl9SRU1PVkVEEBISJgoiRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1dJVEhEUkFXThATEh8KG0VWRU5UX1RZUEVfUExBWUJBQ0tfU1RBUlRFRBAUEh0KGUVWRU5UX1RZUEVfUExBWUJBQ0tfRU5ERUQQFRIfChtFVkVOVF9UWVBFX1BMQVlCQUNLX0NIQU5HRUQQFhIgChxFVkVOVF9UWVBFX01BVENISU5HX0ZJTklTSEVEEBcSHwobRVZFTlRfVFlQRV9QUk9CSU5HX0ZJTklTSEVEEBgSHAoYRVZFTlRfVFlQRV9JTkJPWF9DSEFOR0VEEBkyWQoMRXZlbnRTZXJ2aWNlEkkKCVN1YnNjcmliZRIZLm5hbWEudjEuU3Vic2NyaWJlUmVxdWVzdBoaLm5hbWEudjEuU3Vic2NyaWJlUmVzcG9uc2UiA5ACATABYgZwcm90bzM", [file_nama_v1_browse, file_nama_v1_playback, file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SubscribeRequest
@@ -252,6 +252,12 @@ export type Event = Message<"nama.v1.Event"> & {
      */
     value: ProbingFinished;
     case: "probingFinished";
+  } | {
+    /**
+     * @generated from field: nama.v1.InboxChanged inbox_changed = 25;
+     */
+    value: InboxChanged;
+    case: "inboxChanged";
   } | { case: undefined; value?: undefined };
 };
 
@@ -449,6 +455,28 @@ export const ProbingFinishedSchema: GenMessage<ProbingFinished> = /*@__PURE__*/
   messageDesc(file_nama_v1_event, 8);
 
 /**
+ * The Server stored a notification in the subscriber's inbox, so its unread count may have changed.
+ * Sent once the notification is stored, so `InboxService` lists it by then. Only that User gets it.
+ *
+ * @generated from message nama.v1.InboxChanged
+ */
+export type InboxChanged = Message<"nama.v1.InboxChanged"> & {
+  /**
+   * The User whose inbox it is.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.InboxChanged.
+ * Use `create(InboxChangedSchema)` to create a new message.
+ */
+export const InboxChangedSchema: GenMessage<InboxChanged> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 9);
+
+/**
  * A scan stored an Item, for a new file, one that changed or one a newer name parser read.
  *
  * @generated from message nama.v1.LibraryItemAdded
@@ -478,7 +506,7 @@ export type LibraryItemAdded = Message<"nama.v1.LibraryItemAdded"> & {
  * Use `create(LibraryItemAddedSchema)` to create a new message.
  */
 export const LibraryItemAddedSchema: GenMessage<LibraryItemAdded> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 9);
+  messageDesc(file_nama_v1_event, 10);
 
 /**
  * An Item is gone, because its file is gone or changed, or a newer name parser read it.
@@ -502,7 +530,7 @@ export type LibraryItemRemoved = Message<"nama.v1.LibraryItemRemoved"> & {
  * Use `create(LibraryItemRemovedSchema)` to create a new message.
  */
 export const LibraryItemRemovedSchema: GenMessage<LibraryItemRemoved> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 10);
+  messageDesc(file_nama_v1_event, 11);
 
 /**
  * An Item was Matched, automatically or by hand. A subscriber with a Maximum Age doesn't get it
@@ -534,7 +562,7 @@ export type ItemMatched = Message<"nama.v1.ItemMatched"> & {
  * Use `create(ItemMatchedSchema)` to create a new message.
  */
 export const ItemMatchedSchema: GenMessage<ItemMatched> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 11);
+  messageDesc(file_nama_v1_event, 12);
 
 /**
  * A User asked for a Movie that had no open Request, which opened this one. Request events reach
@@ -554,7 +582,7 @@ export type RequestCreated = Message<"nama.v1.RequestCreated"> & {
  * Use `create(RequestCreatedSchema)` to create a new message.
  */
 export const RequestCreatedSchema: GenMessage<RequestCreated> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 12);
+  messageDesc(file_nama_v1_event, 13);
 
 /**
  * A User joined a Request as a Requester.
@@ -582,7 +610,7 @@ export type RequesterAdded = Message<"nama.v1.RequesterAdded"> & {
  * Use `create(RequesterAddedSchema)` to create a new message.
  */
 export const RequesterAddedSchema: GenMessage<RequesterAdded> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 13);
+  messageDesc(file_nama_v1_event, 14);
 
 /**
  * A Request moved to another state.
@@ -603,7 +631,7 @@ export type RequestStateChanged = Message<"nama.v1.RequestStateChanged"> & {
  * Use `create(RequestStateChangedSchema)` to create a new message.
  */
 export const RequestStateChangedSchema: GenMessage<RequestStateChanged> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 14);
+  messageDesc(file_nama_v1_event, 15);
 
 /**
  * A Request was cancelled, which removed it: by a User with `PERMISSION_MANAGE_REQUESTS`, or by
@@ -633,7 +661,7 @@ export type RequestCancelled = Message<"nama.v1.RequestCancelled"> & {
  * Use `create(RequestCancelledSchema)` to create a new message.
  */
 export const RequestCancelledSchema: GenMessage<RequestCancelled> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 15);
+  messageDesc(file_nama_v1_event, 16);
 
 /**
  * A Requester withdrew from a Pending Request that others are still on.
@@ -661,7 +689,7 @@ export type RequesterRemoved = Message<"nama.v1.RequesterRemoved"> & {
  * Use `create(RequesterRemovedSchema)` to create a new message.
  */
 export const RequesterRemovedSchema: GenMessage<RequesterRemoved> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 16);
+  messageDesc(file_nama_v1_event, 17);
 
 /**
  * A Pending Request's last Requester withdrew, which removed it.
@@ -682,7 +710,7 @@ export type RequestWithdrawn = Message<"nama.v1.RequestWithdrawn"> & {
  * Use `create(RequestWithdrawnSchema)` to create a new message.
  */
 export const RequestWithdrawnSchema: GenMessage<RequestWithdrawn> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 17);
+  messageDesc(file_nama_v1_event, 18);
 
 /**
  * What a Processing or Partially Available Request's Fulfiller is downloading for it changed, or
@@ -704,7 +732,7 @@ export type RequestProgress = Message<"nama.v1.RequestProgress"> & {
  * Use `create(RequestProgressSchema)` to create a new message.
  */
 export const RequestProgressSchema: GenMessage<RequestProgress> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 18);
+  messageDesc(file_nama_v1_event, 19);
 
 /**
  * A User asked for a whole Show that had no open Followed Show, which opened this one. Followed
@@ -725,7 +753,7 @@ export type FollowedShowCreated = Message<"nama.v1.FollowedShowCreated"> & {
  * Use `create(FollowedShowCreatedSchema)` to create a new message.
  */
 export const FollowedShowCreatedSchema: GenMessage<FollowedShowCreated> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 19);
+  messageDesc(file_nama_v1_event, 20);
 
 /**
  * A User joined a Followed Show as a Requester.
@@ -753,7 +781,7 @@ export type FollowedShowRequesterAdded = Message<"nama.v1.FollowedShowRequesterA
  * Use `create(FollowedShowRequesterAddedSchema)` to create a new message.
  */
 export const FollowedShowRequesterAddedSchema: GenMessage<FollowedShowRequesterAdded> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 20);
+  messageDesc(file_nama_v1_event, 21);
 
 /**
  * A Followed Show was approved or declined.
@@ -774,7 +802,7 @@ export type FollowedShowStateChanged = Message<"nama.v1.FollowedShowStateChanged
  * Use `create(FollowedShowStateChangedSchema)` to create a new message.
  */
 export const FollowedShowStateChangedSchema: GenMessage<FollowedShowStateChanged> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 21);
+  messageDesc(file_nama_v1_event, 22);
 
 /**
  * A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Followed Show, which removed it.
@@ -795,7 +823,7 @@ export type FollowedShowCancelled = Message<"nama.v1.FollowedShowCancelled"> & {
  * Use `create(FollowedShowCancelledSchema)` to create a new message.
  */
 export const FollowedShowCancelledSchema: GenMessage<FollowedShowCancelled> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 22);
+  messageDesc(file_nama_v1_event, 23);
 
 /**
  * A Requester withdrew from a Followed Show that others are still on.
@@ -823,7 +851,7 @@ export type FollowedShowRequesterRemoved = Message<"nama.v1.FollowedShowRequeste
  * Use `create(FollowedShowRequesterRemovedSchema)` to create a new message.
  */
 export const FollowedShowRequesterRemovedSchema: GenMessage<FollowedShowRequesterRemoved> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 23);
+  messageDesc(file_nama_v1_event, 24);
 
 /**
  * A Followed Show's last Requester withdrew, which removed it.
@@ -844,7 +872,7 @@ export type FollowedShowWithdrawn = Message<"nama.v1.FollowedShowWithdrawn"> & {
  * Use `create(FollowedShowWithdrawnSchema)` to create a new message.
  */
 export const FollowedShowWithdrawnSchema: GenMessage<FollowedShowWithdrawn> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 24);
+  messageDesc(file_nama_v1_event, 25);
 
 /**
  * A Device was given a Playback Plan it can play: the first for a Version, or one that replaces
@@ -865,7 +893,7 @@ export type PlaybackStarted = Message<"nama.v1.PlaybackStarted"> & {
  * Use `create(PlaybackStartedSchema)` to create a new message.
  */
 export const PlaybackStartedSchema: GenMessage<PlaybackStarted> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 25);
+  messageDesc(file_nama_v1_event, 26);
 
 /**
  * A plan that `PlaybackStarted` told of stopped: its player stopped it (`StopPlayback`), an Admin
@@ -895,7 +923,7 @@ export type PlaybackEnded = Message<"nama.v1.PlaybackEnded"> & {
  * Use `create(PlaybackEndedSchema)` to create a new message.
  */
 export const PlaybackEndedSchema: GenMessage<PlaybackEnded> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 26);
+  messageDesc(file_nama_v1_event, 27);
 
 /**
  * An Admin stopping someone's play. It's a stop, not a ban: the viewer may play again at once.
@@ -916,7 +944,7 @@ export type AdminStop = Message<"nama.v1.AdminStop"> & {
  * Use `create(AdminStopSchema)` to create a new message.
  */
 export const AdminStopSchema: GenMessage<AdminStop> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 27);
+  messageDesc(file_nama_v1_event, 28);
 
 /**
  * A plan that `PlaybackStarted` told of changed how it plays while playing: its Transcode's
@@ -939,7 +967,7 @@ export type PlaybackChanged = Message<"nama.v1.PlaybackChanged"> & {
  * Use `create(PlaybackChangedSchema)` to create a new message.
  */
 export const PlaybackChangedSchema: GenMessage<PlaybackChanged> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 28);
+  messageDesc(file_nama_v1_event, 29);
 
 /**
  * One Playback Plan playing a Version on a Device.
@@ -1003,7 +1031,7 @@ export type Playback = Message<"nama.v1.Playback"> & {
  * Use `create(PlaybackSchema)` to create a new message.
  */
 export const PlaybackSchema: GenMessage<Playback> = /*@__PURE__*/
-  messageDesc(file_nama_v1_event, 29);
+  messageDesc(file_nama_v1_event, 30);
 
 /**
  * The kinds of `Event`, one per field of its `event`.
@@ -1135,6 +1163,11 @@ export const EventType = {
    * @generated from enum value: EVENT_TYPE_PROBING_FINISHED = 24;
    */
   PROBING_FINISHED: 24,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_INBOX_CHANGED = 25;
+   */
+  INBOX_CHANGED: 25,
 } as const;
 
 /**

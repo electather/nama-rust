@@ -135,7 +135,10 @@ impl WatchSync for Trakt {
         // just added again.
         plays.keep(asked.user_id)?;
         account.post_history("/sync/history/remove", &unwatched)?;
-        Ok(Scrobbled::default())
+        Ok(Scrobbled {
+            personal_settings: account.renewed(),
+            ..Scrobbled::default()
+        })
     }
 
     /// The plays in the User's Trakt history since the last import, everything on the first; the
@@ -154,6 +157,7 @@ impl WatchSync for Trakt {
         Ok(Imported {
             changes,
             cursor: activities.all,
+            personal_settings: account.renewed(),
             ..Imported::default()
         })
     }
@@ -191,12 +195,7 @@ impl WatchSync for Trakt {
             _ => {
                 let tokens: Tokens = TRAKT.accepted(answer)?.json()?;
                 Ok(LinkPolled {
-                    personal_settings: [
-                        (ACCESS_TOKEN.to_owned(), tokens.access_token),
-                        (REFRESH_TOKEN.to_owned(), tokens.refresh_token),
-                    ]
-                    .into_iter()
-                    .collect(),
+                    personal_settings: tokens.personal_settings().into_iter().collect(),
                     ..LinkPolled::default()
                 })
             }
@@ -223,6 +222,8 @@ fn rfc3339(ms: i64) -> Option<String> {
 /// A User's linked Trakt account, with the tokens its requests go with.
 struct Account {
     tokens: Tokens,
+    /// Whether the call renewed `tokens`, which the Kernel then keeps.
+    renewed: bool,
 }
 
 impl Account {
@@ -241,6 +242,7 @@ impl Account {
                 access_token: access_token.clone(),
                 refresh_token: refresh_token.clone(),
             },
+            renewed: false,
         })
     }
 
@@ -261,10 +263,9 @@ impl Account {
         TRAKT.send(&request, body)
     }
 
-    /// Trades the refresh token for new tokens, for the rest of the call.
-    // ponytail: the renewed tokens die with the call, as the contract can't hand them back for the
-    // Kernel to keep (ADR 0046), so the next renewal offers a spent refresh token and the User
-    // links again; keep them once #2308 adds that.
+    /// Trades the refresh token for new tokens, which the call's answer hands back to keep.
+    // A call that fails after renewing loses them, as a failure carries no answer, and the User
+    // links again.
     fn refresh(&mut self) -> Result<(), Error> {
         let body = json!({
             "refresh_token": self.tokens.refresh_token,
@@ -282,7 +283,16 @@ impl Account {
             ));
         }
         self.tokens = TRAKT.accepted(answer)?.json()?;
+        self.renewed = true;
         Ok(())
+    }
+
+    /// The tokens the call renewed, by Personal setting key, or none.
+    fn renewed<M: FromIterator<(String, String)>>(self) -> M {
+        (self.renewed.then_some(self.tokens))
+            .into_iter()
+            .flat_map(Tokens::personal_settings)
+            .collect()
     }
 
     /// POSTs `history` to `path`, unless it is empty.
@@ -320,6 +330,16 @@ impl Account {
 struct Tokens {
     access_token: String,
     refresh_token: String,
+}
+
+impl Tokens {
+    /// The tokens by the SECRET Personal setting keys the Kernel keeps them under.
+    fn personal_settings(self) -> [(String, String); 2] {
+        [
+            (ACCESS_TOKEN.to_owned(), self.access_token),
+            (REFRESH_TOKEN.to_owned(), self.refresh_token),
+        ]
+    }
 }
 
 /// When this Plugin last added a play of each title to a User's history, by the title's first id,

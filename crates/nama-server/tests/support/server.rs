@@ -30,8 +30,8 @@ use nama_proto::nama::v1::{
     EventServiceClient, EventType, ImageSettings, LibraryKind, LibraryServiceClient, Permission,
     PluginServiceClient, Quality, ReplaceQualitiesRequest, ScanLibraryRequest, ServerServiceClient,
     SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest, SignInServiceClient,
-    SubscribeRequest, SubscribeResponse, UpdateImageSettingsRequest, UserServiceClient, event,
-    subscribe_response,
+    SubscribeRequest, SubscribeResponse, SwitchUserRequest, UpdateImageSettingsRequest,
+    UserServiceClient, event, subscribe_response,
 };
 use nama_server::{ShareWithHub, db::Database, users::SetupCode};
 use tempfile::TempDir;
@@ -198,6 +198,14 @@ impl TestServer {
     )]
     pub(crate) fn advance_clock(&self, by: Duration) {
         nama_server::db::advance_clock(by);
+    }
+
+    /// Waits until the artwork work a scan, Matching or a correction began is done: the sweep of
+    /// unused images and every download after it, which run on after `MatchingFinished`. Waits
+    /// for the process's, as `Artwork::settled` does, which under nextest is this test's Server's.
+    pub(crate) async fn artwork_settled(&self) {
+        let settled = tokio::time::timeout(WAIT, nama_server::Artwork::settled()).await;
+        assert!(settled.is_ok(), "artwork work never settled");
     }
 
     /// The Server's data directory, such as for its Installed Plugins.
@@ -481,6 +489,42 @@ impl TestServer {
             client_config: self.client_config_as(&token),
             token,
         }
+    }
+
+    /// Signs `name` in on the Device holding the session `token`, which then acts as them, and
+    /// returns the session it hands out.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn sign_in_on(&self, token: &str, name: &str) -> String {
+        SignInServiceClient::new(HttpClient::plaintext(), self.client_config_as(token))
+            .sign_in(SignInRequest {
+                name: name.to_owned(),
+                password: PASSWORD.to_owned(),
+                device_name: "Living room TV".to_owned(),
+                delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .token
+    }
+
+    /// Switches the Device holding the session `token` to the User `user`, who has no Switch PIN.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn switch_to(&self, token: &str, user: i64) {
+        SignInServiceClient::new(HttpClient::plaintext(), self.client_config_as(token))
+            .switch_user(SwitchUserRequest {
+                user_id: user,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
     }
 }
 

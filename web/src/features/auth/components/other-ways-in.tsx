@@ -1,18 +1,22 @@
 import { Link } from "@tanstack/react-router";
 
+import { PasskeySignIn } from "@/features/auth/components/passkey-sign-in";
 import { SwitchSignInWay } from "@/features/auth/components/switch-sign-in-way";
 import { textLink } from "@/shared/lib/text-link-classes";
 
 /**
  * Under the Hub's sign-in form: a Sign-in Link instead, also for a forgotten password, on a Hub
- * that `sendsSignInLinks`, then creating an Account. Either goes on to `redirect`.
+ * that `sendsSignInLinks`, a passkey, on one that `offersPasskeys` in a browser that has them,
+ * then creating an Account. Each goes on to `redirect`.
  */
 export function OtherWaysIn({
   redirect,
   sendsSignInLinks,
+  offersPasskeys,
 }: {
   redirect: string | undefined;
   sendsSignInLinks: boolean;
+  offersPasskeys: boolean;
 }) {
   return (
     <>
@@ -28,6 +32,11 @@ export function OtherWaysIn({
           </p>
         </>
       )}
+      <PasskeySignIn
+        redirect={redirect}
+        offersPasskeys={offersPasskeys}
+        withOr={!sendsSignInLinks}
+      />
       <p className="text-center text-sm text-muted-foreground">
         New to the Hub?{" "}
         <Link to="/create-account" search={{ redirect }} className={textLink}>
