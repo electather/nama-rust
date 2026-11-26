@@ -315,6 +315,7 @@ impl Links {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::CodeNotFound)?;
+        // `floor`, as a bare cast to bigint rounds a time late in a second up into the next (#2406).
         let linked = sqlx::query!(
             r#"INSERT INTO linked_servers (account_id, name) VALUES ($1, $2)
              RETURNING id, floor(extract(epoch FROM created_at))::bigint AS "linked_at!""#,
@@ -393,6 +394,7 @@ impl Links {
 
     /// The Linked Servers `account` owns or has a User on, oldest first.
     pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
+        // `floor`, as a bare cast to bigint rounds a time late in a second up into the next (#2406).
         let servers = sqlx::query!(
             r#"SELECT id, name, server_url, public_address, relay_address, lan_addresses,
              floor(extract(epoch FROM created_at))::bigint AS "linked_at!"

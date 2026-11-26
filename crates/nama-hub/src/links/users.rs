@@ -197,6 +197,7 @@ impl Links {
         &self,
         account: AccountId,
     ) -> Result<Vec<ListedUser>, sqlx::Error> {
+        // `floor`, as a bare cast to bigint rounds a time late in a second up into the next (#2406).
         let users = sqlx::query!(
             r#"SELECT user_links.id, user_links.user_name, linked_servers.name AS server_name,
              floor(extract(epoch FROM user_links.created_at))::bigint AS "linked_at!"
@@ -244,6 +245,7 @@ pub(super) async fn insert_link(
     user_id: i64,
     name: String,
 ) -> Result<ListedUser, Error> {
+    // `floor`, as a bare cast to bigint rounds a time late in a second up into the next (#2406).
     let linked = sqlx::query!(
         r#"INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)
              VALUES ($1, $2, $3, $4) ON CONFLICT (linked_server_id, server_user_id) DO NOTHING

@@ -180,6 +180,7 @@ impl Accounts {
         &self,
         session: &AccountSession,
     ) -> Result<Vec<ListedSession>, sqlx::Error> {
+        // `floor`, as a bare cast to bigint rounds a time late in a second up into the next (#2406).
         let listed = sqlx::query!(
             r#"SELECT id, user_agent, floor(extract(epoch FROM last_used_at))::bigint AS "last_used_at!"
              FROM account_sessions
