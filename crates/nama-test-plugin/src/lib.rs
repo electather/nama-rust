@@ -516,7 +516,7 @@ mod home_rows {
 
     /// Gives every User `picks`: the Movies Heat, Dune and Alien and the Show Dark, which the
     /// fake TMDB knows, headed by a link to the Library [`PICKS_LIBRARY`]; `again`: Alien; and
-    /// `missing`: Dune and a Movie no title source has, linked to a Library no Server has. Gives
+    /// `missing`: Dune and a Movie no title source has, linked to [`NO_LIBRARY`]. Gives
     /// a User who set a `handle` the row `for-<handle>`: Alien, and suggests for their Featured
     /// Heat at 1.0, Alien at 0.0 and a Movie no title source has at 1.0. Logs which it was asked
     /// for, so a test counts its refreshes, and what its Store kept or why the Kernel refused it,
@@ -526,6 +526,9 @@ mod home_rows {
 
     /// The Library `picks` links to: the first a test creates.
     const PICKS_LIBRARY: i64 = 1;
+
+    /// The Library `missing` links to, which no Server has.
+    const NO_LIBRARY: i64 = 900_001;
 
     /// The `handle` whose rows and Featured are answered only once the Server's clock reads a
     /// minute past when they were asked, so a test can change something while a refresh runs.
@@ -565,7 +568,7 @@ mod home_rows {
                 },
                 row("again", "Alien again", &[(MOVIE, 348)]),
                 HomeRow {
-                    library_id: Some(900_001),
+                    library_id: Some(NO_LIBRARY),
                     ..row(
                         "missing",
                         "Not on the Server",
