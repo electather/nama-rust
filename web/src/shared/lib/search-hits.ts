@@ -29,7 +29,7 @@ export function searchNote(responses: readonly SearchResponse[]): string {
 /** A sentence for each thing `done` says is missing. */
 function missingFrom({ titleSourceUnavailable, failedSearchSources }: Done): string[] {
   const missing = titleSourceUnavailable
-    ? ["Titles to request couldn’t be searched, so only this Server’s are listed."]
+    ? ["Titles to request couldn’t be searched, so some may be missing."]
     : [];
   return failedSearchSources.length === 0 ? missing : [...missing, unanswered(failedSearchSources)];
 }
