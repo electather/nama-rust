@@ -8,7 +8,7 @@ use super::{
         Change, Decided, ImageRef, Item, ItemKind,
         any_library::matched_episodes,
         fixture::{MatchedMovie, tmdb_movie},
-        match_images::TitlePoster,
+        match_images::StoredTitleImage,
         testing::{ALIEN, Fixture, movie},
     },
     TitlesIn, genre_ids, show_poster,
@@ -396,7 +396,7 @@ async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
 }
 
 #[tokio::test]
-async fn an_episodes_posters_are_its_seasons_and_its_shows_by_the_shows_ids_and_not_its_backdrop() {
+async fn an_episodes_posters_and_backdrop_are_its_seasons_and_its_shows_under_the_shows_ids() {
     let fx = Fixture::shows().await;
     let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
     let episode = Item::Episode {
@@ -429,9 +429,10 @@ async fn an_episodes_posters_are_its_seasons_and_its_shows_by_the_shows_ids_and_
 
     let mut posters = fx.contents.posters(fx.library).await.unwrap();
     posters.sort_by(|a, b| a.path.cmp(&b.path));
+    let backdrops = fx.contents.backdrops(fx.library).await.unwrap();
 
     let show_ids = ExternalIds::from_iter([ExternalId::tmdb(1437)]);
-    let tmdb = |image_path: &str, of| TitlePoster {
+    let tmdb = |image_path: &str, of| StoredTitleImage {
         plugin: "tmdb".to_owned(),
         path: image_path.to_owned(),
         ids: show_ids.clone(),
@@ -444,6 +445,8 @@ async fn an_episodes_posters_are_its_seasons_and_its_shows_by_the_shows_ids_and_
             tmdb("/season-1.jpg", TitleImage::SeasonPoster(1)),
         ]
     );
+    let show_backdrop = TitleImage::Show(Role::Backdrop);
+    assert_eq!(backdrops, [tmdb("/backdrop.jpg", show_backdrop)]);
 }
 
 #[tokio::test]

@@ -6,9 +6,10 @@ use nama_plugin_api::metadata::ExternalIds;
 use super::{Contents, ids_from_json, ids_sql};
 use crate::library::{Role, TitleImage};
 
-/// A Poster a Match stores, as its Plugin and path, and whose it is: see [`Contents::posters`].
+/// A Poster or Backdrop a Match stores, as its Plugin and path, and whose it is: see
+/// [`Contents::posters`] and [`Contents::backdrops`].
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct TitlePoster {
+pub(crate) struct StoredTitleImage {
     pub(crate) plugin: String,
     pub(crate) path: String,
     /// Every id the Match gives the Movie, or the Episode's Show.
@@ -100,47 +101,83 @@ impl Contents {
         Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
     }
 
-    /// Each Backdrop, titled ones among them, and then each Title Logo a Match in the Library
-    /// `library` stores, as its Plugin and path.
-    pub(crate) async fn backdrops_and_title_logos(
+    /// Each titled Backdrop, and then each Title Logo, a Match in the Library `library` stores, as
+    /// its Plugin and path.
+    pub(crate) async fn titled_backdrops_and_title_logos(
         &self,
         library: i64,
     ) -> Result<(Vec<(String, String)>, Vec<(String, String)>), sqlx::Error> {
         let rows = sqlx::query!(
             r#"WITH matched AS (
-                   SELECT item_matches.backdrop, item_matches.backdrop_plugin,
-                          item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
+                   SELECT item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                           item_matches.logo, item_matches.logo_plugin
                    FROM item_matches
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
                    WHERE item_matches.state = 'matched' AND library_files.library_id = ?)
-               SELECT backdrop_plugin AS "plugin!", backdrop AS "path!", FALSE AS "title_logo!: bool"
-               FROM matched WHERE backdrop IS NOT NULL
-               UNION
-               SELECT titled_backdrop_plugin, titled_backdrop, FALSE FROM matched
-               WHERE titled_backdrop IS NOT NULL
+               SELECT titled_backdrop_plugin AS "plugin!", titled_backdrop AS "path!",
+                      FALSE AS "title_logo!: bool"
+               FROM matched WHERE titled_backdrop IS NOT NULL
                UNION
                SELECT logo_plugin, logo, TRUE FROM matched WHERE logo IS NOT NULL"#,
             library
         )
         .fetch_all(self.db.reader())
         .await?;
-        let (mut backdrops, mut title_logos) = (Vec::new(), Vec::new());
+        let (mut titled_backdrops, mut title_logos) = (Vec::new(), Vec::new());
         for row in rows {
             let kind = if row.title_logo {
                 &mut title_logos
             } else {
-                &mut backdrops
+                &mut titled_backdrops
             };
             kind.push((row.plugin, row.path));
         }
-        Ok((backdrops, title_logos))
+        Ok((titled_backdrops, title_logos))
+    }
+
+    /// Each Backdrop, not titled, a Match in the Library `library` stores, with whose it is: the
+    /// Movie's, or the Episode's Show's.
+    pub(crate) async fn backdrops(
+        &self,
+        library: i64,
+    ) -> Result<Vec<StoredTitleImage>, sqlx::Error> {
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT DISTINCT item_matches.backdrop_plugin AS "plugin!",
+                              item_matches.backdrop AS "path!",
+                              library_items.kind = 'movie' AS "of_movie!: bool", "#
+                        + $ids
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show'))
+                              AS "ids?: String"
+                       FROM item_matches
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE item_matches.state = 'matched' AND library_files.library_id = ?
+                         AND item_matches.backdrop IS NOT NULL"#,
+                    library
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        Ok((rows.into_iter())
+            .map(|row| StoredTitleImage {
+                image: if row.of_movie {
+                    TitleImage::Movie(Role::Backdrop)
+                } else {
+                    TitleImage::Show(Role::Backdrop)
+                },
+                plugin: row.plugin,
+                path: row.path,
+                ids: ids_from_json(row.ids.as_deref()),
+            })
+            .collect())
     }
 
     /// Each Poster, a title's, its Season's or its Show's, a Match in the Library `library`
     /// stores, with whose it is.
-    pub(crate) async fn posters(&self, library: i64) -> Result<Vec<TitlePoster>, sqlx::Error> {
+    pub(crate) async fn posters(&self, library: i64) -> Result<Vec<StoredTitleImage>, sqlx::Error> {
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -166,7 +203,7 @@ impl Contents {
         }
         let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         Ok((rows.into_iter())
-            .map(|row| TitlePoster {
+            .map(|row| StoredTitleImage {
                 // Only an Episode's Item has a Season (`library_items`' CHECK).
                 image: match (row.of_show, row.season) {
                     (true, _) => TitleImage::Show(Role::Poster),
