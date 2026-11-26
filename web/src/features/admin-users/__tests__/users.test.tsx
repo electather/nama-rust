@@ -51,7 +51,7 @@ test("a User the Server says can't sign in is marked so on the list", async () =
   expect(marked).toStrictEqual([false, true]);
 });
 
-test("a User opens in place of the list, and the crumb over it goes back", async () => {
+test("a User opens in place of the list, focused, under Settings' crumbs, whose Users goes back", async () => {
   const router = openApp(
     usersSection,
     fakeServer(
@@ -60,16 +60,21 @@ test("a User opens in place of the list, and the crumb over it goes back", async
       { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
     ),
   );
+  await screen.findByRole("list", { name: "Users" });
+  const crumbs = screen.getByRole("navigation", { name: "Breadcrumbs" });
+  expect(crumbs.textContent).toBe("Users");
 
-  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
+  fireEvent.click(screen.getByRole("link", { name: "Alex" }));
   const opened = await screen.findByRole("region", { name: "Alex" });
   expect(router.state.location.search).toMatchObject({ settings: "users", user: 2 });
   expect(router.state.location.searchStr).toBe("?settings=users&user=2");
-  const crumbs = within(opened).getByRole("navigation", { name: "Breadcrumb" });
-  expect(within(crumbs).getByText("Alex").getAttribute("aria-current")).toBe("page");
+  expect(document.activeElement).toBe(within(opened).getByRole("heading", { name: "Alex" }));
+  expect(crumbs.textContent).toBe("UsersAlex");
+  expect(within(crumbs).getByRole("listitem", { current: "page" }).textContent).toBe("Alex");
   expect(
     within(crumbs).getByRole("link", { name: "Users" }).getAttribute("aria-current"),
   ).toBeNull();
+  expect(within(opened).queryByRole("navigation")).toBeNull();
   expect(within(opened).getByRole("button", { name: "Delete Alex" })).toBeDefined();
   expect(screen.queryByRole("list", { name: "Users" })).toBeNull();
 

@@ -2,16 +2,15 @@ import { useEffect, useId, useRef } from "react";
 
 import { UserActions } from "@/features/admin-users/components/user-actions";
 import { SaveToast } from "@/features/settings/components/save-toast";
-import { UserCrumbs } from "@/features/settings/components/user-crumbs";
 import { UserGroups } from "@/features/settings/components/user-groups";
 import { useUserSettings } from "@/features/settings/hooks/use-user-settings";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { labelsOf } from "@/shared/lib/permissions";
 
 /**
- * The User `user` in place of the list, under the crumbs back to it: resetting their password,
- * clearing their Switch PIN and deleting them at the end of their name, then their Permissions,
- * cap, Maximum Age and Libraries, saved as they're changed when `you` may, and their Devices.
+ * The User `user` in place of the list: resetting their password, clearing their Switch PIN and
+ * deleting them at the end of their name, then their Permissions, cap, Maximum Age and Libraries,
+ * saved as they're changed when `you` may, and their Devices.
  */
 export function UserDetail({ user, you }: { user: User; you: User | undefined }) {
   const titleId = useId();
@@ -35,17 +34,17 @@ export function UserDetail({ user, you }: { user: User; you: User | undefined })
     </div>
   );
   const header = (
-    <header className="px-4 pt-4 md:px-7.5 md:pt-5">
-      <UserCrumbs name={user.name} />
-      <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b pb-6">
-        {name}
-        <UserActions user={user} isYou={user.id === you?.id} />
-      </div>
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+      {name}
+      <UserActions user={user} isYou={user.id === you?.id} />
     </header>
   );
   return (
     <>
-      <section aria-labelledby={titleId} className="flex flex-col">
+      <section
+        aria-labelledby={titleId}
+        className="flex flex-col gap-4 p-4 md:px-5 md:pt-2 md:pb-6"
+      >
         {header}
         <UserGroups user={user} you={you} values={values} onChange={edit} />
       </section>

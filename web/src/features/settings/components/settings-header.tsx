@@ -9,6 +9,7 @@ import { LibraryCrumbs } from "@/features/settings/components/library-crumbs";
 import { NewLibraryLink } from "@/features/settings/components/new-library-link";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { ResetHomeLayout } from "@/features/settings/components/reset-home-layout";
+import { UserCrumbs } from "@/features/settings/components/user-crumbs";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
 
 // The sections that open one of their things in place of their list, whose crumbs then name it.
@@ -16,6 +17,7 @@ const openedCrumbs: Partial<Record<Section, ComponentType>> = {
   plugins: PluginCrumbs,
   libraries: LibraryCrumbs,
   jobs: JobCrumbs,
+  users: UserCrumbs,
 };
 
 // What acts on a section's whole pane, beside the close button.
