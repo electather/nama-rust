@@ -256,8 +256,8 @@ async fn mark_sent(copy: &Path) -> bool {
     }
 }
 
-/// Leaves an empty file at `marker`, in a folder made for it if need be, which says the image
-/// goes unresized at the width and format the marker is named after.
+/// Leaves an empty file at `marker`, which says the image goes unresized at the width and format
+/// the marker is named after.
 async fn mark_unresized(marker: &Path) -> io::Result<()> {
     if let Some(folder) = marker.parent() {
         tokio::fs::create_dir_all(folder).await?;
