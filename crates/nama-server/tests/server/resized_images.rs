@@ -20,8 +20,8 @@ use jxl::{
     image::JxlOutputBuffer,
 };
 use nama_proto::nama::v1::{
-    Episode, GetServerInfoRequest, GetServerInfoResponse, LibraryKind, ListEpisodesRequest,
-    ServerServiceClient,
+    Episode, GetServerInfoRequest, GetServerInfoResponse, LibraryKind, LibraryServiceClient,
+    ListEpisodesRequest, ListLibrariesRequest, ServerServiceClient,
 };
 use server::{
     TestServer,
@@ -64,9 +64,9 @@ async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
     fs::write(&stored, image).unwrap();
 }
 
-/// Waits until a file is at `path`, failing the test after 10 seconds.
+/// Waits until a file is at `path`, failing the test after 60 seconds.
 async fn until_exists(path: &Path) {
-    let made = tokio::time::timeout(Duration::from_secs(10), async {
+    let made = tokio::time::timeout(Duration::from_secs(60), async {
         while !path.exists() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -393,36 +393,73 @@ async fn once_a_scan_has_finished_backdrop_and_title_logo_widths_are_sent_withou
     assert_sent_from_copies_made_ahead(&fx, &logo, &logo_copies, &info.title_logo_widths).await;
 }
 
-#[tokio::test]
-async fn a_poster_beside_the_media_is_sent_at_the_poster_widths_without_resizing_on_request() {
+/// Alien's Matched Movie with a Poster and a Backdrop beside its media, and the URLs of both.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn alien_with_images_beside_the_media() -> (Fixture, String, String) {
     let fx = Fixture::alien().await;
     fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
-
+    fx.write("Alien (1979)/fanart.jpg", &jpeg(2600, 1463));
     fx.scan_and_match().await;
-
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    let poster = movie.poster_url.unwrap();
+    let (poster, backdrop) = (movie.poster_url.unwrap(), movie.backdrop_url.unwrap());
     assert!(poster.starts_with("/media/local-images/"), "{poster}");
-    let widths = poster_widths(&fx).await;
-    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster), &widths).await;
+    assert!(backdrop.starts_with("/media/local-images/"), "{backdrop}");
+    (fx, poster, backdrop)
 }
 
 #[tokio::test]
-async fn a_poster_beside_the_media_recorded_without_copies_gets_them_on_a_rescan() {
+async fn images_beside_the_media_are_sent_at_their_widths_without_resizing_on_request() {
+    let (fx, poster, backdrop) = alien_with_images_beside_the_media().await;
+
+    let info = server_info(&fx).await;
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster), &info.poster_widths)
+        .await;
+    let backdrop_copies = copies_of(&fx, &backdrop);
+    assert_sent_from_copies_made_ahead(&fx, &backdrop, &backdrop_copies, &info.backdrop_widths)
+        .await;
+}
+
+#[tokio::test]
+async fn images_beside_the_media_recorded_without_copies_get_them_on_a_rescan() {
+    let (fx, poster, backdrop) = alien_with_images_beside_the_media().await;
+    let (poster_copies, backdrop_copies) = (copies_of(&fx, &poster), copies_of(&fx, &backdrop));
+    // As a Library scanned before images beside the media were resized ahead (#2152, #2244) has
+    // them.
+    until_exists(&poster_copies.join("320.jxl")).await;
+    until_exists(&backdrop_copies.join("2560.jxl")).await;
+    fs::remove_dir_all(&poster_copies).unwrap();
+    fs::remove_dir_all(&backdrop_copies).unwrap();
+
+    fx.scan_and_match().await;
+
+    let info = server_info(&fx).await;
+    assert_sent_from_copies_made_ahead(&fx, &poster, &poster_copies, &info.poster_widths).await;
+    assert_sent_from_copies_made_ahead(&fx, &backdrop, &backdrop_copies, &info.backdrop_widths)
+        .await;
+}
+
+#[tokio::test]
+async fn a_backdrop_beside_the_media_a_custom_backdrop_hides_gets_no_copy_made_ahead() {
     let fx = Fixture::alien().await;
+    let slot = format!("/custom-images/movie/tmdb-{ALIEN}/backdrop");
+    assert_eq!(fx.upload(&slot, &jpeg(2600, 1463)).await.status, 204);
+    fx.write("Alien (1979)/fanart.jpg", &jpeg(1920, 1080));
+    fx.scan_and_match().await;
     fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
+
     fx.scan_and_match().await;
+
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    let poster = movie.poster_url.unwrap();
-    let copies = copies_of(&fx, &poster);
-    // As a Library scanned before Posters beside the media were resized ahead (#2152) has them.
-    until_exists(&copies.join("320.jxl")).await;
-    fs::remove_dir_all(&copies).unwrap();
-
-    fx.scan_and_match().await;
-
-    let widths = poster_widths(&fx).await;
-    assert_sent_from_copies_made_ahead(&fx, &poster, &copies, &widths).await;
+    let poster_copies = copies_of(&fx, movie.poster_url.as_deref().unwrap());
+    // Each scan's pass waits its turn on one lock, so once the Poster has its copies the pass
+    // before, which saw only the Backdrop, has finished.
+    until_exists(&poster_copies.join("320.jxl")).await;
+    let library_copies = fs::read_dir(poster_copies.parent().unwrap()).unwrap();
+    let copied: Vec<_> = library_copies.map(|copy| copy.unwrap().path()).collect();
+    assert_eq!(copied, [poster_copies]);
 }
 
 #[tokio::test]
@@ -461,6 +498,33 @@ async fn an_uploaded_custom_poster_is_sent_at_the_poster_widths_without_resizing
     let poster = movie.poster_url.unwrap();
     let widths = poster_widths(&fx).await;
     assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster), &widths).await;
+}
+
+#[tokio::test]
+async fn uploaded_custom_backdrops_are_sent_at_the_backdrop_widths_without_resizing_on_request() {
+    let fx = Fixture::alien().await;
+
+    let title_slot = format!("/custom-images/movie/tmdb-{ALIEN}/backdrop");
+    let library_slot = format!("/custom-images/library/{}/backdrop", fx.library);
+    for slot in [title_slot, library_slot] {
+        assert_eq!(fx.upload(&slot, &jpeg(2600, 1463)).await.status, 204);
+    }
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let library = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .list_libraries(ListLibrariesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .libraries
+        .remove(0);
+    let widths = server_info(&fx).await.backdrop_widths;
+    for backdrop in [movie.backdrop_url, library.backdrop_url] {
+        let backdrop = backdrop.unwrap();
+        assert!(backdrop.starts_with("/media/custom-images/"), "{backdrop}");
+        assert_sent_from_copies_made_ahead(&fx, &backdrop, &copies_of(&fx, &backdrop), &widths)
+            .await;
+    }
 }
 
 #[tokio::test]

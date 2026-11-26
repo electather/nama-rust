@@ -481,19 +481,22 @@ async fn events_about_a_hidden_library_never_reach_its_subscriber() {
     let mut vasquezs = subscribe(&fx.vasquez.client_config(), &item_added).await;
     let mut hicks = subscribe(&fx.hicks.client_config(), &item_added).await;
 
-    fx.alien.add(&["Aliens (1986)/Aliens (1986).mkv"]);
-    fx.server.scan(fx.alien.id).await;
-    fx.heat.add(&["Dune (2021)/Dune (2021).mkv"]);
-    fx.server.scan(fx.heat.id).await;
-
     let library_of = |event| {
         let event::Event::LibraryItemAdded(added) = event else {
             panic!("not an Item added: {event:?}");
         };
         added.library_id
     };
-    assert_eq!(library_of(vasquezs.next().await), fx.heat.id);
+    // One scan at a time, as two in flight publish their Items in either order.
+    fx.alien.add(&["Aliens (1986)/Aliens (1986).mkv"]);
+    fx.server.scan(fx.alien.id).await;
     assert_eq!(library_of(hicks.next().await), fx.alien.id);
+    fx.heat.add(&["Dune (2021)/Dune (2021).mkv"]);
+    fx.server.scan(fx.heat.id).await;
+
+    // Alien's Item was published first, so Vasquez hearing Heat's first means they never heard it.
+    assert_eq!(library_of(vasquezs.next().await), fx.heat.id);
+    assert_eq!(library_of(hicks.next().await), fx.heat.id);
 }
 
 #[tokio::test]

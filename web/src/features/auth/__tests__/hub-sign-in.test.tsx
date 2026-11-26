@@ -132,6 +132,28 @@ test("creating an Account at the Hub signs it in", async () => {
   await expect(screen.findByText("bea@example.com")).resolves.toBeDefined();
 });
 
+test("creating an Account goes on to where signing in was going", async () => {
+  const router = openApp("/sign-in?redirect=%2Fcode", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Create an Account" }));
+  await screen.findByRole("heading", { name: "Create an Account" });
+  fill("Email", "bea@example.com");
+  fill("Password", "a long password");
+  fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
+
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  expect(router.state.location.pathname).toBe("/code");
+});
+
+test("signing in instead of creating an Account keeps where signing in was going", async () => {
+  const router = openApp("/create-account?redirect=%2Fcode", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in" }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  expect(router.state.location.href).toBe("/sign-in?redirect=%2Fcode");
+});
+
 test("an email that has an Account already is refused under the email", async () => {
   openApp("/create-account", fakeHub().transport);
 
@@ -147,6 +169,22 @@ test("a Server has no page for creating an Account", async () => {
   openApp("/create-account", fakeServer({ signedIn: newUser }));
 
   await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
+});
+
+// The fake Hub doesn't answer `nama.v1`, so a page that called it would fail instead.
+test.each(["/sign-in/code", "/sign-in/code/waiting", "/sign-in/account", "/invite/a-token"])(
+  "the Hub has no Server's page %s",
+  async (path) => {
+    openApp(path, fakeHub().transport);
+
+    await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
+  },
+);
+
+test("a Server opens its page for signing in with a code", async () => {
+  openApp("/sign-in/code", fakeServer({}));
+
+  await expect(screen.findByLabelText("Device name")).resolves.toBeDefined();
 });
 
 test("a Sign-in Link is emailed, to continue where signing in was going", async () => {

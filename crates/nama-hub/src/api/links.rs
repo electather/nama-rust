@@ -266,11 +266,11 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, CreateServerTokenRequest>,
     ) -> ServiceResult<CreateServerTokenResponse> {
-        let account = session(&ctx)?.account.id;
+        let session = session(&ctx)?;
         // An id that isn't a UUID names no Linked Server, so none the Account has a User on.
         let server = (request.linked_server_id.parse())
             .map_err(|_not_a_uuid| refused(links::Error::NoUserOnServer))?;
-        let token = (self.links.server_token(account, server).await).map_err(refused)?;
+        let token = (self.links.server_token(session, server).await).map_err(refused)?;
         Response::ok(CreateServerTokenResponse {
             token,
             ..Default::default()

@@ -27,7 +27,8 @@ const widths = {
 
 /**
  * A fake Server that lists `offered` widths, with Library 1, shown by `backdrop`, and two
- * Movies in it: Alien, whose poster has a thumbhash, and Heat, whose poster has none.
+ * Movies in it: Alien, whose poster has a thumbhash, and Heat, whose poster has none and which is
+ * Alien's Similar title.
  */
 function serverWithAMovie(offered: Partial<typeof widths> = widths) {
   return fakeServer(
@@ -65,6 +66,7 @@ function serverWithAMovie(offered: Partial<typeof widths> = widths) {
             versions: [{ id: 1n }],
             trailers: [{ name: "Teaser", url: "https://vimeo.com/123456789" }],
           },
+          similar: [{ id: heat, title: "Heat", libraryId: 1n, posterUrl: heatPoster }],
         }),
       });
     },
@@ -95,6 +97,14 @@ test("a Poster offers a copy at only each width the Server makes Posters at ahea
   await screen.findByText("Alien");
 
   expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=480 480w`);
+});
+
+test("a Similar title's Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
+  openApp("/libraries/1/movies/tmdb-348", serverWithAMovie());
+
+  await screen.findByRole("link", { name: "Heat" });
+
+  expect(srcSetOf(heatPoster)).toBe(`${heatPoster}?width=320 320w, ${heatPoster}?width=480 480w`);
 });
 
 test("a Backdrop and a Title Logo offer a copy at only each width the Server makes them at ahead", async () => {

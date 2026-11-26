@@ -1,18 +1,21 @@
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLinkItem,
   DropdownMenuTrigger,
 } from "nama-ui/components/dropdown-menu";
 
 import { useSignOut } from "@/app/data/use-sign-out";
 import { sectionSearch } from "@/features/settings/lib/sections";
 
+const watchlistLink = <Link to="/watchlist" />;
+
 /**
- * The signed-in User's menu, behind their initial: switching to another of this Device's Users,
- * their Settings, and signing out.
+ * The signed-in User's menu, behind their initial: their Watchlist, switching to another of this
+ * Device's Users, their Settings, and signing out.
  */
 export function UserMenu({ userName }: { userName: string }) {
   const navigate = useNavigate();
@@ -35,6 +38,7 @@ export function UserMenu({ userName }: { userName: string }) {
         <ChevronDown aria-hidden strokeWidth={1.5} className="size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
+        <DropdownMenuLinkItem render={watchlistLink}>Watchlist</DropdownMenuLinkItem>
         <DropdownMenuItem
           onClick={() => {
             void navigate({ to: "/switch-user", search: { redirect: here } });

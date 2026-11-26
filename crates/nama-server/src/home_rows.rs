@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use futures_util::future::join_all;
 use nama_plugin_api::{
     PluginError, PluginId,
     contract::TitleKind,
@@ -36,7 +37,7 @@ use rows::Rows;
 use crate::{
     content_ratings::MaximumAge,
     db::{self, Database},
-    library::{Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
+    library::{self, Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{Listed, Requests},
@@ -227,6 +228,63 @@ impl HomeRows {
             titles.push(self.with_request(reader, title).await?);
         }
         Ok((titles, paging))
+    }
+
+    /// Each of `titles` that `reader` sees, in their order, with how a row shows it: on the
+    /// Server in the oldest Library they see that has it, or else missing as the title source has
+    /// it now, if they may Request it. One the title source can't be asked about now is left out,
+    /// and the failure logged.
+    pub(crate) async fn shown_to(
+        &self,
+        reader: &User,
+        titles: Vec<(library::TitleKind, ExternalId)>,
+    ) -> Result<Vec<(ExternalId, RowTitle)>, Error> {
+        let titles: Vec<(ExternalId, Title)> = (titles.into_iter())
+            .map(|(kind, id)| {
+                let kind = match kind {
+                    library::TitleKind::Movie => Kind::Movie,
+                    library::TitleKind::Show => Kind::Show,
+                };
+                let title = Title(kind, id.to_string());
+                (id, title)
+            })
+            .collect();
+        let named: Vec<Title> = titles.iter().map(|(_, title)| title.clone()).collect();
+        let max_age = maximum_age(&self.db, reader.id).await?;
+        let seen = library_access(&self.db, reader.id).await?;
+        let on_server = self.on_server(&named, &seen, max_age).await?;
+        let rows = Rows(self.clone());
+        // ponytail: one title-source call per missing title, at every listing; keep what was
+        // looked up if Watchlists grow long.
+        let look_ups = (titles.iter())
+            .filter(|(_, title)| !on_server.contains_key(title))
+            .map(|(_, title)| rows.look_up(title));
+        let mut looked_up = join_all(look_ups).await.into_iter();
+        let may_request = may_request(reader, max_age);
+        let mut shown = Vec::with_capacity(titles.len());
+        for (id, title) in titles {
+            let row_title = match on_server.get(&title) {
+                Some(found) => found.clone().map(RowTitle::OnServer),
+                None => match looked_up.next() {
+                    Some(Ok(missing)) => missing
+                        .filter(&may_request)
+                        .and_then(|missing| missing.row_title()),
+                    Some(Err(err)) => {
+                        warn!(
+                            user = reader.id,
+                            "could not look a Watchlist title up: {err}"
+                        );
+                        None
+                    }
+                    None => None,
+                },
+            };
+            if let Some(row_title) = row_title {
+                // ponytail: one query per missing Movie, one after another, as `titles` does.
+                shown.push((id, self.with_request(reader, row_title).await?));
+            }
+        }
+        Ok(shown)
     }
 
     /// `title` with its open Request, if it is a missing Movie whose Request `reader` may see.

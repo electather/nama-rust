@@ -37,7 +37,11 @@ export function ShelfPoster({
       aria-describedby={describedBy}
       className={`relative isolate block aspect-2/3 overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${radius}`}
     >
-      <TileArt url={art.url} thumbhash={art.thumbhash} look={{ sizes: posterSizes, radius }} />
+      <TileArt
+        url={art.url}
+        thumbhash={art.thumbhash}
+        look={{ sizes: posterSizes, radius, widths: "posterWidths" }}
+      />
       {children}
     </Link>
   );

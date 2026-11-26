@@ -197,9 +197,10 @@ impl SignIn {
     }
 
     /// Signs a new `device` in as the User `hub_token` names, a token the Hub signed for the web
-    /// app at the Hub (ADR 0105), at `now`. A refused token counts as a failed attempt from the
-    /// client IP, as does a Hub that can't be asked for its key set: either may be anyone's token,
-    /// and an unknown key fetches the set again.
+    /// app at the Hub (ADR 0105), at `now`, with Recent Authentication from when their Account's
+    /// Hub session signed in. A refused token counts as a failed attempt from the client IP, as
+    /// does a Hub that can't be asked for its key set: either may be anyone's token, and an unknown
+    /// key fetches the set again.
     pub(crate) async fn sign_in_with_hub_token(
         &self,
         hub_token: &str,
@@ -208,13 +209,11 @@ impl SignIn {
     ) -> Result<SignedIn, Error> {
         let device = named(device)?;
         let attempt = self.limits.admit(device.ip_address, None, now)?;
-        let user =
+        let (user, signed_in_at) =
             (self.users.linking.hub_token_user(hub_token).await?).ok_or(Error::HubTokenRefused)?;
         self.limits.succeeded(&attempt);
-        Ok(self
-            .users
-            .sign_in_as(Proved::Account(user), device, None)
-            .await?)
+        let proved = Proved::HubSession { user, signed_in_at };
+        Ok(self.users.sign_in_as(proved, device, None).await?)
     }
 
     /// Creates a User named `name` with `password` from the Invite whose link carries `token`, and

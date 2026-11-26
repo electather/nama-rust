@@ -6,7 +6,7 @@ use crate::{
     playback::{
         Facts, Method, Network, PickedLimit, Playing, build,
         tests::{audio, facts, given, kind_and_params, kinds, reason_of, track, transcoded, video},
-        tracks::TrackKind,
+        tracks::{Track, TrackKind},
     },
     server_settings::PlaybackLimit,
 };
@@ -115,6 +115,7 @@ fn a_remote_cap_direct_plays_a_version_of_unknown_picture_size_and_says_it_cant_
         Kind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
         vec![("playbackLimit", "PLAYBACK_LIMIT_480P")],
     )];
+    let unprobed_and_sizeless = [None, Some(vec![sizeless_video()])];
     for (picked_limit, size_unknown) in [
         (PickedLimit::Unpicked, vec![]),
         (
@@ -122,36 +123,64 @@ fn a_remote_cap_direct_plays_a_version_of_unknown_picture_size_and_says_it_cant_
             size_unknown_for_480p,
         ),
     ] {
+        for tracks in unprobed_and_sizeless.clone() {
+            let mut facts = Facts {
+                picked_limit,
+                network: Network::Remote {
+                    default: None,
+                    cap: Some(PlaybackLimit::P720),
+                },
+                ..facts(tracks)
+            };
+
+            let plan = build(&mut facts);
+
+            assert_eq!(plan.method(), Some(Method::DirectPlay), "{picked_limit:?}");
+            assert_eq!(
+                plan.offers.cap,
+                Some(PlaybackLimit::P720),
+                "{picked_limit:?}"
+            );
+            let unapplied = reason_of(
+                &plan,
+                Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
+            );
+            assert_eq!(
+                kind_and_params(unapplied).1,
+                [("playbackLimit", "PLAYBACK_LIMIT_720P")],
+                "{picked_limit:?}"
+            );
+            let given_size_unknown: Vec<_> = (given(&plan).into_iter())
+                .filter(|(kind, _)| *kind == Kind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN)
+                .collect();
+            assert_eq!(given_size_unknown, size_unknown, "{picked_limit:?}");
+        }
+    }
+}
+
+#[test]
+fn a_probed_version_without_video_says_nothing_of_its_picture_size_locally_or_under_a_remote_cap() {
+    let capped = Network::Remote {
+        default: None,
+        cap: Some(PlaybackLimit::P720),
+    };
+    for (network, cap) in [(Network::Local, None), (capped, Some(PlaybackLimit::P720))] {
         let mut facts = Facts {
-            picked_limit,
-            network: Network::Remote {
-                default: None,
-                cap: Some(PlaybackLimit::P720),
-            },
-            ..facts(None)
+            picked_limit: PickedLimit::Picked(Some(PlaybackLimit::P480)),
+            network,
+            ..facts(Some(vec![audio("aac", true)]))
         };
 
         let plan = build(&mut facts);
 
-        assert_eq!(plan.method(), Some(Method::DirectPlay), "{picked_limit:?}");
-        assert_eq!(
-            plan.offers.cap,
-            Some(PlaybackLimit::P720),
-            "{picked_limit:?}"
+        assert_eq!(plan.method(), Some(Method::DirectPlay), "{network:?}");
+        assert_eq!(plan.offers.cap, cap, "{network:?}");
+        let kinds = kinds(&plan);
+        assert!(
+            !kinds.contains(&Kind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN)
+                && !kinds.contains(&Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN),
+            "{network:?}: {kinds:?}"
         );
-        let unapplied = reason_of(
-            &plan,
-            Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
-        );
-        assert_eq!(
-            kind_and_params(unapplied).1,
-            [("playbackLimit", "PLAYBACK_LIMIT_720P")],
-            "{picked_limit:?}"
-        );
-        let given_size_unknown: Vec<_> = (given(&plan).into_iter())
-            .filter(|(kind, _)| *kind == Kind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN)
-            .collect();
-        assert_eq!(given_size_unknown, size_unknown, "{picked_limit:?}");
     }
 }
 
@@ -233,7 +262,12 @@ fn a_playback_limit_the_versions_picture_fits_or_original_leaves_it_direct_playe
     let cases = [
         (Some(PlaybackLimit::P1080), probed.clone(), None),
         (None, probed, None),
-        (Some(PlaybackLimit::P480), None, Some(size_unknown)),
+        (Some(PlaybackLimit::P480), None, Some(size_unknown.clone())),
+        (
+            Some(PlaybackLimit::P480),
+            Some(vec![sizeless_video()]),
+            Some(size_unknown),
+        ),
     ];
     for (limit, tracks, last) in cases {
         let mut facts = Facts {
@@ -305,4 +339,15 @@ fn with_picture_limited_to((width, height): (i64, i64), limit: PlaybackLimit) ->
             audio("aac", true),
         ]))
     }
+}
+
+fn sizeless_video() -> Track {
+    let kind = TrackKind::Video {
+        width: None,
+        height: None,
+        frame_rate: Some(24.0),
+        bit_depth: Some(8),
+        hdr: None,
+    };
+    track("h264", false, kind)
 }
