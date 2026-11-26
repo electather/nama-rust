@@ -26,7 +26,7 @@ use sqlx::SqliteConnection;
 use super::apply::Applied;
 use super::asking::{Wanted, WantedSeasons, ask, ask_movie, ask_seasons, opening_state};
 use super::availability::make_seasons_available;
-use super::followed::{follow, follow_new_seasons};
+use super::followed::follow_new_seasons;
 use super::state::{STATES, settle};
 use super::{Requests, qualities};
 use crate::{
@@ -669,20 +669,44 @@ pub(super) async fn scan(db: &Database, show: ExternalId, numbers: &[u32]) -> Ve
         .unwrap()
 }
 
-/// `user` follows `show`, opening its Followed Show in `state` if it has none.
+/// `user` puts `show` on their Watchlist, joining its Followed Show or opening one in `state`, then
+/// asks for each of its Seasons from the Show's page, as `AddToWatchlist` then
+/// `CreateSeasonRequests` do. Returns the Followed Show and the Season Requests in Season order,
+/// with the Followed Show's event first.
 pub(super) async fn follow_as(
     db: &Database,
     user: i64,
     show: WantedSeasons,
     state: RequestState,
 ) -> Applied<(FollowedShow, Vec<Request>)> {
-    db.write(move |tx| Box::pin(follow(tx, user, show, state)))
-        .await
-        .unwrap()
+    db.write(move |tx| {
+        Box::pin(async move {
+            let latest = show.seasons.iter().map(|season| season.number).max();
+            let watchlisted = WantedSeasons {
+                seasons: Vec::new(),
+                show_id: show.show_id.clone(),
+                show_ids: show.show_ids.clone(),
+                show_title: show.show_title.clone(),
+                quality: show.quality.clone(),
+                content_rating: show.content_rating.clone(),
+            };
+            let followed = follow_new_seasons(tx, user, watchlisted, latest, state).await?;
+            let asked = ask_seasons(tx, user, show, state).await?;
+            Ok::<_, super::Error>(Applied {
+                value: (followed.value, asked.value),
+                events: followed.events.into_iter().chain(asked.events).collect(),
+                hand_off: asked.hand_off,
+                unfollow: None,
+                removed: Vec::new(),
+            })
+        })
+    })
+    .await
+    .unwrap()
 }
 
 /// `user` puts `show` on their Watchlist, following it for the Seasons after those out already, of
-/// which `latest` is the last, as [`follow_as`] does.
+/// which `latest` is the last, asking for none of them.
 pub(super) async fn follow_new_as(
     db: &Database,
     user: i64,

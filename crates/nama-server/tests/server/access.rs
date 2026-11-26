@@ -130,13 +130,11 @@ const REQUEST_MOVIE: [&str; 3] = [
     "/nama.v1.RequestService/CreateRequest",
 ];
 
-/// Every RPC for Requesting Seasons of a Show or Following it, which needs
-/// `PERMISSION_REQUEST_TV`.
-const REQUEST_TV: [&str; 4] = [
+/// Every RPC for Requesting Seasons of a Show, which needs `PERMISSION_REQUEST_TV`.
+const REQUEST_TV: [&str; 3] = [
     "/nama.v1.RequestService/LookUpShow",
     "/nama.v1.RequestService/ListShowQualities",
     "/nama.v1.RequestService/CreateSeasonRequests",
-    "/nama.v1.RequestService/CreateFollowedShow",
 ];
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, and for

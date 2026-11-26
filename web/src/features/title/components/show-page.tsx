@@ -9,23 +9,26 @@ import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitlePage } from "@/features/title/components/title-page";
 import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useContinueWatchingEntries } from "@/features/title/data/use-continue-watching-entries";
+import { useFoundShowIfMay } from "@/features/title/data/use-found-show-if-may";
 import { useShow } from "@/features/title/data/use-show";
 import { useShowEpisodes } from "@/features/title/data/use-show-episodes";
+import { SeasonAskingContext, usePageSeasonAsking } from "@/features/title/hooks/season-asking";
 import { useSeasonRow } from "@/features/title/hooks/use-season-row";
 import { episodeToResume } from "@/features/title/lib/episode-to-resume";
-import { nextToWatch } from "@/features/title/lib/next-to-watch";
+import { heroTarget, targetSeason } from "@/features/title/lib/hero-target";
 import { openingSeason, seasonShown } from "@/features/title/lib/opening-season";
 import { rowSeasons } from "@/features/title/lib/row-seasons";
+import { seasonsOfRow, showRow } from "@/features/title/lib/show-row";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { isGone } from "@/shared/hooks/browse";
 
 /**
- * A Show of a Library: its top, with Play or Resume and what else may be done, every Episode in one
- * row under the name of the Season it's on, a menu that scrolls it to another, its Trailers, then
- * its Details.
- * The row opens on the Season `asked`, if it has it, or else on the Season of the Episode Play
- * starts. Then the Similar titles in a Library.
+ * A Show of a Library: its top, with Play or Resume, or Request for a Season it lacks, and what else
+ * may be done, every Episode in one row under the name of the Season it's on, a menu that scrolls
+ * it to another, its Trailers, then its Details. To a User who may Request Shows, the row holds
+ * the Episodes missing from the Server too, dimmed. The row opens on the Season `asked`, if it
+ * has it, or else on the Season of the main button's Episode. Then the Similar titles in a Library.
  */
 export function ShowPage({
   libraryId,
@@ -38,51 +41,60 @@ export function ShowPage({
 }) {
   const show = { libraryId, showId };
   const { data, error } = useShow(show);
-  const seasons = rowSeasons(data.seasons);
-  const episodes = useShowEpisodes(show, seasons);
-  const entries = useContinueWatchingEntries();
-  const toPlay = episodeToResume(entries, libraryId, showId) ?? nextToWatch(episodes);
+  const librarySeasons = rowSeasons(data.seasons);
+  const episodes = useShowEpisodes(show, librarySeasons);
+  const found = useFoundShowIfMay(showId);
+  const asking = usePageSeasonAsking(found);
+  const row = showRow(episodes, found);
+  const seasons = seasonsOfRow(row, librarySeasons);
+  const resumed = episodeToResume(useContinueWatchingEntries(), libraryId, showId);
+  const target = heroTarget(row, resumed);
+  const toPlay = targetSeason(target);
   const {
-    row,
+    row: rowRef,
     scroller,
     season: rowSeason,
     opening,
     pick,
-  } = useSeasonRow(openingSeason(seasons, asked, toPlay), episodes);
+  } = useSeasonRow(openingSeason(seasons, asked, toPlay), row);
   const season = seasonShown(seasons, rowSeason, toPlay);
   if (!data.show || isGone(error)) {
     throw notFound();
   }
   return (
-    <TitlePage
-      name={data.show.title}
-      hero={
-        <ShowHero
-          {...{ libraryId, showId, episodes, toPlay }}
-          show={data.show}
-          seasons={data.seasons}
-          seasonNumber={season}
+    <SeasonAskingContext value={asking}>
+      <TitlePage
+        name={data.show.title}
+        hero={
+          <ShowHero
+            {...{ libraryId, showId, episodes, row, target }}
+            show={data.show}
+            seasons={data.seasons}
+            seasonNumber={season}
+          />
+        }
+      >
+        <NotToldNotice />
+        <ShowEpisodes
+          {...{ libraryId, seasons, scroller, opening }}
+          row={rowRef}
+          episodes={row}
+          current={season}
+          onPick={pick}
         />
-      }
-    >
-      <NotToldNotice />
-      <ShowEpisodes
-        {...{ libraryId, seasons, episodes, row, scroller, opening }}
-        current={season}
-        onPick={pick}
-      />
-      <TitleTrailers
-        trailers={data.show.trailers}
-        art={{ url: data.show.backdropUrl, thumbhash: data.show.backdropThumbhash }}
-      />
-      <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
-      <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
-      <ShowDetails
-        libraryId={libraryId}
-        show={data.show}
-        episodes={episodes}
-        aired={data.airedEpisodeCount}
-      />
-    </TitlePage>
+        <TitleTrailers
+          trailers={data.show.trailers}
+          art={{ url: data.show.backdropUrl, thumbhash: data.show.backdropThumbhash }}
+        />
+        <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
+        <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
+        <ShowDetails
+          libraryId={libraryId}
+          show={data.show}
+          episodes={episodes}
+          aired={data.airedEpisodeCount}
+        />
+      </TitlePage>
+    </SeasonAskingContext>
   );
 }

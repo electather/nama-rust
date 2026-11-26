@@ -7,13 +7,14 @@ import { QualityMenuLoader } from "@/shared/components/request-button/quality-me
 import { useMay } from "@/shared/hooks/use-may";
 
 /**
- * Request, which asks for `what` at the User's Quality, and beside it a chevron whose menu asks at
+ * Request, or `label`, which asks for `what` at the User's Quality, and beside it a chevron whose menu asks at
  * one of the Qualities of the Fulfiller for `kind`. The chevron shows only while `opening` a Request,
  * since joining one keeps its Quality, to a User who may choose, when there's a choice. Request is
  * the screen's primary action if `primary`, and `busy` while it's being sent.
  */
 export function RequestSplitButton({
   what,
+  label,
   kind,
   opening,
   primary,
@@ -21,6 +22,7 @@ export function RequestSplitButton({
   onRequest,
 }: {
   what: string;
+  label?: string | undefined;
   kind: "movie" | "show";
   opening: boolean;
   primary: boolean;
@@ -33,7 +35,7 @@ export function RequestSplitButton({
   return (
     <span className={hanging}>
       <ButtonGroup>
-        <OneClickRequest {...bothParts} onRequest={onRequest} />
+        <OneClickRequest {...bothParts} label={label} onRequest={onRequest} />
         {opening && mayChoose && (
           <QualityMenuLoader {...bothParts} kind={kind} onPick={onRequest} />
         )}

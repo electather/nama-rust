@@ -4,7 +4,6 @@ import { askRefusal, showHasQuality } from "@/shared/lib/forms";
 /** What to tell the User when Requesting Seasons of the Show titled `title` was refused with `error`. */
 export function seasonsRefusal(error: unknown, title: string) {
   return askRefusal(error, `Request Seasons of ${title}`, {
-    [RefusalReason.FIELD_REQUIRED]: { form: "Pick at least one Season." },
     // A scan Matched one since the page was opened, which reading the Seasons back shows.
     [RefusalReason.ALREADY_IN_LIBRARY]: { form: "One of those Seasons is already in a Library." },
     // Removed from the list since the page opened.

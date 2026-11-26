@@ -1,14 +1,19 @@
 import { Plus } from "lucide-react";
 import { Button } from "nama-ui/components/button";
 
-/** The main part of the split Request button, which asks for `what` at the User's Quality. */
+/**
+ * The main part of the split Request button, which asks for `what` at the User's Quality, saying
+ * `label`, such as "Request Season 2", where the page doesn't say what.
+ */
 export function OneClickRequest({
   what,
+  label = "Request",
   variant,
   disabled,
   onRequest,
 }: {
   what: string;
+  label?: string | undefined;
   variant: "default" | "ghost";
   disabled: boolean;
   onRequest: () => void;
@@ -27,7 +32,7 @@ export function OneClickRequest({
       }}
     >
       <Plus aria-hidden className="size-4" />
-      Request
+      {label}
     </Button>
   );
 }

@@ -6,7 +6,6 @@ import {
   seasonInView,
   smoothUnlessReduced,
 } from "@/features/title/lib/season-row";
-import type { Episode } from "@/gen/nama/v1/browse_pb";
 
 /**
  * The Season a Show's row of `episodes`, `row`, is on, starting at `initial`: the Season of the card
@@ -14,7 +13,7 @@ import type { Episode } from "@/gen/nama/v1/browse_pb";
  * Seasons between, the picked one stays chosen. `opening` is the card the row opens on, and
  * `scroller` what the row scrolls by.
  */
-export function useSeasonRow(initial: number, episodes: Episode[]) {
+export function useSeasonRow(initial: number, episodes: { seasonNumber: number }[]) {
   const row = useRef<HTMLDivElement>(null);
   const scroller = useRef<RowScroller>(null);
   const [season, setSeason] = useState(initial);
@@ -44,7 +43,10 @@ export function useSeasonRow(initial: number, episodes: Episode[]) {
  */
 function followScroll(
   row: HTMLElement,
-  { picked, episodes }: { picked: { current: number | undefined }; episodes: Episode[] },
+  {
+    picked,
+    episodes,
+  }: { picked: { current: number | undefined }; episodes: { seasonNumber: number }[] },
   setSeason: (season: number) => void,
 ) {
   let frame = 0;

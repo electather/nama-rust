@@ -77,7 +77,7 @@ test("saving a default for Shows reads the Show Quality menu's Qualities again",
   const dark = {
     id: { namespace: "tmdb", value: "70523" },
     title: "Dark",
-    seasons: [{ seasonNumber: 1 }],
+    seasons: [{ seasonNumber: 1, episodes: [{ episodeNumber: 1 }] }],
   };
   const transport = fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
     router.service(RequestService, {
@@ -92,7 +92,7 @@ test("saving a default for Shows reads the Show Quality menu's Qualities again",
     });
   });
   const router = openApp("/shows/tmdb-70523", transport);
-  const chevron = "Request Seasons of Dark at a Quality";
+  const chevron = "Request Season 1 of Dark at a Quality";
   await waitFor(() => {
     expect(screen.getByRole<HTMLButtonElement>("button", { name: chevron }).disabled).toBe(false);
   });

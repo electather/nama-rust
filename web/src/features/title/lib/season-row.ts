@@ -1,5 +1,3 @@
-import type { Episode } from "@/gen/nama/v1/browse_pb";
-
 // The row keeps only the cards near the view in the page, and every card is as wide as the next,
 // so these count card widths from one it shows rather than finding a card.
 // ponytail: measures left to right; a right-to-left language would measure from the right.
@@ -58,7 +56,7 @@ function gapAfter(card: HTMLElement) {
  * The Season of the card the row of `episodes` has snapped to, or of the last card once the row is
  * scrolled to its end, where a short last Season's first card can't reach the start.
  */
-export function seasonInView(row: HTMLElement, episodes: Episode[]) {
+export function seasonInView(row: HTMLElement, episodes: { seasonNumber: number }[]) {
   const step = cardStep(row);
   return step === undefined
     ? undefined
@@ -72,7 +70,7 @@ function snappedIndex(row: HTMLElement, step: number, count: number) {
 }
 
 /** The index in a Show's row of `season`'s first Episode, or -1 for a Season it doesn't have. */
-export function firstOfSeason(episodes: Episode[], season: number) {
+export function firstOfSeason(episodes: { seasonNumber: number }[], season: number) {
   return episodes.findIndex(({ seasonNumber }) => seasonNumber === season);
 }
 

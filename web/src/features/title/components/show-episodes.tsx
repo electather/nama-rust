@@ -3,7 +3,7 @@ import type { Ref, RefObject } from "react";
 import { EpisodeRow } from "@/features/title/components/episode-row";
 import { SeasonBar } from "@/features/title/components/season-bar";
 import type { RowScroller } from "@/features/title/lib/season-row";
-import type { Episode } from "@/gen/nama/v1/browse_pb";
+import type { RowEpisode } from "@/features/title/lib/show-row";
 
 /**
  * A Show's Episodes in one row, Season after Season, Specials last, under the name of the Season
@@ -22,9 +22,9 @@ export function ShowEpisodes({
   row: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
   opening: number;
-  libraryId: bigint;
+  libraryId: bigint | undefined;
   seasons: number[];
-  episodes: Episode[];
+  episodes: RowEpisode[];
   current: number;
   onPick: (season: number) => void;
 }) {

@@ -5,9 +5,13 @@ import { NotFound } from "@/app/route-error/not-found";
 import { ShowPage } from "@/features/title/components/show-page";
 import { TitlePending } from "@/features/title/components/title-pending";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { RequestService } from "@/gen/nama/v1/request_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, libraryIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
+import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 import { prefetchLibraries } from "@/shared/hooks/use-libraries";
 import { deletedFromSearch, type DeletedSearch } from "@/shared/lib/deleted-search";
+import { may } from "@/shared/lib/permissions";
 
 export const Route = createFileRoute("/_member/_server/libraries/$libraryId/shows/$showId/")({
   validateSearch: (search): { season?: number } & DeletedSearch => {
@@ -34,6 +38,19 @@ export const Route = createFileRoute("/_member/_server/libraries/$libraryId/show
           staleTime: "static",
         })
         .catch(() => null),
+      // The Episodes missing from the Server, for one who may Request them. The title source may
+      // fail, which leaves the page with the Library's alone.
+      may(context.signedIn.user, Permission.REQUEST_TV) &&
+        queryClient
+          .query({
+            ...createQueryOptions(
+              RequestService.method.lookUpShow,
+              { showId: show.showId },
+              { transport },
+            ),
+            staleTime: loaderStaleTime,
+          })
+          .catch(() => null),
     ]);
     return { ...show, asked: deps.season };
   },

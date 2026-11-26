@@ -529,7 +529,7 @@ async fn pages_list_every_request_and_followed_show_once_in_order_even_with_one_
     let fixture = Fixture::start().await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada);
-    let (followed, _) = ada.follow(DARK).await;
+    let (followed, _) = follow_dark(&ada).await;
     ada.ask(HEAT).await;
     ada.ask(DUNE).await;
     let (all, _) = ada.list_in(RequestState::Unspecified).await;
@@ -551,7 +551,7 @@ async fn pages_list_every_request_and_followed_show_once_in_order_even_with_one_
     assert_eq!(
         second.followed_shows,
         [followed],
-        "after its Season Requests opened in the same second"
+        "after the Season Requests opened in the same second"
     );
     assert_eq!(second.page.next_token, "", "the last page");
 }
@@ -588,7 +588,7 @@ async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and
     let alien = ada.ask(ALIEN).await;
     // With no Movie Fulfiller, an approved Movie waits Approved.
     let approved = fixture.server.approve(ada.ask(DUNE).await.id).await;
-    let (followed, dark) = ada.follow(DARK).await;
+    let (followed, dark) = follow_dark(&ada).await;
     fixture.server.approve(dark[0].id).await;
     let processing = fixture.server.approve(dark[1].id).await;
     fulfiller.refuse();
@@ -658,7 +658,7 @@ async fn without_view_requests_a_user_lists_only_their_own_requests_in_every_sta
     let ada = requests(as_ada);
     let grace = requests(as_grace);
     ada.ask(HEAT).await;
-    ada.follow(DARK).await;
+    follow_dark(&ada).await;
     let graces = grace.ask(DUNE).await;
     let graces_declined = fixture.server.decline(grace.ask(ALIEN).await.id, "").await;
 
@@ -687,7 +687,7 @@ async fn a_failed_season_request_lists_under_failed_without_its_approved_followe
     fulfiller.refuse();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada);
-    let (followed, asked) = ada.follow(DARK).await;
+    let (followed, asked) = follow_dark(&ada).await;
     let approved = approve_followed(&fixture, followed.id).await.unwrap();
 
     let (failed, followed_failed) = ada.list_in(RequestState::Failed).await;
@@ -2512,10 +2512,17 @@ async fn a_show_search_finds_shows_with_their_year_and_poster() {
     );
 }
 
+/// Follows Dark as the caller of `client`, then asks for its three Seasons from its page. Returns
+/// the Followed Show and the Season Requests.
+async fn follow_dark(client: &RequestServiceClient<HttpClient>) -> (FollowedShow, Vec<Request>) {
+    let followed = client.follow(DARK).await;
+    (followed, client.ask_seasons(DARK, &[1, 2, 3]).await)
+}
+
 /// Follows Dark as the caller of `client` as if it had two Seasons then: the fake TMDB has no
-/// Season yet to come out, so Season 3 stands in for one. Its Request is cancelled as the Admin,
-/// and the Followed Show is told Season 2 was the latest. Returns the Followed Show and the Season
-/// 1 and 2 Requests.
+/// Season yet to come out, so Season 3 stands in for one. Asks for Seasons 1 and 2 alone, and
+/// tells the Followed Show Season 2 was the latest. Returns the Followed Show and the Season 1 and
+/// 2 Requests.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -2524,18 +2531,8 @@ async fn follow_dark_before_season_3(
     fixture: &Fixture,
     client: &RequestServiceClient<HttpClient>,
 ) -> (FollowedShow, Vec<Request>) {
-    let (followed, mut asked) = client.follow(DARK).await;
-    let season_3 = asked.pop().unwrap();
-    assert_eq!(season_of(&season_3), Some(("Dark", 3)));
-    fixture
-        .server
-        .admin_requests()
-        .cancel_request(CancelRequestRequest {
-            id: season_3.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    let followed = client.follow(DARK).await;
+    let asked = client.ask_seasons(DARK, &[1, 2]).await;
     let id = followed.id;
     fixture
         .server
@@ -2602,7 +2599,7 @@ async fn a_pending_followed_show_and_each_of_its_pending_season_requests_count_o
     let as_admin = fixture.server.admin_requests();
     assert_eq!(count_pending(&as_admin).await.unwrap(), 1);
 
-    let (_, asked) = ada_requests.follow(DARK).await;
+    let (_, asked) = follow_dark(&ada_requests).await;
     fixture.server.approve(heat.id).await;
 
     assert_eq!(asked.len(), 3, "{asked:?}");
@@ -2622,7 +2619,7 @@ async fn without_view_requests_a_request_manager_counts_only_the_pending_request
     let grace_requests = requests(as_grace);
     let ada_requests = requests(as_ada);
     ada_requests.ask(HEAT).await;
-    ada_requests.follow(DARK).await;
+    follow_dark(&ada_requests).await;
     grace_requests.ask(ALIEN).await;
 
     assert_eq!(count_pending(&grace_requests).await.unwrap(), 1);
@@ -2643,23 +2640,17 @@ async fn dark_seasons_requested(client: &RequestServiceClient<HttpClient>) -> Ve
 }
 
 #[tokio::test]
-async fn asking_for_a_whole_show_opens_a_followed_show_and_a_request_per_season_not_in_a_library_and_one_approval_approves_them()
+async fn a_followers_season_requests_open_for_their_pending_followed_show_and_its_approval_approves_them()
  {
     let fixture = Fixture::start().await;
-    // Season 3's one aired Episode, so Season 3 is in a Library.
-    let _media = fixture
-        .server
-        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
-        .await;
     let ada = fixture.server.user("Ada", &NEW_USER).await;
     let (ada, as_ada) = (ada.id, ada.client_config());
     let ada_requests = requests(as_ada);
 
-    let (followed, asked) = ada_requests.follow(DARK).await;
+    let followed = ada_requests.follow(DARK).await;
+    let asked = ada_requests.ask_seasons(DARK, &[1, 2]).await;
     let approved = approve_followed(&fixture, followed.id).await.unwrap();
 
-    let seasons: Vec<_> = asked.iter().map(season_of).collect();
-    assert_eq!(seasons, [Some(("Dark", 1)), Some(("Dark", 2))]);
     assert!(
         asked
             .iter()
@@ -2820,8 +2811,8 @@ async fn a_second_user_asking_for_a_whole_show_joins_its_followed_show_and_shows
         .await;
     let (grace, as_grace) = (grace.id, grace.client_config());
 
-    let (first, _) = requests(as_ada).follow(DARK).await;
-    let (joined, asked) = requests(as_grace.clone()).follow(DARK).await;
+    let (first, _) = follow_dark(&requests(as_ada)).await;
+    let (joined, asked) = follow_dark(&requests(as_grace.clone())).await;
 
     assert_eq!(joined.id, first.id);
     assert_eq!(
@@ -2852,7 +2843,7 @@ async fn a_user_who_may_auto_approve_tv_following_a_show_approves_someone_elses_
     let (grace, as_grace) = (grace.id, grace.client_config());
     let season_2 = requests(as_ada).ask_seasons(DARK, &[2]).await;
 
-    let (_, asked) = requests(as_grace).follow(DARK).await;
+    let (_, asked) = follow_dark(&requests(as_grace)).await;
 
     let joined = asked.iter().find(|r| r.id == season_2[0].id);
     assert_eq!(
@@ -2880,10 +2871,10 @@ async fn following_an_approved_followed_show_without_auto_approve_leaves_someone
         .await
         .client_config();
     let season_2 = requests(as_ada).ask_seasons(DARK, &[2]).await;
-    let (followed, _) = requests(as_bob).follow(DARK).await;
+    let followed = requests(as_bob).follow(DARK).await;
     approve_followed(&fixture, followed.id).await.unwrap();
 
-    let (_, asked) = requests(as_grace).follow(DARK).await;
+    let (_, asked) = follow_dark(&requests(as_grace)).await;
 
     let joined = asked.iter().find(|r| r.id == season_2[0].id);
     assert_eq!(joined.map(|r| r.state), Some(RequestState::Pending.into()));
@@ -2899,7 +2890,7 @@ async fn a_user_who_may_auto_approve_shows_opens_an_approved_followed_show_which
         .await
         .client_config();
 
-    let (followed, asked) = requests(as_ada).follow(DARK).await;
+    let (followed, asked) = follow_dark(&requests(as_ada)).await;
     let refused = approve_followed(&fixture, followed.id).await;
 
     assert_eq!(followed.state, RequestState::Approved);
@@ -2920,7 +2911,7 @@ async fn approving_a_followed_show_hands_its_season_requests_to_the_shows_fulfil
     let fulfiller = fixture.server.fulfiller();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada);
-    let (followed, asked) = ada.follow(DARK).await;
+    let (followed, asked) = follow_dark(&ada).await;
 
     approve_followed(&fixture, followed.id).await.unwrap();
 
@@ -2952,7 +2943,7 @@ async fn a_whole_show_asked_for_approved_hands_its_season_requests_to_the_shows_
         .await
         .client_config();
 
-    let (_, asked) = requests(as_ada).follow(DARK).await;
+    let (_, asked) = follow_dark(&requests(as_ada)).await;
 
     assert!(
         asked
@@ -2976,7 +2967,7 @@ async fn a_season_request_approved_alone_while_its_followed_show_is_pending_is_h
     let fixture = Fixture::with_shows_fulfiller(&[]).await;
     let fulfiller = fixture.server.fulfiller();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-    let (_, asked) = requests(as_ada).follow(DARK).await;
+    let (_, asked) = follow_dark(&requests(as_ada)).await;
 
     let approved = fixture.server.approve(asked[0].id).await;
 
@@ -2999,7 +2990,7 @@ async fn a_season_request_the_shows_fulfiller_cant_follow_for_fails_with_its_rea
         .await
         .client_config();
 
-    let (_, asked) = requests(as_ada).follow(DARK).await;
+    let (_, asked) = follow_dark(&requests(as_ada)).await;
     fulfiller.recover();
     let retried = fixture.server.retry(asked[0].id).await;
 
@@ -3024,7 +3015,7 @@ async fn cancelling_an_approved_followed_show_tells_the_shows_fulfiller_to_stop_
         .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
         .await
         .client_config();
-    let (followed, _) = requests(as_ada).follow(DARK).await;
+    let (followed, _) = follow_dark(&requests(as_ada)).await;
 
     fixture
         .server
@@ -3050,7 +3041,7 @@ async fn the_last_requester_withdrawing_from_an_approved_followed_show_tells_the
         .await
         .client_config();
     let ada = requests(as_ada);
-    let (followed, _) = ada.follow(DARK).await;
+    let (followed, _) = follow_dark(&ada).await;
 
     ada.withdraw_followed_show(WithdrawFollowedShowRequest {
         id: followed.id,
@@ -3067,7 +3058,7 @@ async fn cancelling_a_pending_followed_show_tells_the_shows_fulfiller_nothing() 
     let fixture = Fixture::with_shows_fulfiller(&[]).await;
     let fulfiller = fixture.server.fulfiller();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-    let (followed, _) = requests(as_ada).follow(DARK).await;
+    let (followed, _) = follow_dark(&requests(as_ada)).await;
 
     fixture
         .server
@@ -3089,8 +3080,8 @@ async fn the_last_requester_withdrawing_ends_a_followed_show_and_leaves_its_seas
     let grace = fixture.server.user("Grace", &NEW_USER).await;
     let (grace, as_grace) = (grace.id, grace.client_config());
     let (ada, grace_requests) = (requests(as_ada), requests(as_grace));
-    let (followed, _) = ada.follow(DARK).await;
-    grace_requests.follow(DARK).await;
+    let (followed, _) = follow_dark(&ada).await;
+    follow_dark(&grace_requests).await;
     let withdraw = WithdrawFollowedShowRequest {
         id: followed.id,
         ..Default::default()
@@ -3193,8 +3184,8 @@ async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_bef
     let (ada_requests, grace_requests) = (requests(as_ada), requests(as_grace));
     let mut events = subscribe_to_followed_shows(&fixture.server.client_config()).await;
 
-    let (opened, _) = ada_requests.follow(DARK).await;
-    let (joined, _) = grace_requests.follow(DARK).await;
+    let opened = ada_requests.follow(DARK).await;
+    let joined = grace_requests.follow(DARK).await;
     withdraw_followed(&grace_requests, opened.id).await;
     let approved = approve_followed(&fixture, opened.id).await.unwrap();
     fixture
@@ -3206,7 +3197,7 @@ async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_bef
         })
         .await
         .unwrap();
-    let (office, _) = ada_requests.follow(THE_OFFICE).await;
+    let office = ada_requests.follow(THE_OFFICE).await;
     withdraw_followed(&ada_requests, office.id).await;
 
     assert_eq!(
@@ -3244,8 +3235,8 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
 
     let (graces_requests, hoppers_requests) = (requests(as_grace), requests(as_hopper));
 
-    let (office, _) = hoppers_requests.follow(THE_OFFICE).await;
-    let (dark, _) = graces_requests.follow(DARK).await;
+    let office = hoppers_requests.follow(THE_OFFICE).await;
+    let dark = graces_requests.follow(DARK).await;
     withdraw_followed(&hoppers_requests, office.id).await;
     approve_followed(&fixture, dark.id).await.unwrap();
     fixture
@@ -3259,7 +3250,7 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
         .unwrap();
     // Both end on this second Followed Show, so an event that wrongly reached either shows up
     // before what they expect next.
-    let (office_again, _) = hoppers_requests.follow(THE_OFFICE).await;
+    let office_again = hoppers_requests.follow(THE_OFFICE).await;
     graces_requests.follow(THE_OFFICE).await;
     withdraw_followed(&graces_requests, office_again.id).await;
 
@@ -3325,9 +3316,8 @@ async fn opening_a_followed_show_for_a_show_whose_seasons_are_all_in_a_library_s
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let mut adas_events = subscribe_to_followed_shows(&as_ada).await;
 
-    let (followed, asked) = requests(as_ada).follow(DARK).await;
+    let followed = requests(as_ada).follow(DARK).await;
 
-    assert_eq!(asked, []);
     assert_eq!(
         next_followed_show_events(&mut adas_events, 1).await,
         [("created", None, followed)]
@@ -3349,6 +3339,7 @@ async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followe
         .client_config();
     let ada = requests(as_ada);
     ada.follow(DARK).await;
+    ada.ask_seasons(DARK, &[1, 2]).await;
     let mut matches = subscribe(
         &fixture.server.client_config(),
         &[EventType::EVENT_TYPE_ITEM_MATCHED],
@@ -3482,22 +3473,26 @@ async fn asking_for_seasons_takes_the_shows_quality_and_refuses_another() {
 }
 
 #[tokio::test]
-async fn following_a_show_at_a_quality_opens_its_season_requests_at_it_unless_the_asker_may_not_choose()
+async fn asking_for_seasons_at_a_quality_opens_them_and_a_later_followed_show_at_it_unless_the_asker_may_not_choose()
  {
     let fixture = Fixture::with_shows_fulfiller(&[HD_PROFILE, ULTRA_HD_PROFILE]).await;
     let offered = fixture.offer_hd_and_4k(SHOWS_FULFILLER).await;
     let as_ada = fixture.server.user("Ada", &CHOOSER).await.client_config();
     let as_bob = fixture.server.user("Bob", &NEW_USER).await.client_config();
+    let ada = requests(as_ada);
 
-    let (followed, asked) = requests(as_ada).follow_at(DARK, offered[1].id).await;
-    let not_allowed = requests(as_bob).try_follow_at(DARK, offered[1].id).await;
+    let not_allowed = (requests(as_bob))
+        .try_ask_seasons_at(DARK, &[1], offered[1].id)
+        .await;
+    let asked = ada.ask_seasons_at(DARK, &[1, 2, 3], offered[1].id).await;
+    let followed = ada.follow(DARK).await;
 
-    assert_eq!(followed.quality.name, "4K");
     let asked_at: Vec<_> = asked
         .iter()
         .map(|request| request.quality.name.as_str())
         .collect();
     assert_eq!(asked_at, ["4K"; 3]);
+    assert_eq!(followed.quality.name, "4K");
     let refusal = assert_refused(
         not_allowed,
         ErrorCode::PermissionDenied,
@@ -3512,19 +3507,20 @@ async fn approving_a_season_at_another_quality_moves_its_show_and_once_handed_of
     let fixture = Fixture::with_shows_fulfiller(&[HD_PROFILE, ULTRA_HD_PROFILE]).await;
     let offered = fixture.offer_hd_and_4k(SHOWS_FULFILLER).await;
     let as_ada = fixture.server.user("Ada", &CHOOSER).await.client_config();
-    let (_, asked) = requests(as_ada).follow_at(DARK, offered[1].id).await;
+    // The Followed Show opens at the default, HD, which its Season Requests take.
+    let (_, asked) = follow_dark(&requests(as_ada)).await;
 
-    let approved = fixture.server.approve_at(asked[0].id, offered[0].id).await;
+    let approved = fixture.server.approve_at(asked[0].id, offered[1].id).await;
     let fixed = fixture
         .server
-        .try_approve_at(asked[1].id, offered[1].id)
+        .try_approve_at(asked[1].id, offered[0].id)
         .await;
 
     assert_eq!(approved.state, RequestState::Processing);
-    assert_eq!(approved.quality.name, "HD");
+    assert_eq!(approved.quality.name, "4K");
     let change = &approved.quality_change;
     assert_eq!(change.changed_by.as_deref(), Some("Admin"));
-    assert_eq!(change.previous_name.as_deref(), Some("4K"));
+    assert_eq!(change.previous_name.as_deref(), Some("HD"));
     let admin = fixture.server.admin_requests();
     let offered_to_managers = admin
         .list_offered_qualities(ListOfferedQualitiesRequest {
@@ -3536,8 +3532,8 @@ async fn approving_a_season_at_another_quality_moves_its_show_and_once_handed_of
         .into_owned()
         .qualities;
     assert_eq!(offered_to_managers, offered);
-    assert_eq!(admin.get(asked[1].id).await.quality.name, "HD");
-    assert_eq!(list_followed(&admin).await[0].quality.name, "HD");
+    assert_eq!(admin.get(asked[1].id).await.quality.name, "4K");
+    assert_eq!(list_followed(&admin).await[0].quality.name, "4K");
     let refusal = assert_refused(
         fixed,
         ErrorCode::InvalidArgument,
@@ -3551,16 +3547,17 @@ async fn approving_a_followed_show_at_another_quality_hands_off_its_season_reque
     let fixture = Fixture::with_shows_fulfiller(&[HD_PROFILE, ULTRA_HD_PROFILE]).await;
     let offered = fixture.offer_hd_and_4k(SHOWS_FULFILLER).await;
     let as_ada = fixture.server.user("Ada", &CHOOSER).await.client_config();
-    let (followed, asked) = requests(as_ada).follow_at(DARK, offered[1].id).await;
+    // The Followed Show opens at the default, HD, which its Season Requests take.
+    let (followed, asked) = follow_dark(&requests(as_ada)).await;
 
-    let approved = approve_followed_at(&fixture, followed.id, Some(offered[0].id))
+    let approved = approve_followed_at(&fixture, followed.id, Some(offered[1].id))
         .await
         .unwrap();
     let season_1 = fixture.server.admin_requests().get(asked[0].id).await;
 
-    assert_eq!(approved.quality.name, "HD");
+    assert_eq!(approved.quality.name, "4K");
     assert_eq!(season_1.state, RequestState::Processing);
-    assert_eq!(season_1.quality.name, "HD");
+    assert_eq!(season_1.quality.name, "4K");
 }
 
 #[tokio::test]

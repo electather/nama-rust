@@ -12,13 +12,17 @@ import "nama/v1/match.proto";
 // Show is on the caller's Watchlist, under any of its ids, in `Movie.on_watchlist` and
 // `Show.on_watchlist`.
 service WatchlistService {
-  // Adds a title to the caller's Watchlist. Adding one already on it changes nothing. A Show
-  // added by a caller with `PERMISSION_REQUEST_TV` is followed too: they join its open Followed
-  // Show, or open one as `CreateFollowedShow` does, which asks for no Season out already, only for
-  // later ones as they come out. A Show no title source has is added without it. Fails with
+  // Adds a title to the caller's Watchlist. Adding one already on it changes nothing. A Show added
+  // by a caller with `PERMISSION_REQUEST_TV` is followed too: they join its open Followed Show,
+  // which keeps its Quality, or open one, Approved if they have `PERMISSION_AUTO_APPROVE_TV`, else
+  // Pending, at the Show's Quality if it has one, else one picked as
+  // `RequestService.CreateSeasonRequests` picks one. Following asks for no Season out already,
+  // which the caller asks for with `CreateSeasonRequests`. While the Followed Show is Approved, a
+  // scan Matching Episodes of a later Season opens a Request for its Requesters at the Show's
+  // Quality. A Show no title source has is added without following it. Fails with
   // `invalid_argument` if the kind is unspecified or the id missing or malformed, and with
-  // `unavailable`, adding nothing, if a Show can't be followed since no title source answered.
-  // A Show added on the Hub and synced isn't followed.
+  // `unavailable`, adding nothing, if a Show can't be followed since no title source answered. A
+  // Show added on the Hub and synced isn't followed.
   rpc AddToWatchlist(AddToWatchlistRequest) returns (AddToWatchlistResponse) {
     option idempotency_level = IDEMPOTENT;
   }

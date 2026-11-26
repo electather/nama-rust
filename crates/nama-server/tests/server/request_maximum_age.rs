@@ -59,12 +59,13 @@ impl Fixture {
         }
     }
 
-    /// Hicks asks for Alien, follows Dark and asks for Heat, and the Admin declines Alien. Returns
-    /// Heat's Request.
+    /// Hicks asks for Alien, follows Dark and asks for its three Seasons, and asks for Heat, and the
+    /// Admin declines Alien. Returns Heat's Request.
     async fn hicks_asks(&self) -> Request {
         let hicks = self.server.requests(&self.hicks);
         let alien = hicks.ask(ALIEN).await;
         hicks.follow(DARK).await;
+        hicks.ask_seasons(DARK, &[1, 2, 3]).await;
         let heat = hicks.ask(HEAT).await;
         self.server.decline(alien.id, "").await;
         heat

@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
+## 2026-11-26, #2486, nama.v1
+
+- `RPC_NO_DELETE`, `nama/v1/request.proto`: `RequestService.CreateFollowedShow`, deleted. `MESSAGE_NO_DELETE`, `nama/v1/request.proto`: `CreateFollowedShowRequest` and `CreateFollowedShowResponse`, deleted.
+- A User follows a Show by putting it on their Watchlist: `WatchlistService.AddToWatchlist` joins or opens its Followed Show at the Show's Quality, asking for no Season out already, and the User asks for those with `CreateSeasonRequests`, whose Requests open for the Followed Show. No call asks for every Season at once or opens a Followed Show at a chosen Quality.
+- A client built before that calls `CreateFollowedShow` gets `unimplemented`. It must regenerate, and follow a Show with `AddToWatchlist`, then ask for the Seasons out already with `CreateSeasonRequests`. The web app is the only client, and no longer calls it.
+
 ## 2026-11-26, #2330, nama.v1
 
 - `ENUM_VALUE_NO_DELETE`, `nama/v1/plugin.proto`: `ExtensionPoint.EXTENSION_POINT_SERVER_LINKER` (17), deleted with its number and name reserved.

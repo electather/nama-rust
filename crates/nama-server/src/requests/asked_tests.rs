@@ -422,8 +422,8 @@ async fn ada_asks_for_season_1(db: &Database) -> i64 {
 }
 
 /// Ada asks for Dark's Season 1 on her own, Bob then follows Dark, joining it, and a Library gets
-/// Season 1 in full before Carol follows Dark too, so Carol isn't a Requester of Season 1 herself.
-/// Returns the Followed Show's id and Season 1's Request's.
+/// Season 1 in full before Carol follows Dark too, asking for Season 2 alone, so Carol isn't a
+/// Requester of Season 1 herself. Returns the Followed Show's id and Season 1's Request's.
 async fn ada_asks_then_bob_and_carol_follow(db: &Arc<Database>) -> (i64, i64) {
     let season_1 = ada_asks_for_season_1(db).await;
     let followed = follow_as(db, BOB, dark(), RequestState::Pending)
@@ -433,7 +433,7 @@ async fn ada_asks_then_bob_and_carol_follow(db: &Arc<Database>) -> (i64, i64) {
         .id;
     match_dark_episodes(db, 1, &[1, 2]).await;
     insert_user(db, "carol").await;
-    follow_as(db, CAROL, dark(), RequestState::Pending).await;
+    follow_as(db, CAROL, dark_with_seasons([2]), RequestState::Pending).await;
     (followed, season_1)
 }
 
@@ -462,12 +462,12 @@ async fn a_season_a_followed_show_joined_has_its_requesters_while_requested_and_
 }
 
 #[tokio::test]
-async fn a_season_a_followed_show_skipped_lacks_its_requesters() {
+async fn a_season_a_follower_did_not_ask_for_lacks_them_as_a_requester() {
     let (_data, db) = ada_and_bob().await;
     ada_asks_for_season_1(&db).await;
     match_dark_episodes(&db, 1, &[1, 2]).await;
 
-    follow_as(&db, BOB, dark(), RequestState::Pending).await;
+    follow_as(&db, BOB, dark_with_seasons([2]), RequestState::Pending).await;
 
     let dark = [ExternalId::tmdb(DARK)];
     assert_eq!(requested(&db, &dark, Some(1)).await, Some(vec![ADA]));

@@ -46,14 +46,6 @@ pub type OwnedListShowQualitiesRequestView = ::buffa::view::OwnedView<
 pub type OwnedListShowQualitiesResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<'static>,
 >;
-///Shorthand for `OwnedView<CreateFollowedShowRequestView<'static>>`.
-pub type OwnedCreateFollowedShowRequestView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<'static>,
->;
-///Shorthand for `OwnedView<CreateFollowedShowResponseView<'static>>`.
-pub type OwnedCreateFollowedShowResponseView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<'static>,
->;
 ///Shorthand for `OwnedView<ListRequestsRequestView<'static>>`.
 pub type OwnedListRequestsRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListRequestsRequestView<'static>,
@@ -356,40 +348,6 @@ for crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<'_> 
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListShowQualitiesResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<'static>,
-> {
-    fn encode(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
-    }
-    /// An `OwnedView` still holds the buffer it was decoded from, so
-    /// its large fields can be handed to the response body by
-    /// reference count instead of copied. The bare view impl above
-    /// cannot do this: it has borrows but no buffer to name.
-    fn encode_segments(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body_segments(
-            self.reborrow(),
-            self.bytes(),
-            codec,
-        )
-    }
-}
-impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateFollowedShowResponse>
-for crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<'_> {
-    fn encode(
-        &self,
-        codec: ::connectrpc::CodecFormat,
-    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
-        ::connectrpc::__codegen::encode_view_body(self, codec)
-    }
-}
-impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateFollowedShowResponse>
-for ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -960,12 +918,6 @@ pub const REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC: ::connectrpc::Spec = ::conne
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Static [`Spec`](::connectrpc::Spec) for the `CreateFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
-pub const REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/nama.v1.RequestService/CreateFollowedShow",
-        ::connectrpc::StreamType::Unary,
-    )
-    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `ListRequests` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_LIST_REQUESTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/ListRequests",
@@ -1219,17 +1171,17 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
-    /// asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. A
-    /// caller who is a Requester of the Show's open Followed Show asks through it: a new Request opens
-    /// for it, in its state, as `CreateFollowedShow`'s do. Needs `PERMISSION_REQUEST_TV`. A Season is
-    /// in a Library once it has aired and every one of its aired
-    /// Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
-    /// `invalid_argument` if no Season is named or the title source has no such Show or Season,
-    /// and `unavailable` if no title source is enabled, or one failed. A failure changes no
-    /// Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
-    /// picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
-    /// other than the Show's with `REFUSAL_REASON_SHOW_HAS_QUALITY`.
+    /// Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest` asks
+    /// for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. A caller
+    /// who is a Requester of the Show's open Followed Show asks through it: a new Request opens for
+    /// it, in its state, since its Seasons were approved with it. Needs `PERMISSION_REQUEST_TV`. A
+    /// Season is in a Library once it has aired and every one of its aired Episodes is Matched, and
+    /// asking for such a Season fails with `failed_precondition`. Fails with `invalid_argument` if no
+    /// Season is named or the title source has no such Show or Season, and `unavailable` if no title
+    /// source is enabled, or one failed. A failure changes no Request. A new Request takes the Show's
+    /// Quality (`FoundShow.quality`) if it has one, else one picked as `CreateRequest` picks a
+    /// Movie's, refusing a Quality as `CreateRequest` does, and one other than the Show's with
+    /// `REFUSAL_REASON_SHOW_HAS_QUALITY`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1273,37 +1225,6 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ListShowQualitiesResponse,
-            > + Send + use<'a, Self>,
-        >,
-    > + Send;
-    /// Asks for a whole Show for the caller: its numbered Seasons now and any that come out later.
-    /// Asks for each current numbered Season not in a Library as `CreateSeasonRequests` does, skipping
-    /// those in one, and joins the Show's open Followed Show or opens one: Approved if the caller has
-    /// `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs `PERMISSION_REQUEST_TV`. While the Followed
-    /// Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
-    /// a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's
-    /// Quality if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses
-    /// one; joining one keeps its Quality. Fails with `invalid_argument` if the title source has no
-    /// Show with the id, and `unavailable` if no title source is enabled, or one failed.
-    ///
-    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
-    ///
-    /// `request` is borrowed from the request body and is valid for the
-    /// duration of the call; message fields are read directly on it
-    /// (zero-copy). The response cannot borrow from `request` — use
-    /// `.to_owned_message()` (or copy the specific fields) for anything
-    /// returned, stored, or moved into `tokio::spawn`.
-    fn create_followed_show<'a>(
-        &'a self,
-        ctx: ::connectrpc::RequestContext,
-        request: ::connectrpc::ServiceRequest<
-            '_,
-            crate::messages::nama::v1::CreateFollowedShowRequest,
-        >,
-    ) -> impl ::std::future::Future<
-        Output = ::connectrpc::ServiceResult<
-            impl ::connectrpc::Encodable<
-                crate::messages::nama::v1::CreateFollowedShowResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1899,35 +1820,6 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC)
-            .route_view(
-                REQUEST_SERVICE_SERVICE_NAME,
-                "CreateFollowedShow",
-                {
-                    let svc = ::std::sync::Arc::clone(&self);
-                    ::connectrpc::view_handler_fn(move |
-                        ctx,
-                        req: ::buffa::view::OwnedView<
-                            crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<
-                                'static,
-                            >,
-                        >,
-                        format|
-                    {
-                        let svc = ::std::sync::Arc::clone(&svc);
-                        async move {
-                            let sreq = ::connectrpc::ServiceRequest::<
-                                crate::messages::nama::v1::CreateFollowedShowRequest,
-                            >::from_parts(req.reborrow(), req.bytes());
-                            svc.create_followed_show(ctx, sreq)
-                                .await?
-                                .encode::<
-                                    crate::messages::nama::v1::CreateFollowedShowResponse,
-                                >(format)
-                        }
-                    })
-                },
-            )
-            .with_spec(REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC)
             .route_view_idempotent(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "ListRequests",
@@ -2453,12 +2345,6 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC),
                 )
             }
-            "CreateFollowedShow" => {
-                Some(
-                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
-                        .with_spec(REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC),
-                )
-            }
             "ListRequests" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
@@ -2693,28 +2579,6 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::ListShowQualitiesResponse,
-                        >(format)
-                })
-            }
-            "CreateFollowedShow" => {
-                let svc = ::std::sync::Arc::clone(&self.inner);
-                Box::pin(async move {
-                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        crate::messages::nama::v1::CreateFollowedShowRequest,
-                    >(request.encoded()?, format)?;
-                    let req: crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<
-                        '_,
-                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
-                        &body,
-                        ctx.decode_options(),
-                    )?;
-                    let req = ::connectrpc::ServiceRequest::<
-                        crate::messages::nama::v1::CreateFollowedShowRequest,
-                    >::from_parts(&req, &body);
-                    svc.create_followed_show(ctx, req)
-                        .await?
-                        .encode::<
-                            crate::messages::nama::v1::CreateFollowedShowResponse,
                         >(format)
                 })
             }
@@ -3434,51 +3298,6 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC
-                    .with_origin(::connectrpc::SpecOrigin::Client),
-                request,
-                options,
-            )
-            .await
-    }
-    /// Call the CreateFollowedShow RPC. Sends a request to /nama.v1.RequestService/CreateFollowedShow.
-    pub async fn create_followed_show(
-        &self,
-        request: crate::messages::nama::v1::CreateFollowedShowRequest,
-    ) -> Result<
-        ::connectrpc::client::UnaryResponse<
-            ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<
-                    'static,
-                >,
-            >,
-        >,
-        ::connectrpc::ConnectError,
-    > {
-        self.create_followed_show_with_options(
-                request,
-                ::connectrpc::client::CallOptions::default(),
-            )
-            .await
-    }
-    /// Call the CreateFollowedShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
-    pub async fn create_followed_show_with_options(
-        &self,
-        request: crate::messages::nama::v1::CreateFollowedShowRequest,
-        options: ::connectrpc::client::CallOptions,
-    ) -> Result<
-        ::connectrpc::client::UnaryResponse<
-            ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<
-                    'static,
-                >,
-            >,
-        >,
-        ::connectrpc::ConnectError,
-    > {
-        ::connectrpc::client::call_unary(
-                &self.transport,
-                &self.config,
-                REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
