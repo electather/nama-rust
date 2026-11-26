@@ -402,13 +402,16 @@ impl Running {
         if self.closed.load(Ordering::Acquire) {
             return Ok(false);
         }
+        // Before looking for the file, so one joined just after isn't taken for one gone since.
+        let looked = (ffmpeg.as_ref()).map(|(run, _)| {
+            let stopped = run.stopped.load(Ordering::Acquire);
+            (stopped, run.written_to.load(Ordering::Relaxed))
+        });
         // Under the lock, since a run started at a written file would write its init again.
         if tokio::fs::try_exists(self.keyframe_path(n)).await? {
             return Ok(true);
         }
-        if let Some((run, task)) = ffmpeg.as_mut() {
-            let stopped = run.stopped.load(Ordering::Acquire);
-            let written_to = run.written_to.load(Ordering::Relaxed);
+        if let Some(((run, task), (stopped, written_to))) = ffmpeg.as_mut().zip(looked) {
             if stopped && run.from == n && written_to == n {
                 return Ok(false);
             }
@@ -427,6 +430,11 @@ impl Running {
             }
             // Marked stopped even if the restart below fails, which leaves it for `init`.
             run.stop(task).await;
+            // Its last look, as it stopped, may have joined the file, maybe since it was looked
+            // for above. A run started there would empty its init while `init` serves it.
+            if tokio::fs::try_exists(self.keyframe_path(n)).await? {
+                return Ok(true);
+            }
         }
         *ffmpeg = Some(self.run_from(n)?);
         Ok(true)
