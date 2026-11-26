@@ -197,10 +197,10 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         "the Segments tests enable a Plugin as an Admin does, to check it makes Versions due",
     ),
     (
-        Importers::TestCode,
+        Importers::File("src/web_push/subscriptions_tests.rs"),
         &["users", "testing"],
         "the crate's One in-file fixture rule sends every in-file test needing a User through \
-         users::testing::insert_user, whatever its row",
+         users::testing::insert_user",
     ),
 ];
 

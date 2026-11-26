@@ -1,5 +1,4 @@
-//! A bare User row, which in-file tests across the Server build on, so a change to the `users`
-//! columns touches one place.
+//! A bare User row for in-file tests across the Server ("One in-file fixture", crate AGENTS.md).
 
 use crate::db::Database;
 
