@@ -157,7 +157,8 @@ impl Users {
                         .execute(&mut **tx)
                         .await?;
                     let device =
-                        insert_device(tx, user.id, Some(method), device, &session_hash).await?;
+                        insert_device(tx, user.id, Some(method), now(), device, &session_hash)
+                            .await?;
                     Ok::<_, Error>(Caller { user, device })
                 })
             })

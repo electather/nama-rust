@@ -92,7 +92,7 @@ async fn device_kinds_answers_each_device_the_server_still_has() {
     };
     let device = db
         .write(move |tx| {
-            Box::pin(async move { insert_device(tx, user, None, phone, &hash_token("p")).await })
+            Box::pin(async move { insert_device(tx, user, None, 0, phone, &hash_token("p")).await })
         })
         .await
         .unwrap()

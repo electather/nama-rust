@@ -18,7 +18,7 @@ async fn sign_in(users: &Users, user: i64, name: &str) -> i64 {
     users
         .db
         .write(move |tx| {
-            Box::pin(async move { insert_device(tx, user, None, device, &token_hash).await })
+            Box::pin(async move { insert_device(tx, user, None, 0, device, &token_hash).await })
         })
         .await
         .unwrap()

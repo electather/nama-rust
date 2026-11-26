@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { SignInOnHubDialog } from "@/features/auth/components/sign-in-on-hub-dialog";
 import { SettingsHeader } from "@/features/settings/components/settings-header";
 import { SettingsPane } from "@/features/settings/components/settings-pane";
 import { SettingsSide } from "@/features/settings/components/settings-side";
@@ -17,8 +18,8 @@ import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-y
 /**
  * What Settings holds: the sections in `groups` beside the pane of the one `section` asks for, run
  * as `user`. At the Hub, the `picker` sits over them, and a Section the `picked` Server doesn't
- * serve says to update it. A picked Server's pane has its own "Confirm it’s you", as its pages there
- * do (`app/AGENTS.md`).
+ * serve says to update it. A picked Server's pane has its own "Confirm it’s you", which signs in on
+ * the Hub again, as its pages there do (`app/AGENTS.md`).
  */
 export function SettingsBody({
   groups,
@@ -42,7 +43,9 @@ export function SettingsBody({
   const pickedPane =
     picked &&
     (served ? (
-      <ConfirmItsYou key={picked.server.id}>{pane}</ConfirmItsYou>
+      <ConfirmItsYou key={picked.server.id} Dialog={SignInOnHubDialog}>
+        {pane}
+      </ConfirmItsYou>
     ) : (
       <UpdateServer server={picked.server} />
     ));

@@ -319,6 +319,18 @@ async fn an_account_gets_a_server_token_only_for_its_user_on_that_server(db: PgP
     let claims = verified_claims(&hub, &token).await;
     assert_eq!(claims["sub"], "7");
     assert_eq!(claims["aud"], with_bea.as_str());
+    let signed_in_at = claims["auth_time"].as_i64().unwrap();
+    let now = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    )
+    .unwrap();
+    assert!(
+        (now - 60..=now).contains(&signed_in_at),
+        "it says when Bea's session signed in, moments ago: {signed_in_at}, now {now}"
+    );
     let again = verified_claims(&hub, &server_token(&hub, &bea, with_bea).await.unwrap()).await;
     assert_ne!(
         claims["jti"], again["jti"],

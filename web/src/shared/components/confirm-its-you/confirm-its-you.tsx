@@ -5,9 +5,15 @@ import { AskContext } from "@/shared/hooks/use-sensitive-mutation";
 
 /**
  * Holds the one "Confirm it’s you" dialog that {@link useSensitiveMutation} opens, for the pages
- * inside it.
+ * inside it: `Dialog`, or else one asking for the User's password.
  */
-export function ConfirmItsYou({ children }: { children: ReactNode }) {
+export function ConfirmItsYou({
+  children,
+  Dialog = ReauthenticateDialog,
+}: {
+  children: ReactNode;
+  Dialog?: typeof ReauthenticateDialog;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [openings, setOpenings] = useState(0);
   const answer = useRef<Promise<boolean>>(undefined);
@@ -37,7 +43,7 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
   return (
     <AskContext value={ask}>
       {children}
-      <ReauthenticateDialog
+      <Dialog
         dialog={dialog}
         openings={openings}
         confirming={confirming}

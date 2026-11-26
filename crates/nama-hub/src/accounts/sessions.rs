@@ -56,7 +56,8 @@ pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSessi
         r#"SELECT account_sessions.id, accounts.id AS account_id, accounts.email,
              accounts.email_proven,
              account_sessions.created_at > now() - make_interval(mins => $3)
-                 AS "authenticated_recently!"
+                 AS "authenticated_recently!",
+             extract(epoch FROM account_sessions.created_at)::bigint AS "signed_in_at!"
          FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id
          WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)"#,
         &token_hash(token)[..],
@@ -72,6 +73,7 @@ pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSessi
         },
         email_proven: found.email_proven,
         authenticated_recently: found.authenticated_recently,
+        signed_in_at: found.signed_in_at,
         id: found.id,
     }))
 }

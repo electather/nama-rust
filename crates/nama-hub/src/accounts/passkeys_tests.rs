@@ -32,6 +32,7 @@ fn session(recent: bool) -> AccountSession {
         },
         email_proven: false,
         authenticated_recently: recent,
+        signed_in_at: 0,
         id: Uuid::nil(),
     }
 }

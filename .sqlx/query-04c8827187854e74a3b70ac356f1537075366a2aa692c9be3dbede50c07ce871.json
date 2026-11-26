@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT account_sessions.id, accounts.id AS account_id, accounts.email,\n             accounts.email_proven,\n             account_sessions.created_at > now() - make_interval(mins => $3)\n                 AS \"authenticated_recently!\"\n         FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id\n         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
+  "query": "SELECT account_sessions.id, accounts.id AS account_id, accounts.email,\n             accounts.email_proven,\n             account_sessions.created_at > now() - make_interval(mins => $3)\n                 AS \"authenticated_recently!\",\n             extract(epoch FROM account_sessions.created_at)::bigint AS \"signed_in_at!\"\n         FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id\n         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
   "describe": {
     "columns": [
       {
@@ -52,6 +52,12 @@
         "name": "authenticated_recently!",
         "type_info": "Bool",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "signed_in_at!",
+        "type_info": "Int8",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -66,8 +72,9 @@
       false,
       false,
       false,
+      null,
       null
     ]
   },
-  "hash": "e4180d962eafa439a2f1ad70abe7784e95bb36e0760b9f0be320a4ed96e5ca56"
+  "hash": "04c8827187854e74a3b70ac356f1537075366a2aa692c9be3dbede50c07ce871"
 }

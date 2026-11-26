@@ -22,6 +22,10 @@ pub(super) struct Claims {
     /// Its own id, in a token the web app at the Hub trades for a Device, which is taken once.
     #[serde(default)]
     pub(super) jti: Option<String>,
+    /// When the Account's Hub session signed in, in seconds since the Unix epoch, in a token the
+    /// web app at the Hub trades: the Device it makes has Recent Authentication from then.
+    #[serde(default)]
+    pub(super) auth_time: Option<i64>,
     exp: u64,
 }
 
