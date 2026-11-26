@@ -108,6 +108,10 @@ const PERMISSION_CHANGES_BUFFERED: usize = 64;
 /// Library access instead.
 const LIBRARY_ACCESS_CHANGES_BUFFERED: usize = 64;
 
+/// How many Maximum Age changes may happen before a waiter in [`Users::maximum_age_watched`] has
+/// seen them. One that falls further behind reads its User's Maximum Age instead.
+const MAXIMUM_AGE_CHANGES_BUFFERED: usize = 64;
+
 /// The Server's Users, Devices and sessions, kept in its database.
 ///
 /// Cloning a `Users` gives another handle to the same ones.
@@ -120,6 +124,7 @@ pub struct Users {
     sign_outs: broadcast::Sender<i64>,
     permission_changes: broadcast::Sender<i64>,
     library_access_changes: broadcast::Sender<i64>,
+    maximum_age_changes: broadcast::Sender<i64>,
 }
 
 /// A User as clients see it.
@@ -340,8 +345,8 @@ impl Users {
     /// The Users kept in `db`, whose passwords the Authenticator enabled in `plugins` checks.
     ///
     /// A Server builds one and clones it: a second has its own channels, so it neither hears nor
-    /// tells the first about sign-outs, Permission changes and Library access changes
-    /// (`users/AGENTS.md`).
+    /// tells the first about sign-outs, Permission changes, Library access changes and Maximum Age
+    /// changes (`users/AGENTS.md`).
     #[must_use]
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
@@ -351,6 +356,7 @@ impl Users {
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
             library_access_changes: broadcast::channel(LIBRARY_ACCESS_CHANGES_BUFFERED).0,
+            maximum_age_changes: broadcast::channel(MAXIMUM_AGE_CHANGES_BUFFERED).0,
         }
     }
 

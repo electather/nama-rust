@@ -3908,7 +3908,8 @@ pub const __LIBRARY_ITEM_REMOVED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
     from_json: ::buffa::type_registry::any_from_json::<LibraryItemRemoved>,
     is_wkt: false,
 };
-/// An Item was Matched, automatically or by hand.
+/// An Item was Matched, automatically or by hand. A subscriber with a Maximum Age doesn't get it
+/// for a title whose Content Rating is over it, nor for an unrated one unless they allow those.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

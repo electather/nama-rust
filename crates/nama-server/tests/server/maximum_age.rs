@@ -1,7 +1,7 @@
 //! A User's Maximum Age: a title whose Content Rating calls for an older age, or one without a
 //! Content Rating unless unrated titles are allowed, reaches them nowhere the Server hands out
-//! titles, over a real socket with the fake TMDB, which rates Alien R and Dark TV-MA and gives
-//! Heat and Dune no US rating.
+//! titles nor in an Event, over a real socket with the fake TMDB, which rates Alien R and Dark
+//! TV-MA and gives Heat and Dune no US rating.
 
 use crate::support::{http, refused, server};
 
@@ -13,17 +13,18 @@ use connectrpc::{
 };
 use http::fetch;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, ExternalId, GetMovieRequest,
-    GetShowRequest, GetUnmatchedVersionRequest, HomeRowTitle, LibraryKind, LibraryServiceClient,
-    ListContinueWatchingRequest, ListEpisodesRequest, ListHomeRowTitlesRequest, ListMoviesRequest,
-    ListShowsRequest, ListUnmatchedRequest, ListUsersRequest, LookUpMovieRequest, MaximumAge,
-    Permission, PlanPlaybackRequest, PlaybackServiceClient, RefusalReason, ReportProgressRequest,
-    RequestServiceClient, SetMaximumAgeRequest, UserServiceClient, WatchStateServiceClient,
-    continue_watching_entry::MovieOrEpisode, home_row_title::MovieOrShow,
+    BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, EventType, ExternalId,
+    GetMovieRequest, GetShowRequest, GetUnmatchedVersionRequest, HomeRowTitle, LibraryKind,
+    LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
+    ListHomeRowTitlesRequest, ListMoviesRequest, ListShowsRequest, ListUnmatchedRequest,
+    ListUsersRequest, LookUpMovieRequest, MaximumAge, Permission, PlanPlaybackRequest,
+    PlaybackServiceClient, RefusalReason, ReportProgressRequest, RequestServiceClient,
+    SetMaximumAgeRequest, UserServiceClient, WatchStateServiceClient,
+    continue_watching_entry::MovieOrEpisode, event, home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
 use server::{
-    Library, SignedIn, TestServer, WAIT, search,
+    Library, SignedIn, TestServer, WAIT, search, subscribe,
     tmdb::{ALIEN, DARK, DUNE, HEAT},
 };
 
@@ -505,4 +506,40 @@ async fn the_users_list_reads_each_maximum_age_back() {
     };
     assert_eq!(max_of(fx.newt.id), Some((12, true)));
     assert_eq!(max_of(fx.hicks.id), None);
+}
+
+#[tokio::test]
+async fn a_match_over_a_subscribers_maximum_age_never_reaches_them() {
+    let fx = Fixture::start().await;
+    fx.cap_newt(13, true).await;
+    let item_matched = [EventType::EVENT_TYPE_ITEM_MATCHED];
+    let mut newts = subscribe(&fx.newt.client_config(), &item_matched).await;
+    let mut hicks = subscribe(&fx.hicks.client_config(), &item_matched).await;
+
+    let title_of = |event| {
+        let event::Event::ItemMatched(matched) = event else {
+            panic!("not an Item Matched: {event:?}");
+        };
+        matched.title
+    };
+    // One scan at a time, as two in flight publish their Matches in either order.
+    fx.movies.add(&["Alien (1979)/Alien (1979) - 1080p.mkv"]);
+    fx.server.scan(fx.movies.id).await;
+    assert_eq!(title_of(hicks.next().await), "Alien");
+    fx.movies.add(&["Dune (2021)/Dune (2021).mkv"]);
+    fx.server.scan(fx.movies.id).await;
+
+    // Alien was Matched first, so Newt hearing Dune first means she never heard of Alien.
+    assert_eq!(title_of(newts.next().await), "Dune");
+    assert_eq!(title_of(hicks.next().await), "Dune");
+}
+
+#[tokio::test]
+async fn setting_a_users_maximum_age_ends_their_open_subscriptions() {
+    let fx = Fixture::start().await;
+    let mut newts = subscribe(&fx.newt.client_config(), &[]).await;
+
+    fx.cap_newt(13, false).await;
+
+    assert!(newts.message().await.unwrap().is_none());
 }

@@ -1,7 +1,7 @@
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind, PageRequest,
-    Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, Requester, RequesterAdded,
+    Event, FollowedShow, FollowedShowCreated, ItemMatched, LibraryItemAdded, NotificationKind,
+    PageRequest, Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated,
+    RequestState, RequestStateChanged, Requester, RequesterAdded,
 };
 
 use std::{
@@ -17,8 +17,11 @@ use nama_plugin_api::{
 use axum::http::StatusCode;
 use url::Url;
 
-use super::{Audience, EventBus, Filter, Viewer, deliver, event, users_to_tell};
+use super::{
+    AgeCheck, Audience, EventBus, Filter, RatingLookup, Viewer, deliver, event, users_to_tell,
+};
 use crate::{
+    content_ratings::MaximumAge,
     db::Database,
     page::Page,
     plugins::{ExtensionPoints, ProviderError, without_secrets},
@@ -73,6 +76,29 @@ fn created(state: RequestState, requesters: &[i64]) -> Event {
 fn moved_to(state: RequestState, requesters: &[i64]) -> Event {
     event(RequestStateChanged {
         request: request(state, requesters).into(),
+        ..Default::default()
+    })
+}
+
+/// What reads every Item's Content Rating as `rating`.
+fn rated(rating: Option<&'static str>) -> RatingLookup {
+    Arc::new(move |_| Box::pin(async move { Ok(rating.map(str::to_owned)) }))
+}
+
+/// A viewer with no Maximum Age.
+fn uncapped(user: &User, libraries: LibraryAccess) -> Viewer {
+    let ages = AgeCheck {
+        max_age: MaximumAge::default(),
+        ratings: rated(None),
+    };
+    Viewer::of(user, libraries, ages)
+}
+
+fn alien_matched() -> Event {
+    event(ItemMatched {
+        library_id: 1,
+        item_id: 1,
+        title: "Alien".to_owned(),
         ..Default::default()
     })
 }
@@ -142,7 +168,7 @@ fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
     ];
 
     for (subscriber, expected) in table {
-        let viewer = Viewer::of(&subscriber, LibraryAccess::All);
+        let viewer = uncapped(&subscriber, LibraryAccess::All);
         let got = [&with_path, &requested, &followed, &played]
             .map(|published| viewer.sees(published.clone()));
         assert_eq!(
@@ -163,7 +189,7 @@ fn a_viewer_gets_library_events_only_about_the_libraries_they_see() {
             ..Default::default()
         })
     };
-    let viewer = Viewer::of(
+    let viewer = uncapped(
         &user(1, Permissions::ADMIN),
         LibraryAccess::Only(std::iter::once(1).collect()),
     );
@@ -171,6 +197,58 @@ fn a_viewer_gets_library_events_only_about_the_libraries_they_see() {
     assert_eq!(viewer.sees(added(1)), Some(added(1)));
     assert_eq!(viewer.sees(added(2)), None);
     assert_eq!(viewer.sees(playback_of(1)), Some(playback_of(1)));
+}
+
+#[tokio::test]
+async fn a_viewer_is_told_of_a_match_only_if_their_maximum_age_allows_its_rating() {
+    let capped = |allow_unrated| MaximumAge {
+        age: Some(13),
+        allow_unrated,
+    };
+    // Each subscriber's Maximum Age, the Matched title's Content Rating, and whether they're told.
+    let table = [
+        (Permissions::ADMIN, MaximumAge::default(), Some("R"), true),
+        (
+            Permissions::NEW_USER,
+            MaximumAge::default(),
+            Some("R"),
+            true,
+        ),
+        (Permissions::NEW_USER, MaximumAge::default(), None, true),
+        (Permissions::NEW_USER, capped(false), Some("R"), false),
+        (Permissions::NEW_USER, capped(false), Some("PG-13"), true),
+        (Permissions::NEW_USER, capped(false), None, false),
+        (Permissions::NEW_USER, capped(true), None, true),
+        (Permissions::NEW_USER, capped(true), Some("R"), false),
+    ];
+
+    for (permissions, max_age, rating, told) in table {
+        let ratings = rated(rating);
+        let viewer = Viewer::of(
+            &user(1, permissions),
+            LibraryAccess::All,
+            AgeCheck { max_age, ratings },
+        );
+        assert_eq!(
+            viewer.allows_title_of(&alien_matched()).await,
+            told,
+            "{max_age:?} and {rating:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_capped_viewer_is_not_told_of_a_match_whose_rating_cant_be_read() {
+    let ages = AgeCheck {
+        max_age: MaximumAge {
+            age: Some(18),
+            allow_unrated: true,
+        },
+        ratings: Arc::new(|_| Box::pin(async { Err(sqlx::Error::RowNotFound) })),
+    };
+    let viewer = Viewer::of(&user(1, Permissions::NEW_USER), LibraryAccess::All, ages);
+
+    assert!(!viewer.allows_title_of(&alien_matched()).await);
 }
 
 #[test]

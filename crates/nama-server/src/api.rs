@@ -248,6 +248,7 @@ pub(crate) fn router(
         .add_service(Arc::new(events::EventServiceHandler {
             events,
             users: users.clone(),
+            contents: Contents::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(users::UserServiceHandler {
             users: users.clone(),

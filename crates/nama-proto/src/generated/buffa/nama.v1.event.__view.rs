@@ -4942,7 +4942,8 @@ impl ::serde::Serialize for LibraryItemRemovedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// An Item was Matched, automatically or by hand.
+/// An Item was Matched, automatically or by hand. A subscriber with a Maximum Age doesn't get it
+/// for a title whose Content Rating is over it, nor for an unrated one unless they allow those.
 #[derive(Clone, Debug, Default)]
 pub struct ItemMatchedView<'a> {
     /// Field 1: `library_id`

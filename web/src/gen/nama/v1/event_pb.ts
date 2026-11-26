@@ -505,7 +505,8 @@ export const LibraryItemRemovedSchema: GenMessage<LibraryItemRemoved> = /*@__PUR
   messageDesc(file_nama_v1_event, 10);
 
 /**
- * An Item was Matched, automatically or by hand.
+ * An Item was Matched, automatically or by hand. A subscriber with a Maximum Age doesn't get it
+ * for a title whose Content Rating is over it, nor for an unrated one unless they allow those.
  *
  * @generated from message nama.v1.ItemMatched
  */

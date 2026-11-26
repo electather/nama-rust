@@ -126,6 +126,20 @@ impl Contents {
         .await
     }
 
+    /// The Content Rating of the title the Item `item` is Matched to, an Episode's its Show's,
+    /// `None` for one without. Fails with `RowNotFound` if the Item isn't Matched.
+    pub(crate) async fn item_content_rating(
+        &self,
+        item: i64,
+    ) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!(
+            "SELECT content_rating FROM item_matches WHERE item_id = ? AND state = 'matched'",
+            item
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// The other Versions, by path, in the Library of the Version `version`, of any Movie or
     /// Episode it is Matched to: each holds an Item of the same kind Matched to one of its ids.
     pub(crate) async fn other_versions(&self, version: i64) -> Result<Vec<Stored>, sqlx::Error> {
