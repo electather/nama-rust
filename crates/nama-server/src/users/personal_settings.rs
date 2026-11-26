@@ -78,6 +78,41 @@ pub(crate) async fn replace(
     .await
 }
 
+/// Writes each of `renewed`, tokens `plugin` renewed, over the value of `user`'s secret Personal
+/// setting of its key. A key that isn't one of their secrets is dropped, so a User who unlinked
+/// meanwhile stays unlinked: hence an UPDATE per key, never a replace of the whole set.
+pub(crate) async fn renew(
+    db: &Database,
+    user: i64,
+    plugin: &PluginId,
+    renewed: impl IntoIterator<Item = (String, String)>,
+) -> Result<(), sqlx::Error> {
+    let renewed: Vec<_> = renewed.into_iter().collect();
+    // Most answers renew nothing, and a scrobble comes every 10 s while a User plays.
+    if renewed.is_empty() {
+        return Ok(());
+    }
+    let plugin = plugin.as_str().to_owned();
+    db.write(move |tx| {
+        Box::pin(async move {
+            for (key, value) in renewed {
+                sqlx::query!(
+                    "UPDATE personal_settings SET value = ?
+                     WHERE user_id = ? AND plugin_id = ? AND key = ? AND secret",
+                    value,
+                    user,
+                    plugin,
+                    key
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
+            Ok(())
+        })
+    })
+    .await
+}
+
 /// Deletes all of `user`'s Personal settings for `plugin`.
 pub(crate) async fn delete(db: &Database, user: i64, plugin: &PluginId) -> Result<(), sqlx::Error> {
     replace(db, user, plugin, Vec::new()).await
