@@ -492,15 +492,14 @@ async fn a_pulled_change_is_taken_only_when_newer_than_the_servers_own_under_any
     .await
     .unwrap();
 
-    let older = made_elsewhere(500, false, 60);
-    (watch_states.take_pulled(user, vec![(alien_by_both_ids(), older)]))
-        .await
-        .unwrap();
-    let own = movie_state(&watch_states, user, alien_imdb())
-        .await
-        .unwrap();
-    assert_eq!(own.position_ms, 1_000);
-    assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+    for older in [made_elsewhere(500, false, 60), made_elsewhere(0, false, 60)] {
+        (watch_states.take_pulled(user, vec![(alien_by_both_ids(), older)]))
+            .await
+            .unwrap();
+        let own = movie_state(&watch_states, user, alien_imdb()).await;
+        assert_eq!(own.map(|own| own.position_ms), Some(1_000));
+        assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+    }
 
     let newer = made_elsewhere(1_500, false, -60);
     (watch_states.take_pulled(user, vec![(alien_by_both_ids(), newer.clone())]))
