@@ -4,7 +4,7 @@
 
 use crate::support::{browsing, home_row_plugin, log, server};
 
-use browsing::tmdb_id;
+use browsing::{Fixture, hide_every_library, report_a_minute, tmdb_id};
 use connectrpc::client::HttpClient;
 use home_row_plugin::{PLUGIN, set_handle, text};
 use log::Log;
@@ -176,4 +176,26 @@ async fn a_user_links_by_device_code_once_approved_and_never_gets_the_token_back
     assert!(token_set(&linked), "{linked:?}");
     assert!(!format!("{linked:?}").contains("token-of-"), "{linked:?}");
     assert!(!token_set(&unlinked), "{unlinked:?}");
+}
+
+#[tokio::test]
+async fn progress_refused_on_a_hidden_librarys_version_is_not_scrobbled() {
+    // Before the Server logs, since a line logged with no subscriber yet is never logged again.
+    let log = Log::global();
+    let fx = Fixture::alien().await;
+    fx.server.enable_test_plugin("watch-sync").await;
+    let ada = fx.server.user_with_default_permissions("ada").await;
+    let cy = fx.server.user_with_default_permissions("cy").await;
+    set_handle(&ada, "ada").await;
+    set_handle(&cy, "cy").await;
+    hide_every_library(&fx.server.client_config(), ada.id).await;
+    let alien = fx.version_ids(ALIEN).await[0];
+
+    let refused = report_a_minute(&ada.client_config(), alien).await;
+    // Cy's scrobble, sent after Ada's would be, has had the time Ada's would have taken.
+    report_a_minute(&cy.client_config(), alien).await.unwrap();
+    log.wait_for(&["test-plugin scrobbled cy's Movie"], 1).await;
+
+    assert_eq!(log.count(&["test-plugin scrobbled ada's"]), 0);
+    assert!(refused.is_err());
 }

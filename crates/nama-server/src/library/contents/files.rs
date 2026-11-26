@@ -6,7 +6,10 @@ use nama_proto::nama::v1::{Event, LibraryItemAdded, LibraryItemRemoved};
 use sqlx::SqliteConnection;
 
 use super::{Contents, Item, ItemKind, ItemRow};
-use crate::{db, events::event, library::versions::PARSER_VERSION};
+use crate::{
+    content_ratings::MaximumAge, db, events::event, library::versions::PARSER_VERSION,
+    users::LibraryAccess,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Stored {
@@ -124,6 +127,27 @@ impl Contents {
         )
         .fetch_all(self.db.reader())
         .await
+    }
+
+    /// Whether a User who sees the Libraries `seen` and has the Maximum Age `max_age` may play
+    /// the Version `version`: they see its Library and `max_age` lets through each title it holds.
+    /// One there is no such Version of is for the caller to refuse.
+    pub(crate) async fn lets_play(
+        &self,
+        version: i64,
+        seen: &LibraryAccess,
+        max_age: MaximumAge,
+    ) -> Result<bool, sqlx::Error> {
+        let Some(library) = self.library_of_version(version).await? else {
+            return Ok(true);
+        };
+        if !seen.sees(library) {
+            return Ok(false);
+        }
+        let ratings = self.version_content_ratings(version).await?;
+        Ok(ratings
+            .iter()
+            .all(|rating| max_age.allows(rating.as_deref())))
     }
 
     /// The other Versions, by path, in the Library of the Version `version`, of any Movie or
