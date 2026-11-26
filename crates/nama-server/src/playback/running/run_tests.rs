@@ -377,6 +377,23 @@ async fn the_init_segment_is_served_once_its_first_file_is_written_and_gone_sinc
     assert_eq!(init.unwrap().unwrap(), b"init");
 }
 
+/// A run started at a file that's there would empty its init while it's served (#2370).
+#[tokio::test]
+async fn a_file_the_run_joins_as_a_seek_stops_it_is_served_without_starting_ffmpeg_there() {
+    let test = remux().await;
+    fs::write(test.dir.join(hls_init(0)), "init").unwrap();
+    // To 66 seconds, which the plan hasn't looked at yet.
+    test.write_run(0, &[2000; 33], false);
+
+    // 60 seconds on, too far for a Remux to wait for, so it stops ffmpeg, which joins it as it
+    // does.
+    let a_minute_in = test.served(10).await;
+
+    assert_eq!(a_minute_in, ran(0, 30..33).as_bytes());
+    assert_eq!(test.runs.started(), [0]);
+    assert_eq!(test.plan.init().await.unwrap().unwrap(), b"init");
+}
+
 #[tokio::test]
 async fn the_init_segment_of_a_run_that_stopped_before_writing_a_file_is_not_served() {
     let test = remux().await;

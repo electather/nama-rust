@@ -308,7 +308,7 @@ impl Rows {
     }
 
     /// `title` as a Request would look it up, `None` if the title source doesn't have it.
-    async fn look_up(&self, title: &Title) -> Result<Option<Missing>, requests::Error> {
+    pub(super) async fn look_up(&self, title: &Title) -> Result<Option<Missing>, requests::Error> {
         let Some(id) = title.id() else {
             return Ok(None);
         };

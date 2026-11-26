@@ -277,21 +277,23 @@ impl Artwork {
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
-    /// Poster a title of it shows, downloaded before or just now or beside its media, and each
-    /// downloaded Backdrop and Title Logo, is resized to the widths the web app offers it at too,
-    /// where resizing is on now and those copies aren't there.
+    /// Poster a title of it shows, downloaded before or just now or beside its media, each
+    /// Backdrop beside its media it shows, and each downloaded Backdrop and Title Logo, is resized
+    /// to the widths the web app offers it at too, where resizing is on now and those copies
+    /// aren't there.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
         let copies = (self.ahead.as_ref()).map_or_else(CopiesAhead::default, CopiesAhead::of);
+        // Resizing off leaves every kind's copies empty.
         if let Some(ahead) = &self.ahead
             && !copies.posters.is_empty()
         {
-            let posters = copies.posters.clone();
-            (ahead.local_images).resize_shown_posters(
+            (ahead.local_images).resize_shown(
                 library,
                 ahead.custom_images.clone(),
-                posters,
+                copies.posters.clone(),
+                copies.backdrops.clone(),
             );
         }
         tokio::spawn(async move {
@@ -474,12 +476,6 @@ impl Artwork {
     }
 }
 
-/// The copies Posters are resized to ahead of the Poster grid asking for them, as `images` says:
-/// none while resizing is off.
-pub(super) fn poster_copies(images: &ImageSettings) -> Vec<Resize> {
-    Resize::each(&POSTER_WIDTHS, images)
-}
-
 /// The copies [`Artwork::download_missing`] makes of each kind of image ahead of the web app
 /// asking for them.
 #[derive(Debug, Default)]
@@ -493,7 +489,7 @@ impl CopiesAhead {
     /// Those `ahead` makes as its settings are now: none while resizing is off.
     fn of(ahead: &ResizingAhead) -> Self {
         Self {
-            posters: poster_copies(&ahead.images),
+            posters: Resize::each(&POSTER_WIDTHS, &ahead.images),
             backdrops: Resize::each(&BACKDROP_WIDTHS, &ahead.images),
             title_logos: Resize::each(&TITLE_LOGO_WIDTHS, &ahead.images),
         }

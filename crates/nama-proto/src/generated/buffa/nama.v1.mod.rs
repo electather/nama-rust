@@ -564,6 +564,9 @@ pub mod __buffa {
         reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_WATCHLIST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCHLIST_TITLE_JSON_ANY);
         reg.register_json_any(super::__GET_WEB_PUSH_KEY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_WEB_PUSH_KEY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_WEB_PUSH_REQUEST_JSON_ANY);
@@ -2453,6 +2456,18 @@ pub use self::__buffa::view::RemoveFromWatchlistRequestOwnedView;
 pub use self::__buffa::view::RemoveFromWatchlistResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::RemoveFromWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListWatchlistRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListWatchlistRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListWatchlistResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetWebPushKeyRequestView;
 #[doc(inline)]

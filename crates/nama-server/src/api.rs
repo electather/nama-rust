@@ -211,6 +211,8 @@ pub(crate) fn router(
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
             syncing,
+            home_rows: home_rows.clone(),
+            images: images.clone(),
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
             plans,

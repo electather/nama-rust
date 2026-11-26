@@ -10,7 +10,7 @@ import { AccountServers } from "@/features/servers/components/account-servers";
 import { Notice } from "@/shared/components/sign-in-layout/notice";
 
 /**
- * The Account with `email` signed in, on Home at the Hub: who it is, its Servers' Libraries, the
+ * The Account with `email` signed in, on Home at the Hub: who it is, its Servers' Libraries, its Watchlist across them, the
  * Users waiting for it, Linking a Server or a User by the code it shows, its Settings, and signing
  * it out.
  */
@@ -30,6 +30,9 @@ export function AccountSection({ email }: { email: string }) {
         <dd className="text-base break-all">{email}</dd>
       </dl>
       <AccountServers />
+      <Link to="/watchlist" className={buttonVariants({ variant: "outline", size: "lg" })}>
+        Watchlist
+      </Link>
       <AccountLinks />
       <LinkServerForm />
       <LinkUserForm />

@@ -17,7 +17,9 @@ import { Route as MemberHubRouteImport } from './routes/_member/_hub'
 import { Route as MemberServerRouteImport } from './routes/_member/_server'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
+import { Route as MemberWatchlistRouteImport } from './routes/_member/watchlist'
 import { Route as SignedOutHubRouteImport } from './routes/_signed-out/_hub'
+import { Route as SignedOutServerRouteImport } from './routes/_signed-out/_server'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
 import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
 import { Route as SignedOutSwitchUserRouteImport } from './routes/_signed-out/switch-user'
@@ -29,9 +31,8 @@ import { Route as SignedOutHubCreateAccountRouteImport } from './routes/_signed-
 import { Route as SignedOutHubSendSignInLinkRouteImport } from './routes/_signed-out/_hub/send-sign-in-link'
 import { Route as SignedOutHubSignInLinkRouteImport } from './routes/_signed-out/_hub/sign-in-link'
 import { Route as SignedOutHubSignInLinkSentRouteImport } from './routes/_signed-out/_hub/sign-in-link-sent'
-import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
-import { Route as SignedOutSignInAccountRouteImport } from './routes/_signed-out/sign-in.account'
+import { Route as SignedOutSignInServerRouteImport } from './routes/_signed-out/sign-in._server'
 import { Route as SignedOutSwitchUserIndexRouteImport } from './routes/_signed-out/switch-user.index'
 import { Route as SignedOutSwitchUserUserIdRouteImport } from './routes/_signed-out/switch-user.$userId'
 import { Route as MemberHubLinkServerCodeRouteImport } from './routes/_member/_hub/link-server.$code'
@@ -41,9 +42,11 @@ import { Route as MemberServerLibrariesIndexRouteImport } from './routes/_member
 import { Route as MemberServerMoviesMovieIdRouteImport } from './routes/_member/_server/movies/$movieId'
 import { Route as MemberServerPeoplePersonIdRouteImport } from './routes/_member/_server/people/$personId'
 import { Route as MemberServerShowsShowIdRouteImport } from './routes/_member/_server/shows/$showId'
-import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
-import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
+import { Route as SignedOutServerInviteTokenRouteImport } from './routes/_signed-out/_server/invite.$token'
+import { Route as SignedOutSignInServerAccountRouteImport } from './routes/_signed-out/sign-in._server/account'
 import { Route as MemberServerLibrariesLibraryIdIndexRouteImport } from './routes/_member/_server/libraries/$libraryId/index'
+import { Route as SignedOutSignInServerCodeIndexRouteImport } from './routes/_signed-out/sign-in._server/code.index'
+import { Route as SignedOutSignInServerCodeWaitingRouteImport } from './routes/_signed-out/sign-in._server/code.waiting'
 import { Route as MemberServerLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/_server/libraries/$libraryId/movies/$movieId/index'
 import { Route as MemberServerLibrariesLibraryIdMoviesMovieIdPlayRouteImport } from './routes/_member/_server/libraries/$libraryId/movies/$movieId/play'
 import { Route as MemberServerLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/_server/libraries/$libraryId/shows/$showId/index'
@@ -86,8 +89,17 @@ const MemberSearchRoute = MemberSearchRouteImport.update({
   path: '/search',
   getParentRoute: () => MemberRoute,
 } as any)
+const MemberWatchlistRoute = MemberWatchlistRouteImport.update({
+  id: '/watchlist',
+  path: '/watchlist',
+  getParentRoute: () => MemberRoute,
+} as any)
 const SignedOutHubRoute = SignedOutHubRouteImport.update({
   id: '/_hub',
+  getParentRoute: () => SignedOutRoute,
+} as any)
+const SignedOutServerRoute = SignedOutServerRouteImport.update({
+  id: '/_server',
   getParentRoute: () => SignedOutRoute,
 } as any)
 const SignedOutSetupRoute = SignedOutSetupRouteImport.update({
@@ -149,19 +161,13 @@ const SignedOutHubSignInLinkSentRoute =
     path: '/sign-in-link-sent',
     getParentRoute: () => SignedOutHubRoute,
   } as any)
-const SignedOutInviteTokenRoute = SignedOutInviteTokenRouteImport.update({
-  id: '/invite/$token',
-  path: '/invite/$token',
-  getParentRoute: () => SignedOutRoute,
-} as any)
 const SignedOutSignInIndexRoute = SignedOutSignInIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SignedOutSignInRoute,
 } as any)
-const SignedOutSignInAccountRoute = SignedOutSignInAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
+const SignedOutSignInServerRoute = SignedOutSignInServerRouteImport.update({
+  id: '/_server',
   getParentRoute: () => SignedOutSignInRoute,
 } as any)
 const SignedOutSwitchUserIndexRoute =
@@ -215,23 +221,35 @@ const MemberServerShowsShowIdRoute = MemberServerShowsShowIdRouteImport.update({
   path: '/shows/$showId',
   getParentRoute: () => MemberServerRoute,
 } as any)
-const SignedOutSignInCodeIndexRoute =
-  SignedOutSignInCodeIndexRouteImport.update({
-    id: '/code/',
-    path: '/code/',
-    getParentRoute: () => SignedOutSignInRoute,
+const SignedOutServerInviteTokenRoute =
+  SignedOutServerInviteTokenRouteImport.update({
+    id: '/invite/$token',
+    path: '/invite/$token',
+    getParentRoute: () => SignedOutServerRoute,
   } as any)
-const SignedOutSignInCodeWaitingRoute =
-  SignedOutSignInCodeWaitingRouteImport.update({
-    id: '/code/waiting',
-    path: '/code/waiting',
-    getParentRoute: () => SignedOutSignInRoute,
+const SignedOutSignInServerAccountRoute =
+  SignedOutSignInServerAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => SignedOutSignInServerRoute,
   } as any)
 const MemberServerLibrariesLibraryIdIndexRoute =
   MemberServerLibrariesLibraryIdIndexRouteImport.update({
     id: '/libraries/$libraryId/',
     path: '/libraries/$libraryId/',
     getParentRoute: () => MemberServerRoute,
+  } as any)
+const SignedOutSignInServerCodeIndexRoute =
+  SignedOutSignInServerCodeIndexRouteImport.update({
+    id: '/code/',
+    path: '/code/',
+    getParentRoute: () => SignedOutSignInServerRoute,
+  } as any)
+const SignedOutSignInServerCodeWaitingRoute =
+  SignedOutSignInServerCodeWaitingRouteImport.update({
+    id: '/code/waiting',
+    path: '/code/waiting',
+    getParentRoute: () => SignedOutSignInServerRoute,
   } as any)
 const MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute =
   MemberServerLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
@@ -271,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof MemberSplatRoute
   '/code': typeof MemberCodeRouteWithChildren
   '/search': typeof MemberSearchRoute
+  '/watchlist': typeof MemberWatchlistRoute
   '/setup': typeof SignedOutSetupRoute
   '/sign-in': typeof SignedOutSignInRouteWithChildren
   '/switch-user': typeof SignedOutSwitchUserRouteWithChildren
@@ -281,8 +300,6 @@ export interface FileRoutesByFullPath {
   '/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
   '/sign-in-link': typeof SignedOutHubSignInLinkRoute
   '/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
-  '/invite/$token': typeof SignedOutInviteTokenRoute
-  '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/switch-user/$userId': typeof SignedOutSwitchUserUserIdRoute
   '/code/': typeof MemberCodeIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
@@ -293,10 +310,12 @@ export interface FileRoutesByFullPath {
   '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
   '/people/$personId': typeof MemberServerPeoplePersonIdRoute
   '/shows/$showId': typeof MemberServerShowsShowIdRoute
-  '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
+  '/invite/$token': typeof SignedOutServerInviteTokenRoute
+  '/sign-in/account': typeof SignedOutSignInServerAccountRoute
   '/libraries/': typeof MemberServerLibrariesIndexRoute
-  '/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
+  '/sign-in/code/waiting': typeof SignedOutSignInServerCodeWaitingRoute
   '/libraries/$libraryId/': typeof MemberServerLibrariesLibraryIdIndexRoute
+  '/sign-in/code/': typeof SignedOutSignInServerCodeIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
   '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/libraries/$libraryId/movies/$movieId/': typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -307,6 +326,7 @@ export interface FileRoutesByTo {
   '/': typeof MemberIndexRoute
   '/$': typeof MemberSplatRoute
   '/search': typeof MemberSearchRoute
+  '/watchlist': typeof MemberWatchlistRoute
   '/setup': typeof SignedOutSetupRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
@@ -315,11 +335,9 @@ export interface FileRoutesByTo {
   '/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
   '/sign-in-link': typeof SignedOutHubSignInLinkRoute
   '/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
-  '/invite/$token': typeof SignedOutInviteTokenRoute
-  '/sign-in/account': typeof SignedOutSignInAccountRoute
+  '/sign-in': typeof SignedOutSignInIndexRoute
   '/switch-user/$userId': typeof SignedOutSwitchUserUserIdRoute
   '/code': typeof MemberCodeIndexRoute
-  '/sign-in': typeof SignedOutSignInIndexRoute
   '/switch-user': typeof SignedOutSwitchUserIndexRoute
   '/link-server/$code': typeof MemberHubLinkServerCodeRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
@@ -327,10 +345,12 @@ export interface FileRoutesByTo {
   '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
   '/people/$personId': typeof MemberServerPeoplePersonIdRoute
   '/shows/$showId': typeof MemberServerShowsShowIdRoute
-  '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
+  '/invite/$token': typeof SignedOutServerInviteTokenRoute
+  '/sign-in/account': typeof SignedOutSignInServerAccountRoute
   '/libraries': typeof MemberServerLibrariesIndexRoute
-  '/sign-in/code': typeof SignedOutSignInCodeIndexRoute
+  '/sign-in/code/waiting': typeof SignedOutSignInServerCodeWaitingRoute
   '/libraries/$libraryId': typeof MemberServerLibrariesLibraryIdIndexRoute
+  '/sign-in/code': typeof SignedOutSignInServerCodeIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
   '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/libraries/$libraryId/movies/$movieId': typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -346,7 +366,9 @@ export interface FileRoutesById {
   '/_member/_server': typeof MemberServerRouteWithChildren
   '/_member/code': typeof MemberCodeRouteWithChildren
   '/_member/search': typeof MemberSearchRoute
+  '/_member/watchlist': typeof MemberWatchlistRoute
   '/_signed-out/_hub': typeof SignedOutHubRouteWithChildren
+  '/_signed-out/_server': typeof SignedOutServerRouteWithChildren
   '/_signed-out/setup': typeof SignedOutSetupRoute
   '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
   '/_signed-out/switch-user': typeof SignedOutSwitchUserRouteWithChildren
@@ -358,8 +380,7 @@ export interface FileRoutesById {
   '/_signed-out/_hub/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
   '/_signed-out/_hub/sign-in-link': typeof SignedOutHubSignInLinkRoute
   '/_signed-out/_hub/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
-  '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
-  '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
+  '/_signed-out/sign-in/_server': typeof SignedOutSignInServerRouteWithChildren
   '/_signed-out/switch-user/$userId': typeof SignedOutSwitchUserUserIdRoute
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
@@ -370,10 +391,12 @@ export interface FileRoutesById {
   '/_member/_server/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
   '/_member/_server/people/$personId': typeof MemberServerPeoplePersonIdRoute
   '/_member/_server/shows/$showId': typeof MemberServerShowsShowIdRoute
-  '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
+  '/_signed-out/_server/invite/$token': typeof SignedOutServerInviteTokenRoute
+  '/_signed-out/sign-in/_server/account': typeof SignedOutSignInServerAccountRoute
   '/_member/_server/libraries/': typeof MemberServerLibrariesIndexRoute
-  '/_signed-out/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
+  '/_signed-out/sign-in/_server/code/waiting': typeof SignedOutSignInServerCodeWaitingRoute
   '/_member/_server/libraries/$libraryId/': typeof MemberServerLibrariesLibraryIdIndexRoute
+  '/_signed-out/sign-in/_server/code/': typeof SignedOutSignInServerCodeIndexRoute
   '/_member/_server/libraries/$libraryId/movies/$movieId/play': typeof MemberServerLibrariesLibraryIdMoviesMovieIdPlayRoute
   '/_member/_server/libraries/$libraryId/unmatched/$versionId/play': typeof MemberServerLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/_member/_server/libraries/$libraryId/movies/$movieId/': typeof MemberServerLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -387,6 +410,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/code'
     | '/search'
+    | '/watchlist'
     | '/setup'
     | '/sign-in'
     | '/switch-user'
@@ -397,8 +421,6 @@ export interface FileRouteTypes {
     | '/send-sign-in-link'
     | '/sign-in-link'
     | '/sign-in-link-sent'
-    | '/invite/$token'
-    | '/sign-in/account'
     | '/switch-user/$userId'
     | '/code/'
     | '/sign-in/'
@@ -409,10 +431,12 @@ export interface FileRouteTypes {
     | '/movies/$movieId'
     | '/people/$personId'
     | '/shows/$showId'
-    | '/sign-in/code/waiting'
+    | '/invite/$token'
+    | '/sign-in/account'
     | '/libraries/'
-    | '/sign-in/code/'
+    | '/sign-in/code/waiting'
     | '/libraries/$libraryId/'
+    | '/sign-in/code/'
     | '/libraries/$libraryId/movies/$movieId/play'
     | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId/'
@@ -423,6 +447,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/search'
+    | '/watchlist'
     | '/setup'
     | '/code/approve'
     | '/code/done'
@@ -431,11 +456,9 @@ export interface FileRouteTypes {
     | '/send-sign-in-link'
     | '/sign-in-link'
     | '/sign-in-link-sent'
-    | '/invite/$token'
-    | '/sign-in/account'
+    | '/sign-in'
     | '/switch-user/$userId'
     | '/code'
-    | '/sign-in'
     | '/switch-user'
     | '/link-server/$code'
     | '/server-sign-in/$id'
@@ -443,10 +466,12 @@ export interface FileRouteTypes {
     | '/movies/$movieId'
     | '/people/$personId'
     | '/shows/$showId'
-    | '/sign-in/code/waiting'
+    | '/invite/$token'
+    | '/sign-in/account'
     | '/libraries'
-    | '/sign-in/code'
+    | '/sign-in/code/waiting'
     | '/libraries/$libraryId'
+    | '/sign-in/code'
     | '/libraries/$libraryId/movies/$movieId/play'
     | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId'
@@ -461,7 +486,9 @@ export interface FileRouteTypes {
     | '/_member/_server'
     | '/_member/code'
     | '/_member/search'
+    | '/_member/watchlist'
     | '/_signed-out/_hub'
+    | '/_signed-out/_server'
     | '/_signed-out/setup'
     | '/_signed-out/sign-in'
     | '/_signed-out/switch-user'
@@ -473,8 +500,7 @@ export interface FileRouteTypes {
     | '/_signed-out/_hub/send-sign-in-link'
     | '/_signed-out/_hub/sign-in-link'
     | '/_signed-out/_hub/sign-in-link-sent'
-    | '/_signed-out/invite/$token'
-    | '/_signed-out/sign-in/account'
+    | '/_signed-out/sign-in/_server'
     | '/_signed-out/switch-user/$userId'
     | '/_member/code/'
     | '/_signed-out/sign-in/'
@@ -485,10 +511,12 @@ export interface FileRouteTypes {
     | '/_member/_server/movies/$movieId'
     | '/_member/_server/people/$personId'
     | '/_member/_server/shows/$showId'
-    | '/_signed-out/sign-in/code/waiting'
+    | '/_signed-out/_server/invite/$token'
+    | '/_signed-out/sign-in/_server/account'
     | '/_member/_server/libraries/'
-    | '/_signed-out/sign-in/code/'
+    | '/_signed-out/sign-in/_server/code/waiting'
     | '/_member/_server/libraries/$libraryId/'
+    | '/_signed-out/sign-in/_server/code/'
     | '/_member/_server/libraries/$libraryId/movies/$movieId/play'
     | '/_member/_server/libraries/$libraryId/unmatched/$versionId/play'
     | '/_member/_server/libraries/$libraryId/movies/$movieId/'
@@ -559,11 +587,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberSearchRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/watchlist': {
+      id: '/_member/watchlist'
+      path: '/watchlist'
+      fullPath: '/watchlist'
+      preLoaderRoute: typeof MemberWatchlistRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_signed-out/_hub': {
       id: '/_signed-out/_hub'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof SignedOutHubRouteImport
+      parentRoute: typeof SignedOutRoute
+    }
+    '/_signed-out/_server': {
+      id: '/_signed-out/_server'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SignedOutServerRouteImport
       parentRoute: typeof SignedOutRoute
     }
     '/_signed-out/setup': {
@@ -643,13 +685,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutHubSignInLinkSentRouteImport
       parentRoute: typeof SignedOutHubRoute
     }
-    '/_signed-out/invite/$token': {
-      id: '/_signed-out/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof SignedOutInviteTokenRouteImport
-      parentRoute: typeof SignedOutRoute
-    }
     '/_signed-out/sign-in/': {
       id: '/_signed-out/sign-in/'
       path: '/'
@@ -657,11 +692,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInIndexRouteImport
       parentRoute: typeof SignedOutSignInRoute
     }
-    '/_signed-out/sign-in/account': {
-      id: '/_signed-out/sign-in/account'
-      path: '/account'
-      fullPath: '/sign-in/account'
-      preLoaderRoute: typeof SignedOutSignInAccountRouteImport
+    '/_signed-out/sign-in/_server': {
+      id: '/_signed-out/sign-in/_server'
+      path: ''
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignedOutSignInServerRouteImport
       parentRoute: typeof SignedOutSignInRoute
     }
     '/_signed-out/switch-user/': {
@@ -727,19 +762,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberServerShowsShowIdRouteImport
       parentRoute: typeof MemberServerRoute
     }
-    '/_signed-out/sign-in/code/': {
-      id: '/_signed-out/sign-in/code/'
-      path: '/code'
-      fullPath: '/sign-in/code/'
-      preLoaderRoute: typeof SignedOutSignInCodeIndexRouteImport
-      parentRoute: typeof SignedOutSignInRoute
+    '/_signed-out/_server/invite/$token': {
+      id: '/_signed-out/_server/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof SignedOutServerInviteTokenRouteImport
+      parentRoute: typeof SignedOutServerRoute
     }
-    '/_signed-out/sign-in/code/waiting': {
-      id: '/_signed-out/sign-in/code/waiting'
-      path: '/code/waiting'
-      fullPath: '/sign-in/code/waiting'
-      preLoaderRoute: typeof SignedOutSignInCodeWaitingRouteImport
-      parentRoute: typeof SignedOutSignInRoute
+    '/_signed-out/sign-in/_server/account': {
+      id: '/_signed-out/sign-in/_server/account'
+      path: '/account'
+      fullPath: '/sign-in/account'
+      preLoaderRoute: typeof SignedOutSignInServerAccountRouteImport
+      parentRoute: typeof SignedOutSignInServerRoute
     }
     '/_member/_server/libraries/$libraryId/': {
       id: '/_member/_server/libraries/$libraryId/'
@@ -747,6 +782,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/libraries/$libraryId/'
       preLoaderRoute: typeof MemberServerLibrariesLibraryIdIndexRouteImport
       parentRoute: typeof MemberServerRoute
+    }
+    '/_signed-out/sign-in/_server/code/': {
+      id: '/_signed-out/sign-in/_server/code/'
+      path: '/code'
+      fullPath: '/sign-in/code/'
+      preLoaderRoute: typeof SignedOutSignInServerCodeIndexRouteImport
+      parentRoute: typeof SignedOutSignInServerRoute
+    }
+    '/_signed-out/sign-in/_server/code/waiting': {
+      id: '/_signed-out/sign-in/_server/code/waiting'
+      path: '/code/waiting'
+      fullPath: '/sign-in/code/waiting'
+      preLoaderRoute: typeof SignedOutSignInServerCodeWaitingRouteImport
+      parentRoute: typeof SignedOutSignInServerRoute
     }
     '/_member/_server/libraries/$libraryId/movies/$movieId/': {
       id: '/_member/_server/libraries/$libraryId/movies/$movieId/'
@@ -860,6 +909,7 @@ interface MemberRouteChildren {
   MemberServerRoute: typeof MemberServerRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
+  MemberWatchlistRoute: typeof MemberWatchlistRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberReauthenticateAccountRoute: typeof MemberReauthenticateAccountRoute
 }
@@ -870,6 +920,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberServerRoute: MemberServerRouteWithChildren,
   MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
+  MemberWatchlistRoute: MemberWatchlistRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberReauthenticateAccountRoute: MemberReauthenticateAccountRoute,
 }
@@ -895,18 +946,43 @@ const SignedOutHubRouteWithChildren = SignedOutHubRoute._addFileChildren(
   SignedOutHubRouteChildren,
 )
 
+interface SignedOutServerRouteChildren {
+  SignedOutServerInviteTokenRoute: typeof SignedOutServerInviteTokenRoute
+}
+
+const SignedOutServerRouteChildren: SignedOutServerRouteChildren = {
+  SignedOutServerInviteTokenRoute: SignedOutServerInviteTokenRoute,
+}
+
+const SignedOutServerRouteWithChildren = SignedOutServerRoute._addFileChildren(
+  SignedOutServerRouteChildren,
+)
+
+interface SignedOutSignInServerRouteChildren {
+  SignedOutSignInServerAccountRoute: typeof SignedOutSignInServerAccountRoute
+  SignedOutSignInServerCodeWaitingRoute: typeof SignedOutSignInServerCodeWaitingRoute
+  SignedOutSignInServerCodeIndexRoute: typeof SignedOutSignInServerCodeIndexRoute
+}
+
+const SignedOutSignInServerRouteChildren: SignedOutSignInServerRouteChildren = {
+  SignedOutSignInServerAccountRoute: SignedOutSignInServerAccountRoute,
+  SignedOutSignInServerCodeWaitingRoute: SignedOutSignInServerCodeWaitingRoute,
+  SignedOutSignInServerCodeIndexRoute: SignedOutSignInServerCodeIndexRoute,
+}
+
+const SignedOutSignInServerRouteWithChildren =
+  SignedOutSignInServerRoute._addFileChildren(
+    SignedOutSignInServerRouteChildren,
+  )
+
 interface SignedOutSignInRouteChildren {
-  SignedOutSignInAccountRoute: typeof SignedOutSignInAccountRoute
+  SignedOutSignInServerRoute: typeof SignedOutSignInServerRouteWithChildren
   SignedOutSignInIndexRoute: typeof SignedOutSignInIndexRoute
-  SignedOutSignInCodeWaitingRoute: typeof SignedOutSignInCodeWaitingRoute
-  SignedOutSignInCodeIndexRoute: typeof SignedOutSignInCodeIndexRoute
 }
 
 const SignedOutSignInRouteChildren: SignedOutSignInRouteChildren = {
-  SignedOutSignInAccountRoute: SignedOutSignInAccountRoute,
+  SignedOutSignInServerRoute: SignedOutSignInServerRouteWithChildren,
   SignedOutSignInIndexRoute: SignedOutSignInIndexRoute,
-  SignedOutSignInCodeWaitingRoute: SignedOutSignInCodeWaitingRoute,
-  SignedOutSignInCodeIndexRoute: SignedOutSignInCodeIndexRoute,
 }
 
 const SignedOutSignInRouteWithChildren = SignedOutSignInRoute._addFileChildren(
@@ -928,18 +1004,18 @@ const SignedOutSwitchUserRouteWithChildren =
 
 interface SignedOutRouteChildren {
   SignedOutHubRoute: typeof SignedOutHubRouteWithChildren
+  SignedOutServerRoute: typeof SignedOutServerRouteWithChildren
   SignedOutSetupRoute: typeof SignedOutSetupRoute
   SignedOutSignInRoute: typeof SignedOutSignInRouteWithChildren
   SignedOutSwitchUserRoute: typeof SignedOutSwitchUserRouteWithChildren
-  SignedOutInviteTokenRoute: typeof SignedOutInviteTokenRoute
 }
 
 const SignedOutRouteChildren: SignedOutRouteChildren = {
   SignedOutHubRoute: SignedOutHubRouteWithChildren,
+  SignedOutServerRoute: SignedOutServerRouteWithChildren,
   SignedOutSetupRoute: SignedOutSetupRoute,
   SignedOutSignInRoute: SignedOutSignInRouteWithChildren,
   SignedOutSwitchUserRoute: SignedOutSwitchUserRouteWithChildren,
-  SignedOutInviteTokenRoute: SignedOutInviteTokenRoute,
 }
 
 const SignedOutRouteWithChildren = SignedOutRoute._addFileChildren(

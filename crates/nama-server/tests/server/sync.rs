@@ -157,8 +157,11 @@ async fn an_unlinked_users_progress_never_reaches_the_hub() {
     let hub = FakeHub::start().await;
     let fx = Fixture::alien_on(on(&hub, TestServer::builder())).await;
     hub.link_with_users(&fx.server).await;
-    let ada = fx.server.user_with_default_permissions("Ada").await;
-    hub.unlink_user_on_hub(ada.id);
+    // Unlinked before she signs in, as her sign-in's pull asks the Hub whether she is Linked and
+    // the Server keeps that answer for a minute.
+    let id = fx.server.create_user("Ada").await;
+    hub.unlink_user_on_hub(id);
+    let ada = fx.server.sign_in(id, "Ada").await;
 
     // In the order they're queued, so a page holds Ada's before the Admin's.
     watch_alien(&fx, &ada.client_config(), 60_000).await;
@@ -530,8 +533,11 @@ async fn a_linked_users_play_reaches_the_hub_as_a_viewing_event() {
 async fn an_unlinked_users_play_never_reaches_the_hub() {
     let hub = FakeHub::start().await;
     let fx = alien_linked_with(&hub).await;
-    let ada = fx.server.user_with_default_permissions("Ada").await;
-    hub.unlink_user_on_hub(ada.id);
+    // Unlinked before she signs in, as her sign-in's pull asks the Hub whether she is Linked and
+    // the Server keeps that answer for a minute.
+    let id = fx.server.create_user("Ada").await;
+    hub.unlink_user_on_hub(id);
+    let ada = fx.server.sign_in(id, "Ada").await;
 
     play_alien(&fx, &ada.client_config(), 60_000).await;
     play_alien(&fx, &fx.server.client_config(), 30_000).await;

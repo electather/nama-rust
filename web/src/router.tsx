@@ -79,5 +79,7 @@ declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     /** The page fills the screen, without the app chrome, such as the player. */
     fullScreen?: boolean;
+    /** At the Hub, the page fills the screen as a Server's pages do, out of the Account's card. */
+    fillsTheHub?: boolean;
   }
 }

@@ -15,7 +15,7 @@ use super::{
     CODE_LIFETIME_MINS, Error, LinkedServer, LinkedServerId, Links, TOKEN_LIFETIME_SECS, hash,
     issued_at, random_token,
 };
-use crate::accounts::AccountId;
+use crate::accounts::{AccountId, AccountSession};
 
 /// The longest return address kept, as browsers handle about this much.
 const URL_LENGTH: usize = 2048;
@@ -65,6 +65,10 @@ struct SignInClaims {
     /// Server takes it once.
     #[serde(skip_serializing_if = "Option::is_none")]
     jti: Option<String>,
+    /// When the Account's session signed in, in the token the web app trades: the page holding
+    /// that session holds the Device too, so the Server gives it Recent Authentication from then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_time: Option<i64>,
     iat: u64,
     exp: u64,
 }
@@ -202,36 +206,44 @@ impl Links {
         if collected.rows_affected() == 0 || !right_code {
             return Err(Error::Expired);
         }
-        Ok(Some(self.sign_in_token(user_id, server.id, None)))
+        Ok(Some(self.sign_in_token(user_id, server.id, None, None)))
     }
 
-    /// A token naming `account`'s User on `server`, which the web app at the Hub trades there for
-    /// a Device (ADR 0105). Fails with [`Error::NoUserOnServer`] unless `account` has a User Linked
-    /// on `server`.
+    /// A token naming `session`'s Account's User on `server`, which the web app at the Hub trades
+    /// there for a Device (ADR 0105), saying when `session` signed in. Fails with
+    /// [`Error::NoUserOnServer`] unless the Account has a User Linked on `server`.
     pub(crate) async fn server_token(
         &self,
-        account: AccountId,
+        session: &AccountSession,
         server: LinkedServerId,
     ) -> Result<String, Error> {
         let user_id = sqlx::query_scalar!(
             "SELECT server_user_id FROM user_links WHERE account_id = $1 AND linked_server_id = $2",
-            account.0,
+            session.account.id.0,
             server.0,
         )
         .fetch_optional(&self.db)
         .await?
         .ok_or(Error::NoUserOnServer)?;
-        Ok(self.sign_in_token(user_id, server, Some(random_token()?)))
+        let jti = Some(random_token()?);
+        Ok(self.sign_in_token(user_id, server, jti, Some(session.signed_in_at)))
     }
 
     /// A token signing in as the User `user_id` on `server` only, with `jti` if it is to be taken
-    /// once.
-    fn sign_in_token(&self, user_id: i64, server: LinkedServerId, jti: Option<String>) -> String {
+    /// once, and `auth_time` if it gives Recent Authentication.
+    fn sign_in_token(
+        &self,
+        user_id: i64,
+        server: LinkedServerId,
+        jti: Option<String>,
+        auth_time: Option<i64>,
+    ) -> String {
         let iat = issued_at();
         self.keys.sign(&SignInClaims {
             sub: user_id.to_string(),
             aud: server.to_string(),
             jti,
+            auth_time,
             iat,
             exp: iat + TOKEN_LIFETIME_SECS,
         })
