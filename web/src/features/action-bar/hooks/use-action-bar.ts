@@ -9,7 +9,7 @@ import { groupsOf } from "@/features/action-bar/lib/groups";
 import { press } from "@/features/action-bar/lib/keys";
 import { type Page, goTo, pages } from "@/features/action-bar/lib/pages";
 import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
-import type { FoundTitle } from "@/features/action-bar/lib/titles";
+import type { FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
@@ -66,18 +66,19 @@ export function useActionBar({
     dialog.close();
     void navigate({ to: "/libraries/$libraryId", params: { libraryId: String(id) } });
   }
-  function openToRequest({ kind, titleId }: FoundTitle) {
+  // At the Hub, each opens on the Server it was found on.
+  function openToRequest({ kind, titleId, server }: FoundTitle) {
     void (kind === "movie"
-      ? navigate({ to: "/movies/$movieId", params: { movieId: titleId } })
-      : navigate({ to: "/shows/$showId", params: { showId: titleId } }));
+      ? navigate({ to: "/movies/$movieId", params: { movieId: titleId }, search: { server } })
+      : navigate({ to: "/shows/$showId", params: { showId: titleId }, search: { server } }));
   }
-  function openPerson(personId: string) {
+  function openPerson({ personId, server }: FoundPerson) {
     dialog.close();
-    void navigate({ to: "/people/$personId", params: { personId } });
+    void navigate({ to: "/people/$personId", params: { personId }, search: { server } });
   }
   function open(title: FoundTitle) {
     dialog.close();
-    const { libraryId, titleId, season } = title;
+    const { libraryId, titleId, season, server } = title;
     if (libraryId === undefined) {
       openToRequest(title);
       return;
@@ -87,11 +88,12 @@ export function useActionBar({
       ? navigate({
           to: "/libraries/$libraryId/movies/$movieId",
           params: { libraryId, movieId: titleId },
+          search: { server },
         })
       : navigate({
           to: "/libraries/$libraryId/shows/$showId",
           params: { libraryId, showId: titleId },
-          search: season === undefined ? {} : { season },
+          search: season === undefined ? { server } : { season, server },
         }));
   }
 
