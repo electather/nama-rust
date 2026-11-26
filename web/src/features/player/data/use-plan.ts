@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import type { Transport } from "@connectrpc/connect";
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
@@ -9,10 +10,12 @@ import { findDeviceDecoding } from "@/features/player/lib/device-decoding";
 import { frameSheets } from "@/features/player/lib/preview-frame";
 import {
   PlanPlaybackResponseSchema,
+  type PlaybackPlan,
   PlaybackPlanSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
+import { onServer } from "@/shared/lib/server";
 
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
@@ -65,7 +68,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
         // Plan ids start again when the Server restarts, so a stop kept under this one was another's.
         client.removeQueries(adminStopQuery(transport, planned.id));
         return create(PlanPlaybackResponseSchema, {
-          plan: planned,
+          plan: onItsServer(planned, transport),
           playableVersions: response.playableVersions,
         });
       } catch (error) {
@@ -80,4 +83,18 @@ export function usePlan(versionId: bigint, asking: Asking) {
   const planned = plan ?? create(PlaybackPlanSchema);
   const sheets = frameSheets(planned.previewFrames, versionId, transport);
   return { plan: planned, playableVersions, sheets };
+}
+
+/**
+ * `plan` with the paths the Server sent on that Server, so its player, keep-alive and subtitles
+ * never ask the Hub for them (ADR 0105). Its segments load relative to its URL.
+ */
+function onItsServer(plan: PlaybackPlan, transport: Transport): PlaybackPlan {
+  const on = (path: string) => onServer(transport, path);
+  const subtitles = plan.subtitles.map((subtitle) => ({
+    ...subtitle,
+    url: on(subtitle.url),
+    fontUrls: subtitle.fontUrls.map(on),
+  }));
+  return { ...plan, url: on(plan.url), subtitles };
 }

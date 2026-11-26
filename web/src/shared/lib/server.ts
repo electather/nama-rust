@@ -14,10 +14,11 @@ export function serverTransport(origin: string, interceptors: Interceptor[]) {
 
 /**
  * `path`, such as `/custom-images/movie/…`, on the Server `transport` talks to. A transport
- * `serverTransport` didn't make, such as a test's fake Server, is to the page's own.
+ * `serverTransport` didn't make, such as a test's fake Server, is to the page's own. An absolute or
+ * protocol-relative URL, and `""`, stay as they are.
  */
 export function onServer(transport: Transport, path: string) {
-  return "origin" in transport && typeof transport.origin === "string"
+  return "origin" in transport && typeof transport.origin === "string" && /^\/(?!\/)/u.test(path)
     ? `${transport.origin}${path}`
     : path;
 }

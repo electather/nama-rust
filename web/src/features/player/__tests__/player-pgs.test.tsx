@@ -12,6 +12,7 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
+import { atOrigin } from "@/test-server-at";
 
 /**
  * What each PGS renderer drew, as text, each that drew, whether the next one fails to start, and how
@@ -270,6 +271,22 @@ test("a PGS Track turned on again says Loading… until it's fetched again", asy
     expect(bitsub.drawn).toStrictEqual(["PGS"]);
   });
   expect(signs.textContent).not.toMatch(/Loading…|Couldn’t load/u);
+});
+
+test("at the Hub, a PGS Track is fetched from the Server", async () => {
+  // oxlint-disable-next-line require-await -- a fake fetch answers at once
+  vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response("PGS"));
+  const friend = "https://friend.example";
+  openApp(PLAYER, atOrigin(server([]), friend));
+  const video = await screen.findByLabelText<HTMLVideoElement>("Alien");
+  Object.defineProperty(video, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
+
+  choose(/Signs/u);
+
+  await waitFor(() => {
+    expect(bitsub.drawn).toStrictEqual(["PGS"]);
+  });
+  expect(vi.mocked(fetch)).toHaveBeenCalledWith(`${friend}${SIGNS}`);
 });
 
 // Last: once the renderer fails, this page never lists PGS again, as after it a reload would.
