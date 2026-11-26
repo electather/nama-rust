@@ -241,7 +241,7 @@ impl ImageStore {
     }
 }
 
-/// Whether the copy at `copy` is there, marking it as just sent if it is.
+/// Whether the copy, or unresized marker, at `copy` is there, marking it as just sent if it is.
 async fn mark_sent(copy: &Path) -> bool {
     let sent = copy.to_owned();
     let touch = tokio::task::spawn_blocking(move || resized::touch(&sent)).await;

@@ -24,7 +24,7 @@ use crate::db::{BoxFuture, Database};
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
 
 /// A store that keeps its objects in memory, so nothing it holds is on disk, and counts its
-/// reads.
+/// reads, failing each while `gets_fail` is set.
 #[derive(Debug, Default)]
 struct InMemory {
     objects: Mutex<BTreeMap<String, Vec<u8>>>,
@@ -323,12 +323,11 @@ async fn a_second_copy_ahead_of_an_image_no_wider_than_asked_does_not_read_it_ag
         .await
         .unwrap();
     store.copy_ahead(KEY, &[AT_320]).await;
-    let read = blobs.gets();
+    assert_eq!(blobs.gets(), 2, "one read for each format");
 
     store.copy_ahead(KEY, &[AT_320]).await;
 
-    assert_eq!(read, 2, "one read for each format");
-    assert_eq!(blobs.gets(), read);
+    assert_eq!(blobs.gets(), 2);
 }
 
 #[tokio::test]
