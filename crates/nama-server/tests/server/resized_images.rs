@@ -445,14 +445,13 @@ async fn images_beside_the_media_recorded_without_copies_get_them_on_a_rescan() 
 async fn a_backdrop_beside_the_media_a_custom_backdrop_hides_gets_no_copy_made_ahead() {
     let fx = Fixture::alien().await;
     let slot = format!("/custom-images/movie/tmdb-{ALIEN}/backdrop");
-    let uploaded = fx.upload(&slot, &jpeg(2600, 1463)).await;
+    assert_eq!(fx.upload(&slot, &jpeg(2600, 1463)).await.status, 204);
     fx.write("Alien (1979)/fanart.jpg", &jpeg(1920, 1080));
     fx.scan_and_match().await;
     fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
 
     fx.scan_and_match().await;
 
-    assert_eq!(uploaded.status, 204);
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let poster_copies = copies_of(&fx, movie.poster_url.as_deref().unwrap());
     // Each scan's pass waits its turn on one lock, so once the Poster has its copies the pass
