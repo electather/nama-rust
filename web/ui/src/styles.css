@@ -160,9 +160,10 @@
   }
 }
 
-/* Base UI's scroll lock, under every menu and dialog, gives the page a stable gutter while it
-   holds, so the page keeps one always and opening or closing them never changes its width.
-   With classic scrollbars, a `fixed inset-0` screen such as the player stops at the gutter too.
+/* Base UI's scroll lock, under a menu, select or popover, sets a stable gutter while it holds,
+   and with one `vw` drops the scrollbar, so a shelf sized by `vw` (`mx-bleed`) narrowed as it
+   opened. Keeping the gutter always keeps `vw` still. With classic scrollbars, a `fixed inset-0`
+   screen such as the player stops at the gutter too.
    Outside the base layer, which happy-dom ignores, so the tests see it. */
 html {
   scrollbar-gutter: stable;
