@@ -519,9 +519,7 @@ async fn a_poster_whose_title_shows_the_one_beside_its_media_in_its_place_gets_n
     let dune = with_poster(2, "Dune", "/shown.jpg");
     MatchedMovie::store(&contents, alien.library, dune_path.to_str().unwrap(), dune).await;
     let beside = media.path().join("poster.png");
-    let mut png = Cursor::new(Vec::new());
-    (RgbImage::new(2, 3).write_to(&mut png, ImageFormat::Png)).unwrap();
-    std::fs::write(&beside, png.into_inner()).unwrap();
+    std::fs::write(&beside, png()).unwrap();
     let file = LocalImageFile {
         path: beside.to_str().unwrap().to_owned(),
         size: 1,
@@ -533,13 +531,8 @@ async fn a_poster_whose_title_shows_the_one_beside_its_media_in_its_place_gets_n
         .keep(alien.library, &[alien.version], &found)
         .await)
         .unwrap();
-    let images = ServerSettings::new(Arc::clone(&db), data.path().to_owned()).images();
-    let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
-    let artwork = Artwork::new(store, Registry::new().extension_points()).resizing_ahead(
-        images,
-        custom_images,
-        local_images,
-    );
+    let artwork = Artwork::new(store, Registry::new().extension_points());
+    let artwork = resizing_ahead(artwork, &db, &data, local_images);
 
     let (shown, _) = artwork
         .shown_downloaded(&contents, alien.library)
