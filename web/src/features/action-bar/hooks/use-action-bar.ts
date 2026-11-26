@@ -47,9 +47,9 @@ export function useActionBar({
   const search = useFound(words, kinds[frame]);
   const { listed, slow, clear } = useListed(typed, words, search.searching);
 
-  function push(next: Frame) {
+  function push(next: Frame, nextQuery = "") {
     setFrame(next);
-    setQuery("");
+    setQuery(nextQuery);
     clear();
     setPicked(undefined);
     // Picking a row or the filter's chip with the pointer mustn't end the typing.

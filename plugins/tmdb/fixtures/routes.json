@@ -23,6 +23,7 @@
   "/3/tv/2996/season/1?append_to_response=external_ids": "tv-2996-season-1.json",
   "/3/search/movie?query=Alien&year=1980": "search-empty.json",
   "/3/search/movie?query=Alien": "search-movie-alien-1979.json",
+  "/3/search/movie?query=Aliens": "search-movie-alien-1979.json",
   "/3/search/movie?query=Le huitième passager": "search-movie-alien-1979.json",
   "/3/search/tv?query=Le huitième passager": "search-tv-unreadable.json",
   "/3/search/tv?query=Bureau américain": "search-tv-the-office.json",

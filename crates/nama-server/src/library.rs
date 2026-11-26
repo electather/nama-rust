@@ -27,8 +27,8 @@ pub(crate) use contents::{
     LocalRole, MatchedTo, Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, NfoFile,
     NfoHints, NfoItem, PersonRole, Pin, Season as LibrarySeason, Show as LibraryShow, Stored,
     StoredBoxSet, TiedTitle, TitleSort, TitlesIn, Unmatched, UnmatchedReason,
-    Version as LibraryVersion, Watched, library_with_movie, library_with_show, match_bands,
-    matched_episodes, matched_ids, primary_id,
+    Version as LibraryVersion, Watched, library_with_movie, library_with_show, matched_episodes,
+    matched_ids, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};

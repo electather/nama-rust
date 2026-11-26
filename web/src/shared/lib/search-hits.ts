@@ -1,15 +1,25 @@
 import type { Done, Hit, SearchResponse } from "@/gen/nama/v1/search_pb";
 
+/** A title `Search` streamed, and whether the title source's batch held it. */
+export interface StreamedHit {
+  hit: Hit;
+  titleSource: boolean;
+}
+
 /**
  * The titles `Search` has streamed so far, in the order to list them: by status (Available,
  * Requested, then Not on this Server, as their numbers go), and in the Server's order within one.
  */
-export function hitsIn(responses: readonly SearchResponse[]): Hit[] {
+export function hitsIn(responses: readonly SearchResponse[]): StreamedHit[] {
   return (
     responses
-      .flatMap(({ part }) => (part.case === "hits" ? part.value.hits : []))
+      .flatMap(({ part }) =>
+        part.case === "hits"
+          ? part.value.hits.map((hit) => ({ hit, titleSource: part.value.titleSource }))
+          : [],
+      )
       // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array just built, and the lib target has no toSorted
-      .sort((a, b) => a.status - b.status)
+      .sort((a, b) => a.hit.status - b.hit.status)
   );
 }
 
