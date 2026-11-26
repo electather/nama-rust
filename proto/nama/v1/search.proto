@@ -68,13 +68,16 @@ message SearchResponse {
 //
 // A search of every kind lists them in sections, each in the order the stream gives it, an empty
 // one left out: the Movies and Shows a Library has (`library_id` set), then Episodes, then People,
-// then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, Movies
-// and Shows take turns by position (the first Movie, the first Show, the second Movie, and on,
-// the other kind's rest once one runs out), so the title source's many Movies don't bury its best
-// Show. The last section lists its first 6, and, for each kind it left out titles of, a way to
-// search that kind alone, which lists them all.
+// then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, the
+// title source's Movies and Shows take turns by position (the first Movie, the first Show, the
+// second Movie, and on, the other kind's rest once one runs out), so its many Movies don't bury
+// its best Show; the Search sources' titles follow, batch by batch. The last section lists its
+// first 6, and, for each kind it left out titles of, a way to search that kind alone, which lists
+// them all.
 message Hits {
   repeated Hit hits = 1;
+  // Whether this is the title source's batch, whose Movies and Shows a client lists taking turns.
+  bool title_source = 2;
 }
 
 // A Movie, Show, Episode or Person `Search` found, and whether the caller can watch it.

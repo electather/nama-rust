@@ -5,18 +5,22 @@ import type { FoundTitle } from "@/features/action-bar/lib/titles";
 export const toRequestListed = 6;
 
 /**
- * `titles`' Movies and Shows taking turns, each kind in its own order (Movie 1, Show 1, Movie 2,
- * …), so one kind's many titles don't bury the other's best.
+ * `titles`: the title source's Movies and Shows taking turns, each kind in its own order (Movie 1,
+ * Show 1, Movie 2, …), so one kind's many titles don't bury the other's best, then the Search
+ * sources' in theirs.
  */
 export function takingTurns(titles: readonly FoundTitle[]): FoundTitle[] {
-  const movies = titles.filter((title) => title.kind === "movie");
-  const shows = titles.filter((title) => title.kind === "show");
-  return Array.from({ length: Math.max(movies.length, shows.length) }, (_, at) => [
+  const fromTitleSource = titles.filter((title) => title.titleSource === true);
+  const movies = fromTitleSource.filter((title) => title.kind === "movie");
+  const shows = fromTitleSource.filter((title) => title.kind === "show");
+  const turns = Array.from({ length: Math.max(movies.length, shows.length) }, (_, at) => [
     movies[at],
     shows[at],
-  ])
-    .flat()
-    .filter((title) => title !== undefined);
+  ]);
+  return [
+    ...turns.flat().filter((title) => title !== undefined),
+    ...titles.filter((title) => title.titleSource !== true),
+  ];
 }
 
 const kindsToRequest = ["movie", "show"] as const;

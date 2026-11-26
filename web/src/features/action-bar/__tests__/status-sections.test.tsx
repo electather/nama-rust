@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { type HitSchema, SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
-import { searchFinding } from "@/test-search";
+import { type Batch, searchFinding } from "@/test-search";
 
 afterEach(cleanup);
 
@@ -24,9 +24,12 @@ function show(title: string, status: TitleStatus): Hit {
   return { title: { case: "show", value: { id: idOf(title), title } }, status };
 }
 
-/** Titles of the kind `of` makes, Not on this Server. */
-const toRequest = (of: typeof movie, ...titles: string[]) =>
-  titles.map((title) => of(title, NOT_ON_THIS_SERVER));
+/** Titles of the kind `hitOf` makes, Not on this Server. */
+const toRequest = (hitOf: typeof movie, ...titles: string[]) =>
+  titles.map((title) => hitOf(title, NOT_ON_THIS_SERVER));
+
+/** The title source's batch of `hits`. */
+const fromTitleSource = (hits: Hit[]) => ({ hits, titleSource: true });
 
 /** The Office and Office Space in Libraries, with an Episode of the one and an actor of both. */
 const library: Hit[] = [
@@ -60,7 +63,7 @@ const library: Hit[] = [
 ];
 
 /** Opens the action bar on a Server whose search of each kind streams its `batches`, and types. */
-async function search(batches: Partial<Record<TitleKind, Hit[][]>>) {
+async function search(batches: Partial<Record<TitleKind, Batch[]>>) {
   openApp(
     "/code",
     fakeServer({ signedIn: newUser }, {}, {}, (router) => {
@@ -87,19 +90,22 @@ function sections() {
     ]);
 }
 
-test("results list by status, Libraries' first, then six to request, Movies and Shows taking turns", async () => {
+test("results list by status, Libraries' first, then six to request, the title source's Movies and Shows taking turns before a Search source's", async () => {
   await search({
     [TitleKind.UNSPECIFIED]: [
       library,
-      [
-        movie("Office Party", REQUESTED),
+      fromTitleSource([
+        ...["Office Party", "Office Christmas Party", "Office Uprising"].map((title) =>
+          movie(title, REQUESTED),
+        ),
         ...toRequest(movie, "The Office", "The Office Mix-Up", "The Office Retrospective"),
         ...toRequest(movie, "The Official Story", "The Office Wife", "The Parole Officer"),
-      ],
-      [
+      ]),
+      fromTitleSource([
         show("Office Ladies", REQUESTED),
         ...toRequest(show, "The Office (UK)", "The Office Superfan Episodes"),
-      ],
+      ]),
+      [show("Office Girls", REQUESTED)],
     ],
   });
 
@@ -109,7 +115,16 @@ test("results list by status, Libraries' first, then six to request, Movies and 
     ["In your Libraries", ["The OfficeOpen", "Office Space"]],
     ["Episodes", ["1. The DundiesThe Office · Season 2"]],
     ["People", ["Steve Carell"]],
-    ["Requested", ["Office PartyRequested", "Office LadiesRequested"]],
+    [
+      "Requested",
+      [
+        "Office PartyRequested",
+        "Office LadiesRequested",
+        "Office Christmas PartyRequested",
+        "Office UprisingRequested",
+        "Office GirlsRequested",
+      ],
+    ],
     [
       "To request",
       [
@@ -129,8 +144,8 @@ test("more Shows to request opens the search of Shows on what's typed, listing e
   const shows = toRequest(show, ...["1", "2", "3", "4", "5", "6"].map((at) => `Office ${at}`));
   const movies = toRequest(movie, "Office Hours");
   const field = await search({
-    [TitleKind.UNSPECIFIED]: [[], movies, shows],
-    [TitleKind.SHOW]: [[], shows],
+    [TitleKind.UNSPECIFIED]: [[], fromTitleSource(movies), fromTitleSource(shows)],
+    [TitleKind.SHOW]: [[], fromTitleSource(shows)],
   });
   const more = await screen.findByRole("option", { name: /^More Shows to request/u });
   expect(screen.queryByRole("option", { name: /^More Movies/u })).toBeNull();

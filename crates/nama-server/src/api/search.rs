@@ -441,6 +441,7 @@ fn batch<T>(
     let found = searched.transpose()?.flatten();
     Ok(found.map(|found| Hits {
         hits: found.into_iter().take(limit).map(to_hit).collect(),
+        title_source: true,
         ..Default::default()
     }))
 }

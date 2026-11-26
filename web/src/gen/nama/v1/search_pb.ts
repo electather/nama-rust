@@ -14,7 +14,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/search.proto.
  */
 export const file_nama_v1_search: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlYXJjaC5wcm90bxIHbmFtYS52MSJPCg1TZWFyY2hSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEiAKBGtpbmQYAiABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgVsaW1pdBgDIAEoBSJWCg5TZWFyY2hSZXNwb25zZRIdCgRoaXRzGAEgASgLMg0ubmFtYS52MS5IaXRzSAASHQoEZG9uZRgCIAEoCzINLm5hbWEudjEuRG9uZUgAQgYKBHBhcnQiIgoESGl0cxIaCgRoaXRzGAEgAygLMgwubmFtYS52MS5IaXQiyAEKA0hpdBIiCgVtb3ZpZRgBIAEoCzIRLm5hbWEudjEuTW92aWVIaXRIABIgCgRzaG93GAIgASgLMhAubmFtYS52MS5TaG93SGl0SAASJgoHZXBpc29kZRgDIAEoCzITLm5hbWEudjEuRXBpc29kZUhpdEgAEiQKBnBlcnNvbhgFIAEoCzISLm5hbWEudjEuUGVyc29uSGl0SAASJAoGc3RhdHVzGAQgASgOMhQubmFtYS52MS5UaXRsZVN0YXR1c0IHCgV0aXRsZSKBAwoKRXBpc29kZUhpdBISCgpsaWJyYXJ5X2lkGAEgASgDEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEiQKB3Nob3dfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSEgoKc2hvd190aXRsZRgEIAEoCRIVCg1zZWFzb25fbnVtYmVyGAUgASgNEhYKDmVwaXNvZGVfbnVtYmVyGAYgASgNEg0KBXRpdGxlGAcgASgJEhYKCXN0aWxsX3VybBgIIAEoCUgAiAEBEhwKD3N0aWxsX3RodW1iaGFzaBgJIAEoDEgBiAEBEhwKD3Nob3dfcG9zdGVyX3VybBgKIAEoCUgCiAEBEiIKFXNob3dfcG9zdGVyX3RodW1iaGFzaBgLIAEoDEgDiAEBQgwKCl9zdGlsbF91cmxCEgoQX3N0aWxsX3RodW1iaGFzaEISChBfc2hvd19wb3N0ZXJfdXJsQhgKFl9zaG93X3Bvc3Rlcl90aHVtYmhhc2giZgoJUGVyc29uSGl0Eh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEgwKBG5hbWUYAiABKAkSGQoMaGVhZHNob3RfdXJsGAMgASgJSACIAQFCDwoNX2hlYWRzaG90X3VybCJHCgREb25lEiAKGHRpdGxlX3NvdXJjZV91bmF2YWlsYWJsZRgBIAEoCBIdChVmYWlsZWRfc2VhcmNoX3NvdXJjZXMYAiADKAkqiAEKC1RpdGxlU3RhdHVzEhwKGFRJVExFX1NUQVRVU19VTlNQRUNJRklFRBAAEhoKFlRJVExFX1NUQVRVU19BVkFJTEFCTEUQARIaChZUSVRMRV9TVEFUVVNfUkVRVUVTVEVEEAISIwofVElUTEVfU1RBVFVTX05PVF9PTl9USElTX1NFUlZFUhADMlEKDVNlYXJjaFNlcnZpY2USQAoGU2VhcmNoEhYubmFtYS52MS5TZWFyY2hSZXF1ZXN0GhcubmFtYS52MS5TZWFyY2hSZXNwb25zZSIDkAIBMAFiBnByb3RvMw", [file_nama_v1_match, file_nama_v1_request]);
+  fileDesc("ChRuYW1hL3YxL3NlYXJjaC5wcm90bxIHbmFtYS52MSJPCg1TZWFyY2hSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEiAKBGtpbmQYAiABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgVsaW1pdBgDIAEoBSJWCg5TZWFyY2hSZXNwb25zZRIdCgRoaXRzGAEgASgLMg0ubmFtYS52MS5IaXRzSAASHQoEZG9uZRgCIAEoCzINLm5hbWEudjEuRG9uZUgAQgYKBHBhcnQiOAoESGl0cxIaCgRoaXRzGAEgAygLMgwubmFtYS52MS5IaXQSFAoMdGl0bGVfc291cmNlGAIgASgIIsgBCgNIaXQSIgoFbW92aWUYASABKAsyES5uYW1hLnYxLk1vdmllSGl0SAASIAoEc2hvdxgCIAEoCzIQLm5hbWEudjEuU2hvd0hpdEgAEiYKB2VwaXNvZGUYAyABKAsyEy5uYW1hLnYxLkVwaXNvZGVIaXRIABIkCgZwZXJzb24YBSABKAsyEi5uYW1hLnYxLlBlcnNvbkhpdEgAEiQKBnN0YXR1cxgEIAEoDjIULm5hbWEudjEuVGl0bGVTdGF0dXNCBwoFdGl0bGUigQMKCkVwaXNvZGVIaXQSEgoKbGlicmFyeV9pZBgBIAEoAxIfCgJpZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIkCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhIKCnNob3dfdGl0bGUYBCABKAkSFQoNc2Vhc29uX251bWJlchgFIAEoDRIWCg5lcGlzb2RlX251bWJlchgGIAEoDRINCgV0aXRsZRgHIAEoCRIWCglzdGlsbF91cmwYCCABKAlIAIgBARIcCg9zdGlsbF90aHVtYmhhc2gYCSABKAxIAYgBARIcCg9zaG93X3Bvc3Rlcl91cmwYCiABKAlIAogBARIiChVzaG93X3Bvc3Rlcl90aHVtYmhhc2gYCyABKAxIA4gBAUIMCgpfc3RpbGxfdXJsQhIKEF9zdGlsbF90aHVtYmhhc2hCEgoQX3Nob3dfcG9zdGVyX3VybEIYChZfc2hvd19wb3N0ZXJfdGh1bWJoYXNoImYKCVBlcnNvbkhpdBIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIMCgRuYW1lGAIgASgJEhkKDGhlYWRzaG90X3VybBgDIAEoCUgAiAEBQg8KDV9oZWFkc2hvdF91cmwiRwoERG9uZRIgChh0aXRsZV9zb3VyY2VfdW5hdmFpbGFibGUYASABKAgSHQoVZmFpbGVkX3NlYXJjaF9zb3VyY2VzGAIgAygJKogBCgtUaXRsZVN0YXR1cxIcChhUSVRMRV9TVEFUVVNfVU5TUEVDSUZJRUQQABIaChZUSVRMRV9TVEFUVVNfQVZBSUxBQkxFEAESGgoWVElUTEVfU1RBVFVTX1JFUVVFU1RFRBACEiMKH1RJVExFX1NUQVRVU19OT1RfT05fVEhJU19TRVJWRVIQAzJRCg1TZWFyY2hTZXJ2aWNlEkAKBlNlYXJjaBIWLm5hbWEudjEuU2VhcmNoUmVxdWVzdBoXLm5hbWEudjEuU2VhcmNoUmVzcG9uc2UiA5ACATABYgZwcm90bzM", [file_nama_v1_match, file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SearchRequest
@@ -98,11 +98,12 @@ export const SearchResponseSchema: GenMessage<SearchResponse> = /*@__PURE__*/
  *
  * A search of every kind lists them in sections, each in the order the stream gives it, an empty
  * one left out: the Movies and Shows a Library has (`library_id` set), then Episodes, then People,
- * then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, Movies
- * and Shows take turns by position (the first Movie, the first Show, the second Movie, and on,
- * the other kind's rest once one runs out), so the title source's many Movies don't bury its best
- * Show. The last section lists its first 6, and, for each kind it left out titles of, a way to
- * search that kind alone, which lists them all.
+ * then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, the
+ * title source's Movies and Shows take turns by position (the first Movie, the first Show, the
+ * second Movie, and on, the other kind's rest once one runs out), so its many Movies don't bury
+ * its best Show; the Search sources' titles follow, batch by batch. The last section lists its
+ * first 6, and, for each kind it left out titles of, a way to search that kind alone, which lists
+ * them all.
  *
  * @generated from message nama.v1.Hits
  */
@@ -111,6 +112,13 @@ export type Hits = Message<"nama.v1.Hits"> & {
    * @generated from field: repeated nama.v1.Hit hits = 1;
    */
   hits: Hit[];
+
+  /**
+   * Whether this is the title source's batch, whose Movies and Shows a client lists taking turns.
+   *
+   * @generated from field: bool title_source = 2;
+   */
+  titleSource: boolean;
 };
 
 /**

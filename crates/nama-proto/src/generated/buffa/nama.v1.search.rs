@@ -639,11 +639,12 @@ pub mod search_response {
 ///
 /// A search of every kind lists them in sections, each in the order the stream gives it, an empty
 /// one left out: the Movies and Shows a Library has (`library_id` set), then Episodes, then People,
-/// then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, Movies
-/// and Shows take turns by position (the first Movie, the first Show, the second Movie, and on,
-/// the other kind's rest once one runs out), so the title source's many Movies don't bury its best
-/// Show. The last section lists its first 6, and, for each kind it left out titles of, a way to
-/// search that kind alone, which lists them all.
+/// then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, the
+/// title source's Movies and Shows take turns by position (the first Movie, the first Show, the
+/// second Movie, and on, the other kind's rest once one runs out), so its many Movies don't bury
+/// its best Show; the Search sources' titles follow, batch by batch. The last section lists its
+/// first 6, and, for each kind it left out titles of, a way to search that kind alone, which lists
+/// them all.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -655,13 +656,26 @@ pub struct Hits {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub hits: ::buffa::alloc::vec::Vec<Hit>,
+    /// Whether this is the title source's batch, whose Movies and Shows a client lists taking turns.
+    ///
+    /// Field 2: `title_source`
+    #[serde(
+        rename = "titleSource",
+        alias = "title_source",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub title_source: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Hits {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Hits").field("hits", &self.hits).finish()
+        f.debug_struct("Hits")
+            .field("hits", &self.hits)
+            .field("title_source", &self.title_source)
+            .finish()
     }
 }
 impl Hits {
@@ -699,6 +713,9 @@ impl ::buffa::Message for Hits {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.title_source {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -716,6 +733,9 @@ impl ::buffa::Message for Hits {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.title_source {
+            ::buffa::types::put_bool_field(2u32, self.title_source, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -742,6 +762,13 @@ impl ::buffa::Message for Hits {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.hits.push(elem);
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.title_source = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -751,6 +778,7 @@ impl ::buffa::Message for Hits {
     }
     fn clear(&mut self) {
         self.hits.clear();
+        self.title_source = false;
         self.__buffa_unknown_fields.clear();
     }
 }

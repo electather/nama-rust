@@ -83,7 +83,7 @@ const inLibrary = (title: FoundTitle) => title.libraryId !== undefined;
 
 /**
  * What the root list found, by status as `search.proto` says every client lists it: the titles in
- * Libraries, Episodes, People, then Requested and To request, Movies and Shows taking turns.
+ * Libraries, Episodes, People, then Requested and To request, as `takingTurns` lists them.
  */
 function rootResults(found: Found, query: string, actions: BarActions): Group[] {
   const { open, openPerson, push } = actions;
