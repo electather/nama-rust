@@ -122,7 +122,7 @@ impl Listed {
     fn asker(&self, permissions: &[Permission]) -> User {
         User {
             id: self.user,
-            name: "Ada".to_owned(),
+            name: "ada".to_owned(),
             permissions: permissions.iter().copied().collect(),
             created_at: 0,
         }
