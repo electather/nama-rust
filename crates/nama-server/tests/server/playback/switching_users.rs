@@ -66,6 +66,7 @@ async fn a_bearer_devices_signed_playback_urls_load_only_while_it_acts_as_the_us
     fx.server.switch_to(&ripley.token, ripley.id).await;
     let back_as_ripley = statuses().await;
     fx.server.switch_to(&ripley.token, hicks).await;
+    let switched_to_hicks = statuses().await;
     let hicks_plan = (ask_for_plan_as(as_bearer(), remux)).await.unwrap();
     let hicks_hls = fetch(&fx.server, &beside(&hicks_plan.url, "init.mp4"), None)
         .await
@@ -74,5 +75,6 @@ async fn a_bearer_devices_signed_playback_urls_load_only_while_it_acts_as_the_us
     assert_eq!(before, [200, 200]);
     assert_eq!(as_hicks, [401, 401]);
     assert_eq!(back_as_ripley, [200, 200]);
+    assert_eq!(switched_to_hicks, [401, 401]);
     assert_eq!(hicks_hls, 200);
 }
