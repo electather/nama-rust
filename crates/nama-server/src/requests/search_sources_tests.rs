@@ -23,12 +23,19 @@ async fn a_capped_viewer_sees_a_sourced_show_requested_only_if_theirs_or_its_rat
             year: None,
             poster: None,
         };
-        let seen = requests.unavailable(bob, &title, &requestable).await;
-        matches!(seen.unwrap(), Some(Unavailable::Requested { .. }))
+        match requests
+            .unavailable(bob, &title, &requestable)
+            .await
+            .unwrap()
+        {
+            Some(Unavailable::Requested { .. }) => true,
+            Some(Unavailable::Requestable(_)) => false,
+            None => panic!("not shown at all"),
+        }
     })
     .await;
 
-    // Ada's TV-MA, TV-PG and unrated Shows, then Bob's TV-MA one; else Requestable.
+    // Ada's TV-MA, TV-PG and unrated Shows, then Bob's TV-MA one: Requested, else Requestable.
     let capped = [false, true, false, true];
     let capped_allowing_unrated = [false, true, true, true];
     assert_eq!(seen, [[true; 4], capped, capped_allowing_unrated]);
