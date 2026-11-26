@@ -101,7 +101,7 @@ pub struct Artwork {
     /// Taken by each background download, across every clone.
     downloads: Arc<Semaphore>,
     /// The background work of [`Self::download_missing`], and what [`Self::working`] marks as
-    /// leading up to it, so a test can wait it out ([`Artwork::settled`]).
+    /// leading up to it, so a test can wait it out (`Artwork::settled`).
     tasks: TaskTracker,
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
@@ -123,7 +123,7 @@ struct ResizingAhead {
 }
 
 /// What [`Artwork`] tracks its background work in: one tracker per Server, or under the `testing`
-/// feature one per process, so [`Artwork::settled`] can reach the Server a test started.
+/// feature one per process, so `Artwork::settled` can reach the Server a test started.
 fn background_tasks() -> TaskTracker {
     #[cfg(feature = "testing")]
     {
@@ -165,7 +165,7 @@ impl Artwork {
     }
 
     /// Marks the caller's sweep and [`Self::download_missing`] after it as under way until the
-    /// token is dropped, so [`Artwork::settled`] waits for work that hasn't spawned yet. Taken
+    /// token is dropped, so `Artwork::settled` waits for work that hasn't spawned yet. Taken
     /// before the event that tells clients the change is done, which a test waits on.
     pub(crate) fn working(&self) -> TaskTrackerToken {
         self.tasks.token()
