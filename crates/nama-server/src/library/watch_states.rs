@@ -307,11 +307,11 @@ impl WatchStates {
     }
 
     /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of
-    /// each Movie or Episode here, made after any this Server has of it, or after it was last
-    /// marked unplayed here, under any of its ids, in one write: as of when it was made, it forgets one marked unplayed and stores any other,
-    /// under the preferred id. One once played here stays played. Queues nothing for the Hub and tells
-    /// neither Observers nor Watch sync Plugins: the change is the service's own news, so it never
-    /// echoes back.
+    /// each Movie or Episode here, made after any this Server has of it and after it was last
+    /// marked unplayed here, under any of its ids, in one write: as of when it was made, it forgets
+    /// one marked unplayed and stores any other, under the preferred id. One once played here stays
+    /// played. Queues nothing for the Hub and tells neither Observers nor Watch sync Plugins: the
+    /// change is the service's own news, so it never echoes back.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,
@@ -329,12 +329,12 @@ impl WatchStates {
 
     /// Takes each of `offline`, changes the User `user`'s Device made to their Watch State while
     /// offline, in the order they were made, as [`WatchStates::take_pulled`] takes a pulled one:
-    /// only when made after any this Server has of it, and as of when it was made, though one dated
-    /// in the future is taken as made now. Of a title's changes in one second, only the last made
-    /// is taken. One past 90% of its duration is played, as [`WatchStates::report`] has it, and one
-    /// at a duration of zero is left out, since 0 of 0 would forget a played title. Unlike a pulled
-    /// change, each it stores shows the title again in Continue Watching and is queued and told of.
-    /// Returns each change it stored.
+    /// only when made after any this Server has of it or its marking unplayed, and as of when it
+    /// was made, though one dated in the future is taken as made now. Of a title's changes in one
+    /// second, only the last made is taken. One past 90% of its duration is played, as
+    /// [`WatchStates::report`] has it, and one at a duration of zero is left out, since 0 of 0
+    /// would forget a played title. Unlike a pulled change, each it stores shows the title again in
+    /// Continue Watching and is queued and told of. Returns each change it stored.
     pub(crate) async fn take_offline(
         &self,
         user: i64,
