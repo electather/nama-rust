@@ -12,13 +12,12 @@ use nama_proto::nama::v1::{
     self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
     ApproveRequestResponse, CancelFollowedShowRequest, CancelFollowedShowResponse,
     CancelRequestRequest, CancelRequestResponse, CountPendingRequestsRequest,
-    CountPendingRequestsResponse, CreateFollowedShowRequest, CreateFollowedShowResponse,
-    CreateRequestRequest, CreateRequestResponse, CreateSeasonRequestsRequest,
-    CreateSeasonRequestsResponse, DeclineFollowedShowRequest, DeclineFollowedShowResponse,
-    DeclineRequestRequest, DeclineRequestResponse, GetRequestRequest, GetRequestResponse,
-    ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest, LookUpMovieResponse,
-    LookUpShowRequest, LookUpShowResponse, RefusalReason, RequestService, RequestState,
-    RetryRequestRequest, RetryRequestResponse, WithdrawFollowedShowRequest,
+    CountPendingRequestsResponse, CreateRequestRequest, CreateRequestResponse,
+    CreateSeasonRequestsRequest, CreateSeasonRequestsResponse, DeclineFollowedShowRequest,
+    DeclineFollowedShowResponse, DeclineRequestRequest, DeclineRequestResponse, GetRequestRequest,
+    GetRequestResponse, ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest,
+    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, RefusalReason, RequestService,
+    RequestState, RetryRequestRequest, RetryRequestResponse, WithdrawFollowedShowRequest,
     WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse,
 };
 
@@ -343,28 +342,6 @@ impl RequestService for RequestServiceHandler {
         let requester = &caller(&ctx)?.user;
         self.requests.withdraw(requester, request.id).await?;
         Response::ok(WithdrawRequestResponse::default())
-    }
-
-    async fn create_followed_show(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, CreateFollowedShowRequest>,
-    ) -> ServiceResult<CreateFollowedShowResponse> {
-        let asker = &caller(&ctx)?.user;
-        let request = request.to_owned_message();
-        let (followed_show, requests) = self
-            .requests
-            .follow(
-                asker,
-                &required_id(request.show_id.into_option(), "show_id", "Show")?,
-                request.quality,
-            )
-            .await?;
-        Response::ok(CreateFollowedShowResponse {
-            followed_show: followed_show.into(),
-            requests,
-            ..Default::default()
-        })
     }
 
     async fn list_offered_qualities(

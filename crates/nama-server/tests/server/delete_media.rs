@@ -15,14 +15,14 @@ use nama_plugin_api::fulfiller::{
     EpisodeNumber, EpisodeNumbers, ShowDeleted, TitleId, show_deleted,
 };
 use nama_proto::nama::v1::{
-    ApproveFollowedShowRequest, AudioCodec, BrowseServiceClient, CancelRequestRequest, Container,
-    DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode, EpisodeToDelete, EventType,
-    FollowedShow, GetMovieRequest, GetShowRequest, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete,
-    MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
-    PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
-    RequestServiceClient, RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest,
-    UpdateLibraryRequest, VideoCodec, event, media_to_delete, request::MovieOrSeason,
+    ApproveFollowedShowRequest, AudioCodec, BrowseServiceClient, Container, DeleteMediaRequest,
+    DeleteMediaResponse, DeviceDecoding, Episode, EpisodeToDelete, EventType, FollowedShow,
+    GetMovieRequest, GetShowRequest, LibraryKind, LibraryServiceClient, ListEpisodesRequest,
+    ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete, MovieToDelete, Permission,
+    PlanPlaybackRequest, PlaybackMethod, PlaybackPlan, PlaybackServiceClient,
+    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, RequestServiceClient,
+    RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest, UpdateLibraryRequest, VideoCodec,
+    event, media_to_delete, request::MovieOrSeason,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{Ffmpeg, fake::script};
@@ -1182,9 +1182,9 @@ async fn deleting_a_followed_show_keeps_following_it_and_a_later_season_still_op
     ));
 }
 
-/// Has `requester` follow Dark as though its Season 3 came out after: asks for every Season, then
-/// cancels Season 3's Request and has the Followed Show remember only Seasons 1 and 2, so a scan
-/// finding Season 3 opens its Request. The fake TMDB always has all three Seasons.
+/// Has `requester` follow Dark as though its Season 3 came out after: follows it, asks for Seasons
+/// 1 and 2, and has the Followed Show remember only those, so a scan finding Season 3 opens its
+/// Request. The fake TMDB always has all three Seasons.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -1193,15 +1193,8 @@ async fn follow_dark_before_season_3(
     fx: &Fixture,
     requester: &RequestServiceClient<HttpClient>,
 ) -> FollowedShow {
-    let (followed, mut asked) = requester.follow(DARK).await;
-    let season_3 = asked.pop().unwrap();
-    (fx.server.admin_requests())
-        .cancel_request(CancelRequestRequest {
-            id: season_3.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    let followed = requester.follow(DARK).await;
+    requester.ask_seasons(DARK, &[1, 2]).await;
     let id = followed.id;
     (fx.server.db())
         .write(move |tx| {

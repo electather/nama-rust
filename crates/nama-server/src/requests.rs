@@ -1,8 +1,8 @@
 //! Requests: Users asking for a Movie, or a Season of a Show, that isn't on the Server to be added
 //! to it (ADR 0012).
 //!
-//! Followed Shows sit beside them: Users asking for a whole Show, whose later Seasons get Season
-//! Requests as a Library scan Matches their Episodes, never by asking a title source.
+//! Followed Shows sit beside them: Users following a Show from their Watchlist, whose later Seasons
+//! get Season Requests as a Library scan Matches their Episodes, never by asking a title source.
 //!
 //! This area is the only code that reads or writes `requests`, `requesters`, `followed_shows`
 //! and `followed_show_requesters`. It hands Requests out as their proto messages, since those are

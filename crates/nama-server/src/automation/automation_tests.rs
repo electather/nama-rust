@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs,
     path::Path,
     sync::Arc,
@@ -658,7 +658,15 @@ async fn list_requesters_gives_who_requested_each_movie_and_episode() {
     requests.create(&asker(ada), &alien, None).await.unwrap();
     requests.create(&asker(bo), &alien, None).await.unwrap();
     let dark = ExternalId::tmdb(DARK_TMDB_ID);
-    requests.follow(&asker(bo), &dark, None).await.unwrap();
+    requests
+        .follow_new_seasons(&asker(bo), &dark)
+        .await
+        .unwrap();
+    let season_1 = BTreeSet::from([1]);
+    requests
+        .create_seasons(&asker(bo), &dark, &season_1, None)
+        .await
+        .unwrap();
     let movies = movies(&db, movie_folder.path(), &[ALIEN_TMDB_ID, 1]).await;
     let (shows, _path) = two_episodes_in_one_file(&db, show_folder.path()).await;
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_REQUESTS);

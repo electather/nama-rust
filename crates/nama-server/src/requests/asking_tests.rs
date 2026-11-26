@@ -372,17 +372,16 @@ async fn following_a_show_fetches_it_from_its_keeping_source_not_the_first_ranke
     let (_data, db) = ada_and_bob().await;
     let requests = requests_on(db, plugins.extension_points());
 
-    let (_, seasons) = requests
-        .follow(
+    let followed = requests
+        .follow_new_seasons(
             &ada(Permissions::ADMIN),
             &ExternalId::new("bb", "1").unwrap(),
-            None,
         )
         .await
         .unwrap();
 
-    assert_eq!(asked.lines(), FROM_BB);
-    assert_eq!(seasons.len(), 1);
+    assert_eq!(asked.lines(), FROM_BB[..1]);
+    assert_eq!(followed.show_title, "Show");
 }
 
 #[tokio::test]

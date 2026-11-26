@@ -15,7 +15,7 @@ use super::apply::Applied;
 use super::asked::{self, Asked};
 use super::availability::{availability, today};
 use super::deciding::approve;
-use super::followed::followed_by;
+use super::followed::{cover, followed_by};
 use super::listing::load_one;
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
@@ -225,7 +225,7 @@ pub(super) async fn ask_seasons(
 ) -> Result<Applied<Vec<Request>>, Error> {
     let asking = SeasonsToAsk::read(conn, show).await?;
     let followed = followed_by(conn, &asking.show_ids, user).await?;
-    let way = Way::Asking {
+    let way = Way {
         user,
         state,
         followed_show: followed.as_ref(),
@@ -235,11 +235,11 @@ pub(super) async fn ask_seasons(
 
 /// How Seasons of a Show are asked for, which decides what is done with each:
 ///
-/// | Library has | asking | following | a scan |
-/// |---|---|---|---|
-/// | all of it | refuse | skip | open as Available |
-/// | some of it | open as asked | open as asked | open as Partially Available |
-/// | none of it | open as asked | open as asked | skip |
+/// | Library has | asking | a scan |
+/// |---|---|---|
+/// | all of it | refuse | open as Available |
+/// | some of it | open as asked | open as Partially Available |
+/// | none of it | open as asked | skip |
 ///
 /// A User asks a [`Way`]; a Library's write asks `availability::Scanning`.
 pub(super) trait Asker {
@@ -272,50 +272,29 @@ pub(super) trait Asker {
     /// so one it opened or joined and someone declined, cancelled or withdrew from isn't opened
     /// again.
     async fn cover(&self, conn: &mut SqliteConnection, season: u32) -> Result<(), sqlx::Error> {
-        if let Some(followed_show) = self.followed_show() {
-            // Joining may ask for a Season before the latest one covered, which stays covered.
-            sqlx::query!(
-                "UPDATE followed_shows SET latest_season = ?
-                 WHERE id = ? AND (latest_season IS NULL OR latest_season < ?)",
-                season,
-                followed_show.id,
-                season
-            )
-            .execute(&mut *conn)
-            .await?;
+        match self.followed_show() {
+            Some(followed_show) => cover(conn, followed_show.id, season).await,
+            None => Ok(()),
         }
-        Ok(())
     }
 }
 
-/// A User asking for Seasons of a Show, which can be refused.
+/// `user` asking for Seasons of a Show from its page, which can be refused. Their new Requests open
+/// in `state`, or for `followed_show`, the Show's open Followed Show if they follow it, in its
+/// state: an Approved Followed Show was approved once for every Season, so needs no approving
+/// again.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum Way<'a> {
-    /// `user` asking for Seasons from the Show's page. Their new Requests open in `state`, or for
-    /// `followed_show`, the Show's open Followed Show if they follow it, in its state, as
-    /// following does: its Seasons were approved with it.
-    Asking {
-        user: i64,
-        state: RequestState,
-        followed_show: Option<&'a FollowedShow>,
-    },
-    /// `user`, whose new Requests would open in `state`, following the Show through
-    /// `followed_show`, which new Requests open for and in the state of.
-    Following {
-        user: i64,
-        state: RequestState,
-        followed_show: &'a FollowedShow,
-    },
+pub(super) struct Way<'a> {
+    pub(super) user: i64,
+    pub(super) state: RequestState,
+    pub(super) followed_show: Option<&'a FollowedShow>,
 }
 
 impl Asker for Way<'_> {
     type Error = Error;
 
     fn followed_show(&self) -> Option<&FollowedShow> {
-        match *self {
-            Self::Asking { followed_show, .. } => followed_show,
-            Self::Following { followed_show, .. } => Some(followed_show),
-        }
+        self.followed_show
     }
 
     #[expect(
@@ -329,30 +308,17 @@ impl Asker for Way<'_> {
         season: u32,
         has: Option<RequestState>,
     ) -> Result<Option<RequestState>, Error> {
-        let in_full = has == Some(RequestState::Available);
-        match *self {
-            Self::Asking { .. } if in_full => Err(Error::SeasonInLibrary {
+        if has == Some(RequestState::Available) {
+            return Err(Error::SeasonInLibrary {
                 show: show.clone(),
                 season,
-            }),
-            Self::Asking {
-                state,
-                followed_show,
-                ..
-            } => Ok(Some(
-                followed_show
-                    .and_then(|followed| followed.state.as_known())
-                    .unwrap_or(state),
-            )),
-            Self::Following { .. } if in_full => Ok(None),
-            // An Approved Followed Show was approved once for every Season, so needs no approving
-            // again.
-            Self::Following {
-                state,
-                followed_show,
-                ..
-            } => Ok(Some(followed_show.state.as_known().unwrap_or(state))),
+            });
         }
+        Ok(Some(
+            (self.followed_show)
+                .and_then(|followed| followed.state.as_known())
+                .unwrap_or(self.state),
+        ))
     }
 
     async fn ask(
@@ -361,9 +327,9 @@ impl Asker for Way<'_> {
         wanted: Wanted,
         opens_in: RequestState,
     ) -> Result<Applied<Request>, Error> {
-        let (Self::Asking { user, state, .. } | Self::Following { user, state, .. }) = *self;
-        // Only `user`'s own auto-approve approves a Pending Season Request they join, whichever
-        // way they ask: the state of a Followed Show they join doesn't.
+        let Self { user, state, .. } = *self;
+        // Only `user`'s own auto-approve approves a Pending Season Request they join: the state of
+        // a Followed Show they follow doesn't.
         if state == RequestState::Approved {
             ask_approving(conn, user, wanted, opens_in).await
         } else {

@@ -12,8 +12,8 @@ use crate::requests::asking::WantedSeasons;
 use crate::requests::listing::load;
 use crate::requests::testing::{
     ADA, BOB, DARK, NOTHING, ada_and_bob, ask_seasons_as, asked_season, breaking_bad, dark,
-    dark_with_seasons, follow_as, follow_new_as, handed_off, happened, match_dark_episodes,
-    match_episodes, said, scan, scan_dark, season_ids,
+    follow_as, follow_new_as, handed_off, happened, match_dark_episodes, match_episodes, said,
+    scan, scan_dark, season_ids,
 };
 
 /// The id of the Season Request whose Show `applied` stops following, if any.
@@ -22,7 +22,7 @@ fn unfollowed<T>(applied: &Applied<T>) -> Option<i64> {
 }
 
 #[tokio::test]
-async fn following_a_show_asks_for_each_season_and_hands_them_off_only_if_approved() {
+async fn a_followers_season_requests_open_in_their_state_and_hand_off_only_if_approved() {
     let (_data, db) = ada_and_bob().await;
 
     let pending = follow_as(&db, ADA, dark(), RequestState::Pending).await;
@@ -76,31 +76,14 @@ async fn covered(db: &Database, id: i64, numbers: &'static [u32]) -> Vec<bool> {
 }
 
 #[tokio::test]
-async fn following_a_show_asks_for_its_numbered_seasons_and_covers_up_to_the_latest() {
+async fn a_scan_opens_season_1_of_a_show_followed_while_it_had_only_specials() {
     let (_data, db) = ada_and_bob().await;
 
-    let followed = follow_as(&db, ADA, dark_with_seasons(0..=3), RequestState::Pending).await;
-
-    let (followed, requests) = followed.value;
-    let asked: Vec<_> = requests
-        .iter()
-        .map(|request| asked_season(request).season_number)
-        .collect();
-    assert_eq!(asked, [1, 2, 3]);
-    assert_eq!(covered(&db, followed.id, &[3, 4]).await, [true, false]);
-}
-
-#[tokio::test]
-async fn following_a_show_with_only_specials_asks_for_nothing_until_season_1_comes_out() {
-    let (_data, db) = ada_and_bob().await;
-
-    let followed = follow_as(&db, ADA, dark_with_seasons([0]), RequestState::Approved).await;
-    let (followed, requests) = followed.value;
-    let covered_before = covered(&db, followed.id, &[0, 1]).await;
+    let followed = follow_new_as(&db, ADA, Some(0), RequestState::Approved).await;
+    let covered_before = covered(&db, followed.value.id, &[0, 1]).await;
     match_episodes(&db, ExternalId::tmdb(DARK), 1, &[1, 2]).await;
     let scanned = scan(&db, ExternalId::tmdb(DARK), &[1]).await;
 
-    assert!(requests.is_empty(), "{requests:?}");
     assert_eq!(covered_before, [true, false]);
     assert_eq!(said(&scanned), [("created", RequestState::Available)]);
 }
@@ -109,13 +92,12 @@ async fn following_a_show_with_only_specials_asks_for_nothing_until_season_1_com
 async fn joining_a_followed_show_opened_before_its_show_had_seasons_covers_its_specials() {
     let (_data, db) = ada_and_bob().await;
 
-    let opened = follow_as(&db, ADA, dark_with_seasons([]), RequestState::Approved).await;
-    let id = opened.value.0.id;
+    let opened = follow_new_as(&db, ADA, None, RequestState::Approved).await;
+    let id = opened.value.id;
     let covered_before = covered(&db, id, &[0]).await;
-    let joined = follow_as(&db, BOB, dark_with_seasons([0]), RequestState::Approved).await;
+    follow_new_as(&db, BOB, Some(0), RequestState::Approved).await;
 
     assert_eq!(covered_before, [false]);
-    assert!(joined.value.1.is_empty(), "{:?}", joined.value.1);
     assert_eq!(covered(&db, id, &[0, 1]).await, [true, false]);
 }
 

@@ -176,8 +176,6 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_SEASON_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REQUEST_FILTER_JSON_ANY);
-        reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIE_QUALITIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIE_QUALITIES_RESPONSE_JSON_ANY);
@@ -954,14 +952,6 @@ pub use self::__buffa::view::ListRequestsRequestOwnedView;
 pub use self::__buffa::view::RequestFilterView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestFilterOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateFollowedShowRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateFollowedShowRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateFollowedShowResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateFollowedShowResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListRequestsResponseView;
 #[doc(inline)]

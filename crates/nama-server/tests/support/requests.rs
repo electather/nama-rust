@@ -4,11 +4,11 @@
 
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CreateFollowedShowRequest, CreateRequestRequest,
+    AddToWatchlistRequest, ApproveRequestRequest, CreateRequestRequest,
     CreateSeasonRequestsRequest, DeclineRequestRequest, ExternalId, FollowedShow, FoundMovie,
     FoundShow, GetRequestRequest, ListRequestsRequest, LookUpMovieRequest, LookUpShowRequest,
-    Request, RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest,
-    WithdrawRequestRequest,
+    Request, RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest, TitleKind,
+    WatchlistServiceClient, WithdrawRequestRequest,
 };
 
 use super::{SignedIn, TestServer};
@@ -96,25 +96,24 @@ pub(crate) trait Requester {
         create_season_requests(self.service(), show, seasons, Some(quality)).await
     }
 
-    /// Asks for the whole Show `show`, and returns the Followed Show and its Season Requests.
-    async fn follow(&self, show: i64) -> (FollowedShow, Vec<Request>) {
-        create_followed_show(self.service(), show, None)
+    /// Follows the Show `show` by putting it on this Requester's Watchlist, which asks for no
+    /// Season out already, and returns its Followed Show.
+    async fn follow(&self, show: i64) -> FollowedShow {
+        let config = self.service().config().clone();
+        let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), config);
+        watchlist
+            .add_to_watchlist(AddToWatchlistRequest {
+                kind: TitleKind::TITLE_KIND_SHOW.into(),
+                id: tmdb_id(show).into(),
+                ..Default::default()
+            })
             .await
+            .unwrap();
+        let (_, followed) = self.list_in(RequestState::Unspecified).await;
+        // Newest first, so a Followed Show of `show` this replaced comes after it.
+        (followed.into_iter())
+            .find(|followed| followed.show_id.as_option() == Some(&tmdb_id(show)))
             .unwrap()
-    }
-
-    /// [`Self::follow`] at the Quality `quality`.
-    async fn follow_at(&self, show: i64, quality: i64) -> (FollowedShow, Vec<Request>) {
-        self.try_follow_at(show, quality).await.unwrap()
-    }
-
-    /// [`Self::follow_at`], returning its error, such as a Refusal.
-    async fn try_follow_at(
-        &self,
-        show: i64,
-        quality: i64,
-    ) -> Result<(FollowedShow, Vec<Request>), ConnectError> {
-        create_followed_show(self.service(), show, Some(quality)).await
     }
 
     /// The Requests this Requester may see.
@@ -290,29 +289,6 @@ async fn create_season_requests(
         })
         .await?;
     Ok(asked.into_owned().requests)
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn create_followed_show(
-    service: &RequestServiceClient<HttpClient>,
-    show: i64,
-    quality: Option<i64>,
-) -> Result<(FollowedShow, Vec<Request>), ConnectError> {
-    let followed = service
-        .create_followed_show(CreateFollowedShowRequest {
-            show_id: tmdb_id(show).into(),
-            quality,
-            ..Default::default()
-        })
-        .await?
-        .into_owned();
-    Ok((
-        followed.followed_show.into_option().unwrap(),
-        followed.requests,
-    ))
 }
 
 #[expect(

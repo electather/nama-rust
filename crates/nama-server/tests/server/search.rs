@@ -563,10 +563,7 @@ async fn a_followed_show_without_an_open_season_request_is_requested() {
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
     let ada = fx.server.user("Ada", &[Permission::RequestTv]).await;
     let ada_requests = RequestServiceClient::new(HttpClient::plaintext(), ada.client_config());
-    let (_, seasons) = ada_requests.follow(THE_OFFICE_UK).await;
-    for season in seasons {
-        ada_requests.withdraw(season.id).await;
-    }
+    ada_requests.follow(THE_OFFICE_UK).await;
 
     let parts = search(
         &ada.client_config(),
@@ -689,10 +686,7 @@ async fn a_show_whose_only_followed_show_the_caller_cant_see_is_not_on_this_serv
     let ada = fx.server.user("Ada", &[Permission::RequestTv]).await;
     let grace = fx.server.user("Grace", &[Permission::RequestTv]).await;
     let ada_requests = RequestServiceClient::new(HttpClient::plaintext(), ada.client_config());
-    let (_, seasons) = ada_requests.follow(THE_OFFICE_UK).await;
-    for season in seasons {
-        ada_requests.withdraw(season.id).await;
-    }
+    ada_requests.follow(THE_OFFICE_UK).await;
 
     let parts = search(
         &grace.client_config(),
