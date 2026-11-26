@@ -1,0 +1,23 @@
+[package]
+name = "nama-web"
+version = "0.1.0"
+description = "The web app, embedded from web/dist, as the Server and the Hub serve it"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+[features]
+# Embeds the built web app (`web/dist`, from `vp build` in web/) and serves it. Off by default so
+# `cargo build --workspace` needs no Node; the Server's and the Hub's `web` features turn it on.
+embed = ["dep:axum", "dep:tower", "dep:tower-http"]
+
+[dependencies]
+axum = { version = "0.8", default-features = false, optional = true }
+tower = { version = "0.5", default-features = false, features = ["util"], optional = true }
+tower-http = { version = "0.7.1", default-features = false, features = ["compression-br", "compression-gzip"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+
+[lints]
+workspace = true

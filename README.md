@@ -14,6 +14,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from the client API in `proto/nama/v1/` |
 | [`crates/nama-plugin-proto`](crates/nama-plugin-proto) | Rust types generated from the Plugin contract in `proto/nama/plugin/`, and its version |
 | [`crates/nama-forwarded`](crates/nama-forwarded) | Where a request to the Server or the Hub came from, believing forwarded headers only from trusted proxies (ADR 0018) |
+| [`crates/nama-web`](crates/nama-web) | The web app, embedded from `web/dist`, as the Server and the Hub serve it (ADR 0004, 0105) |
 | [`crates/nama-hub-proto`](crates/nama-hub-proto) | Rust types and ConnectRPC stubs generated from the Hub API in `proto/nama/hub/` |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
 | [`crates/nama-structure`](crates/nama-structure) | The structure checks the Server's and the Hub's tests run on their own files (ADR 0099) |
@@ -132,6 +133,7 @@ cargo clippy --workspace --locked -- -D warnings
 cargo clippy $(.github/scripts/wasm-packages.sh) --target wasm32-unknown-unknown --locked -- -D warnings
 cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings   # after `vp -C web build`
 cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings      # after `vp -C web build`
+cargo clippy -p nama-web --features embed --all-targets --locked -- -D warnings   # after `vp -C web build`
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
@@ -150,7 +152,7 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md), or the Hub's [`crates/nama-hub/README.md`](crates/nama-hub/README.md).
 
-Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app, lints the Server with `web` on and runs `cargo nextest run -p nama-server --features web --test web` against it, then lints the Hub with `web` on and runs its `web::` unit tests, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
+Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app, lints the Server with `web` on and runs `cargo nextest run -p nama-server --features web --test web` against it, then lints the Hub with `web` on and `nama-web`, which both embed the app through, with `embed` on, and runs `nama-web`'s tests and the Hub's `web::` unit tests, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
 
 ### Flaky and slow tests
 
