@@ -39,7 +39,7 @@ export function OtherWaysIn({
       />
       <p className="text-center text-sm text-muted-foreground">
         New to the Hub?{" "}
-        <Link to="/create-account" search={{ redirect }} className={textLink}>
+        <Link to="/create-account" search={{ redirect }} replace className={textLink}>
           Create an Account
         </Link>
       </p>

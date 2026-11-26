@@ -8,7 +8,11 @@ export function useSendSignInLink() {
   const navigate = useNavigate();
   return useMutation(AccountService.method.sendSignInLink, {
     onSuccess: async (_, { email }) => {
-      await navigate({ to: "/sign-in-link-sent", state: { signInLinkSentTo: email ?? "" } });
+      await navigate({
+        to: "/sign-in-link-sent",
+        state: { signInLinkSentTo: email ?? "" },
+        replace: true,
+      });
     },
   });
 }

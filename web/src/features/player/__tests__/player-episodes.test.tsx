@@ -200,6 +200,23 @@ test("back from a player its link opened signed out, after signing in, opens the
   expect(router.history.canGoBack()).toBe(false);
 });
 
+test("back from a player its link opened signed out, after signing in over several pages, opens the Show's page in its place", async () => {
+  const { transport, state } = server();
+  delete state.signedIn;
+  const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, transport);
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in with a code" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in with a password" }));
+  fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "Sam" } });
+  fill("Password", "correct horse");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  fireEvent.click(await screen.findByRole("link", { name: "Back" }));
+
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(router.state.location.href).toBe(`${SHOW}?season=1`);
+  expect(router.history.canGoBack()).toBe(false);
+});
+
 test("a Ctrl-click on Back leaves the player playing, for the browser to open the Show's page elsewhere", async () => {
   const { transport } = server();
   const router = openApp(SHOW, transport);

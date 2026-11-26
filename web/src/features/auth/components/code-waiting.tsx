@@ -20,7 +20,7 @@ export function CodeWaiting({
   redirect: string | undefined;
 }) {
   // A new code replaces the expired one, which stays up until it does.
-  const start = useStartSignInCode(redirect, true);
+  const start = useStartSignInCode(redirect);
   useWarp(start.isPending);
   const errors = start.error ? startErrors(start.error) : {};
   // The Device name field is on the page before, so its refusal shows with the form's.

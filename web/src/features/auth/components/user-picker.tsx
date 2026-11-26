@@ -40,7 +40,12 @@ export function UserPicker({
         onError: (error) => {
           if (needsSwitchPin(error)) {
             const userId = String(user.id);
-            void navigate({ to: "/switch-user/$userId", params: { userId }, search: { redirect } });
+            void navigate({
+              to: "/switch-user/$userId",
+              params: { userId },
+              search: { redirect },
+              replace: true,
+            });
           }
         },
       },
@@ -66,6 +71,7 @@ export function UserPicker({
       <Link
         to="/sign-in"
         search={{ redirect: here }}
+        replace
         className={buttonVariants({ variant: "outline", size: "lg" })}
       >
         Add another User

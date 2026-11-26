@@ -38,6 +38,7 @@ export function FinishAccountSignIn({
           <Link
             to="/sign-in"
             search={{ redirect }}
+            replace
             className={buttonVariants({ variant: "outline", size: "lg" })}
           >
             Back to sign in

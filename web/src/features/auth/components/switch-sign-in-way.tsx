@@ -3,7 +3,11 @@ import { buttonVariants } from "nama-ui/components/button";
 
 import { OrDivider } from "@/features/auth/components/or-divider";
 
-/** Under a sign-in form: "Or", then the link to the other way to sign in. */
+/**
+ * Under a sign-in form: "Or", then the link to the other way to sign in, in this page's place. A
+ * sign-in leaves one history entry, which finishing takes the place of: a sign-in page left behind
+ * would only send Back on to `redirect` again (#2435).
+ */
 export function SwitchSignInWay({
   to,
   redirect,
@@ -19,6 +23,7 @@ export function SwitchSignInWay({
       <OrDivider />
       <Link
         to={to}
+        replace
         search={{ redirect }}
         className={buttonVariants({ variant: "outline", size: "lg" })}
       >

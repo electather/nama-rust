@@ -9,7 +9,7 @@ import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
  * a User signed in on another Device approves at `/code`.
  */
 export function CodeSignIn({ redirect }: { redirect: string | undefined }) {
-  const start = useStartSignInCode(redirect, false);
+  const start = useStartSignInCode(redirect);
   return (
     <NameThisDevice
       onSubmit={(deviceName) => {
