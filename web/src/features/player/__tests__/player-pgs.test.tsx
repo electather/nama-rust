@@ -273,7 +273,6 @@ test("a PGS Track turned on again says Loading… until it's fetched again", asy
   expect(signs.textContent).not.toMatch(/Loading…|Couldn’t load/u);
 });
 
-// Last: once the renderer fails, this page never lists PGS again, as after it a reload would.
 test("at the Hub, a PGS Track is fetched from the Server", async () => {
   // oxlint-disable-next-line require-await -- a fake fetch answers at once
   vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response("PGS"));
@@ -289,6 +288,7 @@ test("at the Hub, a PGS Track is fetched from the Server", async () => {
   expect(vi.mocked(fetch)).toHaveBeenCalledWith(`https://friend.example${SIGNS}`);
 });
 
+// Last: once the renderer fails, this page never lists PGS again, as after it a reload would.
 test("a renderer that won't start has the Track burned in by a plan that doesn't list PGS", async () => {
   const asked: PlanPlaybackRequest[] = [];
   bitsub.failsToStart = true;

@@ -86,8 +86,9 @@ export function VideoPlayer({
         aria-label={title}
         autoPlay
         playsInline
-        // At the Hub, its `<track>`s load from the Server, which a browser allows only over CORS,
-        // and the Server answers CORS for the Hub's requests carrying no cookie (ADR 0105).
+        // At the Hub, the video and its `<track>`s load from the Server over CORS, without which a
+        // browser won't load a `<track>` from another origin; the Server answers CORS for the
+        // Hub's requests carrying no cookie (ADR 0105). On the Server's own page, nothing changes.
         crossOrigin="anonymous"
         onError={(event) => {
           videoFailed(event.currentTarget.error);

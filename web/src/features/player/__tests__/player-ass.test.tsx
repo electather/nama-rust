@@ -229,7 +229,6 @@ test.each([
   ]);
 });
 
-// Last: once the renderer fails, this page never lists ASS again, as after it a reload would.
 test("at the Hub, an ASS Track and its fonts are fetched from the Server", async () => {
   const friend = "https://friend.example";
   const served = { [`${friend}${STYLED}`]: answer("ASS"), [`${friend}${FONT}`]: answer("FONT") };
@@ -243,6 +242,7 @@ test("at the Hub, an ASS Track and its fonts are fetched from the Server", async
   expect(libass.made[0]?.fonts).toHaveLength(1);
 });
 
+// Last: once the renderer fails, this page never lists ASS again, as after it a reload would.
 test("a renderer that won't start has the ASS Track burned in by a plan that doesn't list ASS", async () => {
   const asked: PlanPlaybackRequest[] = [];
   libass.failsToStart = true;
