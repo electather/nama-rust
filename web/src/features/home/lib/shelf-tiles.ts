@@ -39,3 +39,6 @@ export interface ShelfTitles {
  * rest are a click away on the Library page its heading opens.
  */
 export const recentlyAddedPage = { size: 20 };
+
+/** A page of a row: a little over a wide screen's shelf of posters. */
+export const rowPage = { size: 12 };

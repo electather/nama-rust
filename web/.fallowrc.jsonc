@@ -81,8 +81,8 @@
       },
       {
         "from": "auth",
-        // The Account's home at the Hub lists its Servers' Libraries.
-        "allow": ["auth", "servers", "shared-components", "shared-hooks", "shared-lib"],
+        // Home at the Hub lists its Servers' Libraries under their merged rows.
+        "allow": ["auth", "home", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-libraries",
@@ -164,7 +164,8 @@
       },
       {
         "from": "home",
-        "allow": ["home", "shared-components", "shared-hooks", "shared-lib"],
+        // At the Hub, Home merges the rows of the Servers it reaches as their Libraries' list does.
+        "allow": ["home", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "library",
