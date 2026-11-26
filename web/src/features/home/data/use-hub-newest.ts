@@ -1,10 +1,14 @@
 import { createQueryOptions } from "@connectrpc/connect-query";
 import { useQueries } from "@tanstack/react-query";
 
-import { movieRowTitles, newestMovies } from "@/features/home/data/use-newest-movies";
-import { newestShows, showRowTitles } from "@/features/home/data/use-newest-shows";
 import type { RowOn } from "@/features/home/lib/hub-rows";
 import { mergeTitles } from "@/features/home/lib/hub-titles";
+import {
+  movieRowTitles,
+  newestMovies,
+  newestShows,
+  showRowTitles,
+} from "@/features/home/lib/newest-titles";
 import { BrowseService, type RecentlyAddedHomeRow } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";

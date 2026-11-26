@@ -1,9 +1,9 @@
 import { createQueryOptions } from "@connectrpc/connect-query";
 import { useQueries } from "@tanstack/react-query";
 
-import { rowPage } from "@/features/home/data/use-home-row-titles";
 import type { RowOn } from "@/features/home/lib/hub-rows";
 import { mergeTitles } from "@/features/home/lib/hub-titles";
+import { rowPage } from "@/features/home/lib/shelf-tiles";
 import { BrowseService, type PluginHomeRow } from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 import { rowTitles } from "@/shared/lib/row-titles";
