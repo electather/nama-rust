@@ -178,7 +178,7 @@ fn an_expired_access_token_is_renewed_and_the_ask_made_again() {
         user_id: ADA,
         ..ImportAsked::default()
     };
-    with(&mut kernel, || Trakt::import(import)).unwrap();
+    let imported = with(&mut kernel, || Trakt::import(import)).unwrap();
 
     assert_eq!(
         asked(&kernel),
@@ -189,6 +189,34 @@ fn an_expired_access_token_is_renewed_and_the_ask_made_again() {
             "GET /sync/history",
         ]
     );
+    let renewed: HashMap<_, _> = imported.personal_settings.into_iter().collect();
+    assert_eq!(renewed, tokens("access-2", "refresh-2"));
+}
+
+#[test]
+fn a_scrobble_hands_back_only_tokens_it_renewed() {
+    let fake = shared(FakeTrakt::linked());
+    let mut kernel = kernel(&fake);
+    let mut scrobble = |tmdb_id| {
+        let asked = ScrobbleAsked {
+            personal_settings: linked(&fake),
+            user_id: ADA,
+            changes: vec![movie(&[("tmdb", tmdb_id)], true)],
+            ..ScrobbleAsked::default()
+        };
+        let scrobbled = with(&mut kernel, || Trakt::scrobble(asked)).unwrap();
+        scrobbled
+            .personal_settings
+            .into_iter()
+            .collect::<HashMap<_, _>>()
+    };
+
+    let unrenewed = scrobble("348");
+    fake.borrow_mut().expire_access_token();
+    let renewed = scrobble("679");
+
+    assert!(unrenewed.is_empty());
+    assert_eq!(renewed, tokens("access-2", "refresh-2"));
 }
 
 #[test]

@@ -346,6 +346,7 @@ pub mod __buffa {
         reg.register_json_any(super::__SCAN_FINISHED_JSON_ANY);
         reg.register_json_any(super::__MATCHING_FINISHED_JSON_ANY);
         reg.register_json_any(super::__PROBING_FINISHED_JSON_ANY);
+        reg.register_json_any(super::__INBOX_CHANGED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_ITEM_ADDED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_ITEM_REMOVED_JSON_ANY);
         reg.register_json_any(super::__ITEM_MATCHED_JSON_ANY);
@@ -1616,6 +1617,10 @@ pub use self::__buffa::view::MatchingFinishedOwnedView;
 pub use self::__buffa::view::ProbingFinishedView;
 #[doc(inline)]
 pub use self::__buffa::view::ProbingFinishedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::InboxChangedView;
+#[doc(inline)]
+pub use self::__buffa::view::InboxChangedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryItemAddedView;
 #[doc(inline)]

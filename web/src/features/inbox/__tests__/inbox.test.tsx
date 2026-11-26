@@ -1,11 +1,10 @@
-import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { type InboxNotificationSchema, InboxService } from "@/gen/nama/v1/inbox_pb";
-import { RequestSchema } from "@/gen/nama/v1/request_pb";
 import { NotificationKind } from "@/gen/nama/v1/user_pb";
 import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
 
@@ -126,15 +125,14 @@ describe("the notification inbox", () => {
     expect(screen.queryByRole("menuitem", { name: "Mark all read" })).toBeNull();
   });
 
-  test("a Request event counts again", async () => {
+  test("an inbox change counts again", async () => {
     const feed = eventFeed();
     const notifications: Notification[] = [{ ...available }];
     openWithInbox(notifications, feed.stream);
     const bell = await screen.findByRole("button", { name: "Notifications, 1 unread" });
 
     notifications.unshift({ ...approved, id: 3n, readAt: undefined });
-    const request = create(RequestSchema, { id: 8n });
-    feed.send({ event: { case: "requestStateChanged", value: { request } } });
+    feed.send({ event: { case: "inboxChanged", value: { userId: 1n } } });
 
     await expect.poll(() => bell.getAttribute("aria-label")).toBe("Notifications, 2 unread");
   });

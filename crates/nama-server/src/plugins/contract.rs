@@ -222,7 +222,8 @@ fn event(event: &api::Event) -> Option<wire::Event> {
         | Api::FollowedShowStateChanged(_)
         | Api::FollowedShowCancelled(_)
         | Api::FollowedShowRequesterRemoved(_)
-        | Api::FollowedShowWithdrawn(_) => return None,
+        | Api::FollowedShowWithdrawn(_)
+        | Api::InboxChanged(_) => return None,
         Api::PlaybackStarted(started) => Wire::from(wire::PlaybackStarted {
             playback: started.playback.as_option().map(playback).into(),
             ..Default::default()

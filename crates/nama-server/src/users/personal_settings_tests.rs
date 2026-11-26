@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use nama_plugin_api::PluginId;
 use tempfile::TempDir;
 
-use super::{delete, get, recipients, replace};
+use super::{delete, get, recipients, renew, replace};
 use crate::{db::Database, users::testing::insert_user};
 
 async fn open() -> (TempDir, Database) {
@@ -126,4 +126,46 @@ async fn deleting_a_user_deletes_their_personal_settings() {
 
     assert!(get(&db, ada, &ntfy).await.unwrap().is_empty());
     assert!(recipients(&db, &ntfy).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn renewing_writes_only_secrets_the_user_still_has() {
+    let (_dir, db) = open().await;
+    let (ada, grace) = (
+        insert_user(&db, "ada").await,
+        insert_user(&db, "grace").await,
+    );
+    let trakt = PluginId::from_static("trakt");
+    let ada_linked = vec![
+        setting("access_token", "access-1", true),
+        setting("username", "ada", false),
+    ];
+    replace(&db, ada, &trakt, ada_linked).await.unwrap();
+    let grace_linked = vec![setting("access_token", "access-1", true)];
+    replace(&db, grace, &trakt, grace_linked).await.unwrap();
+    delete(&db, grace, &trakt).await.unwrap();
+    let renewed = |token: &str| {
+        [
+            ("access_token".to_owned(), token.to_owned()),
+            ("username".to_owned(), "mallory".to_owned()),
+            ("refresh_token".to_owned(), "refresh-2".to_owned()),
+        ]
+    };
+
+    renew(&db, ada, &trakt, renewed("access-2")).await.unwrap();
+    renew(&db, grace, &trakt, renewed("access-3"))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        get(&db, ada, &trakt).await.unwrap(),
+        BTreeMap::from([
+            ("access_token".to_owned(), ("access-2".to_owned(), true)),
+            ("username".to_owned(), ("ada".to_owned(), false)),
+        ])
+    );
+    assert!(
+        get(&db, grace, &trakt).await.unwrap().is_empty(),
+        "unlinked"
+    );
 }

@@ -842,18 +842,34 @@ pub const __SCROBBLE_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
     from_json: ::buffa::type_registry::any_from_json::<ScrobbleAsked>,
     is_wkt: false,
 };
-/// What the `scrobble` export returns: nothing yet.
+/// What the `scrobble` export returns.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Scrobbled {
+    /// Tokens the Plugin renewed during the call, as values of SECRET Personal settings the User
+    /// already has, by key, which the Kernel keeps in place of the old. Any other key is dropped.
+    ///
+    /// Field 1: `personal_settings`
+    #[serde(
+        rename = "personalSettings",
+        alias = "personal_settings",
+        skip_serializing_if = "::buffa::__private::HashMap::is_empty",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub personal_settings: ::buffa::__private::HashMap<
+        ::buffa::alloc::string::String,
+        ::buffa::alloc::string::String,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Scrobbled {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Scrobbled").finish()
+        f.debug_struct("Scrobbled")
+            .field("personal_settings", &self.personal_settings)
+            .finish()
     }
 }
 impl Scrobbled {
@@ -883,6 +899,12 @@ impl ::buffa::Message for Scrobbled {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        size
+            += ::buffa::map_codec::field_len::<
+                ::buffa::map_codec::Str,
+                ::buffa::map_codec::Str,
+                _,
+            >(&self.personal_settings, 1u64);
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -893,6 +915,11 @@ impl ::buffa::Message for Scrobbled {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        ::buffa::map_codec::write_field::<
+            ::buffa::map_codec::Str,
+            ::buffa::map_codec::Str,
+            _,
+        >(&self.personal_settings, 1u32, buf);
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -906,6 +933,17 @@ impl ::buffa::Message for Scrobbled {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::map_codec::merge_entry::<
+                    ::buffa::map_codec::Str,
+                    ::buffa::map_codec::Str,
+                    _,
+                >(&mut self.personal_settings, buf, ctx)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -914,6 +952,7 @@ impl ::buffa::Message for Scrobbled {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.personal_settings.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1159,6 +1198,19 @@ pub struct Imported {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub cursor: ::buffa::alloc::string::String,
+    /// As `Scrobbled.personal_settings`, kept even if taking `changes` fails.
+    ///
+    /// Field 3: `personal_settings`
+    #[serde(
+        rename = "personalSettings",
+        alias = "personal_settings",
+        skip_serializing_if = "::buffa::__private::HashMap::is_empty",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub personal_settings: ::buffa::__private::HashMap<
+        ::buffa::alloc::string::String,
+        ::buffa::alloc::string::String,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1168,6 +1220,7 @@ impl ::core::fmt::Debug for Imported {
         f.debug_struct("Imported")
             .field("changes", &self.changes)
             .field("cursor", &self.cursor)
+            .field("personal_settings", &self.personal_settings)
             .finish()
     }
 }
@@ -1209,6 +1262,12 @@ impl ::buffa::Message for Imported {
         if !self.cursor.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.cursor) as u64;
         }
+        size
+            += ::buffa::map_codec::field_len::<
+                ::buffa::map_codec::Str,
+                ::buffa::map_codec::Str,
+                _,
+            >(&self.personal_settings, 1u64);
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1230,6 +1289,11 @@ impl ::buffa::Message for Imported {
         if !self.cursor.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.cursor, buf);
         }
+        ::buffa::map_codec::write_field::<
+            ::buffa::map_codec::Str,
+            ::buffa::map_codec::Str,
+            _,
+        >(&self.personal_settings, 3u32, buf);
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -1262,6 +1326,17 @@ impl ::buffa::Message for Imported {
                 )?;
                 ::buffa::types::merge_string(&mut self.cursor, buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::map_codec::merge_entry::<
+                    ::buffa::map_codec::Str,
+                    ::buffa::map_codec::Str,
+                    _,
+                >(&mut self.personal_settings, buf, ctx)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1272,6 +1347,7 @@ impl ::buffa::Message for Imported {
     fn clear(&mut self) {
         self.changes.clear();
         self.cursor.clear();
+        self.personal_settings.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
