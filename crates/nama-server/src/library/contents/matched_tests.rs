@@ -396,8 +396,7 @@ async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
 }
 
 #[tokio::test]
-async fn an_episodes_posters_are_its_seasons_and_its_shows_and_its_backdrop_its_shows_by_the_shows_ids()
- {
+async fn an_episodes_posters_and_backdrop_are_its_seasons_and_its_shows_under_the_shows_ids() {
     let fx = Fixture::shows().await;
     let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
     let episode = Item::Episode {

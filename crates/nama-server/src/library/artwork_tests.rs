@@ -17,6 +17,7 @@ use nama_plugin_api::{
 };
 use nama_plugin_tmdb::{Endpoints, Tmdb, testing::API_KEY};
 use tempfile::TempDir;
+use tower::ServiceExt;
 
 use super::{Artwork, Error, KEPT_DIR, Picked, pick};
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
     library::{
         CustomImages, FoundImages, LocalImages, Metadata, Role,
         contents::{Contents, ImageRef, LocalImageFile, LocalRole},
+        custom_images,
         fixture::{MatchedMovie, tmdb_movie},
         scripted::{ScriptedSource, SourcesAsked},
         title_source::{self, ArtworkKind, Source},
@@ -552,11 +554,13 @@ fn png() -> Vec<u8> {
     png.into_inner()
 }
 
-/// A Library in `media`, recorded in `db`, of Alien and Dune, each with its downloaded Backdrop
-/// `/<title>.jpg` and the titled Backdrop `/titled.jpg`, where Alien shows a Backdrop beside its
-/// media in place of its own. Returns the Library's id and its images beside the media.
-async fn alien_showing_a_backdrop_beside_its_media(
+/// A Library in `media`, recorded in `db`, of Alien, Dune and Heat, each with its downloaded
+/// Backdrop `/<title>.jpg` and the titled Backdrop `/titled.jpg`, where Alien shows a Backdrop
+/// beside its media in place of its own and Heat a Custom Backdrop. Returns the Library's id and
+/// its images beside the media.
+async fn alien_and_heat_showing_other_backdrops(
     db: &Arc<Database>,
+    data: &TempDir,
     media: &Path,
     store: &ImageStore,
 ) -> (i64, LocalImages) {
@@ -572,10 +576,12 @@ async fn alien_showing_a_backdrop_beside_its_media(
         ..tmdb_movie(tmdb, title)
     };
     let alien = MatchedMovie::new(db, media, with_backdrops(1, "Alien")).await;
-    let dune_path = media.canonicalize().unwrap().join("Dune.mkv");
     let contents = Contents::new(Arc::clone(db));
-    let dune = with_backdrops(2, "Dune");
-    MatchedMovie::store(&contents, alien.library, dune_path.to_str().unwrap(), dune).await;
+    for (tmdb, title) in [(2, "Dune"), (3, "Heat")] {
+        let path = media.canonicalize().unwrap().join(format!("{title}.mkv"));
+        let matched = with_backdrops(tmdb, title);
+        MatchedMovie::store(&contents, alien.library, path.to_str().unwrap(), matched).await;
+    }
     let beside = media.join("fanart.png");
     std::fs::write(&beside, png()).unwrap();
     let file = LocalImageFile {
@@ -589,6 +595,17 @@ async fn alien_showing_a_backdrop_beside_its_media(
         .keep(alien.library, &[alien.version], &found)
         .await)
         .unwrap();
+    let custom = CustomImages::new(Arc::clone(db), store.clone());
+    let images = ServerSettings::new(Arc::clone(db), data.path().to_owned()).images();
+    let artwork = Artwork::new(store.clone(), Registry::new().extension_points());
+    let upload = Request::put("/custom-images/movie/tmdb-3/backdrop")
+        .body(Body::from(png()))
+        .unwrap();
+    let uploaded = (custom_images::router(custom, artwork, images))
+        .oneshot(upload)
+        .await
+        .unwrap();
+    assert_eq!(uploaded.status(), 204);
     (alien.library, local_images)
 }
 
@@ -605,13 +622,14 @@ fn resizing_ahead(
 }
 
 #[tokio::test]
-async fn a_backdrop_whose_title_shows_the_one_beside_its_media_in_its_place_is_not_shown() {
+async fn a_backdrop_whose_title_shows_a_custom_image_or_one_beside_its_media_in_its_place_is_not_shown()
+ {
     let data = tempfile::tempdir().unwrap();
     let media = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let store = ImageStore::new(data.path(), Arc::clone(&db));
     let (library, local_images) =
-        alien_showing_a_backdrop_beside_its_media(&db, media.path(), &store).await;
+        alien_and_heat_showing_other_backdrops(&db, &data, media.path(), &store).await;
     let artwork = Artwork::new(store, Registry::new().extension_points());
     let artwork = resizing_ahead(artwork, &db, &data, local_images);
 
@@ -633,7 +651,7 @@ async fn only_the_backdrops_titles_show_and_every_titled_backdrop_get_copies_mad
     let artwork = artwork_on(&data, images).await;
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let (library, local_images) =
-        alien_showing_a_backdrop_beside_its_media(&db, media.path(), &artwork.store).await;
+        alien_and_heat_showing_other_backdrops(&db, &data, media.path(), &artwork.store).await;
     let artwork = resizing_ahead(artwork, &db, &data, local_images);
 
     artwork.download_missing(Contents::new(Arc::clone(&db)), library);
@@ -647,7 +665,12 @@ async fn only_the_backdrops_titles_show_and_every_titled_backdrop_get_copies_mad
         names.sort();
         names
     };
-    let kept = ["%2Falien.jpg", "%2Fdune.jpg", "%2Ftitled.jpg"];
+    let kept = [
+        "%2Falien.jpg",
+        "%2Fdune.jpg",
+        "%2Fheat.jpg",
+        "%2Ftitled.jpg",
+    ];
     assert_eq!(listed("artwork/tmdb"), kept);
     assert_eq!(
         listed("resized/artwork/tmdb"),
