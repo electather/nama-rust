@@ -62,6 +62,7 @@ pub(super) struct WantedSeasons {
     pub(super) seasons: Vec<SourceSeason>,
     /// What the asker's ask says about Quality, which gives way to the Show's if it has one.
     pub(super) quality: qualities::Ask,
+    /// The Show's Content Rating, which its new Season Requests and Followed Show store.
     pub(super) content_rating: Option<String>,
 }
 
@@ -360,6 +361,7 @@ pub(super) struct SeasonsToAsk {
     pub(super) show_title: String,
     pub(super) seasons: Vec<SourceSeason>,
     pub(super) quality: qualities::Ask,
+    /// The Show's Content Rating, as [`WantedSeasons::content_rating`].
     pub(super) content_rating: Option<String>,
 }
 

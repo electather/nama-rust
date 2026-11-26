@@ -599,12 +599,11 @@ impl Viewer {
     }
 
     /// Whether this viewer's Maximum Age lets `event` reach them: one about another User's Request
-    /// or Followed Show of a title over it doesn't, as their Request list leaves those out. A
-    /// Request or Followed Show gone from `db` by now counts as unrated, as does one that can't be
-    /// read, logged.
-    // shortcut: a cancelled or last-withdrawn row is deleted before its event is read, so a capped
-    // User who doesn't allow unrated titles misses that event even under their age, and their list
-    // keeps it until it reloads; publish the rating with the event if that bites.
+    /// or Followed Show of a title over it doesn't, as their Request list leaves those out. One gone
+    /// from `db` by now, or that can't be read, logged, doesn't either: its title is unknown.
+    // ponytail: a cancelled or last-withdrawn row is deleted before its event is read, so a capped
+    // User misses that event even under their age, and their list keeps it until it reloads;
+    // publish the rating with the event if that bites.
     async fn allows_title_of(&self, db: &Database, event: &Event) -> bool {
         if self.max_age.lets_every_title() {
             return true;
@@ -633,11 +632,14 @@ impl Viewer {
             }
             _ => return true,
         };
-        let rating = rating.unwrap_or_else(|err| {
-            error!("could not read a Request's Content Rating for a subscriber: {err}");
-            None
-        });
-        self.max_age.allows(rating.flatten().as_deref())
+        match rating {
+            Ok(Some(rating)) => self.max_age.allows(rating.as_deref()),
+            Ok(None) => false,
+            Err(err) => {
+                error!("could not read a Request's Content Rating for a subscriber: {err}");
+                false
+            }
+        }
     }
 
     /// `event` as this viewer may see it, or `None` if they may not see it at all. A Library event

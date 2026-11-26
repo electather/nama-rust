@@ -10,7 +10,8 @@ use std::collections::BTreeSet;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     EventType, GetRequestRequest, ListRequestsRequest, MaximumAge, Request, RequestServiceClient,
-    SetMaximumAgeRequest, UserServiceClient, event, request::MovieOrSeason,
+    RequestState, SetMaximumAgeRequest, UserServiceClient, WithdrawFollowedShowRequest, event,
+    request::MovieOrSeason,
 };
 use server::{
     SignedIn, Subscription, TestServer,
@@ -164,6 +165,7 @@ async fn request_events_reach_a_capped_user_only_for_titles_their_maximum_age_le
         EventType::EVENT_TYPE_REQUEST_STATE_CHANGED,
         EventType::EVENT_TYPE_FOLLOWED_SHOW_CREATED,
         EventType::EVENT_TYPE_REQUESTER_ADDED,
+        EventType::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
     ];
     let mut subscriptions = Vec::new();
     for (viewer, _) in &fx.viewers {
@@ -171,6 +173,22 @@ async fn request_events_reach_a_capped_user_only_for_titles_their_maximum_age_le
     }
 
     fx.hicks_asks().await;
+    // Gone once withdrawn, so to a capped viewer its title is unknown, even allowing unrated ones.
+    let followed = fx
+        .server
+        .requests(&fx.hicks)
+        .list_in(RequestState::Unspecified)
+        .await
+        .1;
+    let withdraw = WithdrawFollowedShowRequest {
+        id: followed[0].id,
+        ..Default::default()
+    };
+    (fx.server
+        .requests(&fx.hicks)
+        .withdraw_followed_show(withdraw)
+        .await)
+        .unwrap();
     // Hicks joining the viewers' own Dune comes last and reaches each, so whatever they heard
     // before it is all they hear of the rest.
     fx.server.requests(&fx.hicks).ask(DUNE).await;
@@ -188,6 +206,7 @@ async fn request_events_reach_a_capped_user_only_for_titles_their_maximum_age_le
                 "Alien declined",
                 "Dark created",
                 "Dark followed",
+                "Dark withdrawn",
                 "Heat created"
             ]),
             said(&[
@@ -222,6 +241,9 @@ async fn until_dune_joined(subscription: &mut Subscription) -> BTreeSet<String> 
             }
             event::Event::FollowedShowCreated(created) => {
                 format!("{} followed", created.followed_show.show_title)
+            }
+            event::Event::FollowedShowWithdrawn(withdrawn) => {
+                format!("{} withdrawn", withdrawn.followed_show.show_title)
             }
             other => format!("{other:?}"),
         };
