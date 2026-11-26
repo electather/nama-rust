@@ -366,9 +366,7 @@ impl History {
                             episodes: [NumberedEpisode { number, watched_at }],
                         }],
                     });
-                } else if let Some(tvdb) =
-                    title_id(&change.ids, "tvdb").and_then(|id| id.parse().ok())
-                {
+                } else if let Some(tvdb) = simkl_id(&change.ids, "tvdb") {
                     let ids = SimklIds {
                         tmdb: None,
                         tvdb: Some(tvdb),
@@ -425,13 +423,17 @@ struct SimklIds {
 impl SimklIds {
     /// The TMDB and TVDB ids among `ids`, or `None` when it has neither.
     fn of(ids: &[TitleId]) -> Option<Self> {
-        let number = |namespace| title_id(ids, namespace).and_then(|id| id.parse().ok());
         let found = Self {
-            tmdb: number("tmdb"),
-            tvdb: number("tvdb"),
+            tmdb: simkl_id(ids, "tmdb"),
+            tvdb: simkl_id(ids, "tvdb"),
         };
         (found.tmdb.is_some() || found.tvdb.is_some()).then_some(found)
     }
+}
+
+/// The id under `namespace` among `ids`, as the number Simkl takes it as.
+fn simkl_id(ids: &[TitleId], namespace: &str) -> Option<u64> {
+    title_id(ids, namespace).and_then(|id| id.parse().ok())
 }
 
 /// What `/sync/activities` answers, of what the Plugin reads.
