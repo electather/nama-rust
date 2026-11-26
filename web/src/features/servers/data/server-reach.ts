@@ -1,9 +1,9 @@
-import { Code, ConnectError, type Interceptor, type Transport } from "@connectrpc/connect";
+import { Code, ConnectError, type Transport } from "@connectrpc/connect";
 import { callUnaryMethod } from "@connectrpc/connect-query";
 import { queryOptions } from "@tanstack/react-query";
 
 import { isBelowMinimumVersion } from "@/features/servers/lib/minimum-version";
-import { serverSessionKey } from "@/features/servers/lib/server-sessions";
+import { bearer, serverSessionKey } from "@/features/servers/lib/server-sessions";
 import { type LinkedServer, LinkService } from "@/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
@@ -189,12 +189,4 @@ async function whoIsSignedInAt(transport: Transport, settingsSections: string[])
     }
     throw error;
   }
-}
-
-function bearer(token: string): Interceptor {
-  return (next) => async (request) => {
-    request.header.set("Authorization", `Bearer ${token}`);
-    const response = await next(request);
-    return response;
-  };
 }
