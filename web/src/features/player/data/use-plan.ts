@@ -81,7 +81,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
   }).data;
   // Always set above: a message field is optional only in its type.
   const planned = plan ?? create(PlaybackPlanSchema);
-  const sheets = frameSheets(planned.previewFrames, versionId, transport);
+  const sheets = frameSheets(planned, versionId, transport);
   return { plan: planned, playableVersions, sheets };
 }
 
