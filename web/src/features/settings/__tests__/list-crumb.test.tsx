@@ -2,16 +2,17 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { JobService } from "@/gen/nama/v1/job_pb";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { admin, fakeServer, newUser, openApp } from "@/test-app";
 import { openPluginSettings } from "@/test-plugins";
-import { openLibraries } from "@/test-settings";
+import { findSettingsLink, openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
 
-/** An admin's fake Server, with one User, Alex, and one Job, Forget. */
+/** An admin's fake Server, with one Library, Films, one User, Alex, and one Job, Forget. */
 function adminServer() {
   return fakeServer(
-    { signedIn: admin },
+    { signedIn: admin, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
     {},
     { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
     (router) => {
@@ -40,7 +41,6 @@ async function listCrumb(title: string) {
   return current;
 }
 
-/** Waits for focus to land on the list's crumb, `title`. */
 async function expectFocusOnListCrumb(title: string) {
   const current = await listCrumb(title);
   await waitFor(() => {
@@ -58,7 +58,10 @@ test.each([
   await screen.findByRole("navigation", { name: "Breadcrumbs" });
   await expect(crumbs().findByText(opened)).resolves.toBeDefined();
 
-  fireEvent.click(crumbs().getByRole("link", { name: title }));
+  const back = crumbs().getByRole("link", { name: title });
+  back.focus();
+
+  fireEvent.click(back);
 
   await expectFocusOnListCrumb(title);
 });
@@ -73,11 +76,16 @@ test("browser Back from an opened User focuses the list's crumb", async () => {
   await expectFocusOnListCrumb("Users");
 });
 
-test("a list opened directly leaves focus on Search", async () => {
-  openApp("/code?settings=users", adminServer());
-  await expect(screen.findByRole("list", { name: "Users" })).resolves.toBeDefined();
+test.each([
+  ["Plugins", "TMDB", () => openPluginSettings()],
+  ["Libraries", "Films", () => openLibraries(adminServer())],
+  ["Jobs", "Forget", () => openApp("/code?settings=jobs", adminServer())],
+  ["Users", "Alex", () => openApp("/code?settings=users", adminServer())],
+])("%s's list opened directly leaves focus on Search", async (title, item, open) => {
+  open();
+  await expect(findSettingsLink(item)).resolves.toBeDefined();
 
-  await listCrumb("Users");
+  await listCrumb(title);
   expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Search settings" }));
 });
 
@@ -104,4 +112,15 @@ test("switching section from an opened User leaves focus on the section's link",
 
   await listCrumb("Devices");
   expect(document.activeElement).toBe(devices);
+});
+
+test("switching section after the opened User's heading held focus doesn't focus the crumb", async () => {
+  openApp("/code?settings=users&user=2", adminServer());
+  await expect(screen.findByRole("region", { name: "Alex" })).resolves.toBeDefined();
+  expect(document.activeElement?.textContent).toBe("Alex");
+
+  fireEvent.click(screen.getByRole("link", { name: "Devices" }));
+
+  const current = await listCrumb("Devices");
+  expect(document.activeElement).not.toBe(current);
 });
