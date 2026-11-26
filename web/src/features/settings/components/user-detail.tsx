@@ -26,7 +26,7 @@ export function UserDetail({ user, you }: { user: User; you: User | undefined })
         ref={title}
         id={titleId}
         tabIndex={-1}
-        className="truncate text-2xl font-semibold tracking-tight outline-none"
+        className="truncate text-lg font-medium outline-none"
       >
         {user.name}
       </h3>

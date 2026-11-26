@@ -25,7 +25,7 @@ export function UserGroups({
 }) {
   const mayChange = mayChangePermissions(you, user);
   return (
-    <div className="flex flex-col gap-7.5">
+    <div className="flex flex-col gap-4">
       {mayChange && (
         <SettingGroup title="Permissions">
           <PermissionsFieldset

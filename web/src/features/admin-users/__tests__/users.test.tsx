@@ -81,6 +81,7 @@ test("a User opens in place of the list, focused, under Settings' crumbs, whose 
   fireEvent.click(within(crumbs).getByRole("link", { name: "Users" }));
   await expect(screen.findByRole("list", { name: "Users" })).resolves.toBeDefined();
   expect(router.state.location.search.user).toBeUndefined();
+  expect(crumbs.textContent).toBe("Users");
 });
 
 test("a User deleted meanwhile is said to be gone, and Settings stays", async () => {

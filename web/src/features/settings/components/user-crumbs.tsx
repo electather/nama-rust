@@ -1,14 +1,11 @@
-import { useSearch } from "@tanstack/react-router";
-
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { ListCrumb } from "@/features/settings/components/list-crumb";
+import { useOpenUser } from "@/features/settings/hooks/use-open-user";
 import { sectionTitles } from "@/features/settings/lib/sections";
-import { useUsers } from "@/shared/hooks/use-users";
 
-/** Users, then the User `?user=` opens. An id no User has shows the list, as the pane does. */
+/** Users, then the User `?user=` opens, whose Users crumb goes back to the list. */
 export function UserCrumbs() {
-  const asked = useSearch({ strict: false, select: ({ user }) => user });
-  const open = useUsers().find((user) => Number(user.id) === asked);
+  const open = useOpenUser();
   if (!open) {
     return <Crumbs current={sectionTitles.users} />;
   }
