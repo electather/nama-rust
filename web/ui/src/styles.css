@@ -159,3 +159,10 @@
     @apply font-sans;
   }
 }
+
+/* Base UI's scroll lock, under every menu and dialog, gives the page a stable gutter while it
+   holds, so the page keeps one always and opening or closing them never changes its width.
+   Outside the base layer, which happy-dom ignores, so the tests see it. */
+html {
+  scrollbar-gutter: stable;
+}
