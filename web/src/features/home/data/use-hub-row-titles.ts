@@ -13,7 +13,7 @@ import { rowTitles } from "@/shared/lib/row-titles";
  * answers.
  */
 export function useHubRowTitles(sources: RowOn<PluginHomeRow>[]) {
-  // shortcut: only each Server's first page is merged; page through each when a shelf runs out.
+  // ponytail: only each Server's first page is merged; page through each when a shelf runs out.
   return useQueries({
     queries: sources.map(({ transport, row }) => ({
       ...createQueryOptions(

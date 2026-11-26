@@ -7,7 +7,7 @@ import { cardOn, mergeContinueWatching } from "@/features/home/lib/hub-titles";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
-// shortcut: only each Server's first page is merged; page through each when a shelf runs out.
+// ponytail: only each Server's first page is merged; page through each when a shelf runs out.
 const firstPage = { page: { size: 20 } };
 
 /**

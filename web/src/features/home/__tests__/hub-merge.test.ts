@@ -56,7 +56,7 @@ function homeRows(...rows: HomeRowInit[]) {
   return rows.map((row) => create(HomeRowSchema, row));
 }
 
-test("a Show's next Episode, which has no Watch State, keeps its place after the card above it", () => {
+test("a Show's next Episode, which has no Watch State, takes the time of the card below it", () => {
   const merged = mergeContinueWatching([
     [
       ...movieCard(basement, "Alien", 300n),
@@ -68,10 +68,19 @@ test("a Show's next Episode, which has no Watch State, keeps its place after the
 
   expect(merged.map(({ card }) => card.backdrop.title)).toStrictEqual([
     "Alien",
-    "Severance",
     "Dune",
+    "Severance",
     "Heat",
   ]);
+});
+
+test("a Show's next Episode atop its Server's list doesn't outrank another Server's newer title", () => {
+  const merged = mergeContinueWatching([
+    nextEpisodeCard(basement, "Severance"),
+    movieCard(cabin, "Dune", 200n),
+  ]);
+
+  expect(merged.map(({ card }) => card.backdrop.title)).toStrictEqual(["Dune", "Severance"]);
 });
 
 test("a title on one Server and missing from another is listed as on the Server", () => {

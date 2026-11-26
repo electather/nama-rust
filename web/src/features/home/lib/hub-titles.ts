@@ -16,7 +16,7 @@ export function onLinkedServer(link: LinkOptions, server: ReachedServer["server"
   return { ...link, search: { server: server.id } };
 }
 
-/** `card`, from the Server `on` names, opening there. */
+/** `card`, from the Server `server` that `transport` reaches, opening there. */
 export function cardOn({ server, transport }: ReachedServer, card: Card): CardOn {
   const page = { ...card.page, link: onLinkedServer(card.page.link, server) };
   return { server, transport, card: { ...card, link: onLinkedServer(card.link, server), page } };
@@ -69,14 +69,19 @@ export function mergeContinueWatching(lists: CardOn[][]) {
 
 /**
  * Each card of one Server's Continue Watching with when it was last watched. A Show's next Episode
- * has no Watch State, but the Server lists it by its Show's latest, so it takes the card above's
- * time, or, at the top, comes before every other.
+ * has no Watch State: the Server lists it by its Show's latest, which is no older than the card
+ * below's, so it takes that time, or none at the bottom, and a time known elsewhere beats it.
  */
 function whenWatched(list: CardOn[]) {
-  let above = Number.POSITIVE_INFINITY;
-  return list.map((on) => {
-    const updatedAt = on.card.backdrop.watchState?.updatedAt;
-    above = updatedAt === undefined || updatedAt === 0n ? above : Number(updatedAt);
-    return { on, when: above };
-  });
+  const watched: { on: CardOn; when: number }[] = [];
+  let below = 0;
+  for (let at = list.length - 1; at >= 0; at -= 1) {
+    const on = list[at];
+    const updatedAt = on?.card.backdrop.watchState?.updatedAt;
+    below = updatedAt === undefined || updatedAt === 0n ? below : Number(updatedAt);
+    if (on !== undefined) {
+      watched.unshift({ on, when: below });
+    }
+  }
+  return watched;
 }

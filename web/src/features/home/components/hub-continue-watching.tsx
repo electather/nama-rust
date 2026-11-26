@@ -1,8 +1,8 @@
 import { useId } from "react";
 
+import { CardWithActions } from "@/features/home/components/card-with-actions";
 import { ContinueWatchingFrame } from "@/features/home/components/continue-watching-frame";
 import { OnServer } from "@/features/home/components/on-server";
-import { ServerCard } from "@/features/home/components/server-card";
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import { useHubContinueWatching } from "@/features/home/data/use-hub-continue-watching";
 import { backdropTile } from "@/features/home/lib/shelf-tiles";
@@ -18,7 +18,7 @@ export function HubContinueWatching() {
     key: `${server.id}/${card.key}`,
     tile: (
       <OnServer transport={transport}>
-        <ServerCard card={card} />
+        <CardWithActions card={card} />
       </OnServer>
     ),
   }));
