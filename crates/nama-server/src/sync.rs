@@ -66,11 +66,11 @@ pub(crate) struct Syncing {
 }
 
 impl Syncing {
-    /// Syncs what `db` holds of `users`, telling the Observers of `points` of what it takes.
+    /// Syncs what `db` holds of `users`, telling the Watch sync Plugins of `points` of what it takes.
     pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints, users: Users) -> Self {
         Self {
-            browse: Browse::new(Arc::clone(&db), points.clone()),
-            preferences: TrackPreferences::new(Arc::clone(&db), points),
+            browse: Browse::new(Arc::clone(&db), points),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
             linking: users.linking().clone(),
             db,
             users,

@@ -104,7 +104,7 @@ pub(crate) struct Browse {
 }
 
 impl Browse {
-    /// Browse of what `db` holds, telling the Observers of `points` of each Watch State change.
+    /// Browse of what `db` holds, telling the Watch sync Plugins of `points` of each Watch State change.
     pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
