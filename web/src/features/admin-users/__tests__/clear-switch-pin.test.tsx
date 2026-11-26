@@ -9,16 +9,28 @@ import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
-/** Alex's page in Settings' Users, on a Server that answers clearing a Switch PIN with `clear`. */
-function openAlex(clear: (request: ClearSwitchPinRequest) => object) {
+/**
+ * Alex's page in Settings' Users, on a Server that refuses to clear a Switch PIN with `refusal`, or
+ * else records whose it cleared.
+ */
+function openAlex(refusal?: Error) {
+  const cleared: (bigint | undefined)[] = [];
+  const clearSwitchPin = ({ userId }: ClearSwitchPinRequest) => {
+    if (refusal !== undefined) {
+      throw refusal;
+    }
+    cleared.push(userId);
+    return {};
+  };
   openApp(
     "/code?settings=users&user=2",
     fakeServer(
       { signedIn: admin },
-      { clearSwitchPin: clear },
+      { clearSwitchPin },
       { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
     ),
   );
+  return cleared;
 }
 
 /** Opens the dialog asking to clear Alex's Switch PIN. */
@@ -28,11 +40,7 @@ async function askToClear() {
 }
 
 test("confirming clears that User's Switch PIN, and the dialog closes", async () => {
-  const cleared: (bigint | undefined)[] = [];
-  openAlex(({ userId }) => {
-    cleared.push(userId);
-    return {};
-  });
+  const cleared = openAlex();
 
   const dialog = await askToClear();
   fireEvent.click(within(dialog).getByRole("button", { name: "Clear Switch PIN" }));
@@ -44,11 +52,7 @@ test("confirming clears that User's Switch PIN, and the dialog closes", async ()
 });
 
 test("cancelling leaves the Switch PIN as it was", async () => {
-  const cleared: (bigint | undefined)[] = [];
-  openAlex(({ userId }) => {
-    cleared.push(userId);
-    return {};
-  });
+  const cleared = openAlex();
 
   const dialog = await askToClear();
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -66,7 +70,7 @@ test.each([
     "Alex isn’t on this Server any more.",
   ],
   [
-    "an Admin's, by a User who isn't one",
+    "an Admin's, for want of the Admin Permission",
     refused(Code.PermissionDenied, "needs PERMISSION_ADMIN", {
       reason: RefusalReason.PERMISSION_REQUIRED,
       params: { permission: "PERMISSION_ADMIN" },
@@ -74,9 +78,7 @@ test.each([
     "Only an Admin can clear an Admin’s Switch PIN.",
   ],
 ])("clearing %s says why it was refused", async (_, refusal, shown) => {
-  openAlex(() => {
-    throw refusal;
-  });
+  openAlex(refusal);
 
   const dialog = await askToClear();
   fireEvent.click(within(dialog).getByRole("button", { name: "Clear Switch PIN" }));
