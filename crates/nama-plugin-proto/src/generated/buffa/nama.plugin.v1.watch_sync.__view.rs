@@ -2568,6 +2568,24 @@ pub struct SyncedWatchStateView<'a> {
     ///
     /// Field 6: `changed_at_ms`
     pub changed_at_ms: i64,
+    /// Every id the Kernel knows an Episode's Show by, at most one per namespace, any one of which
+    /// identifies it. The Kernel sets this and the two numbers below only for an Episode Matched in
+    /// a Library, for a tracker that finds an Episode by its Show, season and number; `import` may
+    /// leave them unset.
+    ///
+    /// Field 7: `show_ids`
+    pub show_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
+    /// An Episode's Season's number within its Show, as `show_ids`. Season 0 holds specials.
+    ///
+    /// Field 8: `season_number`
+    pub season_number: ::core::option::Option<u32>,
+    /// An Episode's number within its Season, as `show_ids`.
+    ///
+    /// Field 9: `episode_number`
+    pub episode_number: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SyncedWatchStateView<'a> {
@@ -2637,6 +2655,20 @@ impl<'a> ::buffa::MessageView<'a> for SyncedWatchStateView<'a> {
                 )?;
                 view.changed_at_ms = ::buffa::types::decode_int64(&mut cur)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.season_number = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.episode_number = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2648,6 +2680,24 @@ impl<'a> ::buffa::MessageView<'a> for SyncedWatchStateView<'a> {
                     ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
                 )?;
                 view.ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.show_ids
                     .push(
                         <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
                             sub,
@@ -2687,6 +2737,13 @@ impl<'a> ::buffa::MessageView<'a> for SyncedWatchStateView<'a> {
             position_ms: self.position_ms,
             duration_ms: self.duration_ms,
             changed_at_ms: self.changed_at_ms,
+            show_ids: self
+                .show_ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            season_number: self.season_number,
+            episode_number: self.episode_number,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2724,6 +2781,20 @@ impl<'a> ::buffa::ViewEncode<'a> for SyncedWatchStateView<'a> {
         if self.changed_at_ms != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.changed_at_ms) as u64;
         }
+        for v in &self.show_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(v) = self.season_number {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.episode_number {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2760,6 +2831,20 @@ impl<'a> ::buffa::ViewEncode<'a> for SyncedWatchStateView<'a> {
         }
         if self.changed_at_ms != 0i64 {
             ::buffa::types::put_int64_field(6u32, self.changed_at_ms, buf);
+        }
+        for v in &self.show_ids {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.season_number {
+            ::buffa::types::put_uint32_field(8u32, v, buf);
+        }
+        if let Some(v) = self.episode_number {
+            ::buffa::types::put_uint32_field(9u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2810,6 +2895,23 @@ impl<'__a> ::serde::Serialize for SyncedWatchStateView<'__a> {
                 .serialize_entry(
                     "changedAtMs",
                     &::buffa::json_helpers::ProtoJson(&self.changed_at_ms),
+                )?;
+        }
+        if !self.show_ids.is_empty() {
+            __map.serialize_entry("showIds", &*self.show_ids)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.season_number {
+            __map
+                .serialize_entry(
+                    "seasonNumber",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.episode_number {
+            __map
+                .serialize_entry(
+                    "episodeNumber",
+                    &::buffa::json_helpers::ProtoJson(&__v),
                 )?;
         }
         __map.end()
@@ -2947,6 +3049,32 @@ impl SyncedWatchStateOwnedView {
     #[must_use]
     pub fn changed_at_ms(&self) -> i64 {
         self.0.reborrow().changed_at_ms
+    }
+    /// Every id the Kernel knows an Episode's Show by, at most one per namespace, any one of which
+    /// identifies it. The Kernel sets this and the two numbers below only for an Episode Matched in
+    /// a Library, for a tracker that finds an Episode by its Show, season and number; `import` may
+    /// leave them unset.
+    ///
+    /// Field 7: `show_ids`
+    #[must_use]
+    pub fn show_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().show_ids
+    }
+    /// An Episode's Season's number within its Show, as `show_ids`. Season 0 holds specials.
+    ///
+    /// Field 8: `season_number`
+    #[must_use]
+    pub fn season_number(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().season_number
+    }
+    /// An Episode's number within its Season, as `show_ids`.
+    ///
+    /// Field 9: `episode_number`
+    #[must_use]
+    pub fn episode_number(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().episode_number
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SyncedWatchStateView<'static>>>

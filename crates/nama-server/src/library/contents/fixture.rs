@@ -102,6 +102,49 @@ pub(crate) async fn decide(
     (version, items)
 }
 
+/// Creates a Shows Library on `folder` holding one file of Episodes 1 and 2 of Season 1 of the
+/// Show `show_ids`, Matched to the TMDB Episodes `episodes`.
+pub(crate) async fn matched_episodes_file(
+    db: &Arc<Database>,
+    folder: &Path,
+    show_ids: ExternalIds,
+    episodes: [i64; 2],
+) {
+    let root = folder.canonicalize().unwrap();
+    let root = root.to_str().unwrap();
+    let library = (Libraries::new(Arc::clone(db)))
+        .create(root, Kind::Shows, vec![root.to_owned()])
+        .await
+        .unwrap()
+        .id;
+    let path = format!("{root}/Show - S01E01-E02.mkv");
+    let episode = |number| Item::Episode {
+        show: "Show".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: number,
+    };
+    let file = Change::Store {
+        edition: None,
+        path: path.clone(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![episode(1), episode(2)],
+    };
+    let contents = Contents::new(Arc::clone(db));
+    contents.apply(library, vec![file]).await.unwrap();
+    let decided = (episodes.into_iter())
+        .map(|tmdb| {
+            Decided::Matched(Box::new(Metadata {
+                show_ids: show_ids.clone(),
+                ..tmdb_movie(tmdb, "Episode")
+            }))
+        })
+        .collect();
+    decide(&contents, library, &path, decided).await;
+}
+
 /// What TMDB says of the Movie `tmdb`, called `title`.
 pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
     Metadata {
