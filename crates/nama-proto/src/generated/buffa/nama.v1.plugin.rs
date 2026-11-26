@@ -669,9 +669,6 @@ pub enum ExtensionPoint {
     EXTENSION_POINT_SEARCH_SOURCE = 15i32,
     /// Says which titles are like a title, for its Similar titles (ADR 0084).
     EXTENSION_POINT_SIMILAR_SOURCE = 16i32,
-    /// Linked the Server with the Hub through `ServerService.StartServerLink` (ADR 0011). Unused: the
-    /// Server Links itself with the Hub its config names.
-    EXTENSION_POINT_SERVER_LINKER = 17i32,
     /// Follows each User's Watch State to an outside tracker, such as Trakt, and brings the changes
     /// made there back, for the Users who linked their account in its Personal settings.
     EXTENSION_POINT_WATCH_SYNC = 19i32,
@@ -728,9 +725,6 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_SIMILAR_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SimilarSource: Self = Self::EXTENSION_POINT_SIMILAR_SOURCE;
-    ///Idiomatic alias for [`Self::EXTENSION_POINT_SERVER_LINKER`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const ServerLinker: Self = Self::EXTENSION_POINT_SERVER_LINKER;
     ///Idiomatic alias for [`Self::EXTENSION_POINT_WATCH_SYNC`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WatchSync: Self = Self::EXTENSION_POINT_WATCH_SYNC;
@@ -852,7 +846,6 @@ impl ::buffa::Enumeration for ExtensionPoint {
             14i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SEGMENT_SOURCE),
             15i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SEARCH_SOURCE),
             16i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SIMILAR_SOURCE),
-            17i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SERVER_LINKER),
             19i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_WATCH_SYNC),
             _ => ::core::option::Option::None,
         }
@@ -881,7 +874,6 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_SEGMENT_SOURCE => "EXTENSION_POINT_SEGMENT_SOURCE",
             Self::EXTENSION_POINT_SEARCH_SOURCE => "EXTENSION_POINT_SEARCH_SOURCE",
             Self::EXTENSION_POINT_SIMILAR_SOURCE => "EXTENSION_POINT_SIMILAR_SOURCE",
-            Self::EXTENSION_POINT_SERVER_LINKER => "EXTENSION_POINT_SERVER_LINKER",
             Self::EXTENSION_POINT_WATCH_SYNC => "EXTENSION_POINT_WATCH_SYNC",
         }
     }
@@ -940,9 +932,6 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_SIMILAR_SOURCE" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_SIMILAR_SOURCE)
             }
-            "EXTENSION_POINT_SERVER_LINKER" => {
-                ::core::option::Option::Some(Self::EXTENSION_POINT_SERVER_LINKER)
-            }
             "EXTENSION_POINT_WATCH_SYNC" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_WATCH_SYNC)
             }
@@ -968,7 +957,6 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_SEGMENT_SOURCE,
             Self::EXTENSION_POINT_SEARCH_SOURCE,
             Self::EXTENSION_POINT_SIMILAR_SOURCE,
-            Self::EXTENSION_POINT_SERVER_LINKER,
             Self::EXTENSION_POINT_WATCH_SYNC,
         ]
     }
