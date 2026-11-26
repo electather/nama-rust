@@ -73,7 +73,7 @@ impl Links {
         &self,
         account: AccountId,
     ) -> Result<Vec<ListedInvite>, sqlx::Error> {
-        // `floor`, as a bare cast to bigint rounds a time late in a second up into the next (#2406).
+        // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
         let invites = sqlx::query!(
             r#"SELECT user_invites.id, user_invites.user_name, linked_servers.name AS server_name,
              floor(extract(epoch FROM user_invites.created_at))::bigint AS "invited_at!"
