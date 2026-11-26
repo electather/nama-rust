@@ -8,7 +8,7 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
 import { may } from "@/shared/lib/permissions";
 
-/** A Show from the title source, for picking its Seasons to Request. */
+/** A Show from the title source, to Request its Seasons. */
 export const Route = createFileRoute("/_member/_server/shows/$showId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request Shows.
@@ -28,6 +28,5 @@ export const Route = createFileRoute("/_member/_server/shows/$showId")({
 
 function Show() {
   const { showId } = Route.useLoaderData();
-  const { signedIn } = Route.useRouteContext();
-  return <ShowToRequest showId={showId} you={signedIn.user?.id} />;
+  return <ShowToRequest showId={showId} />;
 }

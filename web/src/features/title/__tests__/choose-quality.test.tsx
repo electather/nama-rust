@@ -4,7 +4,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import type { QualitySchema } from "@/gen/nama/v1/plugin_pb";
 import {
-  type CreateFollowedShowRequest,
   type CreateRequestRequest,
   type CreateSeasonRequestsRequest,
   FoundMovieSchema,
@@ -196,19 +195,17 @@ test("a Movie's page shows its open Request's Quality, and joining it offers no 
 const dark = {
   id: { namespace: "tmdb", value: "70523" },
   title: "Dark",
-  seasons: [{ seasonNumber: 1 }, { seasonNumber: 2 }],
+  seasons: [1, 2].map((seasonNumber) => ({ seasonNumber, episodes: [{ episodeNumber: 1 }] })),
 };
 
 /**
  * A fake Server for Dark's page, where `show` is as given, the Shows Fulfiller offers `qualities`,
- * each ask for its Seasons is put in `asked`, and each ask for the Whole Show in `followed`.
+ * and each ask for its Seasons is put in `asked`.
  */
-// oxlint-disable-next-line max-params -- the tests read as the Server they set up, in this order
 function showServer(
   qualities: MessageInitShape<typeof QualitySchema>[],
   asked: CreateSeasonRequestsRequest[],
   show: MessageInitShape<typeof FoundShowSchema> = dark,
-  followed: CreateFollowedShowRequest[] = [],
 ) {
   const found = create(FoundShowSchema, show);
   return fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
@@ -220,79 +217,49 @@ function showServer(
         asked.push(request);
         return {};
       },
-      createFollowedShow: (request) => {
-        followed.push(request);
-        return {};
-      },
     });
   });
 }
 
-/** Picks the choice `name` on Dark's page, then the Quality `quality` from Request's menu. */
-async function requestAt(name: string, quality: RegExp) {
-  fireEvent.click(await screen.findByRole("checkbox", { name }));
-  await openQualities("Seasons of Dark");
-  fireEvent.click(screen.getByRole("menuitemradio", { name: quality }));
-}
-
-test("request asks for a Show's Seasons at once, at the User's Quality", async () => {
+test("request asks for a Show's next Season at once, at the User's Quality", async () => {
   const asked: CreateSeasonRequestsRequest[] = [];
   openApp("/shows/tmdb-70523", showServer([hd, fourK], asked));
 
-  fireEvent.click(await screen.findByRole("checkbox", { name: "Season 2" }));
-  fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Request Season 1 of Dark" }));
 
   await waitFor(() => {
     expect(asked.map(({ seasonNumbers, quality }) => [seasonNumbers, quality])).toStrictEqual([
-      [[2], undefined],
+      [[1], undefined],
     ]);
   });
 });
 
-test("picking a Quality in the menu Requests the Seasons picked at it", async () => {
+test("picking a Quality in the menu Requests the Season at it", async () => {
   const asked: CreateSeasonRequestsRequest[] = [];
   openApp("/shows/tmdb-70523", showServer([hd, fourK], asked));
 
-  await requestAt("Season 2", /^4K/u);
+  await screen.findByRole("button", { name: "Request Season 1 of Dark" });
+  await openQualities("Season 1 of Dark");
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /^4K/u }));
 
   await waitFor(() => {
     expect(asked.map(({ seasonNumbers, quality }) => [seasonNumbers, quality])).toStrictEqual([
-      [[2], 2n],
+      [[1], 2n],
     ]);
   });
 });
 
-test("picking a Quality in the menu follows the Whole Show at it", async () => {
-  const followed: CreateFollowedShowRequest[] = [];
-  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], dark, followed));
-
-  await requestAt("Whole Show", /^4K/u);
-
-  await waitFor(() => {
-    expect(followed.map(({ quality }) => quality)).toStrictEqual([2n]);
-  });
-});
-
-test("a Show with a Quality shows it, and its Seasons are Requested with no Quality menu", async () => {
+test("a Show with a Quality Requests its Seasons with no Quality menu", async () => {
   const asked: CreateSeasonRequestsRequest[] = [];
   const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
   openApp("/shows/tmdb-70523", showServer([hd, fourK], asked, withQuality));
 
-  await expect(screen.findByText(/downloads at 4K/u)).resolves.toBeDefined();
-  fireEvent.click(screen.getByRole("checkbox", { name: "Season 2" }));
-  fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Request Season 1 of Dark" }));
 
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toStrictEqual([undefined]);
   });
-  expect(screen.queryByRole("button", { name: "Request Seasons of Dark at a Quality" })).toBeNull();
-});
-
-test("a Show whose Quality Sonarr kept and no Quality offers says it is set in the service", async () => {
-  const kept = { ...dark, quality: { id: 0n, name: "HD-1080p", profileId: "4" } };
-  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], kept));
-
-  await expect(
-    screen.findByText(/downloads at HD-1080p \(set in the service\)/u),
-  ).resolves.toBeDefined();
+  expect(
+    screen.queryByRole("button", { name: "Request Season 1 of Dark at a Quality" }),
+  ).toBeNull();
 });

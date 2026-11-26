@@ -1,13 +1,14 @@
 import type { Ref, RefObject } from "react";
 
-import { EpisodeCard } from "@/features/title/components/episode-card";
+import { RowCard } from "@/features/title/components/row-card";
 import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtualizer";
 import type { RowScroller } from "@/features/title/lib/season-row";
-import type { Episode } from "@/gen/nama/v1/browse_pb";
+import type { RowEpisode } from "@/features/title/lib/show-row";
 import { paddingFor } from "@/shared/lib/padding-for";
 
 /**
- * Every one of a Show's `episodes` in one row, `ref`, that scrolls sideways, snapping to each, past
+ * Every one of a Show's `episodes` in one row, those of the page's Library, `libraryId`, and those it
+ * lacks, `ref`, that scrolls sideways, snapping to each, past
  * the page's column to the screen's edges, keeping only the cards near the view in the page. It
  * takes focus, so arrow keys scroll it, opens on the card at `opening`, and `scroller` scrolls it.
  */
@@ -20,8 +21,8 @@ export function EpisodeRow({
 }: {
   ref: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
-  libraryId: bigint;
-  episodes: Episode[];
+  libraryId: bigint | undefined;
+  episodes: RowEpisode[];
   opening: number;
 }) {
   const virtualizer = useEpisodeVirtualizer({
@@ -50,17 +51,9 @@ export function EpisodeRow({
         style={{ "--tiles-before": padding.above, "--tiles-after": padding.below }}
       >
         {shown.map(({ index, key }) => {
-          const episode = episodes[index];
-          return (
-            episode && (
-              <EpisodeCard
-                key={key}
-                libraryId={libraryId}
-                episode={episode}
-                place={{ index, of: episodes.length }}
-              />
-            )
-          );
+          const item = episodes[index];
+          const place = { index, of: episodes.length };
+          return item && <RowCard key={key} {...{ libraryId, item, place }} />;
         })}
       </ul>
     </div>

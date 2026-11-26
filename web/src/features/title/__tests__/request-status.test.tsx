@@ -1,6 +1,6 @@
 import { type MessageInitShape, create, fromJson } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
   DownloadStatus,
@@ -13,8 +13,15 @@ import {
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { layOutShelves } from "@/test-layout";
 
-afterEach(cleanup);
+beforeEach(layOutShelves);
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 type Request = MessageInitShape<typeof RequestSchema>;
 
@@ -128,15 +135,16 @@ test("a Request manager retries a Failed Request from the title", async () => {
   });
 });
 
-test("a Season of yours Declined can be picked and Requested again, and one Failed can't", async () => {
+test("a Season of yours Declined can be Requested again, and one Failed can't", async () => {
   const show = create(FoundShowSchema, {
     id: { namespace: "tmdb", value: "70523" },
     title: "Dark",
     seasons: [
-      { seasonNumber: 1, request: yours(RequestState.DECLINED) },
+      { seasonNumber: 1, request: yours(RequestState.DECLINED), episodes: [{ episodeNumber: 1 }] },
       {
         seasonNumber: 2,
         request: yours(RequestState.FAILED, { requesters: [{ userId: 2n, name: "Ada" }] }),
+        episodes: [{ episodeNumber: 1 }],
       },
     ],
   });
@@ -147,10 +155,11 @@ test("a Season of yours Declined can be picked and Requested again, and one Fail
     }),
   );
 
-  const declined = await screen.findByRole<HTMLInputElement>("checkbox", { name: "Season 1" });
-
-  expect(declined.disabled).toBe(false);
-  expect(screen.getByRole<HTMLInputElement>("checkbox", { name: "Season 2" }).disabled).toBe(true);
+  await expect(
+    screen.findByRole("button", { name: "Request Season 1 of Dark" }),
+  ).resolves.toBeDefined();
+  expect(screen.getByRole("button", { name: "Request Season 1" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Request Season 2" })).toBeNull();
 });
 
 test("a Request manager retries a Failed Season from its row", async () => {
@@ -158,7 +167,7 @@ test("a Request manager retries a Failed Season from its row", async () => {
   const show = create(FoundShowSchema, {
     id: { namespace: "tmdb", value: "70523" },
     title: "Dark",
-    seasons: [{ seasonNumber: 2, request: failed }],
+    seasons: [{ seasonNumber: 2, request: failed, episodes: [{ episodeNumber: 1 }] }],
   });
   openApp(
     "/shows/tmdb-70523",
@@ -174,14 +183,11 @@ test("a Request manager retries a Failed Season from its row", async () => {
     }),
   );
 
-  const season2 = await screen.findByRole("checkbox", { name: "Season 2" });
-  fireEvent.click(screen.getByRole("button", { name: "Retry Season 2 of Dark" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Retry Season 2 of Dark" }));
 
   await waitFor(() => {
     expect(retried).toStrictEqual([5n]);
   });
-  expect(season2.getAttribute("aria-describedby")).not.toBeNull();
-  expect(screen.getByRole("checkbox", { description: "Failed" })).toBe(season2);
 });
 
 test("a Movie to Request shows its Score, genres and Content Rating, its Original audio in Details, and its Trailers", async () => {
