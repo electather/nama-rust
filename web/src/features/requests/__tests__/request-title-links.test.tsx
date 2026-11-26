@@ -76,7 +76,7 @@ test("at the Hub, a picked Server's Request titles link to that Server's pages",
   ]);
 });
 
-test("at the Hub, a picked Server's Request titles name it over another Server's", async () => {
+test("at the Hub, a picked Server's Request titles link to it, not the Server in ?server=", async () => {
   openAtHub("/?server=cabin&settings=requests&manage=basement");
 
   await expect(titleHrefs()).resolves.toStrictEqual([
