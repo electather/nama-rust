@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT content_rating FROM item_matches\n             WHERE item_id = ? AND state = 'matched' AND title = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8141dc6aae517626af55163329d86c56241b9063232abd799ac63468fd147dbd"
+}
