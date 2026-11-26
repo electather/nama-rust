@@ -189,10 +189,13 @@ test("a missing title opens its page to Request it, badged with where it stands"
   scrollable().scrolled();
   openHome();
 
-  await screen.findByRole("link", { name: "Dune" });
+  await screen.findByRole("link", { name: "Dune, 2021" });
   const picks = screen.getByRole("region", { name: "Picks" });
 
-  const dunePoster = within(picks).getByRole("link", { name: "Dune", description: "Pending" });
+  const dunePoster = within(picks).getByRole("link", {
+    name: "Dune, 2021",
+    description: "Pending",
+  });
   expect(dunePoster.getAttribute("href")).toBe("/movies/tmdb-438631");
   expect(dunePoster.querySelector("img:not([src^='data:'])")?.getAttribute("src")).toBe(
     dune.posterUrl,
@@ -202,7 +205,7 @@ test("a missing title opens its page to Request it, badged with where it stands"
     within(picks).getByRole("link", { name: "Arrival", description: "Not on this Server" }),
   ).toBeDefined();
   const severancePoster = within(picks).getByRole("link", {
-    name: "Severance",
+    name: "Severance, 2022",
     description: "Not on this Server",
   });
   expect(severancePoster.getAttribute("href")).toBe("/shows/tmdb-95396");

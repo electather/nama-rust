@@ -5,6 +5,7 @@ import { type MovieHit, RequestState } from "@/gen/nama/v1/request_pb";
 import { shownRequestState } from "@/shared/components/request-state/request-states";
 import type { Shown } from "@/shared/components/state-label";
 import type { RowTitle } from "@/shared/lib/row-titles";
+import { yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** A shelf badge's state, with a `short` word to show when its label won't fit a poster's corner. */
@@ -13,6 +14,8 @@ export type TileBadgeShown = Shown & { short?: string };
 /** A row's title as its shelf shows it: a poster that opens its page, maybe with a badge. */
 export interface RowTile {
   title: string;
+  /** None for a Show on the Server, whose row title carries no date. */
+  year: string | undefined;
   posterUrl: string | undefined;
   posterThumbhash: Uint8Array | undefined;
   link: LinkOptions;
@@ -40,6 +43,7 @@ export function rowTile(title: RowTitle): RowTile {
   const { value } = title;
   const art = {
     title: value.title,
+    year: yearOfRowTitle(title),
     posterUrl: value.posterUrl,
     posterThumbhash: value.posterThumbhash,
   };
@@ -72,6 +76,13 @@ export function rowTile(title: RowTitle): RowTile {
     },
     badge: undefined,
   };
+}
+
+function yearOfRowTitle(title: RowTitle) {
+  if (title.case === "movie") {
+    return yearOf(title.value.releaseDate);
+  }
+  return title.case === "show" ? undefined : title.value.year?.toString();
 }
 
 /** A missing Movie opens in the Library that has it since, if one does. */
