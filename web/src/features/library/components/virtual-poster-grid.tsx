@@ -15,8 +15,8 @@ declare module "react" {
   }
 }
 
-/** A poster's row's height at `lg`, with its caption, before it is measured. */
-const ROW_ESTIMATE = 360;
+/** A poster's row's height at `lg`, 2:3 of its 183px column, before it is measured. */
+const ROW_ESTIMATE = 275;
 /** `posterGrid`'s `gap-y-8`, between rows. */
 const ROW_GAP = 32;
 

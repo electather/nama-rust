@@ -319,16 +319,17 @@ async fn home_lists_a_recently_added_row_for_each_library_after_continue_watchin
 }
 
 #[tokio::test]
-async fn home_lists_the_kernel_rows_before_the_plugin_rows() {
+async fn home_lists_the_kernel_rows_before_the_plugin_rows_each_linked_to_a_library_it_has() {
     let server = enabled("").await;
     wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
-    let plugin = |key: &str, heading: &str| HomeRow {
+    let plugin = |key: &str, heading: &str, library_id: Option<i64>| HomeRow {
         kernel_or_plugin: Some(
             PluginHomeRow {
                 plugin_id: PLUGIN.to_owned(),
                 key: key.to_owned(),
                 heading: heading.to_owned(),
+                library_id,
                 ..Default::default()
             }
             .into(),
@@ -347,9 +348,9 @@ async fn home_lists_the_kernel_rows_before_the_plugin_rows() {
     assert_eq!(
         rows[2..],
         [
-            plugin("picks", "Picks"),
-            plugin("again", "Alien again"),
-            plugin("missing", "Not on the Server"),
+            plugin("picks", "Picks", Some(1)),
+            plugin("again", "Alien again", None),
+            plugin("missing", "Not on the Server", None),
         ]
     );
 }

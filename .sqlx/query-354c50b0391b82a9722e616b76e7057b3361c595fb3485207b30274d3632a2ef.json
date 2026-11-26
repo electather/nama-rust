@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT plugin_id, user_id, key, heading, titles, missing FROM home_rows\n             WHERE user_id IS NULL OR user_id = ?\n             ORDER BY plugin_id, user_id IS NOT NULL, position",
+  "query": "SELECT plugin_id, user_id, key, heading, library_id, titles, missing FROM home_rows\n             WHERE user_id IS NULL OR user_id = ?\n             ORDER BY plugin_id, user_id IS NOT NULL, position",
   "describe": {
     "columns": [
       {
@@ -48,8 +48,19 @@
         }
       },
       {
-        "name": "titles",
+        "name": "library_id",
         "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "home_rows",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "titles",
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "missing",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -78,9 +89,10 @@
       true,
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "57ff2bae06d97ddfa3cfa2171ab1a3f696fb40933655020972c2e2b584564ff2"
+  "hash": "354c50b0391b82a9722e616b76e7057b3361c595fb3485207b30274d3632a2ef"
 }

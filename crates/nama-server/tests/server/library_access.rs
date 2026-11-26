@@ -190,6 +190,22 @@ async fn picks(who: &ClientConfig) -> Vec<String> {
     titles.iter().map(shown).collect()
 }
 
+/// The Library the heading of the test Plugin's "picks" row links to in `who`'s home.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn picks_library(who: &ClientConfig) -> Option<i64> {
+    let client = browse(who);
+    let rows = client.list_home_rows(ListHomeRowsRequest::default());
+    (rows.await.unwrap().into_owned().rows.into_iter())
+        .find_map(|row| match row.kernel_or_plugin {
+            Some(KernelOrPlugin::Plugin(row)) if row.key == "picks" => Some(row.library_id),
+            _ => None,
+        })
+        .unwrap()
+}
+
 fn shown(title: &HomeRowTitle) -> String {
     match &title.movie_or_show {
         Some(MovieOrShow::Movie(movie)) => format!("Movie {}", movie.id.value),
@@ -308,6 +324,28 @@ async fn a_plugin_row_leaves_out_a_hidden_librarys_title_rather_than_offer_it_as
         [dune.clone(), format!("Movie {ALIEN}"), dark.clone()]
     );
     assert_eq!(vasquezs, [format!("Movie {HEAT}"), dune, dark]);
+}
+
+#[tokio::test]
+async fn a_plugin_rows_heading_links_its_library_only_for_a_user_who_sees_it() {
+    let fx = Fixture::start().await;
+    assert_eq!(
+        fx.alien.id, 1,
+        "the Library the test Plugin's picks link to"
+    );
+    fx.server.enable_test_plugin("home-rows").await;
+    let admin = fx.server.client_config();
+    let started = Instant::now();
+    while picks(&admin).await.len() < 4 {
+        assert!(started.elapsed() < WAIT, "the row never refreshed");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    let bishops = picks_library(&fx.bishop.client_config()).await;
+    let vasquezs = picks_library(&fx.vasquez.client_config()).await;
+
+    assert_eq!(bishops, Some(fx.alien.id));
+    assert_eq!(vasquezs, None);
 }
 
 #[tokio::test]

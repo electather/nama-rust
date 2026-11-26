@@ -1,8 +1,8 @@
 import { useId } from "react";
 
+import { Poster } from "@/shared/components/poster/poster";
 import type { RowTile } from "@/shared/components/row-poster/row-tiles";
 import { TileBadge } from "@/shared/components/row-poster/tile-badge";
-import { ShelfPoster } from "@/shared/components/shelf-poster";
 
 /**
  * A row's title on its shelf: its poster alone, with its badge, opening its page. `current` marks
@@ -11,7 +11,7 @@ import { ShelfPoster } from "@/shared/components/shelf-poster";
 export function RowPoster({ tile, current = false }: { tile: RowTile; current?: boolean }) {
   const badgeId = useId();
   return (
-    <ShelfPoster
+    <Poster
       current={current}
       link={tile.link}
       title={tile.title}
@@ -19,6 +19,6 @@ export function RowPoster({ tile, current = false }: { tile: RowTile; current?: 
       art={{ url: tile.posterUrl, thumbhash: tile.posterThumbhash }}
     >
       {tile.badge && <TileBadge id={badgeId} badge={tile.badge} />}
-    </ShelfPoster>
+    </Poster>
   );
 }

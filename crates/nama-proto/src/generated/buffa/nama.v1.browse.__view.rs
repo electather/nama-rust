@@ -18951,6 +18951,10 @@ pub struct PluginHomeRowView<'a> {
     ///
     /// Field 3: `heading`
     pub heading: &'a str,
+    /// The Library its heading opens, one the caller sees; unset in a Home layout.
+    ///
+    /// Field 4: `library_id`
+    pub library_id: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginHomeRowView<'a> {
@@ -19004,6 +19008,13 @@ impl<'a> ::buffa::MessageView<'a> for PluginHomeRowView<'a> {
                 )?;
                 view.heading = ::buffa::types::borrow_str(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -19029,6 +19040,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginHomeRowView<'a> {
             plugin_id: self.plugin_id.to_string(),
             key: self.key.to_string(),
             heading: self.heading.to_string(),
+            library_id: self.library_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -19049,6 +19061,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginHomeRowView<'a> {
         if !self.heading.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.heading) as u64;
         }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -19068,6 +19083,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginHomeRowView<'a> {
         }
         if !self.heading.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.heading, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -19098,6 +19116,9 @@ impl<'__a> ::serde::Serialize for PluginHomeRowView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.heading) {
             __map.serialize_entry("heading", self.heading)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.library_id {
+            __map.serialize_entry("libraryId", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -19210,6 +19231,13 @@ impl PluginHomeRowOwnedView {
     #[must_use]
     pub fn heading(&self) -> &'_ str {
         self.0.reborrow().heading
+    }
+    /// The Library its heading opens, one the caller sees; unset in a Home layout.
+    ///
+    /// Field 4: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().library_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginHomeRowView<'static>>>

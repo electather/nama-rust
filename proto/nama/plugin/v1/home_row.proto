@@ -90,6 +90,9 @@ message HomeRow {
   uint32 ttl_seconds = 3;
   // The row's titles, in the order it shows them. The Kernel keeps the first 200.
   repeated HomeRowTitle titles = 4;
+  // The Library its heading opens (1.6.0), such as the one whose titles it lists, by the id
+  // `list_libraries` gives. Home links the heading only for a User who sees that Library.
+  optional int64 library_id = 5;
 }
 
 // A title in a Home row, by one of its ids. The Plugin sends no names or posters: the Kernel shows

@@ -60,6 +60,9 @@ const MAX_HEADING: usize = 40;
 pub(crate) struct Row {
     pub(crate) key: String,
     pub(crate) heading: String,
+    /// The Library its heading opens, as its Plugin gave it: one no Library has, or its reader
+    /// doesn't see, is left for the reader to drop.
+    pub(crate) library: Option<i64>,
     titles: Vec<Title>,
     /// Those of `titles` the title source had that weren't on the Server at the last refresh.
     missing: Vec<Missing>,

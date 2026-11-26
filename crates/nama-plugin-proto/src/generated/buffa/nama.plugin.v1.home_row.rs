@@ -992,6 +992,17 @@ pub struct HomeRow {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub titles: ::buffa::alloc::vec::Vec<HomeRowTitle>,
+    /// The Library its heading opens (1.6.0), such as the one whose titles it lists, by the id
+    /// `list_libraries` gives. Home links the heading only for a User who sees that Library.
+    ///
+    /// Field 5: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub library_id: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1003,6 +1014,7 @@ impl ::core::fmt::Debug for HomeRow {
             .field("heading", &self.heading)
             .field("ttl_seconds", &self.ttl_seconds)
             .field("titles", &self.titles)
+            .field("library_id", &self.library_id)
             .finish()
     }
 }
@@ -1012,6 +1024,15 @@ impl HomeRow {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.HomeRow";
+}
+impl HomeRow {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::library_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_library_id(mut self, value: i64) -> Self {
+        self.library_id = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(HomeRow);
 impl ::buffa::MessageName for HomeRow {
@@ -1050,6 +1071,9 @@ impl ::buffa::Message for HomeRow {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1076,6 +1100,9 @@ impl ::buffa::Message for HomeRow {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1123,6 +1150,15 @@ impl ::buffa::Message for HomeRow {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.titles.push(elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1135,6 +1171,7 @@ impl ::buffa::Message for HomeRow {
         self.heading.clear();
         self.ttl_seconds = 0u32;
         self.titles.clear();
+        self.library_id = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

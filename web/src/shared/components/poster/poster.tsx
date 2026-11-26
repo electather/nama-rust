@@ -1,54 +1,58 @@
-import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { Thumbhash } from "@/shared/components/thumbhash";
-import { PlayedMark } from "@/shared/components/watch-state/played-mark";
-import { WatchedBar } from "@/shared/components/watch-state/watched-bar";
-import { useServerUrl } from "@/shared/hooks/use-server-url";
-import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { Link, type LinkOptions } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+
+import { TileArt } from "@/shared/components/tile-art";
+
+/** The `sizes` of a shelf's poster, as wide as `w-tile-poster`. */
+const shelfSizes = "(max-width: 1071px) 150px, (max-width: 1500px) 14vw, 210px";
+
+const radius = "rounded-3xl";
 
 /**
- * A title's poster with its name and a line of metadata under it, and your Watch State: a played
- * mark on the art, or a bar under it once you've started. The 2:3 box is there before the image
- * loads, so the grid doesn't shift, showing its `thumbhash` until then.
+ * A Movie's, Show's or Box Set's poster alone, opening `link`: its name, `title`, and `detail`,
+ * such as its year, are its label for assistive technology, and its name shows in place of art it
+ * lacks. `children`, such as a badge, sit over it, and `describedBy` names the element that
+ * describes the link, since its label hides them. `current` marks the title whose page it is on.
+ * `sizes` is how wide it shows, a shelf's tile unless a grid says otherwise.
  */
 export function Poster({
-  url,
-  thumbhash,
+  link,
   title,
   detail,
-  watchState,
+  art,
+  sizes = shelfSizes,
+  current = false,
+  describedBy,
+  children,
 }: {
-  url?: string | undefined;
-  thumbhash?: Uint8Array | undefined;
+  link: LinkOptions;
   title: string;
   detail?: string | undefined;
-  watchState?: WatchState | undefined;
+  art: { url: string | undefined; thumbhash: Uint8Array | undefined };
+  sizes?: string;
+  current?: boolean;
+  describedBy?: string | undefined;
+  children?: ReactNode;
 }) {
-  const src = useServerUrl(url);
-  const srcSet = useSrcSet(url, "posterWidths");
   return (
-    <>
-      <div className="relative isolate aspect-2/3 overflow-hidden rounded-lg border bg-muted">
-        <Thumbhash thumbhash={thumbhash} />
-        {url !== undefined && (
-          // Its title is the caption, so the image itself says nothing more.
-          <img
-            src={src}
-            srcSet={srcSet}
-            // A column of `PosterGrid` at each of its breakpoints.
-            sizes="(min-width: 1024px) 183px, (min-width: 768px) 22vw, (min-width: 640px) 30vw, 45vw"
-            alt=""
-            loading="lazy"
-            className="size-full object-cover"
-          />
-        )}
-        <PlayedMark state={watchState} />
-      </div>
-      {/* Always there, so captions line up whether or not a title has a bar. */}
-      <div className="mt-1.5 h-0.5">
-        <WatchedBar state={watchState} />
-      </div>
-      <p className="mt-1.5 text-sm font-medium text-balance">{title}</p>
-      {detail !== undefined && <p className="text-sm text-muted-foreground">{detail}</p>}
-    </>
+    <Link
+      {...link}
+      aria-label={detail === undefined ? title : `${title}, ${detail}`}
+      aria-current={current ? "page" : undefined}
+      aria-describedby={describedBy}
+      className={`relative isolate flex aspect-2/3 items-center justify-center overflow-hidden bg-muted p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${radius}`}
+    >
+      {art.url === undefined && (
+        <span className="text-center text-sm font-medium text-balance text-muted-foreground">
+          {title}
+        </span>
+      )}
+      <TileArt
+        url={art.url}
+        thumbhash={art.thumbhash}
+        look={{ sizes, radius, widths: "posterWidths" }}
+      />
+      {children}
+    </Link>
   );
 }

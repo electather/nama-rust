@@ -115,11 +115,12 @@ test("a Person's page shows their headshot and name over their titles, newest fi
   const cast = within(screen.getByRole("list", { name: "Cast" }));
 
   expect(heading.parentElement?.querySelector("img")?.getAttribute("src")).toBe(weaver.headshotUrl);
-  expect(cast.getAllByRole("listitem").map((title) => title.textContent)).toStrictEqual([
-    "Aliens1986 · Ripley",
-    "Alien1979 · Ellen Ripley",
+  // Each poster alone, its year and their part in its label.
+  expect(cast.getAllByRole("link").map((title) => title.getAttribute("aria-label"))).toStrictEqual([
+    "Aliens, 1986 · Ripley",
+    "Alien, 1979 · Ellen Ripley",
   ]);
-  expect(cast.getByRole("link", { name: /^Alien 1979/u }).getAttribute("href")).toBe(
+  expect(cast.getByRole("link", { name: /^Alien, 1979/u }).getAttribute("href")).toBe(
     "/libraries/1/movies/tmdb-348",
   );
   expect(screen.queryByRole("heading", { name: "Crew" })).toBeNull();
