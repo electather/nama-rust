@@ -26,9 +26,9 @@ include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 /// still gets a 404.
 pub async fn serve(request: Request, next: Next, passed_on: &[&str]) -> Response {
     let path = request.uri().path();
-    let passed_on =
+    let goes_on =
         path.starts_with("/nama.") || passed_on.iter().any(|prefix| path.starts_with(prefix));
-    if request.method() != Method::GET || passed_on {
+    if request.method() != Method::GET || goes_on {
         return next.run(request).await;
     }
     // `DefaultPredicate` leaves images but SVG alone; fonts are woff2, compressed already.

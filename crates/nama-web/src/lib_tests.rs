@@ -129,8 +129,8 @@ async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
     assert!(!shell_response.headers().contains_key(header::CACHE_CONTROL));
 }
 
-/// `WebAssembly.instantiateStreaming` refuses the ASS renderer's wasm under any other type, and
-/// Chrome the manifest that installs the app.
+/// A browser applies the app's stylesheet only as CSS, `WebAssembly.instantiateStreaming` refuses
+/// the ASS renderer's wasm under any other type, and Chrome the manifest that installs the app.
 #[tokio::test]
 async fn the_app_s_stylesheet_webassembly_and_manifest_are_served_as_such() {
     for (path, content_type) in [

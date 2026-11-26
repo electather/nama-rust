@@ -80,5 +80,4 @@ The `web` feature embeds the web app's build output (`web/dist`) and serves it (
 vp -C web build
 cargo run -p nama-server --features web
 cargo nextest run -p nama-server --features web --test web   # the tests that need it
-cargo nextest run -p nama-web --features embed                # what it serves, as the Hub does too
 ```
