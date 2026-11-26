@@ -68,7 +68,11 @@ export default defineConfig({
       // `crates/nama-web` for Connect's). Custom Images are uploaded with `PUT` and removed with
       // `DELETE`, which the web app never answers, and the web app's Diagnostics are posted.
       // The first key a path matches wins, so the Hub's API goes ahead of the Server's.
-      ...(hubUrl === undefined ? {} : { "^/nama\\.hub\\.": hubUrl }),
+      // The Hub's keys and telemetry go too, so a Server whose Hub URL is this dev server can Link
+      // through it, and its CORS then approves this origin (crates/nama-server/AGENTS.md).
+      ...(hubUrl === undefined
+        ? {}
+        : { "^/nama\\.hub\\.": hubUrl, "/.well-known/": hubUrl, "/otlp/": hubUrl }),
       "^/nama\\.": serverUrl,
       "/media/": serverUrl,
       "/custom-images/": serverUrl,

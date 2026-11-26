@@ -2428,7 +2428,7 @@ dependencies = [
 
 [[package]]
 name = "nama-hub"
-version = "0.2.0"
+version = "0.2.1-dev"
 dependencies = [
  "argon2",
  "axum",
@@ -2759,7 +2759,7 @@ dependencies = [
 
 [[package]]
 name = "nama-server"
-version = "0.2.0"
+version = "0.2.1-dev"
 dependencies = [
  "argon2",
  "axum",
