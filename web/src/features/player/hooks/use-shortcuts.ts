@@ -22,7 +22,7 @@ export interface ShortcutParts {
   sections: SeekSection[];
 }
 
-/** YouTube's keys for the player (`shortcuts.ts`), and Esc to go back to the title. */
+/** YouTube's keys for the player (`shortcuts.ts`), and Esc to leave it, as Back does (`useGoBack`). */
 export function useShortcuts(
   {
     videoRef,
