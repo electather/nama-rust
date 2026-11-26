@@ -14,7 +14,7 @@ CI counts those headings, so a break passes only with one more than main has: ed
 
 - `ENUM_VALUE_NO_DELETE`, `nama/v1/plugin.proto`: `ExtensionPoint.EXTENSION_POINT_DIAGNOSTICS_SHARER` (18), deleted with its number and name reserved.
 - The DiagnosticsSharer Extension Point is gone since #2221: the Kernel sends shared Diagnostics to the Hub itself, and no Server reports 18 in `PluginSummary.extension_points` or `ExtensionPointFailure.point`.
-- A client built before still knows 18 but never receives it, so it needs no change; it should regenerate to drop the name. The web app is the only client.
+- A client built before still knows 18 but never receives it, so it keeps working unchanged; regenerating only drops the name. The web app is the only client.
 
 ## 2026-11-24, #2214, nama.v1
 
