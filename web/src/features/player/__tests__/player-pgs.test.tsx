@@ -276,7 +276,8 @@ test("a PGS Track turned on again says Loading… until it's fetched again", asy
 test("at the Hub, a PGS Track is fetched from the Server", async () => {
   // oxlint-disable-next-line require-await -- a fake fetch answers at once
   vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response("PGS"));
-  openApp(PLAYER, atOrigin(server([])));
+  const friend = "https://friend.example";
+  openApp(PLAYER, atOrigin(server([]), friend));
   const video = await screen.findByLabelText<HTMLVideoElement>("Alien");
   Object.defineProperty(video, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
 
@@ -285,7 +286,7 @@ test("at the Hub, a PGS Track is fetched from the Server", async () => {
   await waitFor(() => {
     expect(bitsub.drawn).toStrictEqual(["PGS"]);
   });
-  expect(vi.mocked(fetch)).toHaveBeenCalledWith(`https://friend.example${SIGNS}`);
+  expect(vi.mocked(fetch)).toHaveBeenCalledWith(`${friend}${SIGNS}`);
 });
 
 // Last: once the renderer fails, this page never lists PGS again, as after it a reload would.

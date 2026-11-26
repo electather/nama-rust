@@ -251,12 +251,15 @@ test("space in the subtitle menu picks a subtitle without playing or pausing", a
   expect(pause).not.toHaveBeenCalled();
 });
 
-test.each(ways)("at the Hub, $how loads the video and subtitles from the Server", async (way) => {
-  vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue(way.canPlayHls);
-  openApp(PLAYER, atOrigin(server(way.plan).transport, FRIEND));
-  const { video, modes } = await player();
+test.each(ways)(
+  "at the Hub, $how loads the video and subtitles from the Server over CORS",
+  async (way) => {
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue(way.canPlayHls);
+    openApp(PLAYER, atOrigin(server(way.plan).transport, FRIEND));
+    const { video, modes } = await player();
 
-  expect(playing(video)).toStrictEqual(way.atHub);
-  expect([...modes.keys()]).toStrictEqual([`${FRIEND}${ENGLISH}`, `${FRIEND}${FRENCH}`]);
-  expect(video.crossOrigin).toBe("anonymous");
-});
+    expect(playing(video)).toStrictEqual(way.atHub);
+    expect([...modes.keys()]).toStrictEqual([`${FRIEND}${ENGLISH}`, `${FRIEND}${FRENCH}`]);
+    expect(video.crossOrigin).toBe("anonymous");
+  },
+);
