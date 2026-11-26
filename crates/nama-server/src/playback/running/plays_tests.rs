@@ -8,12 +8,15 @@ use super::{
         Method,
         tests::{
             database, direct_play_of, event_bus, plans_with, playback, ripley, running_plans,
-            settings, start_faked, start_on_hardware, start_remux, vaapi,
+            settings, start_faked, start_on_hardware, start_remux, vaapi, viewer,
         },
     },
     ReportedProgress,
 };
-use crate::events::{Filter, event};
+use crate::{
+    events::{Filter, event},
+    playback::viewer_of_caller,
+};
 
 #[tokio::test]
 async fn a_play_runs_on_its_hardware_until_it_falls_back_to_software() {
@@ -41,9 +44,9 @@ async fn plays_are_listed_oldest_first_with_the_progress_their_device_last_repor
         duration_ms: 60_000,
     };
 
-    plans.report_progress(version, device, at(1_000));
-    plans.report_progress(version, device, at(2_000));
-    plans.report_progress(5, device, at(3_000));
+    plans.report_progress(version, viewer(device), at(1_000));
+    plans.report_progress(version, viewer(device), at(2_000));
+    plans.report_progress(5, viewer(device), at(3_000));
 
     let listed = plans.plays().await.unwrap();
     let progress: Vec<_> = (listed.iter())
@@ -65,11 +68,11 @@ async fn a_plan_its_device_reports_progress_through_is_kept_past_going_unused() 
         duration_ms: 60_000,
     };
 
-    plans.report_progress(version, device, paused_at);
+    plans.report_progress(version, viewer(device), paused_at);
     plans.stop_unused(Duration::from_millis(50)).await;
 
-    assert!(plans.ask(reported, device).is_some());
-    assert!(plans.ask(unreported, another).is_none());
+    assert!(plans.ask(reported, viewer(device)).is_some());
+    assert!(plans.ask(unreported, viewer(another)).is_none());
 }
 
 #[tokio::test]
@@ -84,7 +87,7 @@ async fn progress_goes_only_to_the_newest_plan_of_its_version_on_its_device() {
         duration_ms: 60_000,
     };
 
-    plans.report_progress(version, device, at);
+    plans.report_progress(version, viewer(device), at);
 
     let listed = plans.plays().await.unwrap();
     let progress: Vec<_> = (listed.iter())
@@ -112,7 +115,7 @@ async fn an_admin_stops_a_plan_on_any_device_and_its_end_carries_their_message()
 
     plans.stop_by_admin(id, "Bedtime".to_owned()).await.unwrap();
 
-    assert!(plans.ask(id, 7).is_none());
+    assert!(plans.ask(id, viewer(7)).is_none());
     assert!(runs.dropped(0));
     let ended = event(PlaybackEnded {
         playback: Playback {
@@ -131,9 +134,9 @@ async fn an_admin_stops_a_plan_on_any_device_and_its_end_carries_their_message()
 async fn an_admin_stopping_a_direct_play_cuts_off_its_devices_file_until_it_plays_again() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
-    let on_ripley = Some(ripley().device.id);
+    let on_ripley = Some(viewer_of_caller(&ripley()));
     let while_playing = plans.stopped(4, on_ripley);
-    let to_another = plans.stopped(4, Some(2));
+    let to_another = plans.stopped(4, Some(viewer(2)));
     let started = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
 
     plans
@@ -162,7 +165,7 @@ async fn an_admin_stopping_one_of_a_devices_plans_of_a_version_cuts_off_nothing_
     let plans = running_plans(data.path()).await;
     let stale = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
     plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
-    let to_ripley = plans.stopped(4, Some(ripley().device.id));
+    let to_ripley = plans.stopped(4, Some(viewer_of_caller(&ripley())));
 
     plans
         .stop_by_admin(stale.unwrap().id, String::new())
