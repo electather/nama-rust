@@ -156,20 +156,28 @@ impl ImageStore {
     /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
     /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
     /// as stored, which an image that can't be resized or isn't stored also is, after a warning
-    /// is logged for one that can't be resized.
+    /// is logged for one that can't be resized. Where `make_copy` makes none, an empty marker
+    /// beside the copies says so, so the original isn't read for it again; a failed read or
+    /// resize leaves none, so the next ask tries again.
     async fn ensure_copy(&self, key: &[&str], resize: Resize, asked: Format) -> Option<Format> {
         let copy = self.copy_path(key, resize.width, asked);
+        // Whether it is sent as stored depends on the format asked too (alpha in a JPEG, the
+        // JPEG XL pixel limit), so the marker is named after the copy it stands in for.
+        let unresized = copy.with_added_extension("same");
         if mark_sent(&copy).await {
             return Some(asked);
+        }
+        if mark_sent(&unresized).await {
+            return None;
         }
         let _resizing = self.resizing.lock().await;
         if mark_sent(&copy).await {
             return Some(asked);
         }
+        if mark_sent(&unresized).await {
+            return None;
+        }
         let _reading = self.whole_read().await.ok()?;
-        // ponytail: an image sent as stored where a copy was asked for, such as one no wider
-        // than asked, is fetched here and again to send it, on every such request; remember
-        // which widths an image goes unresized at if that makes a slow store slower.
         let original = match self.blobs().get(&row_key(key)).await {
             Ok(Some(original)) => original,
             // Sent as stored, the original answers 404.
@@ -217,7 +225,13 @@ impl ImageStore {
                 }
                 Some(format)
             }
-            Ok(Copied::Unneeded) => None,
+            Ok(Copied::Unneeded) => {
+                // Without it the original is only read again the next time it is asked for.
+                if let Err(err) = mark_unresized(&unresized).await {
+                    tracing::warn!("could not mark {} as unresized: {err}", unresized.display());
+                }
+                None
+            }
             Err(err) => {
                 diagnostics::failed(&span, "resize failed");
                 tracing::warn!("{err}, so it is sent as it is");
@@ -240,6 +254,15 @@ async fn mark_sent(copy: &Path) -> bool {
             true
         }
     }
+}
+
+/// Leaves an empty file at `marker`, in a folder made for it if need be, which says the image
+/// goes unresized at the width and format the marker is named after.
+async fn mark_unresized(marker: &Path) -> io::Result<()> {
+    if let Some(folder) = marker.parent() {
+        tokio::fs::create_dir_all(folder).await?;
+    }
+    tokio::fs::write(marker, []).await
 }
 
 /// Whether `headers` hold an `If-None-Match` that `etag` matches, compared weakly as RFC 9110
