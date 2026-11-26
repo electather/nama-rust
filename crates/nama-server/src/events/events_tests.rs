@@ -31,7 +31,8 @@ use crate::{
     server_settings::{ServerUrl, web_push_key},
     users::{
         LibraryAccess, Permissions, User, list_inbox, personal_settings_of,
-        replace_personal_settings, set_notification_preference, testing::insert_user,
+        replace_personal_settings, set_notification_preference,
+        testing::{insert_user, insert_user_holding},
     },
     web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
@@ -407,26 +408,6 @@ impl Notifier for KeepsUsers {
             }
         })
     }
-}
-
-async fn insert_user_holding(db: &Database, name: &str, permissions: Permissions) -> i64 {
-    let name = name.to_owned();
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, ?, 0, 0) RETURNING id",
-            )
-            .bind(&name)
-            .bind(&name)
-            .bind(permissions)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 fn webhook(url: &str) -> BTreeMap<String, String> {
