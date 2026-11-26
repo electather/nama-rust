@@ -1,7 +1,7 @@
 import { callUnaryMethod } from "@connectrpc/connect-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import type { Listed } from "@/features/watchlist/lib/merged-watchlist";
+import type { Listing } from "@/features/watchlist/lib/merged-watchlist";
 import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import { watchlistKeys } from "@/shared/hooks/use-toggle-watchlist";
 
@@ -9,7 +9,7 @@ import { watchlistKeys } from "@/shared/hooks/use-toggle-watchlist";
 export function useRemoveFromWatchlist() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (listed: Listed[]) => {
+    mutationFn: async (listed: Listing[]) => {
       await Promise.all(
         listed.map(async ({ transport, kind, id }) => {
           await callUnaryMethod(transport, WatchlistService.method.removeFromWatchlist, {

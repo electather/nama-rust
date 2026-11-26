@@ -1,5 +1,6 @@
 import type { Transport } from "@connectrpc/connect";
-import { createQueryOptions, useSuspenseQuery, useTransport } from "@connectrpc/connect-query";
+import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { mergedWatchlist } from "@/features/watchlist/lib/merged-watchlist";
 import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
@@ -16,10 +17,6 @@ export function watchlistQuery(transport: Transport) {
 /** Your Watchlist on this Server, each title once. */
 export function useWatchlist() {
   const transport = useTransport();
-  const { titles } = useSuspenseQuery(
-    WatchlistService.method.listWatchlist,
-    {},
-    { staleTime: loaderStaleTime },
-  ).data;
+  const { titles } = useSuspenseQuery(watchlistQuery(transport)).data;
   return mergedWatchlist([{ transport, server: undefined, titles }]);
 }

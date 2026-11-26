@@ -8,14 +8,14 @@ import type { RowTitle } from "@/shared/lib/row-titles";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** One Server's Watchlist, `server` unset for the Server that served the page. */
-export interface ServerWatchlist {
+export interface WatchlistOnServer {
   transport: Transport;
   server: LinkedServer | undefined;
   titles: WatchlistTitle[];
 }
 
 /** A title as one Server's Watchlist keeps it: the id `RemoveFromWatchlist` takes it off by. */
-export interface Listed {
+export interface Listing {
   transport: Transport;
   kind: TitleKind;
   id: ExternalId;
@@ -30,7 +30,7 @@ export interface WatchlistEntry {
   title: RowTitle;
   server: LinkedServer | undefined;
   transport: Transport;
-  listed: Listed[];
+  listed: Listing[];
 }
 
 /**
@@ -38,8 +38,8 @@ export interface WatchlistEntry {
  * first listed. It shows as the first Server with it in a Library has it, else as the first lists
  * it.
  */
-export function mergedWatchlist(watchlists: ServerWatchlist[]): WatchlistEntry[] {
-  // shortcut: a Server listing a title by an External ID another doesn't show it by lists it
+export function mergedWatchlist(watchlists: WatchlistOnServer[]): WatchlistEntry[] {
+  // ponytail: a Server listing a title by an External ID another doesn't show it by lists it
   // twice; match on every id a title has once the Server sends them.
   const entries = new Map<string, WatchlistEntry>();
   for (const watchlist of watchlists) {
@@ -53,7 +53,7 @@ export function mergedWatchlist(watchlists: ServerWatchlist[]): WatchlistEntry[]
 /** Adds `title`, as `watchlist`'s Server lists it, to `entries`, unless it shows as nothing. */
 function addListed(
   entries: Map<string, WatchlistEntry>,
-  { transport, server }: ServerWatchlist,
+  { transport, server }: WatchlistOnServer,
   { id, title }: WatchlistTitle,
 ) {
   const shown = rowTitleOf(title);
@@ -71,7 +71,7 @@ function rowTitleOf(title: HomeRowTitle | undefined): RowTitle | undefined {
 /** Adds the title `shown` on a Server, `listed` there, to `entries`, which may have it already. */
 function add(
   entries: Map<string, WatchlistEntry>,
-  listed: Listed,
+  listed: Listing,
   shown: Pick<WatchlistEntry, "title" | "server" | "transport">,
 ) {
   const key = `${listed.kind}/${titleParam(shown.title.value.id)}`;

@@ -280,6 +280,7 @@ impl HomeRows {
                 },
             };
             if let Some(row_title) = row_title {
+                // ponytail: one query per missing Movie, one after another, as `titles` does.
                 shown.push((id, self.with_request(reader, row_title).await?));
             }
         }
