@@ -105,6 +105,7 @@ impl Contents {
         let asked: Vec<[&str; 2]> = (ids.iter())
             .map(|id| [id.namespace(), id.value()])
             .collect();
+        // Pairs, not `ids_json`'s joined strings, so each is found through `item_match_ids_by_id`.
         let asked = serde_json::Value::from(asked).to_string();
         // Matching finds an Episode by the numbers its file's name gives, so they are the Episode's.
         macro_rules! select {

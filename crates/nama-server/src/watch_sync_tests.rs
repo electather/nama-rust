@@ -248,6 +248,32 @@ async fn an_episode_in_a_library_is_scrobbled_with_its_shows_ids_season_and_numb
 }
 
 #[tokio::test]
+async fn a_movie_sharing_a_library_episodes_id_is_scrobbled_without_numbers() {
+    let (tracker, mut heard) = tracker(Imported::default());
+    let linked = Linked::with(tracker).await;
+    let media = tempfile::tempdir().unwrap();
+    let show_ids = ExternalIds::from_iter([ExternalId::tmdb(70_523)]);
+    matched_episodes_file(
+        &linked.db,
+        media.path(),
+        show_ids,
+        [ALIEN_TMDB_ID, 1_350_210],
+    )
+    .await;
+
+    (linked.mark_played(linked.ada, MovieOrEpisode::movie(&alien_id()))).await;
+    let asked = next(&mut heard).await;
+
+    let change = &asked.changes[0];
+    let numbers = (
+        &change.show_ids,
+        change.season_number,
+        change.episode_number,
+    );
+    assert_eq!(numbers, (&vec![], None, None));
+}
+
+#[tokio::test]
 async fn a_user_without_personal_settings_is_not_scrobbled() {
     let (tracker, mut heard) = tracker(Imported::default());
     let linked = Linked::with(tracker).await;
