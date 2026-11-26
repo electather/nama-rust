@@ -187,7 +187,7 @@ impl FakeSimkl {
 
     fn added(&mut self, body: &Value) -> Response {
         for (list, kind) in [("movies", "movie"), ("episodes", "episode")] {
-            for title in items(&body[list]) {
+            for title in elements(&body[list]) {
                 self.watch(kind, &title["ids"], time_watched(title));
             }
         }
@@ -199,7 +199,7 @@ impl FakeSimkl {
 
     fn removed(&mut self, body: &Value) -> Response {
         for list in ["movies", "episodes"] {
-            for title in items(&body[list]) {
+            for title in elements(&body[list]) {
                 self.watched
                     .retain(|watched| watched["ids"] != title["ids"]);
             }
@@ -219,21 +219,22 @@ impl FakeSimkl {
 /// and number.
 fn episodes_in_shows(body: &Value) -> impl Iterator<Item = (&Value, (u32, u32), &Value)> {
     let number = |value: &Value| u32::try_from(value["number"].as_u64()?).ok();
-    items(&body["shows"]).flat_map(move |show| {
-        items(&show["seasons"]).flat_map(move |season| {
-            items(&season["episodes"]).filter_map(move |episode| {
+    elements(&body["shows"]).flat_map(move |show| {
+        elements(&show["seasons"]).flat_map(move |season| {
+            elements(&season["episodes"]).filter_map(move |episode| {
                 Some((&show["ids"], (number(season)?, number(episode)?), episode))
             })
         })
     })
 }
 
-/// The items of the list `value`, none when it isn't one.
-fn items(value: &Value) -> impl Iterator<Item = &Value> {
+/// The elements of the JSON array `value`, none when it isn't one.
+fn elements(value: &Value) -> impl Iterator<Item = &Value> {
     value.as_array().into_iter().flatten()
 }
 
-/// When a `/sync/history` body says `title` was watched; Simkl takes a missing time as now.
+/// When a `/sync/history` body says `title` was watched; Simkl takes a missing time as now,
+/// which the fake pins to one day.
 fn time_watched(title: &Value) -> &str {
     title["watched_at"]
         .as_str()
