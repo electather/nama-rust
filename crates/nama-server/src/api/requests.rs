@@ -28,8 +28,8 @@ use crate::{
         Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
     },
     requests::{
-        self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
-        QualityRefused, Requests, year_of,
+        self, Asked, Found, FoundShow, Hit, Listed, LookedUpSeason, QUALITY_ASKED_FIELD,
+        QUALITY_CHANGED_FIELD, QualityRefused, Requests, year_of,
     },
 };
 
@@ -551,7 +551,25 @@ fn looked_up_show_to_proto(
     };
     let poster = shown(Role::Poster, show.poster.as_deref());
     let backdrop = shown(Role::Backdrop, show.backdrop.as_deref());
-    let (cast, crew) = roles_to_proto(show.roles, offered_by(&plugin, images));
+    let offered = offered_by(&plugin, images);
+    let seasons = (seasons.into_iter())
+        .map(|LookedUpSeason { season, episodes }| proto::FoundSeason {
+            episodes: (episodes.into_iter())
+                .map(|(episode, in_library)| proto::FoundEpisode {
+                    episode_number: episode.number,
+                    title: episode.title,
+                    overview: episode.overview,
+                    air_date: episode.air_date,
+                    runtime_minutes: episode.runtime_minutes,
+                    still_url: episode.still.as_deref().and_then(&offered),
+                    in_library,
+                    ..Default::default()
+                })
+                .collect(),
+            ..season
+        })
+        .collect();
+    let (cast, crew) = roles_to_proto(show.roles, offered);
     proto::FoundShow {
         id: external_id_to_proto(&id).into(),
         title: show.title,

@@ -20,8 +20,8 @@ use super::{Error, Requests};
 use crate::{
     content_ratings::MaximumAge,
     library::{
-        Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
-        Unanswered, library_with_movie, library_with_show, matched_episodes,
+        Candidate, ImageRef, Metadata, SearchQuery, Source, SourceEpisode, SourceSeason,
+        SourceShow, TitleKind, Unanswered, library_with_movie, library_with_show, matched_episodes,
     },
     users::{LibraryAccess, User, library_access, maximum_age},
 };
@@ -89,11 +89,21 @@ pub(crate) struct FoundShow {
     pub(crate) plugin: PluginId,
     pub(crate) show: SourceShow,
     /// Its Seasons, in order, as the viewer sees them.
-    pub(crate) seasons: Vec<FoundSeason>,
+    pub(crate) seasons: Vec<LookedUpSeason>,
     /// Its open Followed Show, if it has one the viewer may see.
     pub(crate) followed_show: Option<FollowedShow>,
     /// Its Quality, which each of its Season Requests takes, if it has one.
     pub(crate) quality: Option<RequestedQuality>,
+}
+
+/// A Season of a [`FoundShow`], as the viewer sees it, with its Episodes.
+#[derive(Debug)]
+pub(crate) struct LookedUpSeason {
+    /// The Season as clients see it, less its Episodes, whose Stills need offering to them.
+    pub(crate) season: FoundSeason,
+    /// Its Episodes as the title source gave them, in order, each with whether a Library has a
+    /// file Matched to it.
+    pub(crate) episodes: Vec<(SourceEpisode, bool)>,
 }
 
 impl Requests {
@@ -216,6 +226,9 @@ impl Requests {
         {
             return Err(Error::NoSuchShow(asked.clone()));
         }
+        // ponytail: every Season from the title source on each call, and the web app calls again
+        // on each `RequestProgress`, about once a minute while a Season downloads. Cache Seasons
+        // here if the title source's rate limit bites.
         let seasons = self.seasons_from(&source, asked, &show).await?;
         // Taken after asking the title source, so no pooled reader waits on a Plugin.
         let mut conn = self.db.reader().acquire().await?;
@@ -439,7 +452,7 @@ impl Requests {
         viewer: &User,
         show: &ExternalId,
         seasons: Vec<SourceSeason>,
-    ) -> Result<Vec<FoundSeason>, sqlx::Error> {
+    ) -> Result<Vec<LookedUpSeason>, sqlx::Error> {
         let today = today(conn).await?;
         let mut found = Vec::with_capacity(seasons.len());
         // ponytail: two or three queries per Season, and a Show has a few dozen at most.
@@ -448,13 +461,23 @@ impl Requests {
             let request = self
                 .visible_open_request(conn, viewer, show, Some(season.number))
                 .await?;
-            found.push(FoundSeason {
+            let in_library = availability(&season.episodes, &matched, &today);
+            let found_season = FoundSeason {
                 season_number: season.number,
-                in_library: availability(&season.episodes, &matched, &today)
-                    == Some(RequestState::Available),
+                in_library: in_library == Some(RequestState::Available),
                 air_date: season.air_date,
                 request: request.into(),
                 ..Default::default()
+            };
+            let episodes = (season.episodes.into_iter())
+                .map(|episode| {
+                    let has = matched.contains(&i64::from(episode.number));
+                    (episode, has)
+                })
+                .collect();
+            found.push(LookedUpSeason {
+                season: found_season,
+                episodes,
             });
         }
         Ok(found)

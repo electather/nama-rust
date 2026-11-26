@@ -11,8 +11,9 @@ use crate::requests::apply::Applied;
 use crate::requests::asking::WantedSeasons;
 use crate::requests::listing::load;
 use crate::requests::testing::{
-    ADA, BOB, DARK, NOTHING, ada_and_bob, asked_season, breaking_bad, dark, dark_with_seasons,
-    follow_as, handed_off, happened, match_episodes, said, scan, season_ids,
+    ADA, BOB, DARK, NOTHING, ada_and_bob, ask_seasons_as, asked_season, breaking_bad, dark,
+    dark_with_seasons, follow_as, follow_new_as, handed_off, happened, match_dark_episodes,
+    match_episodes, said, scan, scan_dark, season_ids,
 };
 
 /// The id of the Season Request whose Show `applied` stops following, if any.
@@ -116,6 +117,64 @@ async fn joining_a_followed_show_opened_before_its_show_had_seasons_covers_its_s
     assert_eq!(covered_before, [false]);
     assert!(joined.value.1.is_empty(), "{:?}", joined.value.1);
     assert_eq!(covered(&db, id, &[0, 1]).await, [true, false]);
+}
+
+#[tokio::test]
+async fn following_a_shows_new_seasons_asks_for_none_out_already_and_covers_up_to_the_latest() {
+    let (_data, db) = ada_and_bob().await;
+
+    let opened = follow_new_as(&db, ADA, Some(2), RequestState::Approved).await;
+    let joined = follow_new_as(&db, BOB, Some(2), RequestState::Pending).await;
+
+    assert_eq!(happened(&opened), [("followed", RequestState::Approved)]);
+    assert_eq!(
+        happened(&joined),
+        [("joined the Show", RequestState::Approved)]
+    );
+    assert_eq!(handed_off(&opened), NOTHING);
+    let id = opened.value.id;
+    assert_eq!(covered(&db, id, &[1, 2, 3]).await, [true, true, false]);
+}
+
+#[tokio::test]
+async fn a_scan_asks_for_a_season_after_those_out_when_a_show_was_followed_for_its_new_seasons() {
+    let (_data, db) = ada_and_bob().await;
+    follow_new_as(&db, ADA, Some(2), RequestState::Approved).await;
+    match_dark_episodes(&db, 2, &[1, 2]).await;
+    match_dark_episodes(&db, 3, &[1, 2]).await;
+
+    let scanned = scan_dark(&db, &[2, 3]).await;
+
+    assert_eq!(said(&scanned), [("created", RequestState::Available)]);
+    let newest_first = db.write(|tx| Box::pin(load(tx, None, None))).await.unwrap();
+    let asked: Vec<_> = (newest_first.iter())
+        .map(|request| asked_season(request).season_number)
+        .collect();
+    assert_eq!(asked, [3]);
+}
+
+#[tokio::test]
+async fn a_follower_asking_for_a_season_opens_it_for_their_followed_show_in_its_state() {
+    let (_data, db) = ada_and_bob().await;
+    let followed = follow_new_as(&db, ADA, Some(2), RequestState::Approved).await;
+    let id = followed.value.id;
+    let season_2 = WantedSeasons {
+        seasons: dark().seasons.split_off(1),
+        ..dark()
+    };
+
+    let asked = ask_seasons_as(&db, ADA, season_2, RequestState::Pending).await;
+    let not_following = ask_seasons_as(&db, BOB, breaking_bad(), RequestState::Pending).await;
+
+    assert_eq!(happened(&asked), [("created", RequestState::Approved)]);
+    assert_eq!(handed_off(&asked), [asked.value[0].id]);
+    assert_eq!(asked.value[0].followed_show_id, Some(id));
+    for request in &not_following.value {
+        assert_eq!(
+            (request.state.as_known(), request.followed_show_id),
+            (Some(RequestState::Pending), None)
+        );
+    }
 }
 
 #[tokio::test]

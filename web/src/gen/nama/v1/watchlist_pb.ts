@@ -165,8 +165,13 @@ export const WatchlistTitleSchema: GenMessage<WatchlistTitle> = /*@__PURE__*/
  */
 export const WatchlistService: GenService<{
   /**
-   * Adds a title to the caller's Watchlist. Adding one already on it changes nothing. Fails with
-   * `invalid_argument` if the kind is unspecified or the id missing or malformed.
+   * Adds a title to the caller's Watchlist. Adding one already on it changes nothing. A Show
+   * added by a caller with `PERMISSION_REQUEST_TV` is followed too: they join its open Followed
+   * Show, or open one as `CreateFollowedShow` does, which asks for no Season out already, only for
+   * later ones as they come out. A Show no title source has is added without it. Fails with
+   * `invalid_argument` if the kind is unspecified or the id missing or malformed, and with
+   * `unavailable`, adding nothing, if a Show can't be followed since no title source answered.
+   * A Show added on the Hub and synced isn't followed.
    *
    * @generated from rpc nama.v1.WatchlistService.AddToWatchlist
    */
@@ -177,7 +182,9 @@ export const WatchlistService: GenService<{
   },
   /**
    * Removes a title from the caller's Watchlist, by the id it was added under. Removing one that
-   * isn't on it changes nothing. Fails as `AddToWatchlist` does.
+   * isn't on it changes nothing. A Show's removal withdraws the caller from its open Followed Show,
+   * as `WithdrawFollowedShow` does, leaving the Season Requests it opened. Fails as
+   * `AddToWatchlist` does.
    *
    * @generated from rpc nama.v1.WatchlistService.RemoveFromWatchlist
    */

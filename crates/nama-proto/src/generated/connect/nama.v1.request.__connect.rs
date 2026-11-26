@@ -1220,8 +1220,10 @@ pub trait RequestService: Send + Sync + 'static {
         >,
     > + Send;
     /// Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
-    /// asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
-    /// `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
+    /// asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. A
+    /// caller who is a Requester of the Show's open Followed Show asks through it: a new Request opens
+    /// for it, in its state, as `CreateFollowedShow`'s do. Needs `PERMISSION_REQUEST_TV`. A Season is
+    /// in a Library once it has aired and every one of its aired
     /// Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
     /// `invalid_argument` if no Season is named or the title source has no such Show or Season,
     /// and `unavailable` if no title source is enabled, or one failed. A failure changes no

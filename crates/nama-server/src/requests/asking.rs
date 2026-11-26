@@ -15,6 +15,7 @@ use super::apply::Applied;
 use super::asked::{self, Asked};
 use super::availability::{availability, today};
 use super::deciding::approve;
+use super::followed::followed_by;
 use super::listing::load_one;
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
@@ -223,7 +224,13 @@ pub(super) async fn ask_seasons(
     state: RequestState,
 ) -> Result<Applied<Vec<Request>>, Error> {
     let asking = SeasonsToAsk::read(conn, show).await?;
-    asking.ask(conn, Way::Asking { user, state }).await
+    let followed = followed_by(conn, &asking.show_ids, user).await?;
+    let way = Way::Asking {
+        user,
+        state,
+        followed_show: followed.as_ref(),
+    };
+    asking.ask(conn, way).await
 }
 
 /// How Seasons of a Show are asked for, which decides what is done with each:
@@ -284,9 +291,14 @@ pub(super) trait Asker {
 /// A User asking for Seasons of a Show, which can be refused.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Way<'a> {
-    /// `user` asking for Seasons on their own, apart from the Show's Followed Show. Their new
-    /// Requests open in `state`.
-    Asking { user: i64, state: RequestState },
+    /// `user` asking for Seasons from the Show's page. Their new Requests open in `state`, or for
+    /// `followed_show`, the Show's open Followed Show if they follow it, in its state, as
+    /// following does: its Seasons were approved with it.
+    Asking {
+        user: i64,
+        state: RequestState,
+        followed_show: Option<&'a FollowedShow>,
+    },
     /// `user`, whose new Requests would open in `state`, following the Show through
     /// `followed_show`, which new Requests open for and in the state of.
     Following {
@@ -301,7 +313,7 @@ impl Asker for Way<'_> {
 
     fn followed_show(&self) -> Option<&FollowedShow> {
         match *self {
-            Self::Asking { .. } => None,
+            Self::Asking { followed_show, .. } => followed_show,
             Self::Following { followed_show, .. } => Some(followed_show),
         }
     }
@@ -323,7 +335,15 @@ impl Asker for Way<'_> {
                 show: show.clone(),
                 season,
             }),
-            Self::Asking { state, .. } => Ok(Some(state)),
+            Self::Asking {
+                state,
+                followed_show,
+                ..
+            } => Ok(Some(
+                followed_show
+                    .and_then(|followed| followed.state.as_known())
+                    .unwrap_or(state),
+            )),
             Self::Following { .. } if in_full => Ok(None),
             // An Approved Followed Show was approved once for every Season, so needs no approving
             // again.
@@ -341,7 +361,7 @@ impl Asker for Way<'_> {
         wanted: Wanted,
         opens_in: RequestState,
     ) -> Result<Applied<Request>, Error> {
-        let (Self::Asking { user, state } | Self::Following { user, state, .. }) = *self;
+        let (Self::Asking { user, state, .. } | Self::Following { user, state, .. }) = *self;
         // Only `user`'s own auto-approve approves a Pending Season Request they join, whichever
         // way they ask: the state of a Followed Show they join doesn't.
         if state == RequestState::Approved {

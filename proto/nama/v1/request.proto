@@ -44,8 +44,10 @@ service RequestService {
     option idempotency_level = IDEMPOTENT;
   }
   // Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
-  // asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
-  // `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
+  // asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. A
+  // caller who is a Requester of the Show's open Followed Show asks through it: a new Request opens
+  // for it, in its state, as `CreateFollowedShow`'s do. Needs `PERMISSION_REQUEST_TV`. A Season is
+  // in a Library once it has aired and every one of its aired
   // Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
   // `invalid_argument` if no Season is named or the title source has no such Show or Season,
   // and `unavailable` if no title source is enabled, or one failed. A failure changes no
@@ -776,6 +778,24 @@ message FoundSeason {
   bool in_library = 3;
   // The Season's open Request, if it has one the caller may see.
   Request request = 4;
+  // Its Episodes as the title source lists them, in order, aired or not.
+  repeated FoundEpisode episodes = 5;
+}
+
+// An Episode of a `FoundSeason`, and whether it is on the Server. Each field keeps the meaning it
+// has in `nama.v1.Episode`.
+message FoundEpisode {
+  uint32 episode_number = 1;
+  // The title, in its title source's language.
+  string title = 2;
+  optional string overview = 3;
+  // When it first aired, as `YYYY-MM-DD`.
+  optional string air_date = 4;
+  optional uint32 runtime_minutes = 5;
+  // Its Still's URL on this Server. Unset if its title source has none.
+  optional string still_url = 6;
+  // Whether a Library has a file Matched to it.
+  bool in_library = 7;
 }
 
 message LookUpShowRequest {
