@@ -1,6 +1,7 @@
 import { Button } from "nama-ui/components/button";
 
 import type { TitleCandidate } from "@/gen/nama/v1/match_pb";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 import { withYear } from "@/shared/lib/unmatched-names";
 
@@ -19,6 +20,7 @@ export function CandidateRow({
 }) {
   const name = withYear(candidate.title, candidate.year);
   const { originalTitle, posterUrl } = candidate;
+  const src = useServerUrl(posterUrl);
   const srcSet = useSrcSet(posterUrl);
   return (
     <li className="flex items-center gap-3 rounded-lg px-3 py-1 hover:bg-muted">
@@ -27,7 +29,7 @@ export function CandidateRow({
         <span className={posterBox} />
       ) : (
         <img
-          src={posterUrl}
+          src={src}
           srcSet={srcSet}
           sizes="40px"
           alt=""

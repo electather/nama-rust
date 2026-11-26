@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
@@ -15,6 +16,7 @@ export function TitleOrLogo({
   logoUrl: string | undefined;
   logo: { className: string; sizes: string };
 }) {
+  const src = useServerUrl(logoUrl);
   const srcSet = useSrcSet(logoUrl, "titleLogoWidths");
   // Kept by URL, so the next title's logo, shown in the same place, gets its own try.
   const [failedUrl, setFailedUrl] = useState<string>();
@@ -23,7 +25,7 @@ export function TitleOrLogo({
   }
   return (
     <img
-      src={logoUrl}
+      src={src}
       srcSet={srcSet}
       sizes={logo.sizes}
       alt={title}

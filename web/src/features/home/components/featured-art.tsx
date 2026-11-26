@@ -1,5 +1,6 @@
 import type { Panel } from "@/features/home/lib/featured-panels";
 import { Thumbhash } from "@/shared/components/thumbhash";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 declare module "react" {
@@ -17,6 +18,7 @@ const artFocus = { "--art-focus": "center 35%" };
  * and dimmed while closed, and the scrim its copy sits on once open.
  */
 export function FeaturedArt({ panel, first }: { panel: Panel; first: boolean }) {
+  const src = useServerUrl(panel.backdropUrl);
   const srcSet = useSrcSet(panel.backdropUrl, "backdropWidths");
   return (
     <>
@@ -24,7 +26,7 @@ export function FeaturedArt({ panel, first }: { panel: Panel; first: boolean }) 
       {panel.backdropUrl !== undefined && (
         // Its title is the copy over it, so the image says nothing more.
         <img
-          src={panel.backdropUrl}
+          src={src}
           srcSet={srcSet}
           sizes="(max-width: 720px) 100vw, 64vw"
           alt=""

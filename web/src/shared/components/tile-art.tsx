@@ -1,4 +1,5 @@
 import { Thumbhash } from "@/shared/components/thumbhash";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { type OfferedWidths, useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
@@ -18,13 +19,14 @@ export function TileArt({
    */
   look: { sizes: string; radius: string; widths?: OfferedWidths | undefined };
 }) {
+  const src = useServerUrl(url);
   const srcSet = useSrcSet(url, look.widths);
   return (
     <>
       <Thumbhash thumbhash={thumbhash} />
       {url !== undefined && (
         <img
-          src={url}
+          src={src}
           srcSet={srcSet}
           sizes={look.sizes}
           alt=""
