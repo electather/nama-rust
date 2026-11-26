@@ -305,7 +305,7 @@ impl Account {
     }
 
     /// Every play in the User's history watched at or after `since`, or ever without it, page by
-    /// page, skipping those with neither a TMDB nor a TVDB id.
+    /// page, skipping those with neither a TMDB nor a TVDB id of their own or an Episode's Show.
     fn history_since(&mut self, since: Option<Timestamp>) -> Result<Vec<SyncedWatchState>, Error> {
         let start_at = since.map_or_else(String::new, |since| format!("&start_at={since}"));
         let mut changes = Vec::new();
@@ -483,21 +483,26 @@ struct LastActivities {
     all: String,
 }
 
-/// One play `/sync/history` lists: of a Movie or of an Episode.
+/// One play `/sync/history` lists: of a Movie or of an Episode, beside its Show.
 #[derive(Deserialize)]
 struct Play {
     watched_at: String,
     movie: Option<Listed>,
     episode: Option<Listed>,
+    show: Option<Listed>,
 }
 
 #[derive(Deserialize)]
 struct Listed {
     ids: TraktIds,
+    /// An Episode's season and number.
+    season: Option<u32>,
+    number: Option<u32>,
 }
 
 impl Play {
-    /// The play as a played change, or `None` when it has neither a TMDB nor a TVDB id.
+    /// The play as a played change, an Episode with its Show's ids, season and number, or `None`
+    /// when it has neither a TMDB nor a TVDB id, nor an Episode's Show one.
     fn synced(&self) -> Option<SyncedWatchState> {
         let (kind, title) = match (&self.episode, &self.movie) {
             (Some(episode), _) => (TitleRefKind::TITLE_REF_KIND_EPISODE, episode),
@@ -505,10 +510,14 @@ impl Play {
             (None, None) => return None,
         };
         let ids = title.ids.title_ids();
+        let show_ids = (self.show.as_ref()).map_or_else(Vec::new, |show| show.ids.title_ids());
         let watched_at: Timestamp = self.watched_at.parse().ok()?;
-        (!ids.is_empty()).then(|| SyncedWatchState {
+        (!ids.is_empty() || !show_ids.is_empty()).then(|| SyncedWatchState {
             kind: kind.into(),
             ids,
+            show_ids,
+            season_number: title.season,
+            episode_number: title.number,
             played: true,
             changed_at_ms: watched_at.as_millisecond(),
             ..SyncedWatchState::default()

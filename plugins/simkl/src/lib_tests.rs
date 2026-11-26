@@ -358,6 +358,32 @@ fn the_first_import_brings_everything_watched_and_later_ones_what_changed_since(
 }
 
 #[test]
+fn an_import_tells_each_episode_by_its_shows_ids_season_and_number() {
+    let fake = shared(FakeSimkl::new());
+    let mut kernel = kernel(&fake);
+    // Simkl writes some ids as strings and some as numbers, and names a Show by ids the Kernel
+    // doesn't keep too.
+    let show = json!({ "simkl": 17_465, "slug": "a-show", "tmdb": "1399", "tvdb": 121_361 });
+    (fake.borrow_mut()).watch_episode(&show, (2, 3), &json!({}), "2026-11-02T10:00:00Z");
+
+    let (changes, _cursor) = imported(&mut kernel, "").unwrap();
+
+    let [change] = &changes[..] else {
+        panic!("imported {changes:?}");
+    };
+    let show_ids: Vec<String> = (change.show_ids.iter())
+        .map(|id| format!("{}-{}", id.namespace, id.value))
+        .collect();
+    assert_eq!(show_ids, ["tmdb-1399", "tvdb-121361"]);
+    assert_eq!(
+        (change.season_number, change.episode_number),
+        (Some(2), Some(3))
+    );
+    assert_eq!(change.ids, []);
+    assert_eq!(change.kind, TitleRefKind::TITLE_REF_KIND_EPISODE);
+}
+
+#[test]
 fn an_account_with_nothing_watched_imports_nothing() {
     let fake = shared(FakeSimkl::new());
     let mut kernel = kernel(&fake);

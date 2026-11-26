@@ -36,7 +36,8 @@ pub(super) struct FakeSimkl {
     pub(super) pin: Pin,
     /// Answers the User's token with a 401, as once they revoke the app.
     pub(super) revoked: bool,
-    /// What the User watched, oldest first: `{ "kind", "ids", "watched_at" }`.
+    /// What the User watched, oldest first: `{ "kind", "ids", "watched_at" }`, and an Episode's
+    /// `"show"` ids, `"season"` and `"number"` when it was watched by them.
     pub(super) watched: Vec<Value>,
     /// When anything in the User's account last changed, as `/sync/activities` says.
     pub(super) last_activity: String,
@@ -62,6 +63,23 @@ impl FakeSimkl {
         self.watched
             .push(json!({ "kind": kind, "ids": ids.clone(), "watched_at": watched_at }));
         self.last_activity = watched_at.to_owned();
+    }
+
+    /// Marks Episode `number` of Season `season` of the Show `show` (its ids), with `ids` of its
+    /// own, watched at `watched_at`.
+    pub(super) fn watch_episode(
+        &mut self,
+        show: &Value,
+        (season, number): (u32, u32),
+        ids: &Value,
+        watched_at: &str,
+    ) {
+        self.watch("episode", ids, watched_at);
+        if let Some(Value::Object(episode)) = self.watched.last_mut() {
+            episode.insert("show".to_owned(), show.clone());
+            episode.insert("season".to_owned(), season.into());
+            episode.insert("number".to_owned(), number.into());
+        }
     }
 
     /// Simkl's answer to `request` with `body`.
@@ -152,9 +170,9 @@ impl FakeSimkl {
                 shows.push(json!({
                     "status": "watching",
                     "last_watched_at": title["watched_at"],
-                    "show": { "title": "A Show", "ids": { "simkl": 1 } },
-                    "seasons": [{ "number": 1, "episodes": [{
-                        "number": 1,
+                    "show": { "title": "A Show", "ids": or(&title["show"], json!({ "simkl": 1 })) },
+                    "seasons": [{ "number": or(&title["season"], json!(1)), "episodes": [{
+                        "number": or(&title["number"], json!(1)),
                         "watched_at": title["watched_at"],
                         "ids": { "tvdb_id": title["ids"]["tvdb"] },
                     }] }],
@@ -187,6 +205,15 @@ impl FakeSimkl {
             }
         }
         ok(&json!({ "deleted": {}, "not_found": {} }))
+    }
+}
+
+/// `value`, or `default` when it is missing.
+fn or(value: &Value, default: Value) -> Value {
+    if value.is_null() {
+        default
+    } else {
+        value.clone()
     }
 }
 

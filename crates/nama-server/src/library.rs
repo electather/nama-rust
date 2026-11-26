@@ -62,6 +62,6 @@ pub(crate) use watch_states::{
     Watched as WatchedTitle,
 };
 pub(crate) use watch_sync::{
-    delete_plugins_import_cursors, import_cursor, imported as imported_watch_state,
+    delete_plugins_import_cursors, import_cursor, imported as imported_watch_states,
     keep_import_cursor,
 };

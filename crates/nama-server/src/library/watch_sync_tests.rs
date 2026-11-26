@@ -5,7 +5,7 @@ use nama_plugin_api::{
     points::WatchStateChange,
 };
 
-use super::{delete_plugins_import_cursors, import_cursor, imported, keep_import_cursor, synced};
+use super::{as_change, delete_plugins_import_cursors, import_cursor, keep_import_cursor, synced};
 use crate::{db::Database, users::testing::insert_user};
 
 fn episode_change() -> WatchStateChange {
@@ -23,11 +23,11 @@ fn episode_change() -> WatchStateChange {
 fn a_change_told_to_a_plugin_comes_back_as_the_same_change() {
     let change = episode_change();
 
-    assert_eq!(imported(&synced(&change)), Some(change));
+    assert_eq!(as_change(&synced(&change)), Some(change));
 }
 
 #[test]
-fn an_imported_state_of_no_kind_or_without_a_well_formed_id_is_dropped() {
+fn an_imported_state_of_no_kind_is_dropped_and_a_malformed_id_left_out() {
     let state = synced(&episode_change());
     let no_kind = SyncedWatchState {
         kind: EnumValue::Known(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED),
@@ -38,13 +38,14 @@ fn an_imported_state_of_no_kind_or_without_a_well_formed_id_is_dropped() {
         value: "1".to_owned(),
         ..TitleId::default()
     };
-    let no_good_id = SyncedWatchState {
-        ids: vec![malformed],
+    let one_malformed = SyncedWatchState {
+        ids: vec![malformed, state.ids[0].clone()],
         ..state
     };
 
-    assert_eq!(imported(&no_kind), None);
-    assert_eq!(imported(&no_good_id), None);
+    assert_eq!(as_change(&no_kind), None);
+    let ids = as_change(&one_malformed).map(|change| change.ids);
+    assert_eq!(ids, Some(vec!["tmdb-62085".to_owned()]));
 }
 
 const TRACKER: PluginId = PluginId::from_static("tracker");

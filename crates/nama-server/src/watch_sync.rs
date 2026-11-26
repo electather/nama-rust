@@ -13,7 +13,7 @@ use tracing::{error, warn};
 use crate::{
     browse::Browse,
     db::Database,
-    library::{import_cursor, imported_watch_state, keep_import_cursor},
+    library::{import_cursor, imported_watch_states, keep_import_cursor},
     plugins::{ExtensionPoints, without_secrets},
     users::{personal_settings_recipients, renew_personal_secrets},
 };
@@ -117,9 +117,11 @@ impl WatchSyncImports {
         if let Err(err) = renewed.await {
             error!(plugin = %plugin, user, "keeping the tokens an import renewed failed: {err}");
         }
-        let changes = imported.changes.iter();
-        let changes = changes.filter_map(imported_watch_state).collect();
-        if let Err(err) = self.browse.take_pulled(user, changes).await {
+        let taken = async {
+            let changes = imported_watch_states(&self.db, &imported.changes).await?;
+            self.browse.take_pulled(user, changes).await
+        };
+        if let Err(err) = taken.await {
             error!(plugin = %plugin, user, "taking a User's imported Watch State failed: {err}");
             return;
         }
