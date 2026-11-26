@@ -196,7 +196,6 @@ async fn numbered_episode_ids(
     (contents.episode_ids(&show_ids, (season.into(), number.into()))).await
 }
 
-/// `id`, if well formed.
 fn external_id(id: &TitleId) -> Option<ExternalId> {
     ExternalId::new(&id.namespace, id.value.clone()).ok()
 }

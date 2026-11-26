@@ -170,9 +170,9 @@ impl FakeSimkl {
                 shows.push(json!({
                     "status": "watching",
                     "last_watched_at": title["watched_at"],
-                    "show": { "title": "A Show", "ids": or(&title["show"], json!({ "simkl": 1 })) },
-                    "seasons": [{ "number": or(&title["season"], json!(1)), "episodes": [{
-                        "number": or(&title["number"], json!(1)),
+                    "show": { "title": "A Show", "ids": unless_null(&title["show"], json!({ "simkl": 1 })) },
+                    "seasons": [{ "number": unless_null(&title["season"], json!(1)), "episodes": [{
+                        "number": unless_null(&title["number"], json!(1)),
                         "watched_at": title["watched_at"],
                         "ids": { "tvdb_id": title["ids"]["tvdb"] },
                     }] }],
@@ -209,7 +209,7 @@ impl FakeSimkl {
 }
 
 /// `value`, or `default` when it is missing.
-fn or(value: &Value, default: Value) -> Value {
+fn unless_null(value: &Value, default: Value) -> Value {
     if value.is_null() {
         default
     } else {

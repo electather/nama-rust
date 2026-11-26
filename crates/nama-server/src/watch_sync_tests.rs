@@ -444,7 +444,7 @@ async fn an_imported_episodes_own_id_wins_over_its_numbers_and_one_no_library_ha
     let (tracker, _heard) = tracker(Imported {
         changes: vec![
             episode_on_tracker(&[ExternalId::tmdb(1_350_210)], (&show, 1, 1)),
-            episode_on_tracker(&[ExternalId::tmdb(5)], (&elsewhere, 1, 1)),
+            episode_on_tracker(&[], (&elsewhere, 1, 1)),
         ],
         ..Imported::default()
     });
@@ -457,7 +457,11 @@ async fn an_imported_episodes_own_id_wins_over_its_numbers_and_one_no_library_ha
 
     let second = linked.adas_episode_state(1_350_210).await;
     assert!(second.is_some_and(|state| state.played));
-    assert_eq!(linked.adas_episode_state(1).await, None);
+    let first = linked.adas_episode_state(1).await;
+    assert_eq!(
+        first, None,
+        "an Episode of another Show or by number landed"
+    );
 }
 
 /// What the tracker answers having renewed Ada's token: her token, and a username that isn't a
