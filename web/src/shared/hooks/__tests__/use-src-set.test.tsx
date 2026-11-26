@@ -99,7 +99,7 @@ test("a Poster offers a copy at only each width the Server makes Posters at ahea
   expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=480 480w`);
 });
 
-test("a shelf's Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
+test("a Similar title's Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
   openApp("/libraries/1/movies/tmdb-348", serverWithAMovie());
 
   await screen.findByRole("link", { name: "Heat" });
