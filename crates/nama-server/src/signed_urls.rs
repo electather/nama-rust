@@ -4,7 +4,8 @@
 //! plan playing it, so an HLS playlist's relative segment URLs and a Version's Preview frames load
 //! under the same `/media/signed/<grant>/<signature>/` prefix as the URL handed out. A player
 //! fetches under that prefix for as long as it plays, so a playback URL past its few minutes
-//! still loads while its plan runs for its Device, and stops once the plan does.
+//! still loads while its plan runs for its Device, and stops once the plan does, or at once when
+//! its Device stops acting as the User it was signed for (ADR 0106).
 
 use std::sync::Arc;
 
@@ -15,6 +16,7 @@ use axum::{
     response::Response,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use futures_util::future::BoxFuture;
 use ring::{hmac, rand::SystemRandom};
 
 use crate::db::now;
@@ -42,6 +44,10 @@ pub(crate) struct UrlSigner {
 /// Whether the plan `id` runs for the Device `device`, which keeps a playback URL for it loading
 /// past its expiry.
 pub(crate) type PlanRuns = Arc<dyn Fn(u64, i64) -> bool + Send + Sync>;
+
+/// Whether the Viewer's Device still acts as its User, without which a playback URL signed for
+/// them loads nothing.
+pub(crate) type StillActing = Arc<dyn Fn(Viewer) -> BoxFuture<'static, bool> + Send + Sync>;
 
 /// Marks a request [`admit`] let through by its URL's signature, which the access layer takes in
 /// place of a session.
@@ -217,17 +223,24 @@ fn playback_message(token: &str) -> Vec<u8> {
 
 /// Lets a request for a URL `signer` signed, before it expires or, for a playback URL, while its
 /// plan runs as `plan_runs` says, through as a request for the path it was signed for, marked
-/// [`SignedUrl`], and with its [`Viewer`] if it is a playback URL. Any other request goes on as it
-/// came, so a bad or expired signature reaches the access layer with no session. Must run before
-/// routing, which reads the rewritten path.
+/// [`SignedUrl`], and with its [`Viewer`] if it is a playback URL whose Device still acts as its
+/// User, as `still_acting` says. Any other request goes on as it came, so a bad or expired
+/// signature reaches the access layer with no session. Must run before routing, which reads the
+/// rewritten path.
 pub(crate) async fn admit(
-    State((signer, plan_runs)): State<(UrlSigner, PlanRuns)>,
+    State((signer, plan_runs, still_acting)): State<(UrlSigner, PlanRuns, StillActing)>,
     mut request: Request,
     next: Next,
 ) -> Response {
     let unsigned = signer.verify(request.uri().path(), &plan_runs);
     if let Some((path, viewer)) = unsigned
         && let Some(uri) = with_path(request.uri(), &path)
+        // Asked after `verify`, so a plan still running can't keep the URL alive for a User its
+        // Device switched away from (ADR 0106).
+        && match viewer {
+            Some(viewer) => still_acting(viewer).await,
+            None => true,
+        }
     {
         *request.uri_mut() = uri;
         request.extensions_mut().insert(SignedUrl);
@@ -247,3 +260,7 @@ fn with_path(uri: &Uri, path: &str) -> Option<Uri> {
     parts.path_and_query = Some(format!("{path}{query}").parse().ok()?);
     Uri::from_parts(parts).ok()
 }
+
+#[cfg(test)]
+#[path = "signed_urls_tests.rs"]
+mod tests;
