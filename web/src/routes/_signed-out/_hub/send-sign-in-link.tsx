@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { SendSignInLink } from "@/features/auth/components/send-sign-in-link";
-import { pathOnThisServer } from "@/features/auth/lib/path-on-this-server";
+import { redirectSearch } from "@/features/auth/lib/redirect-search";
 
 // `redirect` is where the link's sign-in goes, as on `/sign-in`.
 export const Route = createFileRoute("/_signed-out/_hub/send-sign-in-link")({
-  validateSearch: (search): { redirect?: string | undefined } => ({
-    redirect: pathOnThisServer(search["redirect"]),
-  }),
+  validateSearch: redirectSearch,
   component: SendSignInLinkRoute,
 });
 

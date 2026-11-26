@@ -1,13 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { pathOnThisServer } from "@/features/auth/lib/path-on-this-server";
+import { redirectSearch } from "@/features/auth/lib/redirect-search";
 import { whoIsSignedIn } from "@/shared/hooks/access";
 
 // The User picker and its Switch PIN step: they share `redirect`, where switching goes.
 export const Route = createFileRoute("/_signed-out/switch-user")({
-  validateSearch: (search): { redirect?: string | undefined } => ({
-    redirect: pathOnThisServer(search["redirect"]),
-  }),
+  validateSearch: redirectSearch,
   beforeLoad: async ({ context }) => {
     const signedIn = await whoIsSignedIn(context);
     if (!signedIn) {
