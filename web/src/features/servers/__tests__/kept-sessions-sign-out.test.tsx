@@ -19,9 +19,12 @@ const servers = ["basement", "cabin"].map((id) =>
   create(LinkedServerSchema, { id, name: id, addresses: [`https://${id}.example`] }),
 );
 
-/** Keeps a session on each of `servers`, and one under a key naming no Server. */
+/**
+ * Keeps a session on each of `servers`, one on a Server the Hub doesn't list, and one under a key
+ * naming no Server.
+ */
 function keepSessions() {
-  for (const { id } of servers) {
+  for (const { id } of [...servers, { id: "unlisted" }]) {
     localStorage.setItem(serverSessionKey(ada.id, id), `${id} token`);
   }
   localStorage.setItem("nama:server-session:v1:no-server", "lost token");
@@ -66,9 +69,13 @@ const signedOutBoth = {
 test("signing the Account out signs each kept Device out on its Server, despite one refusing", async () => {
   keepSessions();
   const { signedOut, serverAt } = serversSigningOut({ "https://basement.example": "refuses" });
-  openApp("/?settings=account", accountHub({ servers }).transport, undefined, serverAt);
+  const { hub, transport } = accountHub({ servers });
+  openApp("/?settings=account", transport, undefined, serverAt);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  const signOut = await screen.findByRole("button", { name: "Sign out" });
+  // Signed out, the Hub lists no Servers, so only the list the page already has can name them.
+  hub.servers = [];
+  fireEvent.click(signOut);
 
   await screen.findByRole("heading", { name: "Sign in to the Hub" });
   await waitFor(() => {

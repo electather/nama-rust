@@ -10,7 +10,7 @@ export function serverSessionKey(accountId: string, serverId: string) {
 
 /** The Linked Server a `serverSessionKey` names, or `undefined` for a key it didn't make. */
 function serverIdIn(key: string) {
-  return /^nama:server-session:v1:[^:]+:(?<serverId>[^:]+)$/u.exec(key)?.groups?.["serverId"];
+  return /^[^:]+:(?<serverId>[^:]+)$/u.exec(key.slice(prefix.length))?.groups?.["serverId"];
 }
 
 /**

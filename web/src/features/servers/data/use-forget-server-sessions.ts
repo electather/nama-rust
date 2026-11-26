@@ -17,6 +17,8 @@ export function useForgetServerSessions() {
   const { transport: hub, serverAt } = useRouteContext({ from: "__root__" });
   return async (leave?: () => Promise<void> | void) => {
     // Read before `leave` may clear the cache: once signed out, the Hub lists no Servers.
+    // shortcut: a Server neither cached nor on the signed-in Account's list keeps its Device until
+    // it expires; keep each Server's address with its session if that matters.
     const listed = queryClient.getQueryData(
       createConnectQueryKey({
         schema: LinkService.method.listLinkedServers,
@@ -35,6 +37,9 @@ export function useForgetServerSessions() {
   };
 }
 
+// Nothing waits on a sign-out, but one a Server never answers shouldn't stay open with the page.
+const signOutTimeoutMs = 10_000;
+
 /** Signs each of `kept` out on its Server, at the address the Hub lists first, ignoring failures. */
 async function signOutKept(
   kept: { serverId: string; token: string }[],
@@ -51,6 +56,9 @@ async function signOutKept(
             serverAt(origin, [bearer(token)]),
             SignInService.method.signOut,
             {},
+            {
+              signal: AbortSignal.timeout(signOutTimeoutMs),
+            },
           );
         }
       }),
