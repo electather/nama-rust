@@ -23,10 +23,7 @@ use std::{
     time::Duration,
 };
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use ring::signature::{ED25519, UnparsedPublicKey};
 use rustls::server::Acceptor;
-use serde::{Deserialize, de::DeserializeOwned};
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     net::{TcpListener, TcpStream},
@@ -35,7 +32,11 @@ use tokio::{
     time::{Instant, timeout, timeout_at},
 };
 
-use crate::{db, diagnostics, link::Linking, tls};
+use crate::{
+    db, diagnostics,
+    link::{Key, KeySet, Linking, Rejected, verify_signed},
+    tls,
+};
 
 /// The first byte of a TLS record carrying a handshake, which a client's connection starts with
 /// (RFC 8446, section 5.1).
@@ -48,9 +49,6 @@ const _: () = assert!(MAX_FRAME_LENGTH >> 8 < HANDSHAKE as usize);
 
 /// What a token for a Relay names as its audience, as the Hub signs it.
 const AUDIENCE: &str = "relay";
-
-/// How far past its `exp` a token still passes, for a Relay whose clock runs behind the Hub's.
-const LEEWAY_SECS: i64 = 60;
 
 /// How many connections a Server keeps waiting at its Relay, for clients that arrive together,
 /// such as a browser opening several.
@@ -312,40 +310,6 @@ struct HubKeys {
     fetched: tokio::sync::Mutex<Option<(Vec<Key>, Instant)>>,
 }
 
-#[derive(Deserialize)]
-struct KeySet {
-    keys: Vec<Key>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct Key {
-    kid: String,
-    crv: String,
-    x: String,
-}
-
-#[derive(Deserialize)]
-struct Header {
-    alg: String,
-    kid: String,
-}
-
-#[derive(Deserialize)]
-struct Claims {
-    sub: String,
-    aud: String,
-    exp: i64,
-}
-
-/// Why a token didn't pass.
-#[derive(Debug, PartialEq, Eq)]
-enum Rejected {
-    /// The key set has no key by the id the token names: fetch it again.
-    UnknownKey,
-    /// Malformed, badly signed, for another audience, or expired.
-    Invalid,
-}
-
 impl HubKeys {
     fn new(hub_url: &str) -> io::Result<Self> {
         diagnostics::use_ring_for_tls();
@@ -370,10 +334,11 @@ impl HubKeys {
             self.fetch_into(&mut fetched).await;
         }
         let (keys, at) = fetched.as_ref()?;
-        match verify(keys, token, db::now()) {
+        let now = u64::try_from(db::now()).unwrap_or_default();
+        match verify(keys, token, now) {
             Err(Rejected::UnknownKey) if at.elapsed() > KEYS_FETCHED_AT_MOST_EVERY => {
                 self.fetch_into(&mut fetched).await;
-                verify(&fetched.as_ref()?.0, token, db::now()).ok()
+                verify(&fetched.as_ref()?.0, token, now).ok()
             }
             verified => verified.ok(),
         }
@@ -404,42 +369,12 @@ impl HubKeys {
 
 /// The own name `token` names, if one of `keys` signed it for a Relay and it is unexpired at
 /// `now`, in seconds since the Unix epoch.
-// Checks the signature as `link/token.rs`'s `verify` does, then a Relay's claims: a fix to the
-// signature check in one belongs in both.
-fn verify(keys: &[Key], token: &str, now: i64) -> Result<String, Rejected> {
-    let (signed, signature) = token.rsplit_once('.').ok_or(Rejected::Invalid)?;
-    let (header, claims) = signed.split_once('.').ok_or(Rejected::Invalid)?;
-    let header: Header = decoded(header)?;
-    // Only EdDSA: a token naming another algorithm, such as `none`, never passes.
-    if header.alg != "EdDSA" {
-        return Err(Rejected::Invalid);
+fn verify(keys: &[Key], token: &str, now: u64) -> Result<String, Rejected> {
+    let claims = verify_signed(keys, token, now)?;
+    if claims.aud != AUDIENCE || claims.sub.is_empty() {
+        return Err(Rejected::Invalid("it isn't a Server's token for a Relay"));
     }
-    let key = keys
-        .iter()
-        .find(|key| key.kid == header.kid && key.crv == "Ed25519")
-        .ok_or(Rejected::UnknownKey)?;
-    let public = URL_SAFE_NO_PAD
-        .decode(&key.x)
-        .map_err(|_not_base64| Rejected::Invalid)?;
-    let signature = URL_SAFE_NO_PAD
-        .decode(signature)
-        .map_err(|_not_base64| Rejected::Invalid)?;
-    UnparsedPublicKey::new(&ED25519, public)
-        .verify(signed.as_bytes(), &signature)
-        .map_err(|_unspecified| Rejected::Invalid)?;
-    let claims: Claims = decoded(claims)?;
-    let passes = claims.aud == AUDIENCE
-        && !claims.sub.is_empty()
-        && claims.exp.saturating_add(LEEWAY_SECS) >= now;
-    passes.then_some(claims.sub).ok_or(Rejected::Invalid)
-}
-
-/// `part` of a token, base64url JSON, read as `T`.
-fn decoded<T: DeserializeOwned>(part: &str) -> Result<T, Rejected> {
-    let json = URL_SAFE_NO_PAD
-        .decode(part)
-        .map_err(|_not_base64| Rejected::Invalid)?;
-    serde_json::from_slice(&json).map_err(|_not_json| Rejected::Invalid)
+    Ok(claims.sub)
 }
 
 /// Keeps [`WAITING_PER_SERVER`] connections waiting at `relay`, the Relay the Admin runs, each

@@ -56,6 +56,7 @@ pub(crate) use self::{
         ViewingEvent, queue_track_preferences, queue_viewing_events, queue_watch_states,
         take_over_viewing_events,
     },
+    token::{Key, KeySet, Rejected, verify_signed},
 };
 use crate::{
     config::Config,

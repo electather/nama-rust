@@ -1,4 +1,5 @@
 use axum::{Router, routing::get};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ring::{
     rand::SystemRandom,
     signature::{Ed25519KeyPair, KeyPair as _},
@@ -149,6 +150,46 @@ async fn a_dial_whose_token_doesnt_check_out_is_closed() {
         let closed = timeout(WAIT, server.read(&mut [0; 1])).await.unwrap();
         assert_eq!(closed.unwrap(), 0, "{token}");
     }
+}
+
+#[test]
+fn a_token_passes_only_for_a_relay_naming_a_server_and_signed_unexpired_with_eddsa() {
+    let (key, other) = (key(), key());
+    let keys: Vec<Key> = serde_json::from_value(json!([{
+        "crv": "Ed25519",
+        "kid": "hub",
+        "x": URL_SAFE_NO_PAD.encode(key.public_key()),
+    }]))
+    .unwrap();
+    let now = 1_000;
+    let claims = |sub: &str, aud: &str, exp: u64| json!({ "sub": sub, "aud": aud, "exp": exp });
+    let unsigned = format!(
+        "{}.{}.",
+        URL_SAFE_NO_PAD.encode(json!({ "alg": "none", "kid": "hub" }).to_string()),
+        URL_SAFE_NO_PAD.encode(claims(OWN, "relay", now).to_string())
+    );
+
+    assert_eq!(
+        verify(&keys, &signed(&key, &claims(OWN, "relay", now)), now),
+        Ok(OWN.to_owned())
+    );
+    for token in [
+        signed(&key, &claims(OWN, "server", now)),
+        signed(&key, &claims("", "relay", now)),
+        // A second past the 60 s leeway a token passes for after its `exp`.
+        signed(&key, &claims(OWN, "relay", now - 61)),
+        signed(&other, &claims(OWN, "relay", now)),
+        unsigned,
+    ] {
+        assert!(
+            matches!(verify(&keys, &token, now), Err(Rejected::Invalid(_))),
+            "{token}"
+        );
+    }
+    assert_eq!(
+        verify(&[], &signed(&key, &claims(OWN, "relay", now)), now),
+        Err(Rejected::UnknownKey)
+    );
 }
 
 #[test]

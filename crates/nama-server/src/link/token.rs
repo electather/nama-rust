@@ -7,18 +7,19 @@ use serde::Deserialize;
 /// How far past its `exp` a token still passes, for a Server whose clock runs behind the Hub's.
 const LEEWAY_SECS: u64 = 60;
 
-/// What a token the Hub signed for a Linked Server says.
+/// What a token the Hub signed for a Linked Server, or for a Relay, says.
 #[derive(Debug, Deserialize)]
-pub(super) struct Claims {
-    /// Whom it names: the Linked Server, or for a sign-in the User's id on the Server.
+pub(crate) struct Claims {
+    /// Whom it names: the Linked Server, for a sign-in the User's id on the Server, or for a Relay
+    /// the Server's own name.
     #[serde(default)]
-    pub(super) sub: String,
+    pub(crate) sub: String,
     /// Its Account's email, in the token a newly Linked Server gets.
     #[serde(default)]
     pub(super) email: String,
-    /// Whom it is for: in a sign-in token, the id of the Linked Server that may take it.
+    /// Whom it is for: in a sign-in token, the id of the Linked Server that may take it, or `relay`.
     #[serde(default)]
-    pub(super) aud: String,
+    pub(crate) aud: String,
     /// Its own id, in a token the web app at the Hub trades for a Device, which is taken once.
     #[serde(default)]
     pub(super) jti: Option<String>,
@@ -41,10 +42,10 @@ impl Claims {
 
 /// Why a token didn't pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Rejected {
+pub(crate) enum Rejected {
     /// The key set has no key by the id the token names: fetch it again.
     UnknownKey,
-    /// Malformed, badly signed or expired, with why.
+    /// Malformed, badly signed, expired or not what its caller takes, with why.
     Invalid(&'static str),
 }
 
@@ -54,13 +55,15 @@ struct Header {
     kid: String,
 }
 
+/// The Hub's key set, as it publishes it.
 #[derive(Deserialize)]
-struct KeySet {
-    keys: Vec<Key>,
+pub(crate) struct KeySet {
+    pub(crate) keys: Vec<Key>,
 }
 
-#[derive(Deserialize)]
-struct Key {
+/// One of the Hub's signing keys, as its key set lists it.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Key {
     kid: String,
     crv: String,
     x: String,
@@ -69,6 +72,14 @@ struct Key {
 /// `token`'s claims, if one of `key_set`'s keys signed it and it is unexpired at `now`, in seconds
 /// since the Unix epoch.
 pub(super) fn verify(key_set: &[u8], token: &str, now: u64) -> Result<Claims, Rejected> {
+    let key_set: KeySet = serde_json::from_slice(key_set)
+        .map_err(|_unreadable| Rejected::Invalid("the key set isn't JSON"))?;
+    verify_signed(&key_set.keys, token, now)
+}
+
+/// `token`'s claims, if one of `keys` signed it and it is unexpired at `now`, in seconds since the
+/// Unix epoch. The one check of a token the Hub signed: each caller checks its own claims after.
+pub(crate) fn verify_signed(keys: &[Key], token: &str, now: u64) -> Result<Claims, Rejected> {
     let mut parts = token.split('.');
     let (Some(header), Some(claims), Some(signature), None) =
         (parts.next(), parts.next(), parts.next(), parts.next())
@@ -83,11 +94,8 @@ pub(super) fn verify(key_set: &[u8], token: &str, now: u64) -> Result<Claims, Re
     if header.alg != "EdDSA" {
         return Err(Rejected::Invalid("it isn't signed with EdDSA"));
     }
-    let key_set: KeySet = serde_json::from_slice(key_set)
-        .map_err(|_unreadable| Rejected::Invalid("the key set isn't JSON"))?;
-    let key = key_set
-        .keys
-        .into_iter()
+    let key = keys
+        .iter()
         .find(|key| key.kid == header.kid && key.crv == "Ed25519")
         .ok_or(Rejected::UnknownKey)?;
     let public = decoded(&key.x).ok_or(Rejected::Invalid("the key isn't base64"))?;
