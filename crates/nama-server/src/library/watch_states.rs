@@ -26,6 +26,8 @@ use crate::{
     plugins::ExtensionPoints,
 };
 
+mod unplayed_marks;
+
 // The `kind` of a Watch State, part of its key since Movie and Episode TMDB ids are separate id
 // spaces.
 const MOVIE: &str = "movie";
@@ -538,7 +540,7 @@ async fn upsert(
 }
 
 /// Stores `watched` at `progress`, `played` or played before under any of its ids, as of `at`, in
-/// seconds since the Unix epoch. Returns whether it is played.
+/// seconds since the Unix epoch, and drops its unplayed marks. Returns whether it is played.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a column of the row it writes, which a struct would only rename"
@@ -552,6 +554,7 @@ async fn store(
     at: i64,
 ) -> Result<bool, sqlx::Error> {
     let (kind, title, ids) = watched.key();
+    unplayed_marks::clear(&mut *conn, user, kind, &ids).await?;
     // An upsert, never a replace: the triggers on `watch_states` make Home rows stale on an
     // insert, a delete or a change to `played`, which a position report must not fire.
     let stored = sqlx::query!(
@@ -600,7 +603,7 @@ async fn take_each(
         // The Server keeps seconds, so one made in the same second as its own, as its own pushed
         // and pulled back is, isn't newer.
         let at = change.changed_at_ms.div_euclid(1000);
-        let (kind, title, ids) = watched.key();
+        let (kind, _, ids) = watched.key();
         let newest = sqlx::query_scalar!(
             r#"SELECT MAX(at) AS "newest?: i64" FROM (
                  SELECT updated_at AS at, title_id FROM watch_states
@@ -626,7 +629,7 @@ async fn take_each(
                 watched.changed(played, progress, changed_at_ms)
             }
             None if change.played => {
-                let kept = mark_played(&mut *conn, user, kind, title, at).await?;
+                let kept = mark_played(&mut *conn, user, &watched, at).await?;
                 watched.changed(true, kept, changed_at_ms)
             }
             // Unplayed at 0 of 0: marked unplayed.
@@ -650,11 +653,11 @@ async fn mark_each(
     let now = changed_at_ms.div_euclid(1000);
     let mut changes = Vec::with_capacity(titles.len());
     for watched in titles {
-        let (kind, title, ids) = watched.key();
         changes.push(if played {
-            let kept = mark_played(&mut *conn, user, kind, title, now).await?;
+            let kept = mark_played(&mut *conn, user, &watched, now).await?;
             watched.changed(true, kept, changed_at_ms)
         } else {
+            let (kind, _, ids) = watched.key();
             forget(&mut *conn, user, kind, ids, now).await?;
             watched.forgotten(changed_at_ms)
         });
@@ -707,15 +710,17 @@ async fn hide_each(
     Ok(())
 }
 
-/// Keeps any position, and when it became played if it already was. One the User hasn't started
-/// is at 0 of an unknown duration, 0. Returns the position kept.
+/// Keeps any position, and when it became played if it already was, and drops its unplayed
+/// marks. One the User hasn't started is at 0 of an unknown duration, 0. Returns the position
+/// kept.
 async fn mark_played(
     conn: &mut SqliteConnection,
     user: i64,
-    kind: &'static str,
-    title: &str,
+    watched: &Watched,
     now: i64,
 ) -> Result<Progress, sqlx::Error> {
+    let (kind, title, ids) = watched.key();
+    unplayed_marks::clear(&mut *conn, user, kind, &ids).await?;
     sqlx::query_as!(
         Progress,
         "INSERT INTO watch_states
@@ -736,8 +741,8 @@ async fn mark_played(
 
 /// Deleting the rows is how a title becomes unplayed with no position. Its rows under every id
 /// in the JSON array `ids` go, so an older one under another id doesn't come back, and when, `at`
-/// in seconds since the Unix epoch, is kept under each, so neither does an older change made
-/// elsewhere. Says whether there were any.
+/// in seconds since the Unix epoch, is kept under each until the title is next stored, so neither
+/// does an older change made elsewhere. Says whether there were any.
 async fn forget(
     conn: &mut SqliteConnection,
     user: i64,
@@ -745,19 +750,7 @@ async fn forget(
     ids: String,
     at: i64,
 ) -> Result<bool, sqlx::Error> {
-    // `WHERE true` keeps SQLite from reading the upsert's `ON` as a join's.
-    sqlx::query!(
-        "INSERT INTO forgotten_watch_states (user_id, kind, title_id, forgotten_at)
-         SELECT ?1, ?2, value, ?4 FROM json_each(?3) WHERE true
-         ON CONFLICT (user_id, kind, title_id) DO UPDATE
-         SET forgotten_at = max(forgotten_at, excluded.forgotten_at)",
-        user,
-        kind,
-        ids,
-        at,
-    )
-    .execute(&mut *conn)
-    .await?;
+    unplayed_marks::record(&mut *conn, user, kind, &ids, at).await?;
     let forgot = sqlx::query!(
         "DELETE FROM watch_states
          WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
@@ -788,5 +781,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "watch_states_tests.rs"]
+#[path = "watch_states/watch_states_tests.rs"]
 mod tests;
