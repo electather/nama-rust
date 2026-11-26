@@ -59,6 +59,9 @@ const MIB: usize = 1024 * 1024;
 #[tokio::test]
 async fn a_20_mib_upload_does_not_raise_memory_by_20_mib() {
     let fx = Fixture::alien().await;
+    // Resizing off, so the upload makes no copies ahead: each reads the whole image, after the
+    // 204 but often before PEAK is read, which lifted it by the upload's size (#2184).
+    fx.server.set_image_settings(false, None).await;
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)
         .write_to(&mut png, ImageFormat::Png)
@@ -70,7 +73,6 @@ async fn a_20_mib_upload_does_not_raise_memory_by_20_mib() {
         let chunk = if i == 0 { start.clone() } else { vec![0; MIB] };
         Ok::<_, std::convert::Infallible>(Frame::data(Bytes::from(chunk)))
     });
-    // Not a Poster: its upload spawns `copy_ahead`, whose whole-file read lifts PEAK (#2170).
     let request = Request::put("/custom-images/movie/tmdb-348/backdrop")
         .body(StreamBody::new(stream::iter(chunks)))
         .unwrap();
