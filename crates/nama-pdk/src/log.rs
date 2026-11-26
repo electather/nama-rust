@@ -37,13 +37,10 @@ macro_rules! error {
 }
 
 /// Hands `line` to `nama.log` at `level`: 0 `debug`, 1 `info`, 2 `warn`, 3 `error`. Called by
-/// [`info!`](crate::info!) and the others. Off wasm32, as in a Plugin's unit tests, it does
-/// nothing, since there is no Kernel to write to.
+/// [`info!`](crate::info!) and the others. Off wasm32, as in a Plugin's unit tests, the
+/// [`testing::Kernel`](crate::testing::Kernel) keeps it for `logged()`, or drops it outside
+/// [`testing::with`](crate::testing::with).
 #[doc(hidden)]
-#[cfg_attr(
-    not(target_arch = "wasm32"),
-    expect(unused_variables, reason = "off wasm32 there is no Kernel to write to")
-)]
 pub fn write_log_line(level: i32, line: &str) {
     #[cfg(target_arch = "wasm32")]
     {
@@ -62,4 +59,6 @@ pub fn write_log_line(level: i32, line: &str) {
             nama_log(level, memory.offset());
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    crate::testing::log_line(level, line);
 }
