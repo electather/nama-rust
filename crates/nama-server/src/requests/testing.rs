@@ -723,7 +723,8 @@ pub(super) fn user(id: i64, permissions: Permissions) -> User {
 }
 
 /// Ada follows Shows 1 to 3, rated TV-MA, TV-PG and not at all, and Bob follows Show 4, rated
-/// TV-MA. Then Bob, who may see others' Requests, is uncapped, capped at 13, and capped at 13
+/// TV-MA, each with no Seasons, so no Season Request can show it Requested in the Followed Show's
+/// place. Then Bob, who may see others' Requests, is uncapped, capped at 13, and capped at 13
 /// allowing unrated titles: under each cap, whether `sees_followed` says Bob sees each Show,
 /// known by its TMDB id, followed.
 pub(super) async fn followed_as_bob_is_capped(
@@ -741,6 +742,7 @@ pub(super) async fn followed_as_bob_is_capped(
         let wanted = WantedSeasons {
             show_id: show.clone(),
             show_title: format!("Show {show}"),
+            seasons: Vec::new(),
             content_rating: rating.map(str::to_owned),
             ..dark()
         };

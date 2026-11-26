@@ -11,11 +11,10 @@ use nama_proto::nama::v1::{
 };
 use sqlx::SqliteConnection;
 
-use super::asked::Asked;
+use super::asked::{Asked, title_seen};
 use super::asking::kept_under;
 use super::availability::{availability, today};
 use super::followed::{load_followed, open_followed_show, open_followed_show_by_any};
-use super::listing::title_seen;
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{

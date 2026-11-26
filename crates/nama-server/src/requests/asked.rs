@@ -9,8 +9,9 @@ use sqlx::SqliteConnection;
 
 use super::Error;
 use super::state::ids_json;
+use crate::content_ratings::MaximumAge;
 use crate::events::{Rated, Removed};
-use crate::users::is_requester;
+use crate::users::{User, is_requester};
 
 /// Which kind of thing Users asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,7 +164,7 @@ pub(super) async fn leave(
 
 /// The stored Content Rating of the `asked` with the ID `id`, which is `None` if there is no such
 /// `asked`, and `Some(None)` if it is unrated.
-pub(super) async fn content_rating(
+async fn content_rating(
     conn: &mut SqliteConnection,
     asked: Asked,
     id: i64,
@@ -176,6 +177,30 @@ pub(super) async fn content_rating(
         };
     }
     Ok(per_kind!(asked, content_rating))
+}
+
+/// Whether `viewer`, whose Maximum Age is `max_age`, sees the title of the `asked` with the ID
+/// `id`, whose Requesters are `requesters`: theirs whatever its stored Content Rating, as they
+/// asked while it let them, another's only if that rating passes (#1414), as `listing.rs`'s
+/// SQL asks it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Request and a Followed Show are unrelated proto types, so it takes what it reads"
+)]
+pub(super) async fn title_seen(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    max_age: MaximumAge,
+    asked: Asked,
+    id: i64,
+    requesters: &[Requester],
+) -> Result<bool, sqlx::Error> {
+    if max_age.lets_every_title() || is_requester(viewer.id, requesters) {
+        return Ok(true);
+    }
+    let rating = content_rating(conn, asked, id).await?;
+    // Gone since it was loaded, so not there to see.
+    Ok(rating.is_some_and(|rating| max_age.allows(rating.as_deref())))
 }
 
 /// Removes the `asked` with the ID `id`, and its Requesters with it, and returns it for
