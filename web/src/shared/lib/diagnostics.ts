@@ -33,6 +33,10 @@ function recorderFor(origin: string) {
   return headers ? recorders.get(origin) : undefined;
 }
 
+function routeRecorder() {
+  return recorderFor(routeOrigin);
+}
+
 /**
  * Records the web app's Diagnostics for the Server at `origin`, `""` for the page's own, from now
  * on if it `exportsDiagnostics`, loading the SDK only then. Only for a Device signed in there, with
@@ -58,9 +62,9 @@ export async function recordDiagnosticsIfExported(
 
 async function load() {
   const loaded = await import("@/shared/lib/diagnostics-recorder");
-  addEventListener("error", (event) => recorderFor(routeOrigin)?.recordError(kindOf(event.error)));
+  addEventListener("error", (event) => routeRecorder()?.recordError(kindOf(event.error)));
   addEventListener("unhandledrejection", (event) =>
-    recorderFor(routeOrigin)?.recordError(kindOf(event.reason)),
+    routeRecorder()?.recordError(kindOf(event.reason)),
   );
   return loaded;
 }
@@ -95,7 +99,7 @@ export function traceRouteChanges(router: AnyRouter) {
     routeOrigin = page ? originOf(page.context.transport) : "";
     // The route's id, such as `/_member/libraries/$libraryId`, names the page without its ids.
     const route = page?.routeId ?? "unknown";
-    recorderFor(routeOrigin)?.recordSpan("route change", navigatedAt, { "app.route": route });
+    routeRecorder()?.recordSpan("route change", navigatedAt, { "app.route": route });
   });
 }
 
@@ -119,7 +123,7 @@ export function firstFramePlayed() {
   if (playPressedAt === undefined) {
     return;
   }
-  recorderFor(routeOrigin)?.recordSpan("playback start", playPressedAt);
+  routeRecorder()?.recordSpan("playback start", playPressedAt);
   playPressedAt = undefined;
 }
 
@@ -141,7 +145,7 @@ export function stallEnded() {
   if (stalledAt === undefined) {
     return;
   }
-  recorderFor(routeOrigin)?.recordSpan("playback stall", stalledAt);
+  routeRecorder()?.recordSpan("playback stall", stalledAt);
   stalledAt = undefined;
 }
 
@@ -160,5 +164,5 @@ export function videoFailed(error: MediaError | null) {
 
 /** Records a playback error of `kind`, such as hls.js's `bufferStalledError`, never its message. */
 export function playbackFailed(kind: string) {
-  recorderFor(routeOrigin)?.recordError(kind, "playback error");
+  routeRecorder()?.recordError(kind, "playback error");
 }
