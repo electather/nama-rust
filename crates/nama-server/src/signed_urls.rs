@@ -49,8 +49,9 @@ pub(crate) type PlanRuns = Arc<dyn Fn(u64, i64) -> bool + Send + Sync>;
 pub(crate) struct SignedUrl;
 
 /// The User and Device a request for a signed playback URL acts as, which [`admit`] adds to it,
-/// since a plan belongs to its Device and a User's Library access and cap apply to what it plays.
-#[derive(Debug, Clone, Copy)]
+/// since a plan belongs to its User and Device and a User's Library access and cap apply to what
+/// it plays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct Viewer {
     /// The User, by id.
     pub(crate) user: i64,

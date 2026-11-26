@@ -180,6 +180,35 @@ async fn only_a_session_signed_in_within_10_minutes_signs_out_the_others(db: PgP
     assert!(accounts.session(&other.token).await.unwrap().is_some());
 }
 
+#[sqlx::test(migrations = false)]
+async fn a_session_signed_in_late_in_a_second_says_that_second(db: PgPool) {
+    db::migrate(&db).await.unwrap();
+    let accounts = Accounts::new(db.clone(), None, None);
+    let created = accounts
+        .create(
+            "ada@example.com",
+            "correct horse battery",
+            Caller {
+                ip: "203.0.113.1".parse().unwrap(),
+                now: Instant::now(),
+            },
+        )
+        .await
+        .unwrap();
+    let second = sqlx::query_scalar!(
+        r#"UPDATE account_sessions
+           SET created_at = date_trunc('second', now()) + interval '750 milliseconds'
+           RETURNING extract(epoch FROM date_trunc('second', now()))::bigint AS "second!""#,
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+
+    let session = accounts.session(&created.token).await.unwrap().unwrap();
+
+    assert_eq!(session.signed_in_at, second);
+}
+
 #[test]
 fn a_session_is_named_after_its_browser_and_os() {
     let cases = [

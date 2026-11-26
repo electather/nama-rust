@@ -6,7 +6,7 @@ use nama_plugin_api::{
 };
 
 use super::{delete_plugins_import_cursors, import_cursor, imported, keep_import_cursor, synced};
-use crate::db::Database;
+use crate::{db::Database, users::testing::insert_user};
 
 fn episode_change() -> WatchStateChange {
     WatchStateChange {
@@ -49,27 +49,11 @@ fn an_imported_state_of_no_kind_or_without_a_well_formed_id_is_dropped() {
 
 const TRACKER: PluginId = PluginId::from_static("tracker");
 
-async fn insert_user(db: &Database) -> i64 {
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
-            )
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
-}
-
 #[tokio::test]
 async fn an_import_cursor_survives_a_restart_and_goes_with_its_user() {
     let data = tempfile::tempdir().unwrap();
     let before = Database::open(data.path()).await.unwrap();
-    let ada = insert_user(&before).await;
+    let ada = insert_user(&before, "ada").await;
     (keep_import_cursor(&before, ada, &TRACKER, "page-2".to_owned()).await).unwrap();
     drop(before);
 
@@ -95,7 +79,7 @@ async fn an_import_cursor_survives_a_restart_and_goes_with_its_user() {
 async fn deleting_a_plugins_import_cursors_leaves_another_plugins() {
     let data = tempfile::tempdir().unwrap();
     let db = Database::open(data.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let other = PluginId::from_static("other-tracker");
     for plugin in [&TRACKER, &other] {
         (keep_import_cursor(&db, ada, plugin, "page-2".to_owned()).await).unwrap();

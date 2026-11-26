@@ -4,31 +4,12 @@ use nama_plugin_api::PluginId;
 use tempfile::TempDir;
 
 use super::{delete, get, recipients, renew, replace};
-use crate::db::Database;
+use crate::{db::Database, users::testing::insert_user};
 
 async fn open() -> (TempDir, Database) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
     (data_dir, db)
-}
-
-async fn insert_user(db: &Database, name: &str) -> i64 {
-    let name = name.to_owned();
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(&name)
-            .bind(&name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 fn setting(key: &str, value: &str, secret: bool) -> (String, String, bool) {
