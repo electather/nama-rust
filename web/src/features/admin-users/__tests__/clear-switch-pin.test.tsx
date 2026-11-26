@@ -3,17 +3,22 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import type { ClearSwitchPinRequest } from "@/gen/nama/v1/sign_in_pb";
+import { type ClearSwitchPinRequest, Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, newUser, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
-/**
- * Alex's page in Settings' Users, on a Server that refuses to clear a Switch PIN with `refusal`, or
- * else records whose it cleared.
- */
-function openAlex(refusal?: Error) {
+/** What the Server says to clearing Alex's Switch PIN, and who has which Permissions. */
+interface Scene {
+  /** How the Server refuses; without one, it clears the Switch PIN. */
+  refusal?: Error;
+  alexHas?: Permission[];
+  youHave?: Permission[];
+}
+
+/** Alex's page in Settings' Users, in `scene`, recording whose Switch PIN the Server cleared. */
+function openAlex({ refusal, alexHas = newUser, youHave = admin }: Scene = {}) {
   const cleared: (bigint | undefined)[] = [];
   const clearSwitchPin = ({ userId }: ClearSwitchPinRequest) => {
     if (refusal !== undefined) {
@@ -25,9 +30,9 @@ function openAlex(refusal?: Error) {
   openApp(
     "/code?settings=users&user=2",
     fakeServer(
-      { signedIn: admin },
+      { signedIn: youHave },
       { clearSwitchPin },
-      { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
+      { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: alexHas }] }) },
     ),
   );
   return cleared;
@@ -64,21 +69,23 @@ test("cancelling leaves the Switch PIN as it was", async () => {
 });
 
 test.each([
-  [
-    "a User deleted meanwhile",
-    refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND }),
-    "Alex isn’t on this Server any more.",
-  ],
-  [
-    "an Admin's, for want of the Admin Permission",
-    refused(Code.PermissionDenied, "needs PERMISSION_ADMIN", {
+  {
+    clearing: "a User deleted meanwhile",
+    refusal: refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND }),
+    shown: "Alex isn’t on this Server any more.",
+  },
+  {
+    clearing: "an Admin's, for want of the Admin Permission",
+    refusal: refused(Code.PermissionDenied, "needs PERMISSION_ADMIN", {
       reason: RefusalReason.PERMISSION_REQUIRED,
       params: { permission: "PERMISSION_ADMIN" },
     }),
-    "Only an Admin can clear an Admin’s Switch PIN.",
-  ],
-])("clearing %s says why it was refused", async (_, refusal, shown) => {
-  openAlex(refusal);
+    shown: "Only an Admin can clear an Admin’s Switch PIN.",
+    alexHas: admin,
+    youHave: [Permission.MANAGE_USERS],
+  },
+])("clearing $clearing says why it was refused", async ({ shown, ...scene }) => {
+  openAlex(scene);
 
   const dialog = await askToClear();
   fireEvent.click(within(dialog).getByRole("button", { name: "Clear Switch PIN" }));
