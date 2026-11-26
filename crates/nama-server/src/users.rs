@@ -40,6 +40,9 @@ mod seeing;
 mod sessions;
 mod sign_in;
 mod sign_in_codes;
+// Neighbours' tests reach it by path: `insert_user` here is the production one.
+#[cfg(test)]
+pub(crate) mod testing;
 
 pub use codes::SetupCode;
 use codes::new_token;
@@ -711,7 +714,7 @@ async fn insert_first_admin(
     }
     let user = insert_user(conn, name, Permissions::ADMIN).await?;
     let method = set_password(conn, user.id, credential).await?;
-    let device = insert_device(conn, user.id, Some(method), device, token_hash).await?;
+    let device = insert_device(conn, user.id, Some(method), now(), device, token_hash).await?;
     Ok(Caller { user, device })
 }
 

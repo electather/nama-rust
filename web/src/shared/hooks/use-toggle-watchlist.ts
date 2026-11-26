@@ -7,11 +7,15 @@ import { RequestService } from "@/gen/nama/v1/request_pb";
 import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import { browseKey } from "@/shared/hooks/browse";
 
-/** What says whether a title is on your Watchlist: every browse query, and the request pages'. */
-function watchlistKeys(transport: Transport) {
+/**
+ * What says whether a title is on your Watchlist on the Server `transport` reaches: every browse
+ * query, the request pages' and the Watchlist page's.
+ */
+export function watchlistKeys(transport: Transport) {
   const finite = { transport, cardinality: "finite" } as const;
   return [
     browseKey(transport),
+    createConnectQueryKey({ schema: WatchlistService.method.listWatchlist, ...finite }),
     createConnectQueryKey({ schema: RequestService.method.lookUpMovie, ...finite }),
     createConnectQueryKey({ schema: RequestService.method.lookUpShow, ...finite }),
   ];

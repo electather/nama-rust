@@ -23,7 +23,7 @@ use crate::{
     plugins::Registry,
     requests::Requests,
     server_settings::ServerUrl,
-    users::{Permissions, User, replace_personal_settings},
+    users::{Permissions, User, replace_personal_settings, testing::insert_user},
 };
 
 pub(super) fn movie(value: &str) -> HomeRowTitle {
@@ -227,25 +227,6 @@ pub(super) fn started(db: &Arc<Database>, gives: &'static [HomeRowMethod]) -> (K
     let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
     let requests = Requests::new(Arc::clone(db), events, points.clone());
     (Kept::new(Arc::clone(db), points, requests), calls)
-}
-
-pub(super) async fn insert_user(db: &Database, name: &str) -> i64 {
-    let name = name.to_owned();
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(&name)
-            .bind(&name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 pub(super) async fn set_handle(db: &Database, user: i64, handle: &str) {

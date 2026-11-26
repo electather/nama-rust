@@ -2,15 +2,15 @@
 //! Remuxes and Transcodes, played over HLS with fMP4 segments. Each plan's start and end are
 //! published as `PlaybackStarted` and `PlaybackEnded`.
 //!
-//! A plan belongs to the Device it was planned for, and only that Device is served its files, at
-//! `/media/plans/<id>/`: the playlist `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`.
-//! The playlist lists the whole Version up front, cut at keyframes where it will be cut, so HLS
-//! time is the file's time and Watch State needs no conversion. ffmpeg writes a file per keyframe
-//! to `nama-plan-<id>/` in the segment folder, and the plan joins those starting from each listed
-//! keyframe up to the next into that keyframe's file, by the times ffmpeg's own playlist gives, as
-//! the Version's index may list only some (ADR 0066). A segment joins its keyframes' files. A
-//! Remux keeps the Version's own keyframes; a Transcode forces one every [`SEGMENT_MS`], so each
-//! of its segments is one file.
+//! A plan belongs to the User and Device it was planned for, and only that Device, while it acts
+//! as that User (ADR 0106), is served its files, at `/media/plans/<id>/`: the playlist
+//! `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`. The playlist lists the whole Version
+//! up front, cut at keyframes where it will be cut, so HLS time is the file's time and Watch State
+//! needs no conversion. ffmpeg writes a file per keyframe to `nama-plan-<id>/` in the segment
+//! folder, and the plan joins those starting from each listed keyframe up to the next into that
+//! keyframe's file, by the times ffmpeg's own playlist gives, as the Version's index may list only
+//! some (ADR 0066). A segment joins its keyframes' files. A Remux keeps the Version's own
+//! keyframes; a Transcode forces one every [`SEGMENT_MS`], so each of its segments is one file.
 //!
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
@@ -28,16 +28,16 @@
 //!
 //! A plan is stopped, and its folder deleted, when its player says it stopped, [`STOP_UNUSED_AFTER`]
 //! after it was last asked for, or as the Server shuts down. A Direct Play is asked for through
-//! its file at `/media/versions/<id>`, which marks every Direct Play of that Version on the Device
-//! asked for as the request arrives and again with each part of the file sent, so one being
-//! downloaded in a single request isn't stopped. [`sweep_leftovers`] deletes the folders of plans
-//! a run left behind when the next starts.
+//! its file at `/media/versions/<id>`, which marks every Direct Play of that Version for the User
+//! and Device asking as the request arrives and again with each part of the file sent, so one
+//! being downloaded in a single request isn't stopped. [`sweep_leftovers`] deletes the folders of
+//! plans a run left behind when the next starts.
 //!
 //! Deleting a Version ends its plans first and cuts off each response serving its file
 //! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
-//! deleted. An Admin stopping a plan likewise cuts off its Device's responses serving its Version's
-//! file until that Device plans it again ([`RunningPlans::stop_by_admin`]), so a Direct Play stops
-//! too.
+//! deleted. An Admin stopping a plan likewise cuts off the responses serving its Version's file to
+//! its User on its Device until they plan it again ([`RunningPlans::stop_by_admin`]), so a Direct
+//! Play stops too.
 //!
 //! [`SEGMENT_MS`]: timeline::SEGMENT_MS
 
@@ -89,6 +89,7 @@ use crate::{
     },
     library::Contents,
     server_settings::PlaybackSettings,
+    signed_urls::Viewer,
     users::Caller,
 };
 
@@ -181,12 +182,12 @@ struct Inner {
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
     /// By Version, cancelled while it's deleted, which cuts off each response serving its file.
-    // ponytail: one kept per Version, and in `stopped` per Version and Device, served since the
+    // ponytail: one kept per Version, and in `stopped` per Version and Viewer, served since the
     // Server started; drop each once nothing serves it if that ever adds up.
     served: Mutex<HashMap<i64, CancellationToken>>,
-    /// By Version and Device, cancelled once an Admin stops that Device's last plan of it, which
-    /// cuts off each response serving the file to it until the Device plans it again.
-    stopped: Mutex<HashMap<(i64, i64), CancellationToken>>,
+    /// By Version and Viewer, cancelled once an Admin stops that Viewer's last plan of it, which
+    /// cuts off each response serving the file to them until they plan it again.
+    stopped: Mutex<HashMap<(i64, Viewer), CancellationToken>>,
 }
 
 impl fmt::Debug for RunningPlans {
@@ -537,7 +538,6 @@ impl RunningPlans {
         on_hardware: Option<OnHardware>,
         planned_under_remote_cap: bool,
     ) {
-        let to_device = (playback.version_id, playback.device_id);
         let plan = Plan {
             playback,
             hls,
@@ -548,15 +548,16 @@ impl RunningPlans {
         };
         // `plans` before `stopped`, as in `stop_by_admin`, so a stop can't land between lifting it
         // and adding the plan.
+        let to_viewer = (plan.playback.version_id, plan.viewer());
         let mut plans = lock(&self.inner.plans);
         let mut stopped = lock(&self.inner.stopped);
         // Planning it again lifts an Admin's stop: a stop isn't a ban. A token not cancelled stays,
         // since responses hold its children and a later stop must still reach them.
         if stopped
-            .get(&to_device)
+            .get(&to_viewer)
             .is_some_and(CancellationToken::is_cancelled)
         {
-            stopped.remove(&to_device);
+            stopped.remove(&to_viewer);
         }
         let started = PlaybackStarted {
             playback: plan.playback_now().into(),
@@ -567,56 +568,54 @@ impl RunningPlans {
         drop((stopped, plans));
     }
 
-    /// The plan `id`, if it's running for the Device `device`, marked asked for now, which keeps
-    /// it running another [`STOP_UNUSED_AFTER`].
-    fn ask(&self, id: u64, device: i64) -> Option<Arc<Plan>> {
+    /// The plan `id`, if it's running for `viewer`, marked asked for now, which keeps it running
+    /// another [`STOP_UNUSED_AFTER`]; a Device switched to another User finds none (ADR 0106).
+    fn ask(&self, id: u64, viewer: Viewer) -> Option<Arc<Plan>> {
         // Marked under the lock `stop_unused` takes plans out under, so a plan found here isn't
         // stopped while it's served.
         let plans = lock(&self.inner.plans);
-        let plan = (plans.get(&id)).filter(|plan| plan.playback.device_id == device)?;
+        let plan = (plans.get(&id)).filter(|plan| plan.viewer() == viewer)?;
         *lock(&plan.last_used) = db::instant_now();
         Some(Arc::clone(plan))
     }
 
-    /// Marks the Device `device`'s Direct Plays of the Version `version` asked for now, which
-    /// keeps them another [`STOP_UNUSED_AFTER`], and says whether any was planned under a remote
-    /// cap.
-    pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) -> bool {
+    /// Marks `viewer`'s Direct Plays of the Version `version` asked for now, which keeps them
+    /// another [`STOP_UNUSED_AFTER`], and says whether any was planned under a remote cap.
+    pub(crate) fn ask_direct_plays(&self, version: i64, viewer: Viewer) -> bool {
         let plans = lock(&self.inner.plans);
-        let direct_plays = (plans.values()).filter(|plan| plan.direct_plays(version, device));
+        let direct_plays = (plans.values()).filter(|plan| plan.direct_plays(version, viewer));
         direct_plays.fold(false, |any_kept, plan| {
             *lock(&plan.last_used) = db::instant_now();
             any_kept || plan.planned_under_remote_cap
         })
     }
 
-    /// Whether the Device `device` has a plan that Direct Plays the Version `version`.
-    pub(super) fn has_direct_play(&self, version: i64, device: i64) -> bool {
-        (lock(&self.inner.plans).values()).any(|plan| plan.direct_plays(version, device))
+    /// Whether `viewer` has a plan that Direct Plays the Version `version`.
+    pub(super) fn has_direct_play(&self, version: i64, viewer: Viewer) -> bool {
+        (lock(&self.inner.plans).values()).any(|plan| plan.direct_plays(version, viewer))
     }
 
-    /// `file`, the parts of the Version `version`'s file being sent to the Device `device`, which
-    /// marks that Device's Direct Plays of it asked for with each part, so they're kept while it's
-    /// sent. With no Device it marks nothing.
+    /// `file`, the parts of the Version `version`'s file sent to `viewer`, marking their Direct
+    /// Plays of it asked for with each part, so they're kept while it's sent; none without one.
     pub(super) fn ask_direct_plays_while_sending<S: Stream>(
         &self,
         version: i64,
-        device: Option<i64>,
+        viewer: Option<Viewer>,
         file: S,
     ) -> impl Stream<Item = S::Item> + use<S> {
         let plans = self.clone();
         file.inspect(move |_| {
-            if let Some(device) = device {
-                plans.ask_direct_plays(version, device);
+            if let Some(viewer) = viewer {
+                plans.ask_direct_plays(version, viewer);
             }
         })
     }
 
-    /// Stops the plan `id`, if it's the Device `device`'s, and deletes its files.
-    pub(crate) async fn stop_for(&self, id: u64, device: i64) {
+    /// Stops the plan `id`, if it's `viewer`'s, and deletes its files.
+    pub(crate) async fn stop_for(&self, id: u64, viewer: Viewer) {
         let plan = {
             let mut plans = lock(&self.inner.plans);
-            let theirs = (plans.get(&id)).is_some_and(|plan| plan.playback.device_id == device);
+            let theirs = (plans.get(&id)).is_some_and(|plan| plan.viewer() == viewer);
             if theirs { plans.remove(&id) } else { None }
         };
         if let Some(plan) = plan {
@@ -664,17 +663,6 @@ impl RunningPlans {
     pub(crate) fn served(&self, version: i64) -> CancellationToken {
         let mut served = lock(&self.inner.served);
         served.entry(version).or_default().child_token()
-    }
-
-    /// Cancelled once an Admin stops the Device `device`'s last plan of the Version `version`, to
-    /// cut off a response serving its file, and at once while that stop holds. Never cancelled
-    /// without a Device.
-    pub(crate) fn stopped(&self, version: i64, device: Option<i64>) -> CancellationToken {
-        let Some(device) = device else {
-            return CancellationToken::new();
-        };
-        let mut stopped = lock(&self.inner.stopped);
-        stopped.entry((version, device)).or_default().child_token()
     }
 
     /// Deletes each running plan's files from well behind or far ahead of playback, as
@@ -753,9 +741,15 @@ impl Plan {
         self.hls.as_ref().is_some_and(|hls| hls.fell_back())
     }
 
-    fn direct_plays(&self, version: i64, device: i64) -> bool {
-        let playback = &self.playback;
-        self.hls.is_none() && playback.version_id == version && playback.device_id == device
+    fn viewer(&self) -> Viewer {
+        Viewer {
+            user: self.playback.user_id,
+            device: self.playback.device_id,
+        }
+    }
+
+    fn direct_plays(&self, version: i64, viewer: Viewer) -> bool {
+        self.hls.is_none() && self.playback.version_id == version && self.viewer() == viewer
     }
 }
 

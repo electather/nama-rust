@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 
 import { hubRefusalReason } from "@/features/auth/lib/hub-errors";
+import { forgetServerSessions } from "@/features/servers/lib/server-sessions";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 
@@ -17,6 +18,8 @@ export function useSignInWithLink() {
   return useMutation(AccountService.method.signInWithLink, {
     onSuccess: async ({ continueTo }) => {
       queryClient.clear();
+      // A Device kept from before lacks this sign-in's Recent Authentication; a new trade has it.
+      forgetServerSessions();
       // A used link can't sign in again, so Back skips its page (`src/routes/AGENTS.md`).
       await navigate({ href: continueTo, replace: true });
     },

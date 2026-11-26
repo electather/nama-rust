@@ -152,7 +152,10 @@ pub(in crate::api) fn trailers_to_proto(trailers: Vec<Trailer>) -> Vec<proto::Tr
 }
 
 /// A Home row's title, or a Box Set's Movie, as clients see it.
-pub(super) fn row_title_to_proto(title: RowTitle, images: &ShownImages) -> proto::HomeRowTitle {
+pub(in crate::api) fn row_title_to_proto(
+    title: RowTitle,
+    images: &ShownImages,
+) -> proto::HomeRowTitle {
     proto::HomeRowTitle {
         movie_or_show: Some(match title {
             RowTitle::OnServer(OnServer::Movie(movie)) => {

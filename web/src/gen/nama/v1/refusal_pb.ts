@@ -803,8 +803,8 @@ export const RefusalReason = {
   SCHEDULE_INVALID: 95,
 
   /**
-   * `failed_precondition`: no enabled Plugin links the Server to an outside service, such as the
-   * Hub Plugin, so it can't be Linked or Unlinked.
+   * `failed_precondition`: the Server's config names no Hub (`hub_url`), so neither it nor its
+   * Users can be Linked or Unlinked, and no one can sign in with an Account.
    *
    * @generated from enum value: REFUSAL_REASON_NO_SERVER_LINKER = 96;
    */

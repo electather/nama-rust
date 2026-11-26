@@ -161,6 +161,9 @@ async fn deleting_a_library_drops_the_images_only_its_items_used() {
     let other = (fx.server)
         .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
         .await;
+    // Its scan's download task runs on after `MatchingFinished`; one that checks the store only
+    // after the last delete's sweep would write the images back.
+    fx.server.artwork_settled().await;
 
     delete_library(&fx.server, fx.library).await;
     let shared_kept = kept(&fx.server, TMDB, POSTER).exists();

@@ -15,7 +15,7 @@ use nama_plugin_api::{
 use sqlx::SqliteConnection;
 use tracing::warn;
 
-use super::title_source::title_id;
+use super::{Contents, title_source::title_id};
 use crate::{
     db::Database,
     plugins::{ExtensionPoints, without_secrets},
@@ -26,26 +26,20 @@ use crate::{
 /// settings, in its scope so disabling it stops the call, without waiting. A failure is logged
 /// and shown on the Plugins page, and not asked again. Must be called within a Tokio runtime.
 pub(super) fn scrobble(db: &Arc<Database>, points: &ExtensionPoints, told: &WatchStateChanges) {
-    let asked = ScrobbleAsked {
-        user_id: told.user_id,
-        changes: told.changes.iter().map(synced).collect(),
-        ..ScrobbleAsked::default()
-    };
     for plugin in points.providers::<dyn WatchSync>() {
-        let asked = asked.clone();
-        let telling = scrobble_to(Arc::clone(db), points.clone(), plugin.clone(), asked);
+        let telling = scrobble_to(Arc::clone(db), points.clone(), plugin.clone(), told.clone());
         points.spawn_in(&plugin, telling);
     }
 }
 
-/// Tells the Plugin `plugin` of `asked`'s changes, with the User's Personal settings for it.
+/// Tells the Plugin `plugin` of `told`, with the User's Personal settings for it.
 async fn scrobble_to(
     db: Arc<Database>,
     points: ExtensionPoints,
     plugin: PluginId,
-    asked: ScrobbleAsked,
+    told: WatchStateChanges,
 ) {
-    let user = asked.user_id;
+    let user = told.user_id;
     let settings = match personal_settings_of(&db, user, &plugin).await {
         Ok(settings) if settings.is_empty() => return,
         Ok(settings) => settings,
@@ -56,8 +50,10 @@ async fn scrobble_to(
     };
     let (personal_settings, secrets) = split_personal_settings(settings);
     let asked = ScrobbleAsked {
+        user_id: user,
         personal_settings: personal_settings.into_iter().collect(),
-        ..asked
+        changes: synced_changes(&Contents::new(db), &told.changes).await,
+        ..ScrobbleAsked::default()
     };
     let answer = points
         .ask(&plugin, |sync: Arc<dyn WatchSync>| {
@@ -74,6 +70,37 @@ async fn scrobble_to(
     }
 }
 
+/// `changes` as a Watch sync Plugin is told of them, each Episode the Library has with its Show,
+/// season and number.
+async fn synced_changes(
+    contents: &Contents,
+    changes: &[WatchStateChange],
+) -> Vec<SyncedWatchState> {
+    let mut states = Vec::with_capacity(changes.len());
+    for change in changes {
+        let state = synced(change);
+        let numbers = if change.episode {
+            contents.episode_numbers(&external_ids(change)).await
+        } else {
+            Ok(None)
+        };
+        states.push(match numbers {
+            Ok(Some(numbers)) => SyncedWatchState {
+                show_ids: numbers.show_ids.iter().map(|id| title_id(&id)).collect(),
+                season_number: u32::try_from(numbers.season).ok(),
+                episode_number: u32::try_from(numbers.episode).ok(),
+                ..state
+            },
+            Ok(None) => state,
+            Err(err) => {
+                warn!("could not read an Episode's Show to scrobble it: {err}");
+                state
+            }
+        });
+    }
+    states
+}
+
 /// `change` as a Watch sync Plugin is told of it.
 fn synced(change: &WatchStateChange) -> SyncedWatchState {
     let kind = if change.episode {
@@ -83,17 +110,21 @@ fn synced(change: &WatchStateChange) -> SyncedWatchState {
     };
     SyncedWatchState {
         kind: kind.into(),
-        // Every id was stored from a Match, so each parses.
-        ids: (change.ids.iter())
-            .filter_map(|id| id.parse::<ExternalId>().ok())
-            .map(|id| title_id(&id))
-            .collect(),
+        ids: external_ids(change).iter().map(title_id).collect(),
         played: change.played,
         position_ms: change.position_ms,
         duration_ms: change.duration_ms,
         changed_at_ms: change.changed_at_ms,
         ..SyncedWatchState::default()
     }
+}
+
+/// `change`'s ids, in order.
+fn external_ids(change: &WatchStateChange) -> Vec<ExternalId> {
+    // Every id was stored from a Match, so each parses.
+    (change.ids.iter())
+        .filter_map(|id| id.parse().ok())
+        .collect()
 }
 
 /// `state`, which a Watch sync Plugin imported, as a change to take, or `None` if it names

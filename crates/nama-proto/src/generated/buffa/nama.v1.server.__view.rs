@@ -234,7 +234,7 @@ impl ::serde::Serialize for GetServerLinkRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct GetServerLinkResponseView<'a> {
-    /// Unset without an enabled Plugin that links the Server.
+    /// Unset when the Server's config names no Hub.
     ///
     /// Field 1: `link`
     pub link: ::buffa::MessageFieldView<super::super::__buffa::view::ServerLinkView<'a>>,
@@ -487,7 +487,7 @@ impl GetServerLinkResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// Unset without an enabled Plugin that links the Server.
+    /// Unset when the Server's config names no Hub.
     ///
     /// Field 1: `link`
     #[must_use]

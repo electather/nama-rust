@@ -6,19 +6,33 @@ use std::sync::Arc;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{
-    self as proto, AddToWatchlistRequest, AddToWatchlistResponse, RemoveFromWatchlistRequest,
-    RemoveFromWatchlistResponse, WatchlistService,
+    self as proto, AddToWatchlistRequest, AddToWatchlistResponse, ListWatchlistRequest,
+    ListWatchlistResponse, RemoveFromWatchlistRequest, RemoveFromWatchlistResponse,
+    WatchlistService,
 };
 
-use crate::{db::Database, library::TitleKind, sync::Syncing, watchlist};
+use crate::{
+    db::Database,
+    home_rows::HomeRows,
+    library::{ImageSources, TitleKind},
+    sync::Syncing,
+    watchlist,
+};
 
-use super::{caller, database_failed, required_id, title_kind_from_proto};
+use super::{
+    browse::{home_rows_refused, row_title_to_proto},
+    caller, database_failed, external_id_to_proto, required_id, shown_images,
+    title_kind_from_proto,
+};
 
 /// `nama.v1.WatchlistService`: each signed-in User's Watchlist.
 pub(super) struct WatchlistServiceHandler {
     pub(super) db: Arc<Database>,
     /// Told of each change.
     pub(super) syncing: Syncing,
+    /// Shows each listed title as a Home row would.
+    pub(super) home_rows: HomeRows,
+    pub(super) images: ImageSources,
 }
 
 #[expect(
@@ -53,6 +67,31 @@ impl WatchlistService for WatchlistServiceHandler {
         removed.map_err(database_failed)?;
         self.syncing.watchlist_changed(user);
         Response::ok(RemoveFromWatchlistResponse::default())
+    }
+
+    async fn list_watchlist(
+        &self,
+        ctx: RequestContext,
+        _: ServiceRequest<'_, ListWatchlistRequest>,
+    ) -> ServiceResult<ListWatchlistResponse> {
+        let reader = &caller(&ctx)?.user;
+        let listed = watchlist::list(&self.db, reader.id).await;
+        let shown = self
+            .home_rows
+            .shown_to(reader, listed.map_err(database_failed)?)
+            .await;
+        let shown = shown.map_err(home_rows_refused)?;
+        let images = shown_images(&self.images, &ctx).await?;
+        Response::ok(ListWatchlistResponse {
+            titles: (shown.into_iter())
+                .map(|(id, title)| proto::WatchlistTitle {
+                    id: external_id_to_proto(&id).into(),
+                    title: row_title_to_proto(title, &images).into(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        })
     }
 }
 

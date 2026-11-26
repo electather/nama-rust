@@ -6,8 +6,9 @@ use crate::support::{fake_hub, refused, server};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use fake_hub::{FakeHub, SERVER_ID, in_5_minutes};
 use nama_proto::nama::v1::{
-    ListDevicesRequest, RefusalReason, RevokeDeviceRequest, SignInServiceClient,
-    SignInWithHubTokenRequest, SignInWithHubTokenResponse, UserServiceClient, WhoAmIRequest,
+    ListDevicesRequest, RefusalReason, RevokeDeviceRequest, SetSwitchPinRequest,
+    SignInServiceClient, SignInWithHubTokenRequest, SignInWithHubTokenResponse, UserServiceClient,
+    WhoAmIRequest,
 };
 use refused::assert_refused;
 use serde_json::json;
@@ -99,6 +100,55 @@ async fn a_hub_token_for_another_server_expired_unnamed_used_twice_or_forged_is_
             trade(&server, &refused).await,
             ErrorCode::Unauthenticated,
             RefusalReason::REFUSAL_REASON_HUB_TOKEN_REFUSED,
+        );
+    }
+}
+
+/// Sets a Switch PIN, a change that needs Recent Authentication, as the Device holding `token`.
+async fn set_switch_pin(server: &TestServer, token: &str) -> Result<(), ConnectError> {
+    SignInServiceClient::new(HttpClient::plaintext(), server.client_config_as(token))
+        .set_switch_pin(SetSwitchPinRequest {
+            switch_pin: "2468".to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_device_traded_within_ten_minutes_of_its_accounts_hub_sign_in_has_recent_authentication()
+{
+    let (server, hub) = FakeHub::linked_server().await;
+    let grace = server.user_with_default_permissions("Grace").await.id;
+    // Signed `ago` seconds after signing in, both by the Hub's clock, which reads `at` seconds
+    // from the Server's now: ahead for a Hub clock running fast, behind for a token kept a while.
+    let signed_in = |ago: u64, at: i64| {
+        let iat = (in_5_minutes() - 300).saturating_add_signed(at);
+        hub.signed(&json!({
+            "sub": grace.to_string(), "aud": SERVER_ID, "exp": in_5_minutes(),
+            "jti": format!("{ago}s ago, at {at}s"), "iat": iat, "auth_time": iat - ago,
+        }))
+    };
+    let just_now = trade(&server, &signed_in(5, 0)).await.unwrap().token;
+    let eleven_minutes_ago = trade(&server, &signed_in(660, 0)).await.unwrap().token;
+    let by_a_clock_an_hour_ahead = trade(&server, &signed_in(660, 3600)).await.unwrap().token;
+    let kept_four_minutes_after_six = trade(&server, &signed_in(400, -240)).await.unwrap().token;
+    let unsaid = hub.signed(&json!({
+        "sub": grace.to_string(), "aud": SERVER_ID, "exp": in_5_minutes(), "jti": "unsaid",
+    }));
+    let unsaid = trade(&server, &unsaid).await.unwrap().token;
+
+    set_switch_pin(&server, &just_now).await.unwrap();
+    for lacking in [
+        eleven_minutes_ago,
+        by_a_clock_an_hour_ahead,
+        kept_four_minutes_after_six,
+        unsaid,
+    ] {
+        assert_refused(
+            set_switch_pin(&server, &lacking).await,
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
         );
     }
 }

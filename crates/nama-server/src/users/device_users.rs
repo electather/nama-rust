@@ -131,9 +131,10 @@ async fn sign_in_device(
     held: Option<String>,
     new: String,
 ) -> Result<(Vec<i64>, SignedIn), Error> {
-    let (user, method) = proved_user(conn, proved).await?;
+    let (user, method, authenticated_at) = proved_user(conn, proved).await?;
     if let Some(token) = held
-        && let Some(joined) = add_to_device(conn, &hash_token(&token), user.id, method).await?
+        && let Some(joined) =
+            add_to_device(conn, &hash_token(&token), user.id, method, authenticated_at).await?
     {
         // It no longer acts as whoever it did, so what it opened as them ends.
         let switched = vec![joined.id];
@@ -143,7 +144,15 @@ async fn sign_in_device(
         };
         return Ok((switched, SignedIn { caller, token }));
     }
-    let inserted = insert_device(conn, user.id, method, device, &hash_token(&new)).await?;
+    let inserted = insert_device(
+        conn,
+        user.id,
+        method,
+        authenticated_at,
+        device,
+        &hash_token(&new),
+    )
+    .await?;
     let caller = Caller {
         user,
         device: inserted,
@@ -152,12 +161,17 @@ async fn sign_in_device(
 }
 
 /// Stores `device`, whose name has been checked, signed in as and acting as the User `user`, who
-/// proved it with the Sign-in Method `method`, or by a Sign-in Code or an Account, and the hash of
-/// its session token.
+/// proved it with the Sign-in Method `method`, or by a Sign-in Code or an Account, last proving who
+/// holds it at `authenticated_at` (0 for never), and the hash of its session token.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is its own fact about the sign-in, and a struct would only rename them"
+)]
 pub(super) async fn insert_device(
     conn: &mut SqliteConnection,
     user: i64,
     method: Option<i64>,
+    authenticated_at: i64,
     device: NewDevice,
     token_hash: &[u8; 32],
 ) -> Result<Device, sqlx::Error> {
@@ -183,7 +197,7 @@ pub(super) async fn insert_device(
     )
     .fetch_one(&mut *conn)
     .await?;
-    let authenticated_at = sign_in_to(conn, id, user, method, now).await?;
+    sign_in_to(conn, id, user, method, authenticated_at).await?;
     Ok(Device {
         id,
         name: device.name,
@@ -193,14 +207,16 @@ pub(super) async fn insert_device(
     })
 }
 
-/// Adds the User `user`, who proved it with `method` as for [`insert_device`], to the Device whose
-/// session token hashes to `token_hash`, and makes it act as them, or `None` if no unexpired Device
-/// has that token. A User already signed in to it signs in again.
+/// Adds the User `user`, who proved it with `method` at `authenticated_at` as for
+/// [`insert_device`], to the Device whose session token hashes to `token_hash`, and makes it act as
+/// them, or `None` if no unexpired Device has that token. A User already signed in to it signs in
+/// again.
 pub(super) async fn add_to_device(
     conn: &mut SqliteConnection,
     token_hash: &[u8; 32],
     user: i64,
     method: Option<i64>,
+    authenticated_at: i64,
 ) -> Result<Option<Device>, sqlx::Error> {
     let now = now();
     let token_hash = token_hash.as_slice();
@@ -218,7 +234,7 @@ pub(super) async fn add_to_device(
     let Some(found) = found else {
         return Ok(None);
     };
-    let authenticated_at = sign_in_to(conn, found.id, user, method, now).await?;
+    sign_in_to(conn, found.id, user, method, authenticated_at).await?;
     Ok(Some(Device {
         id: found.id,
         name: found.name,
@@ -228,18 +244,15 @@ pub(super) async fn add_to_device(
     }))
 }
 
-/// Records that the User `user` signed in to the Device `device` at `now` with `method`, as for
-/// [`insert_device`], and answers when they last proved who they are on it.
+/// Records that the User `user` signed in to the Device `device` with `method`, last proving who
+/// holds it at `authenticated_at`, as for [`insert_device`].
 async fn sign_in_to(
     conn: &mut SqliteConnection,
     device: i64,
     user: i64,
     method: Option<i64>,
-    now: i64,
-) -> Result<i64, sqlx::Error> {
-    // A Device signed in by a Sign-in Code or an Account never proved who it is itself (ADR 0014):
-    // whoever approved on the other Device, or on the Hub, may not be the one holding it.
-    let authenticated_at = if method.is_some() { now } else { 0 };
+    authenticated_at: i64,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO device_users (device_id, user_id, sign_in_method_id, authenticated_at)
          VALUES (?, ?, ?, ?)
@@ -253,5 +266,5 @@ async fn sign_in_to(
     )
     .execute(conn)
     .await?;
-    Ok(authenticated_at)
+    Ok(())
 }

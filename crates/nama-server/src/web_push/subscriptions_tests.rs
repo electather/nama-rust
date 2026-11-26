@@ -11,6 +11,7 @@ use url::Url;
 use super::{push, subscribe, subscriptions_of, unsubscribe};
 use crate::{
     db::Database,
+    users::testing::insert_user,
     web_push::{
         Pusher,
         testing::{assert_valid_vapid, browser, new_key, push_service, silent_push_service},
@@ -21,25 +22,6 @@ async fn open() -> (TempDir, Database) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
     (data_dir, db)
-}
-
-async fn insert_user(db: &Database, name: &str) -> i64 {
-    let name = name.to_owned();
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(&name)
-            .bind(&name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 async fn endpoints_of(db: &Database, user: i64) -> Vec<String> {

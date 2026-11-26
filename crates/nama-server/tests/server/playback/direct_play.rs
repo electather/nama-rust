@@ -42,26 +42,26 @@ async fn capped_bishop(builder: Builder, bin: &Path) -> (Fixture, [i64; 2], Sign
     }
     fx.scan_and_probe().await;
     let versions = fx.version_ids(ALIEN).await.try_into().unwrap();
-    let bishop = bishop_capped_at_720p(&fx).await;
+    let bishop = capped_at_720p(&fx, "Bishop").await;
     (fx, versions, bishop)
 }
 
-/// Bishop, a new User on `fx`'s Server, capped at 720p remotely.
+/// `name`, a new User on `fx`'s Server, capped at 720p remotely.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn bishop_capped_at_720p(fx: &Fixture) -> SignedIn {
-    let bishop = fx.server.user_with_default_permissions("Bishop").await;
+async fn capped_at_720p(fx: &Fixture, name: &str) -> SignedIn {
+    let user = fx.server.user_with_default_permissions(name).await;
     (UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config()))
         .set_permissions(SetPermissionsRequest {
-            user_id: bishop.id,
+            user_id: user.id,
             remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_720P.into(),
             ..Default::default()
         })
         .await
         .unwrap();
-    bishop
+    user
 }
 
 /// The status of `token`'s request for the Version `version`'s file, relayed for `client`.
@@ -95,6 +95,26 @@ async fn a_capped_user_off_the_local_network_is_sent_a_version_their_plan_direct
     assert_eq!(status_for(&fx, p720, &bishop.token, REMOTE).await, 200);
 }
 
+// A plan belongs to the User it was made for (ADR 0106), so the cap is checked as the User the
+// Device acts as now.
+#[tokio::test]
+async fn a_direct_play_planned_under_a_cap_lets_no_user_the_device_switches_to_past_theirs() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, p720], bishop) = capped_bishop(behind_proxy(), bin.path()).await;
+    capped_at_720p(&fx, "Hicks").await;
+    let remotely = (bishop.client_config()).with_default_header("x-forwarded-for", REMOTE);
+    let original = picking(p720, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    let plan = ask_for_plan_as(remotely, original).await.unwrap();
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+
+    fx.server.sign_in_on(&bishop.token, "Hicks").await;
+    let as_hicks = status_for(&fx, p720, &bishop.token, REMOTE).await;
+    fx.server.switch_to(&bishop.token, bishop.id).await;
+
+    assert_eq!(as_hicks, 403);
+    assert_eq!(status_for(&fx, p720, &bishop.token, REMOTE).await, 200);
+}
+
 // The cap can't be kept without the picture's size, so it's best-effort there (ADR 0026, #2134).
 #[tokio::test]
 async fn a_capped_user_off_the_local_network_direct_plays_and_seeks_in_an_unprobed_version() {
@@ -102,7 +122,7 @@ async fn a_capped_user_off_the_local_network_direct_plays_and_seeks_in_an_unprob
     fx.write(ALIEN_1080P, b"video");
     fx.scan_and_probe().await;
     let version = fx.version_ids(ALIEN).await[0];
-    let bishop = bishop_capped_at_720p(&fx).await;
+    let bishop = capped_at_720p(&fx, "Bishop").await;
     let remotely = (bishop.client_config()).with_default_header("x-forwarded-for", REMOTE);
     let original = picking(version, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 

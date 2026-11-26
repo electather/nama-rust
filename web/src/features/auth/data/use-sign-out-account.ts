@@ -1,6 +1,6 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouteContext } from "@tanstack/react-router";
 
 import { hubRefusalReason } from "@/features/auth/lib/hub-errors";
 import { forgetServerSessions } from "@/features/servers/lib/server-sessions";
@@ -15,6 +15,8 @@ import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 export function useSignOutAccount(redirect?: string) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  // The Hub's, even from a Server's pages at the Hub, which run against that Server.
+  const hub = useRouteContext({ from: "__root__", select: ({ transport }) => transport });
   const goToSignIn = async () => {
     queryClient.clear();
     await navigate({ to: "/sign-in", search: { redirect } });
@@ -22,6 +24,7 @@ export function useSignOutAccount(redirect?: string) {
     forgetServerSessions();
   };
   return useMutation(AccountService.method.signOut, {
+    transport: hub,
     onSuccess: goToSignIn,
     onError: async (error) => {
       if (hubRefusalReason(error) === RefusalReason.SIGN_IN_REQUIRED) {

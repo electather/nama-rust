@@ -729,6 +729,8 @@ impl Matcher {
                 .await?
                 .ok_or(gone)?;
             happened.extend(made_available);
+            // Before the events, so a test that waits on them can wait out the artwork work too.
+            let _artwork = this.artwork.working();
             this.events.publish(happened);
             this.artwork.drop_unused(&this.contents).await;
             this.artwork

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Spinner } from "@/features/player/components/spinner";
 import { TopBar } from "@/features/player/components/top-bar";
 import type { PlayerProps } from "@/features/player/lib/player-props";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 
 // React keeps a Suspense fallback up for at least 300 ms, so without this wait a quick plan, as most
 // later ones are, would flash this and have it announced. Shorter, it is also the status
@@ -20,6 +21,7 @@ export function GettingReady({
   back,
   backdropUrl,
 }: Pick<PlayerProps, "title" | "heading" | "line" | "back" | "backdropUrl">) {
+  const backdrop = useServerUrl(backdropUrl);
   const [noticeable, setNoticeable] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -32,7 +34,7 @@ export function GettingReady({
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
       {backdropUrl !== undefined && (
-        <img src={backdropUrl} alt="" className="absolute inset-0 size-full object-cover" />
+        <img src={backdrop} alt="" className="absolute inset-0 size-full object-cover" />
       )}
       <div aria-hidden className="absolute inset-0 bg-scrim" />
       <div className="relative">

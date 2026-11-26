@@ -59,6 +59,7 @@
       { "name": "title", "patterns": ["src/features/title/**"] },
       { "name": "player", "patterns": ["src/features/player/**"] },
       { "name": "servers", "patterns": ["src/features/servers/**"] },
+      { "name": "watchlist", "patterns": ["src/features/watchlist/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
       // The only files that import route files.
@@ -81,8 +82,8 @@
       },
       {
         "from": "auth",
-        // The Account's home at the Hub lists its Servers' Libraries.
-        "allow": ["auth", "servers", "shared-components", "shared-hooks", "shared-lib"],
+        // Home at the Hub lists its Servers' Libraries under their merged rows.
+        "allow": ["auth", "home", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-libraries",
@@ -172,7 +173,8 @@
       },
       {
         "from": "home",
-        "allow": ["home", "shared-components", "shared-hooks", "shared-lib"],
+        // At the Hub, Home merges the rows of the Servers it reaches as their Libraries' list does.
+        "allow": ["home", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "library",
@@ -192,10 +194,17 @@
         "allow": ["servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
+        "from": "watchlist",
+        // At the Hub, it reaches each of the Account's Servers as their Libraries' list does.
+        "allow": ["watchlist", "servers", "shared-components", "shared-hooks", "shared-lib"],
+      },
+      {
         "from": "app",
+        // A Server's pages at the Hub confirm it's you by signing in on the Hub again.
         "allow": [
           "app",
           "action-bar",
+          "auth",
           "inbox",
           "player",
           "settings",
@@ -219,6 +228,7 @@
           "title",
           "player",
           "servers",
+          "watchlist",
           "shared-components",
           "shared-hooks",
           "shared-lib",

@@ -1,8 +1,8 @@
+import { passkeyError } from "@/features/auth/lib/hub-errors";
 import { HubRefusal } from "@/features/settings/components/hub-refusal";
 import { PasskeyItem } from "@/features/settings/components/passkey-item";
 import { usePasskeys } from "@/features/settings/data/use-passkeys";
 import { useRemovePasskey } from "@/features/settings/data/use-remove-passkey";
-import { passkeyError } from "@/features/settings/lib/account-refusals";
 import { AlertText } from "@/shared/components/form-field/alert-text";
 
 /** The Account's passkeys, each with Remove, or what a passkey is while it has none. */

@@ -111,4 +111,13 @@ message SyncedWatchState {
   uint64 duration_ms = 5;
   // When it changed, in milliseconds since the Unix epoch, which decides the newer of two changes.
   int64 changed_at_ms = 6;
+  // Every id the Kernel knows an Episode's Show by, at most one per namespace, any one of which
+  // identifies it. The Kernel sets this and the two numbers below only for an Episode Matched in
+  // a Library, for a tracker that finds an Episode by its Show, season and number; `import` may
+  // leave them unset.
+  repeated TitleId show_ids = 7;
+  // An Episode's Season's number within its Show, as `show_ids`. Season 0 holds specials.
+  optional uint32 season_number = 8;
+  // An Episode's number within its Season, as `show_ids`.
+  optional uint32 episode_number = 9;
 }

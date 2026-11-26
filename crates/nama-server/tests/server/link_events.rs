@@ -17,8 +17,8 @@ use nama_plugin_api::{
 };
 use nama_plugin_proto::nama::plugin::v1::{self as wire, event::Event};
 use nama_proto::nama::v1::{
-    GetUserLinkRequest, ServerServiceClient, UnlinkServerRequest, UnlinkUserRequest,
-    UpdateServerSettingsRequest, UserServiceClient,
+    GetUserLinkRequest, ServerServiceClient, StartUserLinkRequest, UnlinkServerRequest,
+    UnlinkUserRequest, UpdateServerSettingsRequest, UserServiceClient,
 };
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT};
@@ -41,20 +41,23 @@ impl Listener {
     }
 
     /// Waits until it has heard `expected` and nothing else, in either order, as Observers and
-    /// Notifiers are told apart, then forgets it.
-    async fn until_heard(&self, expected: &[Heard]) {
+    /// Notifiers are told apart, then forgets it. A failure names `step`, the change it waited on.
+    async fn until_heard(&self, step: &str, expected: &[Heard]) {
         let started = tokio::time::Instant::now();
         loop {
             let heard = self.heard().clone();
             if heard.len() >= expected.len() {
                 assert!(
                     expected.iter().all(|one| heard.contains(one)) && heard.len() == expected.len(),
-                    "heard {heard:?}, not {expected:?}"
+                    "{step}: heard {heard:?}, not {expected:?}"
                 );
                 self.heard().clear();
                 return;
             }
-            assert!(started.elapsed() < WAIT, "heard only {heard:?}");
+            assert!(
+                started.elapsed() < WAIT,
+                "{step}: heard only {heard:?} of {expected:?}"
+            );
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     }
@@ -148,12 +151,18 @@ async fn linking_and_unlinking_the_server_and_a_user_are_each_told_once() {
 
     hub.link(&server).await;
     listener
-        .until_heard(&heard(wire::ServerLinked::default()))
+        .until_heard("the Server Linked", &heard(wire::ServerLinked::default()))
         .await;
 
     let grace = server.user_with_default_permissions("Grace").await;
     let users = UserServiceClient::new(HttpClient::plaintext(), grace.client_config());
-    hub.link_user(grace.id);
+    // Through her code, as a User Links: signing in had the Server ask the Hub whether she is
+    // Linked, and it keeps that answer a minute unless a code waits.
+    users
+        .start_user_link(StartUserLinkRequest::default())
+        .await
+        .unwrap();
+    hub.enter_user_code(grace.id);
     users
         .get_user_link(GetUserLinkRequest::default())
         .await
@@ -163,7 +172,9 @@ async fn linking_and_unlinking_the_server_and_a_user_are_each_told_once() {
         name: "Grace".to_owned(),
         ..Default::default()
     };
-    listener.until_heard(&heard(grace_linked)).await;
+    listener
+        .until_heard("Grace Linked", &heard(grace_linked))
+        .await;
 
     users
         .unlink_user(UnlinkUserRequest::default())
@@ -174,14 +185,19 @@ async fn linking_and_unlinking_the_server_and_a_user_are_each_told_once() {
         name: "Grace".to_owned(),
         ..Default::default()
     };
-    listener.until_heard(&heard(grace_unlinked)).await;
+    listener
+        .until_heard("Grace Unlinked", &heard(grace_unlinked))
+        .await;
 
     settings(&server)
         .unlink_server(UnlinkServerRequest::default())
         .await
         .unwrap();
     listener
-        .until_heard(&heard(wire::ServerUnlinked::default()))
+        .until_heard(
+            "the Server Unlinked",
+            &heard(wire::ServerUnlinked::default()),
+        )
         .await;
 }
 
@@ -190,7 +206,7 @@ async fn a_server_the_hub_forgot_is_told_unlinked() {
     let (server, hub, listener) = listened_to().await;
     hub.link(&server).await;
     listener
-        .until_heard(&heard(wire::ServerLinked::default()))
+        .until_heard("the Server Linked", &heard(wire::ServerLinked::default()))
         .await;
     hub.forget_server();
 
@@ -208,6 +224,9 @@ async fn a_server_the_hub_forgot_is_told_unlinked() {
         .unwrap();
 
     listener
-        .until_heard(&heard(wire::ServerUnlinked::default()))
+        .until_heard(
+            "the Server Unlinked",
+            &heard(wire::ServerUnlinked::default()),
+        )
         .await;
 }

@@ -1,7 +1,10 @@
 use std::{
     collections::BTreeMap,
     io::{self, Cursor},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -12,7 +15,7 @@ use axum::{
     response::Response,
 };
 use http_body_util::BodyExt as _;
-use image::{ImageFormat, ImageReader, RgbImage};
+use image::{ImageFormat, ImageReader, RgbImage, RgbaImage};
 use tempfile::{NamedTempFile, TempDir};
 
 use super::super::{Blobs, ImageStore, MAX_BYTES, Resize, WHOLE_READS};
@@ -20,13 +23,22 @@ use crate::db::{BoxFuture, Database};
 
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
 
-/// A store that keeps its objects in memory, so nothing it holds is on disk.
+/// A store that keeps its objects in memory, so nothing it holds is on disk, and counts its
+/// reads, failing each while `gets_fail` is set.
 #[derive(Debug, Default)]
-struct InMemory(Mutex<BTreeMap<String, Vec<u8>>>);
+struct InMemory {
+    objects: Mutex<BTreeMap<String, Vec<u8>>>,
+    gets: AtomicUsize,
+    gets_fail: AtomicBool,
+}
 
 impl InMemory {
     fn objects(&self) -> std::sync::MutexGuard<'_, BTreeMap<String, Vec<u8>>> {
-        self.0.lock().unwrap()
+        self.objects.lock().unwrap()
+    }
+
+    fn gets(&self) -> usize {
+        self.gets.load(Ordering::SeqCst)
     }
 }
 
@@ -44,8 +56,13 @@ impl Blobs for InMemory {
     }
 
     fn get(&self, key: &str) -> BoxFuture<'_, io::Result<Option<Vec<u8>>>> {
-        let found = self.objects().get(key).cloned();
-        Box::pin(async { Ok(found) })
+        self.gets.fetch_add(1, Ordering::SeqCst);
+        let found = if self.gets_fail.load(Ordering::SeqCst) {
+            Err(io::Error::other("the store is down"))
+        } else {
+            Ok(self.objects().get(key).cloned())
+        };
+        Box::pin(async { found })
     }
 
     fn delete(&self, key: &str) -> BoxFuture<'_, io::Result<()>> {
@@ -70,8 +87,15 @@ impl Blobs for InMemory {
 }
 
 async fn in_memory(data: &TempDir) -> ImageStore {
+    counted(data).await.0
+}
+
+/// A store over an [`InMemory`] one, and that one, to count its reads.
+async fn counted(data: &TempDir) -> (ImageStore, Arc<InMemory>) {
     let db = Database::open(data.path()).await.unwrap();
-    ImageStore::over(data.path(), Arc::new(db), Arc::new(InMemory::default()))
+    let blobs = Arc::new(InMemory::default());
+    let store = ImageStore::over(data.path(), Arc::new(db), Arc::<InMemory>::clone(&blobs));
+    (store, blobs)
 }
 
 async fn on_disk(data: &TempDir) -> ImageStore {
@@ -277,4 +301,145 @@ async fn an_image_is_resized_from_a_store_not_on_disk() {
         .unwrap();
     assert_eq!(copy.into_dimensions().unwrap(), (320, 480));
     assert!(!data.path().join("artwork").exists());
+}
+
+const AT_320: Resize = Resize {
+    width: 320,
+    cache_limit: u64::MAX,
+};
+
+fn png(image: impl Into<image::DynamicImage>) -> Vec<u8> {
+    let mut png = Cursor::new(Vec::new());
+    image.into().write_to(&mut png, ImageFormat::Png).unwrap();
+    png.into_inner()
+}
+
+#[tokio::test]
+async fn a_second_copy_ahead_of_an_image_no_wider_than_asked_does_not_read_it_again() {
+    let data = tempfile::tempdir().unwrap();
+    let (store, blobs) = counted(&data).await;
+    store
+        .write(KEY, &png(RgbImage::new(300, 450)))
+        .await
+        .unwrap();
+    store.copy_ahead(KEY, &[AT_320]).await;
+    assert_eq!(blobs.gets(), 2, "one read for each format");
+
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    assert_eq!(blobs.gets(), 2);
+}
+
+#[tokio::test]
+async fn a_second_copy_ahead_of_a_blob_that_is_no_image_does_not_read_it_again() {
+    let data = tempfile::tempdir().unwrap();
+    let (store, blobs) = counted(&data).await;
+    store.write(KEY, b"not an image").await.unwrap();
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    assert_eq!(blobs.gets(), 2);
+}
+
+#[tokio::test]
+async fn a_transparent_png_is_read_once_as_a_jpeg_and_still_resized_as_a_jpeg_xl() {
+    let data = tempfile::tempdir().unwrap();
+    let (store, blobs) = counted(&data).await;
+    let transparent = RgbaImage::from_pixel(1000, 1500, [0, 0, 0, 0].into());
+    store.write(KEY, &png(transparent)).await.unwrap();
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    store.copy_ahead(KEY, &[AT_320]).await;
+    let jxl = Request::get("/")
+        .header(header::ACCEPT, "image/jxl")
+        .body(Body::empty())
+        .unwrap();
+    let sent = store
+        .serve(KEY, "image/png", Some(AT_320), jxl)
+        .await
+        .unwrap();
+
+    assert_eq!(blobs.gets(), 2, "one read for each format");
+    assert_eq!(sent.headers()[header::CONTENT_TYPE], "image/jxl");
+}
+
+#[tokio::test]
+async fn a_failed_read_is_tried_again_by_the_next_copy_ahead() {
+    let data = tempfile::tempdir().unwrap();
+    let (store, blobs) = counted(&data).await;
+    store
+        .write(KEY, &png(RgbImage::new(300, 450)))
+        .await
+        .unwrap();
+    blobs.gets_fail.store(true, Ordering::SeqCst);
+    store.copy_ahead(KEY, &[AT_320]).await;
+    blobs.gets_fail.store(false, Ordering::SeqCst);
+
+    store.copy_ahead(KEY, &[AT_320]).await;
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    assert_eq!(
+        blobs.gets(),
+        4,
+        "two failed reads, then one for each format"
+    );
+}
+
+#[tokio::test]
+async fn a_failed_resize_is_tried_again_by_the_next_copy_ahead() {
+    let data = tempfile::tempdir().unwrap();
+    let (store, blobs) = counted(&data).await;
+    store.write(KEY, b"\x89PNG\r\n\x1a\nbroken").await.unwrap();
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    store.copy_ahead(KEY, &[AT_320]).await;
+
+    assert_eq!(blobs.gets(), 4);
+}
+
+#[tokio::test]
+async fn a_larger_image_stored_after_deleting_one_left_unresized_is_resized() {
+    let data = tempfile::tempdir().unwrap();
+    let store = in_memory(&data).await;
+    store
+        .write(KEY, &png(RgbImage::new(300, 450)))
+        .await
+        .unwrap();
+    store.copy_ahead(KEY, &[AT_320]).await;
+    store.delete(KEY).await.unwrap();
+    store
+        .write(KEY, &png(RgbImage::new(1000, 1500)))
+        .await
+        .unwrap();
+
+    let sent = store
+        .serve(KEY, "image/png", Some(AT_320), get())
+        .await
+        .unwrap();
+
+    assert_eq!(sent.headers()[header::CONTENT_TYPE], "image/jpeg");
+}
+
+#[tokio::test]
+async fn an_image_marked_unresized_is_sent_as_stored_with_the_same_headers() {
+    let data = tempfile::tempdir().unwrap();
+    let (store, blobs) = counted(&data).await;
+    let original = png(RgbImage::new(300, 450));
+    store.write(KEY, &original).await.unwrap();
+    let first = store
+        .serve(KEY, "image/png", Some(AT_320), get())
+        .await
+        .unwrap();
+    let read = blobs.gets();
+
+    let again = store
+        .serve(KEY, "image/png", Some(AT_320), get())
+        .await
+        .unwrap();
+
+    assert_eq!(blobs.gets(), read + 1, "read only to send it");
+    assert_eq!(again.status(), first.status());
+    assert_eq!(again.headers(), first.headers());
+    assert_eq!(body(again).await, original);
 }
