@@ -271,6 +271,31 @@ fn a_played_movie_and_episode_go_to_the_history_as_of_when_they_were_played() {
     );
 }
 
+// Trakt finds an Episode by its own TMDB id, so it needs no Show ids or numbers (#2366).
+#[test]
+fn an_episode_with_only_a_tmdb_id_goes_to_the_history_by_it() {
+    let fake = shared(FakeTrakt::linked());
+    let mut kernel = kernel(&fake);
+
+    scrobbled(
+        &mut kernel,
+        &fake,
+        vec![episode(&[("tmdb", "63057")], true)],
+    )
+    .unwrap();
+
+    let [added] = kernel.sent() else {
+        panic!("sent {:?}", asked(&kernel));
+    };
+    assert_eq!(
+        body(added),
+        json!({
+            "movies": [],
+            "episodes": [{ "ids": { "tmdb": 63057 }, "watched_at": "2026-11-20T20:00:00Z" }],
+        })
+    );
+}
+
 #[test]
 fn position_reports_send_nothing_and_a_played_title_is_added_once_while_it_plays_on() {
     let fake = shared(FakeTrakt::linked());
