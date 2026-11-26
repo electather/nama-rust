@@ -59,6 +59,7 @@ impl Requests {
             show_ids: show.ids,
             show_title: show.title,
             quality,
+            content_rating: show.content_rating,
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
@@ -269,8 +270,8 @@ async fn open_followed(
     let show_id = show.show_id.to_string();
     let id = sqlx::query_scalar!(
         "INSERT INTO followed_shows (show_id, title, state, latest_season, created_at, quality_id,
-                                     quality_name, quality_profile_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                     quality_name, quality_profile_id, content_rating)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
         show_id,
         show.show_title,
@@ -279,7 +280,8 @@ async fn open_followed(
         now,
         quality_id,
         quality_name,
-        quality_profile_id
+        quality_profile_id,
+        show.content_rating
     )
     .fetch_one(&mut *conn)
     .await?;
