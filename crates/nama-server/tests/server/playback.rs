@@ -1698,7 +1698,10 @@ async fn a_pgs_track_is_read_out_as_sup_once_and_thrown_away_with_its_versions_w
     assert_eq!(first.header("content-type"), "application/octet-stream");
     assert_eq!((first.body, again.body), (b"PGS".to_vec(), b"PGS".to_vec()));
     let runs = fs::read_to_string(&log).unwrap();
-    let read_outs: Vec<_> = runs.lines().filter(|run| run.contains("0:s:0")).collect();
+    // Only a fetch reads out to stdout (`-`); this fake's background pass caches nothing.
+    let read_outs: Vec<_> = (runs.lines())
+        .filter(|run| run.contains("0:s:0") && run.ends_with(" -"))
+        .collect();
     assert_eq!(read_outs.len(), 1, "{runs}");
     assert!(read_outs[0].contains("-c:s copy -f sup"), "{runs}");
     fx.remove_file(ALIEN_1080P);
@@ -1740,7 +1743,10 @@ async fn a_vobsub_track_is_read_out_as_mks_once_and_thrown_away_with_its_version
     assert_eq!(first.header("content-type"), "application/octet-stream");
     assert_eq!((first.body, again.body), (b"MKS".to_vec(), b"MKS".to_vec()));
     let runs = fs::read_to_string(&log).unwrap();
-    let read_outs: Vec<_> = runs.lines().filter(|run| run.contains("0:s:2")).collect();
+    // Only a fetch reads out to stdout (`-`); this fake's background pass caches nothing.
+    let read_outs: Vec<_> = (runs.lines())
+        .filter(|run| run.contains("0:s:2") && run.ends_with(" -"))
+        .collect();
     assert_eq!(read_outs.len(), 1, "{runs}");
     assert!(read_outs[0].contains("-c:s copy -f matroska"), "{runs}");
     let [cached] = &fx.cached_subtitles()[..] else {

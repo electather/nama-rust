@@ -1,6 +1,6 @@
-//! Reading a Version's text subtitles and fonts out of its file in one background pass, by a
-//! scripted ffmpeg, after Probing while nothing plays (#1649), or when one is fetched before then
-//! (#829).
+//! Reading a Version's text and image subtitles and fonts out of its file in one background pass,
+//! by a scripted ffmpeg, after Probing while nothing plays (#1649, #1124), or when one is fetched
+//! before then (#829).
 
 use super::*;
 
@@ -178,7 +178,7 @@ fn subtitle_url(version: i64, track: usize) -> String {
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
-async fn a_pass_after_probing_reads_every_text_track_and_font_in_one_run_fetches_are_served_from() {
+async fn a_pass_after_probing_reads_every_track_and_font_in_one_run_fetches_are_served_from() {
     let bin = tempfile::tempdir().unwrap();
     let ffmpeg = ffmpeg_reading_text_subtitles_after(bin.path(), "");
     let (fx, version) = alien_read_out_with(bin.path(), ffmpeg).await;
@@ -204,26 +204,53 @@ async fn a_pass_after_probing_reads_every_text_track_and_font_in_one_run_fetches
         panic!("not one ffmpeg run: {runs:?}");
     };
     // The font is the file's second attachment, after the cover.
-    for read in ["-dump_attachment:t:1", "0:s:0", "0:s:1"] {
+    for read in [
+        "-dump_attachment:t:1",
+        "0:s:0",
+        "0:s:1",
+        "-map 0:s:2 -c:s copy -f sup",
+    ] {
         assert!(run.contains(read), "{run}");
     }
-    assert!(!run.contains("0:s:2"), "an image subtitle was read: {run}");
 }
 
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
-async fn an_image_track_is_still_read_out_on_its_own_when_fetched() {
+async fn an_image_track_fetched_after_the_pass_is_served_from_the_cache_without_ffmpeg() {
     let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = ffmpeg_reading_text_subtitles_after(bin.path(), "");
+    let ffmpeg = ffmpeg_reading_subtitles(bin.path(), IMAGE_SUBTITLED, "");
     let (fx, version) = alien_read_out_with(bin.path(), ffmpeg).await;
+    until_cached(&fx, "2.sup").await;
 
-    let pgs = fx.fetched(&subtitle_url(version, PGS)).await;
+    let pgs = fx.fetched(&subtitle_url(version, 2)).await;
+
+    assert_eq!(pgs, (200, "PGS".to_owned()));
+    assert_eq!(ffmpeg_runs(bin.path()).len(), 1);
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_image_track_fetched_before_its_pass_finished_is_read_out_on_its_own() {
+    let bin = tempfile::tempdir().unwrap();
+    let go = bin.path().join("go");
+    let wait_for_go = format!("while [ ! -e '{}' ]; do sleep 0.05; done", go.display());
+    let ffmpeg = ffmpeg_reading_text_subtitles_after(bin.path(), &wait_for_go);
+    let (fx, version) = alien_read_out_with(bin.path(), ffmpeg).await;
+    // Stops the background pass before it caches anything.
+    fx.play(version).await;
+
+    let pgs = subtitle_url(version, PGS);
+    let (pgs, ()) = tokio::join!(fx.fetched(&pgs), async {
+        until_runs(bin.path(), 2).await;
+        fs::write(&go, "").unwrap();
+    });
 
     assert_eq!(pgs, (200, "PGS".to_owned()));
     let runs = ffmpeg_runs(bin.path());
-    let [_text_pass, run] = runs.as_slice() else {
-        panic!("not the text pass and one more ffmpeg run: {runs:?}");
+    let [_stopped_pass, run] = runs.as_slice() else {
+        panic!("not the stopped pass and one more ffmpeg run: {runs:?}");
     };
     assert!(run.contains("-map 0:s:2 -c:s copy -f sup -"), "{run}");
 }
@@ -231,18 +258,73 @@ async fn an_image_track_is_still_read_out_on_its_own_when_fetched() {
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
-async fn a_version_with_only_image_tracks_gets_no_background_pass() {
+async fn a_version_whose_text_tracks_are_cached_gets_only_its_image_tracks_on_its_next_pass() {
     let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = ffmpeg_reading_subtitles(bin.path(), IMAGE_SUBTITLED, "");
-    let (fx, version) = alien_with(ffmpeg).await;
-    // Probed, which the fetch needs, and the background work told.
-    fx.scan_and_probe().await;
+    let ffmpeg = ffmpeg_reading_text_subtitles_after(bin.path(), "");
+    let (fx, version) = alien_read_out_with(bin.path(), ffmpeg).await;
+    until_cached(&fx, "fonts/0").await;
+    // As a pass before image Tracks were in it left the cache.
+    let [cached] = &fx.cached_subtitles()[..] else {
+        panic!("not one Version cached: {:?}", fx.cached_subtitles());
+    };
+    fs::remove_file(cached.join(format!("{PGS}.sup"))).unwrap();
 
-    let pgs = fx.fetched(&subtitle_url(version, 2)).await;
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    fx.scan_and_probe().await;
+    until_cached(&fx, &format!("{PGS}.sup")).await;
+    let pgs = fx.fetched(&subtitle_url(version, PGS)).await;
 
     assert_eq!(pgs, (200, "PGS".to_owned()));
-    assert_eq!(ffmpeg_runs(bin.path()).len(), 1);
+    let runs = ffmpeg_runs(bin.path());
+    let [_first_pass, run] = runs.as_slice() else {
+        panic!("not two passes: {runs:?}");
+    };
+    assert!(run.contains("-map 0:s:2 -c:s copy -f sup"), "{run}");
+    for cached_before in ["0:s:0", "0:s:1", "-dump_attachment"] {
+        assert!(!run.contains(cached_before), "{run}");
+    }
+}
+
+/// Whether the Version's cache folder `folder` holds its Track `track` as WebVTT, whatever
+/// `WEBVTT_VERSION` names it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn caches_webvtt(folder: &Path, track: usize) -> bool {
+    fs::read_dir(folder).unwrap().any(|file| {
+        let path = file.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy();
+        name.starts_with(&format!("{track}.")) && path.extension().is_some_and(|ext| ext == "vtt")
+    })
+}
+
+#[tokio::test]
+async fn one_pass_caches_both_a_text_and_an_image_track_of_a_real_file() {
+    let (fx, version) =
+        Fixture::alien_written(system_ffmpeg(), ffmpeg::write_black_with_pgs_and_srt).await;
+
+    // Track 1 is the PGS one and Track 2 the SRT one, both read out with nothing fetched.
+    let both_cached = async {
+        while !matches!(&fx.cached_subtitles()[..],
+            [cached] if cached.join("1.sup").is_file() && caches_webvtt(cached, 2))
+        {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    let waited = tokio::time::timeout(WAIT, both_cached).await;
+    let token = Some(fx.server.admin_token.as_str());
+    let pgs = fetch(&fx.server, &subtitle_url(version, 1), token).await;
+    let srt = fetch(&fx.server, &subtitle_url(version, 2), token).await;
+
+    assert!(
+        waited.is_ok(),
+        "not both cached: {:?}",
+        fx.cached_subtitles()
+    );
+    assert_eq!((pgs.status, srt.status), (200, 200));
+    assert!(pgs.body.starts_with(b"PG"), "not PGS: {:?}", pgs.body);
+    let srt = String::from_utf8(srt.body).unwrap();
+    assert!(srt.starts_with("WEBVTT") && srt.contains("café"), "{srt}");
 }
 
 // The fake ffmpeg and ffprobe are shell scripts.

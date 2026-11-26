@@ -41,8 +41,8 @@ pub(crate) use self::refused_write::RefusedWrite;
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
     FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_17_minutes_h264, write_1080p_h264,
-    write_black_with_pgs, write_black_with_pgs_sidecar, write_h264_with_5_1,
-    write_hdr_ramp_with_pgs, write_hevc_with_5_1,
+    write_black_with_pgs, write_black_with_pgs_and_srt, write_black_with_pgs_sidecar,
+    write_h264_with_5_1, write_hdr_ramp_with_pgs, write_hevc_with_5_1,
 };
 use crate::{config::Config, diagnostics};
 
@@ -513,15 +513,16 @@ impl Ffmpeg {
     }
 
     /// Reads, in one read of the file at `path`, each of `subtitles`, a subtitle stream by its
-    /// place among the file's subtitle streams, encoded and written in a format ffmpeg names the
-    /// same as its encoder, such as `webvtt` or `ass`, and each of `attachments`, such as a font,
-    /// by its place among the file's attachments, into the file each names.
+    /// place among the file's subtitle streams, encoded by the encoder it names, such as `webvtt`
+    /// or `copy`, and written by the muxer it names, such as `webvtt` or `sup`, and each of
+    /// `attachments`, such as a font, by its place among the file's attachments, into the file
+    /// each names.
     ///
     /// A file may be left partly written when it fails.
     pub(crate) async fn extract(
         &self,
         path: &str,
-        subtitles: &[(usize, &str, PathBuf)],
+        subtitles: &[(usize, &str, &str, PathBuf)],
         attachments: &[(usize, PathBuf)],
     ) -> Result<(), RunError> {
         let mut args: Vec<OsString> = vec![];
@@ -530,9 +531,9 @@ impl Ffmpeg {
             args.push(to.into());
         }
         args.extend(["-i".into(), path.into()]);
-        for (subtitle, format, to) in subtitles {
+        for (subtitle, codec, muxer, to) in subtitles {
             let map = format!("0:s:{subtitle}");
-            args.extend(["-map", &map, "-c:s", format, "-f", format].map(OsString::from));
+            args.extend(["-map", &map, "-c:s", codec, "-f", muxer].map(OsString::from));
             args.push(to.into());
         }
         let read = self.read_out(&args, Priority::Normal).await;
