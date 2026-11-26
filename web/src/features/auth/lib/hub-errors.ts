@@ -74,8 +74,8 @@ const serverSignInWording: HubWording = {
 };
 
 /**
- * What to say about a passkey that couldn't be added, removed or signed in with: nothing, `""`, when the person
- * cancelled the browser's prompt.
+ * What to say about a passkey that couldn't be added, removed or signed in with: nothing, `""`,
+ * when the person cancelled the browser's prompt.
  */
 export function passkeyError(error: unknown) {
   if (error instanceof DOMException) {
