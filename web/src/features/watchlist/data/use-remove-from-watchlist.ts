@@ -10,7 +10,9 @@ export function useRemoveFromWatchlist() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (listed: Listing[]) => {
-      await Promise.all(
+      // Settled, not all: refetching while a slower Server's removal is still on its way would
+      // show the title again.
+      const removals = await Promise.allSettled(
         listed.map(async ({ transport, kind, id }) => {
           await callUnaryMethod(transport, WatchlistService.method.removeFromWatchlist, {
             kind,
@@ -18,8 +20,12 @@ export function useRemoveFromWatchlist() {
           });
         }),
       );
+      const refused = removals.find((removal) => removal.status === "rejected");
+      if (refused !== undefined) {
+        throw refused.reason;
+      }
     },
-    // Settled, not succeeded: one Server refusing still takes it off the others.
+    // Settled, not succeeded: one Server refusing still took it off the others.
     onSettled: async (_, __, listed) => {
       const keys = listed.flatMap(({ transport }) => watchlistKeys(transport));
       await Promise.all(

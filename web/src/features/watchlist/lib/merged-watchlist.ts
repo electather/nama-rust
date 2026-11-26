@@ -34,31 +34,34 @@ export interface WatchlistEntry {
 }
 
 /**
- * `watchlists` merged, each title once by its kind and the External ID it shows by, in the order
- * first listed. It shows as the first Server with it in a Library has it, else as the first lists
- * it.
+ * `watchlists` merged, each title once by its kind and either the External ID it's listed by or
+ * the one it shows by, in the order first listed. It shows as the first Server with it in a
+ * Library has it, else as the first lists it.
  */
 export function mergedWatchlist(watchlists: WatchlistOnServer[]): WatchlistEntry[] {
-  // ponytail: a Server listing a title by an External ID another doesn't show it by lists it
-  // twice; match on every id a title has once the Server sends them.
-  const entries = new Map<string, WatchlistEntry>();
+  // Watchlists sync under the id a title was added by, while each Server shows it by its own
+  // main id, so either id may be the one two Servers share.
+  // ponytail: two Servers sharing neither id list it twice; match on every id a title has once
+  // the Server sends them.
+  const byId = new Map<string, WatchlistEntry>();
   for (const watchlist of watchlists) {
     for (const title of watchlist.titles) {
-      addListed(entries, watchlist, title);
+      addListed(byId, watchlist, title);
     }
   }
-  return [...entries.values()];
+  // An entry's first id goes in as it's made, so the Set keeps the order first listed.
+  return [...new Set(byId.values())];
 }
 
-/** Adds `title`, as `watchlist`'s Server lists it, to `entries`, unless it shows as nothing. */
+/** Adds `title`, as `watchlist`'s Server lists it, to `byId`, unless it shows as nothing. */
 function addListed(
-  entries: Map<string, WatchlistEntry>,
+  byId: Map<string, WatchlistEntry>,
   { transport, server }: WatchlistOnServer,
   { id, title }: WatchlistTitle,
 ) {
   const shown = rowTitleOf(title);
   if (id !== undefined && shown !== undefined) {
-    add(entries, { transport, kind: kindOf(shown), id }, { title: shown, server, transport });
+    add(byId, { transport, kind: kindOf(shown), id }, { title: shown, server, transport });
   }
 }
 
@@ -68,18 +71,32 @@ function rowTitleOf(title: HomeRowTitle | undefined): RowTitle | undefined {
   return shown?.case === undefined ? undefined : shown;
 }
 
-/** Adds the title `shown` on a Server, `listed` there, to `entries`, which may have it already. */
+/**
+ * Adds the title `shown` on a Server, `listed` there, to `byId`, which may have it already under
+ * either id.
+ */
 function add(
-  entries: Map<string, WatchlistEntry>,
+  byId: Map<string, WatchlistEntry>,
   listed: Listing,
   shown: Pick<WatchlistEntry, "title" | "server" | "transport">,
 ) {
   const key = `${listed.kind}/${titleParam(shown.title.value.id)}`;
-  const entry = entries.get(key);
-  if (entry === undefined) {
-    entries.set(key, { key, ...shown, listed: [listed] });
-    return;
+  const listedKey = `${listed.kind}/${titleParam(listed.id)}`;
+  const found = byId.get(key) ?? byId.get(listedKey);
+  if (found !== undefined) {
+    listAlso(found, listed, shown);
   }
+  const entry = found ?? { key, ...shown, listed: [listed] };
+  byId.set(key, entry);
+  byId.set(listedKey, entry);
+}
+
+/** Adds `listed` to `entry`, showing it as `shown` if that has it in a Library and `entry` doesn't. */
+function listAlso(
+  entry: WatchlistEntry,
+  listed: Listing,
+  shown: Pick<WatchlistEntry, "title" | "server" | "transport">,
+) {
   entry.listed.push(listed);
   if (isMissing(entry.title) && !isMissing(shown.title)) {
     Object.assign(entry, shown);

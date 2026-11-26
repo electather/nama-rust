@@ -18,7 +18,7 @@ export function WatchlistTitles({
       <div className="mt-8">
         <p className="font-medium">Nothing on your Watchlist yet</p>
         <p className="mt-1 max-w-prose text-muted-foreground">
-          Add a Movie or Show with + on its page, and it waits here until you watch it.
+          Add a Movie or Show with + on its page to keep it here for later.
         </p>
       </div>
     );

@@ -48,16 +48,26 @@ const dark: Listed = {
   },
 };
 
+/** Dark, added under `tmdb-70523`, in a Shows Library under `shownBy` there. */
+function darkShownBy(shownBy: typeof alienId): Listed {
+  const show = { id: shownBy, title: "Dark", libraryId: 2n };
+  return {
+    id: { namespace: "tmdb", value: "70523" },
+    title: { movieOrShow: { case: "show", value: show } },
+  };
+}
+
 /**
  * A Watchlist service listing `titles`, taking off what `RemoveFromWatchlist` names, by the id it
- * was added under, and recording each removal in `removed`.
+ * was added under, and recording each removal in `removed`, after `removing` settles.
  */
-function watchlistOf(titles: Listed[], removed: string[] = []) {
+function watchlistOf(titles: Listed[], removed: string[] = [], removing?: () => Promise<void>) {
   let listed = titles;
   return (router: ConnectRouter) => {
     router.service(WatchlistService, {
       listWatchlist: () => ({ titles: listed }),
-      removeFromWatchlist: ({ id }) => {
+      removeFromWatchlist: async ({ id }) => {
+        await removing?.();
         removed.push(`${id?.namespace}-${id?.value}`);
         listed = listed.filter((title) => title.id?.value !== id?.value);
         return {};
@@ -161,6 +171,17 @@ test("at the Hub, a title on two Servers' Watchlists shows once, from the one wi
   });
 });
 
+test("at the Hub, a title two Servers show by different ids but list by one shows once", async () => {
+  openAtHub({
+    "https://basement.example": serverAtHub([darkShownBy({ namespace: "tvdb", value: "334824" })]),
+    "https://cabin.example": serverAtHub([dark]),
+  });
+
+  await vi.waitFor(() => {
+    expect(posters()).toStrictEqual([["Dark", "/libraries/2/shows/tvdb-334824?server=basement"]]);
+  });
+});
+
 test("at the Hub, removing a title takes it off every Server's Watchlist", async () => {
   const basement: string[] = [];
   const cabin: string[] = [];
@@ -186,4 +207,29 @@ test("at the Hub, a Server the browser can't reach leaves the others' titles sho
   await vi.waitFor(() => {
     expect(posters()).toStrictEqual([["Dark", "/libraries/2/shows/tmdb-70523?server=cabin"]]);
   });
+});
+
+test("at the Hub, a Server refusing a removal leaves the title only on its Watchlist", async () => {
+  const cabin: string[] = [];
+  openAtHub({
+    "https://basement.example": serverAtHub([alien(alienId)], [], async () => {
+      await Promise.resolve();
+      throw new ConnectError("refused", Code.Unavailable);
+    }),
+    "https://cabin.example": serverAtHub([alien(alienImdb, 7n)], cabin, async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+    }),
+  });
+  await vi.waitFor(() => {
+    expect(posters()).toHaveLength(1);
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alien from your Watchlist" }));
+
+  await vi.waitFor(() => {
+    expect(posters()).toStrictEqual([["Alien", "/movies/tmdb-348?server=basement"]]);
+  });
+  expect(cabin).toStrictEqual(["imdb-tt0078748"]);
 });
