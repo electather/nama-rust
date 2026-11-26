@@ -135,8 +135,16 @@
       },
       {
         "from": "action-bar",
-        // Its Settings and Admin pages open Settings at a section.
-        "allow": ["action-bar", "settings", "shared-components", "shared-hooks", "shared-lib"],
+        // Its Settings and Admin pages open Settings at a section. At the Hub, its search reaches
+        // the Account's Servers as their Libraries' list does.
+        "allow": [
+          "action-bar",
+          "settings",
+          "servers",
+          "shared-components",
+          "shared-hooks",
+          "shared-lib",
+        ],
       },
       {
         "from": "settings",

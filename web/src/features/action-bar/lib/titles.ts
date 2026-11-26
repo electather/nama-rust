@@ -1,5 +1,5 @@
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
-import type { EpisodeHit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
+import type { EpisodeHit, Hit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { hitsIn, searchNote } from "@/shared/lib/search-hits";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
@@ -18,6 +18,8 @@ export interface FoundTitle {
   /** Unique among titles: the same title in two Libraries is two of these. */
   id: string;
   kind: "movie" | "show" | "episode";
+  /** At the Hub, the Linked Server it was found on, which it opens on. */
+  server?: string | undefined;
   /** The Library it opens in, or none for a title to request, which opens its request page. */
   libraryId: string | undefined;
   /** The open Request the User can see for a title to request, which has no `libraryId`. */
@@ -40,6 +42,8 @@ export interface FoundTitle {
 export interface FoundPerson {
   /** Their id as a URL writes it. */
   personId: string;
+  /** At the Hub, the Linked Server they were found on. */
+  server?: string | undefined;
   name: string;
   headshot: string | undefined;
 }
@@ -104,32 +108,79 @@ function episodeFound(episode: EpisodeHit): FoundTitle {
   };
 }
 
-/** What `Search` has streamed so far, as the action bar lists it: each kind in `hitsIn`'s order. */
-export function foundIn(responses: readonly SearchResponse[]): Found {
-  const titles = hitsIn(responses);
+/** A title one Server's `Search` found, and at the Hub, which Linked Server that is. */
+interface ServerHit {
+  hit: Hit;
+  server?: string | undefined;
+}
+
+/** What one Server's `Search` has streamed so far, and at the Hub, which Linked Server it is. */
+export interface SearchAnswer {
+  server?: string | undefined;
+  responses: readonly SearchResponse[];
+}
+
+/**
+ * What `Search` has streamed so far, as the action bar lists it, in `hitsIn`'s order. At the Hub,
+ * it's every Server's answer as one list: each title once, as the Server that has it closest to
+ * hand has it, the first in `answers` on a tie.
+ */
+export function foundIn(answers: readonly SearchAnswer[]): Found {
+  const isNew = firstOfEach();
+  const hits = answers
+    .flatMap(({ server, responses }) => hitsIn(responses).map((hit) => ({ hit, server })))
+    // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array just built, and the lib target has no toSorted; it's stable, so Servers keep their order within a status
+    .sort((a, b) => a.hit.status - b.hit.status)
+    // On a Server's own web app, a title in two Libraries is listed in both.
+    .filter(
+      ({ hit: { title }, server }) =>
+        server === undefined || isNew(`${title.case}:${titleParam(title.value?.id)}`),
+    );
+  const notes = new Set(answers.map(({ responses }) => searchNote(responses)));
+  return foundOf(hits, [...notes].filter(Boolean).join(" "));
+}
+
+/** Says whether each key it's given is one it hasn't been given before. */
+function firstOfEach() {
+  const seen = new Set<string>();
+  return (key: string) => {
+    const first = !seen.has(key);
+    seen.add(key);
+    return first;
+  };
+}
+
+/** The titles `hits` lists, by kind, as the action bar lists them, and `note` on what's missing. */
+function foundOf(hits: readonly ServerHit[], note: string): Found {
   return {
-    movies: titles.flatMap(({ title, status }) =>
-      title.case === "movie" ? [movieFound(title.value, status)] : [],
+    movies: hits.flatMap(({ hit: { title, status }, server }) =>
+      title.case === "movie" ? [onServer(movieFound(title.value, status), server)] : [],
     ),
-    shows: titles.flatMap(({ title, status }) =>
-      title.case === "show" ? [showFound(title.value, status)] : [],
+    shows: hits.flatMap(({ hit: { title, status }, server }) =>
+      title.case === "show" ? [onServer(showFound(title.value, status), server)] : [],
     ),
-    episodes: titles.flatMap(({ title }) =>
-      title.case === "episode" ? [episodeFound(title.value)] : [],
+    episodes: hits.flatMap(({ hit: { title }, server }) =>
+      title.case === "episode" ? [onServer(episodeFound(title.value), server)] : [],
     ),
-    people: titles.flatMap(({ title }) =>
+    people: hits.flatMap(({ hit: { title }, server }) =>
       title.case === "person"
         ? [
             {
               personId: titleParam(title.value.id),
+              server,
               name: title.value.name,
               headshot: title.value.headshotUrl,
             },
           ]
         : [],
     ),
-    note: searchNote(responses),
+    note,
   };
+}
+
+/** `title`, found at the Hub on the Linked Server `server`, or as it is on a Server's own. */
+function onServer(title: FoundTitle, server: string | undefined): FoundTitle {
+  return server === undefined ? title : { ...title, id: `${server}:${title.id}`, server };
 }
 
 const kinds = new Set(["movie", "show", "episode"]);

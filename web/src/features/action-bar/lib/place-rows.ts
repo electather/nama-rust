@@ -6,7 +6,7 @@ import { kindName } from "@/shared/lib/library-kind";
 /** The People a search found, one row each. */
 export function personRows(
   people: readonly FoundPerson[],
-  openPerson: (personId: string) => void,
+  openPerson: (person: FoundPerson) => void,
 ): Row[] {
   return people.map((person) => ({
     id: `person:${person.personId}`,
@@ -16,7 +16,7 @@ export function personRows(
     poster: person.headshot ?? null,
     action: "Open",
     run: () => {
-      openPerson(person.personId);
+      openPerson(person);
     },
   }));
 }
