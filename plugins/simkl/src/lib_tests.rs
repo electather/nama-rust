@@ -199,7 +199,51 @@ fn a_played_movie_and_episode_are_marked_watched_as_of_when_they_were_played() {
         body(added),
         json!({
             "movies": [{ "ids": { "tmdb": 438_631 }, "watched_at": "2026-11-20T20:00:00Z" }],
+            "shows": [],
             "episodes": [{ "ids": { "tvdb": 349_232 }, "watched_at": "2026-11-20T20:00:00Z" }],
+        })
+    );
+}
+
+#[test]
+fn an_episode_with_its_shows_ids_and_numbers_is_marked_by_them_ahead_of_its_own_tvdb_id() {
+    let fake = shared(FakeSimkl::new());
+    let mut kernel = kernel(&fake);
+    let numbered = |ids, show_ids, season, number| SyncedWatchState {
+        show_ids: title_ids(show_ids),
+        season_number: Some(season),
+        episode_number: Some(number),
+        ..episode(ids, true)
+    };
+
+    scrobbled(
+        &mut kernel,
+        vec![
+            numbered(
+                &[("tmdb", "63057")],
+                &[("tmdb", "1399"), ("imdb", "tt0944947")],
+                1,
+                2,
+            ),
+            numbered(&[("tvdb", "349232")], &[("tvdb", "121361")], 0, 3),
+            numbered(&[("tvdb", "349233")], &[("imdb", "tt0944947")], 1, 4),
+        ],
+    )
+    .unwrap();
+
+    let [added] = kernel.sent() else {
+        panic!("sent {:?}", asked(&kernel));
+    };
+    let at = "2026-11-20T20:00:00Z";
+    assert_eq!(
+        body(added),
+        json!({
+            "movies": [],
+            "shows": [
+                { "ids": { "tmdb": 1399 }, "seasons": [{ "number": 1, "episodes": [{ "number": 2, "watched_at": at }] }] },
+                { "ids": { "tvdb": 121_361 }, "seasons": [{ "number": 0, "episodes": [{ "number": 3, "watched_at": at }] }] },
+            ],
+            "episodes": [{ "ids": { "tvdb": 349_233 }, "watched_at": at }],
         })
     );
 }
@@ -253,7 +297,7 @@ fn a_title_marked_unplayed_is_unmarked_and_a_later_play_is_added_again() {
     );
     assert_eq!(
         body(&kernel.sent()[1]),
-        json!({ "movies": [{ "ids": { "tmdb": 438_631 } }], "episodes": [] })
+        json!({ "movies": [{ "ids": { "tmdb": 438_631 } }], "shows": [], "episodes": [] })
     );
     assert!(emptied);
 }
