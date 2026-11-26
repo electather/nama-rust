@@ -1,131 +1,23 @@
-use std::{fs, path::Path};
-
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{Request, header},
+    body::Body,
+    http::{Request, StatusCode},
     middleware::from_fn,
-    response::Response,
 };
 use tower::ServiceExt as _;
 
-use super::{SHELL, asset, serve};
+use super::serve;
 
-/// The Hub's answer to a `GET` for `path` from a client accepting `encodings`.
-async fn get(path: &str, encodings: &[&str]) -> Response {
-    let mut request = Request::get(path);
-    for encoding in encodings {
-        request = request.header(header::ACCEPT_ENCODING, *encoding);
-    }
-    Router::new()
+/// A path under `/.well-known/`, such as the key set's, goes on to the Hub's routes, never the app.
+#[tokio::test]
+async fn the_key_set_s_paths_are_passed_on() {
+    let request = Request::get("/.well-known/jwks.json").body(Body::empty());
+
+    let response = Router::new()
         .layer(from_fn(serve))
-        .oneshot(request.body(Body::empty()).unwrap())
+        .oneshot(request.unwrap())
         .await
-        .unwrap()
-}
-
-/// The path of the file with `extension` under `/assets/` that the app's `index.html` links to.
-fn linked_asset(extension: &str) -> &'static str {
-    std::str::from_utf8(SHELL)
-        .unwrap()
-        .split('"')
-        .find(|part| {
-            part.starts_with("/assets/")
-                && Path::new(part).extension().is_some_and(|e| e == extension)
-        })
-        .unwrap()
-}
-
-/// The path of a file with `extension` that `vp build` wrote under `/assets/`, linked or not.
-fn built_asset(extension: &str) -> String {
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
-    let name = fs::read_dir(assets)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .find(|name| Path::new(name).extension().is_some_and(|e| e == extension))
         .unwrap();
-    format!("/assets/{name}")
-}
 
-#[tokio::test]
-async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
-    let paths = ["/", "/sign-in", linked_asset("js"), linked_asset("css")];
-    for encoding in ["br", "gzip"] {
-        for path in paths {
-            let response = get(path, &[encoding]).await;
-
-            assert_eq!(
-                response.headers()[header::CONTENT_ENCODING],
-                encoding,
-                "{path}"
-            );
-            assert_eq!(
-                response.headers()[header::VARY],
-                "accept-encoding",
-                "{path}"
-            );
-        }
-    }
-}
-
-#[tokio::test]
-async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
-    let script = linked_asset("js");
-    let stylesheet = linked_asset("css");
-    for (path, built) in [
-        ("/", SHELL),
-        (script, asset(script).unwrap()),
-        (stylesheet, asset(stylesheet).unwrap()),
-    ] {
-        let response = get(path, &[]).await;
-
-        assert!(
-            !response.headers().contains_key(header::CONTENT_ENCODING),
-            "{path}"
-        );
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(body, built, "{path}");
-    }
-}
-
-#[tokio::test]
-async fn a_font_is_sent_as_it_is() {
-    let response = get(&built_asset("woff2"), &["br, gzip"]).await;
-
-    assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
-}
-
-/// A file under `/assets/` is named by its content's hash, so the browser keeps it for a year
-/// without asking again, while the app's `index.html` isn't kept, so a new release still loads.
-#[tokio::test]
-async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
-    let asset_response = get(linked_asset("js"), &[]).await;
-    let shell_response = get("/", &[]).await;
-
-    assert_eq!(
-        asset_response.headers()[header::CACHE_CONTROL],
-        "public, max-age=31536000, immutable"
-    );
-    assert!(!shell_response.headers().contains_key(header::CACHE_CONTROL));
-}
-
-/// `WebAssembly.instantiateStreaming` refuses the ASS renderer's wasm under any other type, and
-/// Chrome the manifest that installs the app.
-#[tokio::test]
-async fn the_app_s_webassembly_and_manifest_are_served_as_such() {
-    for (path, content_type) in [
-        (built_asset("wasm"), "application/wasm"),
-        (
-            "/manifest.webmanifest".to_owned(),
-            "application/manifest+json",
-        ),
-    ] {
-        let response = get(&path, &[]).await;
-
-        assert_eq!(
-            response.headers()[header::CONTENT_TYPE],
-            content_type,
-            "{path}"
-        );
-    }
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

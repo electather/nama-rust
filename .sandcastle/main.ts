@@ -29,9 +29,11 @@ const STOP_FILE = ".sandcastle/STOP";
 // SIGUSR1 (see handover.sh) does the same for this run alone, so a newer run can start beside it: it drains.
 let draining = false;
 const stopping = () => draining || existsSync(STOP_FILE);
-// Opus for implement and review; triage and fix (merge main, mend CI) are narrow enough for Sonnet, fix with Opus as fallback.
+// Opus for implement and review (Sonnet for a `small` issue); triage and fix (merge main, mend CI) are narrow enough
+// for Sonnet, fix with Opus as fallback.
 const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
+const SONNET_HIGH = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "high" });
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
 const WORKING = "agent-working"; // on while a loop has the issue; off when that loop lets go of it
@@ -41,12 +43,16 @@ const MAIN_RED = "main-red"; // filed by the main monitor; built by mainLoop, no
 // Xcode work (iOS, iPadOS, tvOS, macOS). Every sandbox is a Linux container, even on the MacBook, so no factory
 // builds it yet.
 const MACOS = "needs-macos";
+const FLAKY = "flaky"; // never built: triage leaves ready-for-agent off, and the build queue skips it if a person adds it
+const IMPORTANT = "important"; // ahead of the rest in the triage and build queues
+const SMALL = "small"; // implemented and reviewed by Sonnet instead of Opus
+const has = (i: { labels: { name: string }[] }, label: string) => i.labels.some((l) => l.name === label);
 // TRIAGE=off: leave needs-triage issues to a person. ONLY_ISSUE (build just that one) doesn't triage either.
 const TRIAGING = process.env.TRIAGE !== "off" && !process.env.ONLY_ISSUE;
 const BASE = "main";
 
 // mainFix: it fixes a red main, so its PR never waits for main to go green.
-type Issue = { number: number; title: string; parent?: number; branch: string; mainFix?: boolean };
+type Issue = { number: number; title: string; parent?: number; branch: string; mainFix?: boolean; small?: boolean };
 type Box = Awaited<ReturnType<typeof sandcastle.createSandbox>>;
 class Blocked extends Error {}
 // The issue was closed while being built: drop it, don't count it as a crash.
@@ -392,14 +398,17 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     if (withPr.has(i.number)) continue; // the babysitter's, or a person's
     if (i.labels.some((l) => l.name === MAIN_RED)) continue; // mainLoop's
     if (!trustedAuthor(i.author.login)) waiting.push({ issue: i.number, queue: "build", why: `written by ${i.author.login}, not you: never built` });
+    else if (has(i, FLAKY)) waiting.push({ issue: i.number, queue: "build", why: `${FLAKY}: never built` });
     else if (i.labels.some((l) => l.name === MACOS)) waiting.push({ issue: i.number, queue: "build", why: `${MACOS}: no factory sandbox runs Xcode` });
     else if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
     else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
-    else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
+    else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}`, small: has(i, SMALL) });
   }
   // ponytail: chains are followed through ready-for-agent issues only; any other blocked issue counts as one.
   const blocked = blockedCounts(new Map(issues.map((i) => [i.number, i.blocking.nodes.filter((b) => b.state === "OPEN").map((b) => b.number)])));
-  ready.sort((a, b) => blocked.get(b.number)! - blocked.get(a.number)!); // stable: oldest first on a tie
+  const important = new Set(issues.filter((i) => has(i, IMPORTANT)).map((i) => i.number));
+  const rank = (n: number) => (important.has(n) ? 1 : 0);
+  ready.sort((a, b) => rank(b.number) - rank(a.number) || blocked.get(b.number)! - blocked.get(a.number)!); // stable: oldest first on a tie
   return { ready, waiting };
 }
 
@@ -423,14 +432,15 @@ function babysittable(prs = openPrs()): Job[] {
   return jobs;
 }
 
-// Issues to triage, oldest first, by a trustedAuthor.
+// Issues to triage, `important` ones first, then oldest first, by a trustedAuthor.
 function triageable(): Issue[] {
-  const issues: { number: number; title: string; author: { login: string } }[] = JSON.parse(
-    gh("issue", "list", "--label", TRIAGE, "--state", "open", "--limit", "100", "--json", "number,title,author"),
+  const issues: { number: number; title: string; author: { login: string }; labels: { name: string }[] }[] = JSON.parse(
+    gh("issue", "list", "--label", TRIAGE, "--state", "open", "--limit", "100", "--json", "number,title,author,labels"),
   );
+  const rank = (i: (typeof issues)[number]) => (has(i, IMPORTANT) ? 1 : 0);
   return issues
     .filter((i) => trustedAuthor(i.author.login))
-    .sort((a, b) => a.number - b.number)
+    .sort((a, b) => rank(b) - rank(a) || a.number - b.number)
     .map((i) => ({ number: i.number, title: i.title, branch: `agent/triage-${i.number}` }));
 }
 
@@ -574,10 +584,11 @@ async function build(issue: Issue): Promise<{ box: Box; body: string }> {
   const box = await newBox(branchOf(issue));
   try {
     stage(issue, "implement");
-    await agent(box, issue, "implement");
+    const model = issue.small ? SONNET_HIGH : OPUS;
+    await agent(box, issue, "implement", {}, model);
     if (!ahead(branchOf(issue))) throw new Blocked("implementer made no commits");
     stage(issue, "review");
-    const review = await agent(box, issue, "review");
+    const review = await agent(box, issue, "review", {}, model);
     return { box, body: prBody(issue, review.stdout) };
   } catch (e) {
     await box.close();

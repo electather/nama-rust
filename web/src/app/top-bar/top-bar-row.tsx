@@ -24,7 +24,7 @@ export function TopBarRow({ userName, onSearch }: { userName: string; onSearch: 
       <TopBarLinks />
       <LibrariesMenu />
       <span className="flex-1" />
-      <SearchButton onSearch={onSearch} />
+      <SearchButton label="Search this Server" onSearch={onSearch} />
       <InboxMenu />
       <UserMenu userName={userName} />
     </div>

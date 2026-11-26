@@ -9,6 +9,7 @@ use sqlx::SqliteConnection;
 
 use super::Error;
 use super::state::ids_json;
+use crate::events::{Rated, Removed};
 use crate::users::is_requester;
 
 /// Which kind of thing Users asked for.
@@ -16,6 +17,16 @@ use crate::users::is_requester;
 pub(crate) enum Asked {
     Request,
     FollowedShow,
+}
+
+impl Asked {
+    /// The one of this kind with the ID `id`, as the event bus names it.
+    pub(super) fn rated(self, id: i64) -> Rated {
+        match self {
+            Self::Request => Rated::Request(id),
+            Self::FollowedShow => Rated::FollowedShow(id),
+        }
+    }
 }
 
 impl fmt::Display for Asked {
@@ -112,14 +123,14 @@ pub(super) fn requested_by<T>(
     Ok(found)
 }
 
-/// Takes `user` off the Requesters of the `asked` with the ID `id`. Returns whether they were its
-/// last Requester, in which case it is removed too.
+/// Takes `user` off the Requesters of the `asked` with the ID `id`. If they were its last
+/// Requester it is removed too, and returned for [`crate::events::EventBus::removing`].
 pub(super) async fn leave(
     conn: &mut SqliteConnection,
     asked: Asked,
     id: i64,
     user: i64,
-) -> Result<bool, sqlx::Error> {
+) -> Result<Option<Removed>, sqlx::Error> {
     macro_rules! leave {
         ($table:literal, $requesters:literal, $asked_id:literal) => {{
             sqlx::query!(
@@ -129,21 +140,48 @@ pub(super) async fn leave(
             )
             .execute(&mut *conn)
             .await?;
-            sqlx::query!(
+            sqlx::query_scalar!(
                 "DELETE FROM "
                     + $table
                     + " WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM "
                     + $requesters
                     + " WHERE "
                     + $asked_id
-                    + " = ?1)",
+                    + " = ?1) RETURNING content_rating",
                 id
             )
-            .execute(&mut *conn)
+            .fetch_optional(&mut *conn)
             .await?
         }};
     }
-    Ok(per_kind!(asked, leave).rows_affected() > 0)
+    let removed = per_kind!(asked, leave);
+    Ok(removed.map(|content_rating| Removed {
+        row: asked.rated(id),
+        content_rating,
+    }))
+}
+
+/// Removes the `asked` with the ID `id`, and its Requesters with it, and returns it for
+/// [`crate::events::EventBus::removing`]. Fails if there is none.
+pub(super) async fn remove(
+    conn: &mut SqliteConnection,
+    asked: Asked,
+    id: i64,
+) -> Result<Removed, sqlx::Error> {
+    macro_rules! remove {
+        ($table:literal, $requesters:literal, $asked_id:literal) => {
+            sqlx::query_scalar!(
+                "DELETE FROM " + $table + " WHERE id = ? RETURNING content_rating",
+                id
+            )
+            .fetch_one(&mut *conn)
+            .await?
+        };
+    }
+    Ok(Removed {
+        row: asked.rated(id),
+        content_rating: per_kind!(asked, remove),
+    })
 }
 
 /// Moves the `asked` with the ID `id` to `state` with `reason` if it is Pending. Returns whether

@@ -64,9 +64,9 @@ export default defineConfig({
   server: {
     proxy: {
       // Connect paths (`/nama.v1.ServerService/GetServerInfo` and the like) and media: the same
-      // paths the Server keeps out of the web app (`crates/nama-server/src/web.rs`). Custom Images
-      // are uploaded with `PUT` and removed with `DELETE`, which the web app never answers, and
-      // the web app's Diagnostics are posted.
+      // paths the Server keeps out of the web app (`crates/nama-server/src/web.rs`, and
+      // `crates/nama-web` for Connect's). Custom Images are uploaded with `PUT` and removed with
+      // `DELETE`, which the web app never answers, and the web app's Diagnostics are posted.
       // The first key a path matches wins, so the Hub's API goes ahead of the Server's.
       ...(hubUrl === undefined ? {} : { "^/nama\\.hub\\.": hubUrl }),
       "^/nama\\.": serverUrl,
@@ -79,6 +79,8 @@ export default defineConfig({
     // Tests live in `__tests__` folders.
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
+    // Compiles only nama-ui's stylesheet, for tests that check its page-wide rules; other CSS stays empty.
+    css: { include: [/ui\/src\/styles\.css/u] },
     setupFiles: ["src/test-setup.ts"],
     retry: ci ? 2 : 0,
     // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-setup.ts` raises Testing Library's wait to match).

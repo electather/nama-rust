@@ -81,6 +81,25 @@ test("a Server opened off its own addresses says to show a code instead", async 
   ).resolves.toBeDefined();
 });
 
+test("a Server whose config names no Hub says to name one", async () => {
+  openServer({
+    getServerLink: () => ({ link: {} }),
+    startServerLink: () => {
+      throw refused(Code.FailedPrecondition, "the Server's config names no Hub", {
+        reason: RefusalReason.NO_SERVER_LINKER,
+      });
+    },
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Link to the Hub" }));
+
+  await expect(
+    screen.findByText(
+      "The Server’s config names no Hub, so it can’t be Linked. Name one in the config.",
+    ),
+  ).resolves.toBeDefined();
+});
+
 test("showing a code instead shows the code to enter on the Hub, and cancelling stops showing it", async () => {
   let link: Shown = {};
   const calls: string[] = [];
@@ -161,15 +180,13 @@ test("a Hub the Server can't reach is said, and the Server stays as it was", asy
   openServer({
     getServerLink: () => ({ link: {} }),
     startServerLink: () => {
-      throw new ConnectError("the Plugin that links the Server failed", Code.Unavailable);
+      throw new ConnectError("the Hub didn’t answer", Code.Unavailable);
     },
   });
 
   fireEvent.click(await screen.findByRole("button", { name: "Link to the Hub" }));
 
-  const said = await screen.findByText(
-    "The Server couldn’t reach the Hub. Try again; the Hub Plugin’s page under Plugins says why.",
-  );
+  const said = await screen.findByText("The Server couldn’t reach the Hub. Try again in a moment.");
   expect(said.getAttribute("role")).toBe("alert");
   expect(screen.getByText("Not Linked")).toBeDefined();
 });

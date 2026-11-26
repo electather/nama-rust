@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT content_rating FROM followed_shows WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "808119a0f5e626e89cf0c65d6b483e57a0c3c340d8aeb6e9cb270801936cee14"
+}

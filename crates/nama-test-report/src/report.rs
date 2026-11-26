@@ -67,7 +67,7 @@ pub(crate) enum IssueState {
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "action", rename_all = "lowercase")]
 pub(crate) enum IssueAction {
-    /// Opens an issue, labelled `needs-triage`.
+    /// Opens an issue, labelled `needs-triage` and `flaky`.
     Open {
         title: String,
         body: String,

@@ -49,6 +49,8 @@ pub(super) struct Wanted {
     pub(super) followed_show: Option<i64>,
     /// What its asker's ask says about Quality.
     pub(super) quality: qualities::Ask,
+    /// The Movie's Content Rating, or for a Season its Show's, which a new Request stores.
+    pub(super) content_rating: Option<String>,
 }
 
 /// Seasons of a Show to ask for, as the title source gave them.
@@ -60,6 +62,8 @@ pub(super) struct WantedSeasons {
     pub(super) seasons: Vec<SourceSeason>,
     /// What the asker's ask says about Quality, which gives way to the Show's if it has one.
     pub(super) quality: qualities::Ask,
+    /// The Show's Content Rating, which its new Season Requests and Followed Show store.
+    pub(super) content_rating: Option<String>,
 }
 
 impl Requests {
@@ -153,6 +157,7 @@ impl Requests {
             show_title: show.title,
             seasons,
             quality,
+            content_rating: show.content_rating,
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
@@ -181,6 +186,7 @@ impl Wanted {
             ids: movie.ids,
             followed_show: None,
             quality,
+            content_rating: movie.content_rating,
         }
     }
 }
@@ -355,6 +361,8 @@ pub(super) struct SeasonsToAsk {
     pub(super) show_title: String,
     pub(super) seasons: Vec<SourceSeason>,
     pub(super) quality: qualities::Ask,
+    /// The Show's Content Rating, as [`WantedSeasons::content_rating`].
+    pub(super) content_rating: Option<String>,
 }
 
 impl SeasonsToAsk {
@@ -376,6 +384,7 @@ impl SeasonsToAsk {
             show_title: show.show_title,
             seasons: show.seasons,
             quality,
+            content_rating: show.content_rating,
         })
     }
 
@@ -391,12 +400,19 @@ impl SeasonsToAsk {
     ) -> Result<Self, sqlx::Error> {
         show_ids.insert(show_id.clone());
         let quality = show_requests(conn, &show_ids).await?.for_scan();
+        let content_rating = sqlx::query_scalar!(
+            "SELECT content_rating FROM followed_shows WHERE id = ?",
+            followed_show.id
+        )
+        .fetch_one(&mut *conn)
+        .await?;
         Ok(Self {
             show_id: show_id.clone(),
             show_ids,
             show_title: followed_show.show_title.clone(),
             seasons: vec![season],
             quality,
+            content_rating,
         })
     }
 
@@ -444,6 +460,7 @@ impl SeasonsToAsk {
             ids: self.show_ids.clone(),
             followed_show,
             quality: self.quality.clone(),
+            content_rating: self.content_rating.clone(),
         }
     }
 }
@@ -484,8 +501,9 @@ async fn insert_request(
     let title_id = wanted.id.to_string();
     let id = sqlx::query_scalar!(
         "INSERT INTO requests (title_id, season, title, release_date, state, created_at,
-                               followed_show_id, quality_id, quality_name, quality_profile_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               followed_show_id, quality_id, quality_name, quality_profile_id,
+                               content_rating)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
         title_id,
         wanted.season,
@@ -496,7 +514,8 @@ async fn insert_request(
         wanted.followed_show,
         quality_id,
         quality_name,
-        quality_profile_id
+        quality_profile_id,
+        wanted.content_rating
     )
     .fetch_one(&mut *conn)
     .await?;

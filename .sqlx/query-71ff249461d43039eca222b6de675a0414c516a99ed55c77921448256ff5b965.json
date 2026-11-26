@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT content_rating FROM requests WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "71ff249461d43039eca222b6de675a0414c516a99ed55c77921448256ff5b965"
+}

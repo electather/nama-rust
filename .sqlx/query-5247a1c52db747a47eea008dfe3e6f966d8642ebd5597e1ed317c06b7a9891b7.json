@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM requests WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM requesters WHERE request_id = ?1) RETURNING content_rating",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "5247a1c52db747a47eea008dfe3e6f966d8642ebd5597e1ed317c06b7a9891b7"
+}

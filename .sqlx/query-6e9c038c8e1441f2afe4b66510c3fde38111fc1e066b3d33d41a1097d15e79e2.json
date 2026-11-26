@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM forgotten_watch_states\n         WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "6e9c038c8e1441f2afe4b66510c3fde38111fc1e066b3d33d41a1097d15e79e2"
+}

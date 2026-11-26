@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO requests (title_id, season, title, release_date, state, created_at,\n                               followed_show_id, quality_id, quality_name, quality_profile_id,\n                               content_rating)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1e7299e8b63eaeadfb5727ffb35a26fa79c32e1104287b9adba89acb218035d1"
+}

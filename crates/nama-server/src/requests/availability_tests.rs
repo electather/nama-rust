@@ -96,6 +96,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
         ids: ExternalIds::default(),
         followed_show: None,
         quality: qualities::Ask::default(),
+        content_rating: None,
     };
     let request = db
         .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))

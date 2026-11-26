@@ -2442,6 +2442,7 @@ dependencies = [
  "nama-forwarded",
  "nama-hub-proto",
  "nama-structure",
+ "nama-web",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
@@ -2458,7 +2459,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tower",
- "tower-http 0.7.1",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -2804,6 +2804,7 @@ dependencies = [
  "nama-proto",
  "nama-server",
  "nama-structure",
+ "nama-web",
  "notify",
  "opentelemetry",
  "opentelemetry-appender-tracing",
@@ -2864,6 +2865,16 @@ dependencies = [
  "roxmltree",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "nama-web"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
 ]
 
 [[package]]

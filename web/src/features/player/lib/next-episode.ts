@@ -35,7 +35,10 @@ export function nextEpisode(
   };
 }
 
-/** The play route of `episode`, of the Show `params` names. */
+/**
+ * The play route of `episode`, of the Show `params` names, in place of the Episode playing, so the
+ * player stays one history entry, which Back leaves (`useGoBack`).
+ */
 export function playLink(
   { seasonNumber, episodeNumber }: Pick<Episode, "seasonNumber" | "episodeNumber">,
   { libraryId, showId }: { libraryId: string; showId: string },
@@ -43,6 +46,7 @@ export function playLink(
   return {
     to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
     params: { libraryId, showId, season: String(seasonNumber), episode: String(episodeNumber) },
+    replace: true,
   } satisfies LinkOptions;
 }
 

@@ -7,7 +7,7 @@ use crate::support::{browsing, fake_hub, server};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use browsing::{ALIEN_1080P, Fixture, tmdb_id};
+use browsing::{ALIEN_1080P, Fixture, hide_every_library, report_a_minute, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
 use fake_hub::FakeHub;
 use nama_hub_proto::nama::hub::v1::{
@@ -22,7 +22,10 @@ use nama_proto::nama::v1::{
     TitleKind, UserServiceClient, UsersAudioPreference, UsersSubtitlePreference, VideoCodec,
     WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
 };
-use server::{TestServer, WAIT, tmdb::ALIEN};
+use server::{
+    TestServer, WAIT,
+    tmdb::{ALIEN, HEAT},
+};
 
 /// A Server whose config names `hub`, as `builder` starts it.
 fn on(hub: &FakeHub, builder: server::Builder) -> server::Builder {
@@ -548,4 +551,39 @@ async fn an_unlinked_users_play_never_reaches_the_hub() {
     })
     .await;
     assert_eq!(viewing_events(&hub), [(1, format!("tmdb-{ALIEN}"), 30_000)]);
+}
+
+/// Whose Watch State, by User id, the Hub keeps.
+fn whose(hub: &FakeHub) -> Vec<i64> {
+    (hub.account().watch_states.iter())
+        .map(|change| change.user_id)
+        .collect()
+}
+
+#[tokio::test]
+async fn progress_refused_on_a_hidden_librarys_version_never_reaches_the_hub() {
+    let hub = FakeHub::start().await;
+    let fx = alien_linked_with(&hub).await;
+    // The Hub keeps one Watch State per title, so the Admin's is of another title than Ada's.
+    let movies = LibraryKind::LIBRARY_KIND_MOVIES;
+    let heat = (fx.server)
+        .matched_library(movies, &["Heat (1995) {tmdb-949}/Heat (1995).mkv"])
+        .await;
+    let heat = fx.get_movie(heat.id, HEAT).await.unwrap().versions[0].id;
+    let alien = fx.version_ids(ALIEN).await[0];
+    let admin = fx.server.client_config();
+    let ada = fx.server.user_with_default_permissions("Ada").await;
+    hide_every_library(&admin, ada.id).await;
+
+    // In the order they'd be queued, so a page would hold Ada's before the Admin's.
+    let refused = report_a_minute(&ada.client_config(), alien).await;
+    report_a_minute(&admin, heat).await.unwrap();
+    send_waiting(&fx.server).await;
+
+    until("the Hub has the Admin's progress", async || {
+        !whose(&hub).is_empty()
+    })
+    .await;
+    assert_eq!(whose(&hub), [1]);
+    assert!(refused.is_err());
 }

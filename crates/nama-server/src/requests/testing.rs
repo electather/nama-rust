@@ -295,6 +295,7 @@ pub(super) fn movie(tmdb_id: i64) -> Wanted {
         ids: ExternalIds::default(),
         followed_show: None,
         quality: qualities::Ask::default(),
+        content_rating: None,
     }
 }
 
@@ -588,6 +589,7 @@ pub(super) fn dark() -> WantedSeasons {
             },
         ],
         quality: qualities::Ask::default(),
+        content_rating: None,
     }
 }
 

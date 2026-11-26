@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO followed_shows (show_id, title, state, latest_season, created_at, quality_id,\n                                     quality_name, quality_profile_id)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n         RETURNING id",
+  "query": "INSERT INTO followed_shows (show_id, title, state, latest_season, created_at, quality_id,\n                                     quality_name, quality_profile_id, content_rating)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n         RETURNING id",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 8
+      "Right": 9
     },
     "nullable": [
       false
     ]
   },
-  "hash": "1000be0910537180e6035c1264b125486edf3f1df8106460b9f6df47365e1c02"
+  "hash": "002d434bf27a4bcdd6d5987f615432cbae1fbb8c5ad4d4e58c863adb6cb67907"
 }

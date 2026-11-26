@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM requests WHERE id = ? RETURNING content_rating",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "ce504d2949dc7d130568942d8586ab3d58fd512b451a6ea963db785d30ae9f3d"
+}

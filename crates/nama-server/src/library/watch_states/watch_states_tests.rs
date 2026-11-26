@@ -22,7 +22,7 @@ use crate::{
 const ALIEN_TMDB_ID: i64 = 348;
 
 /// Watch States on a database in a temp folder, and a User to keep them for.
-async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
+pub(super) async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let watch_states = WatchStates::new(db, ExtensionPoints::default());
     let user = another_user(&watch_states, "Ada").await;
@@ -95,13 +95,17 @@ fn alien() -> MovieOrEpisode {
 }
 
 /// The User `user`'s Watch State of the Movie `id`, if they've started it.
-async fn movie_state(watch_states: &WatchStates, user: i64, id: ExternalId) -> Option<WatchState> {
+pub(super) async fn movie_state(
+    watch_states: &WatchStates,
+    user: i64,
+    id: ExternalId,
+) -> Option<WatchState> {
     let title = (Kind::Movie, ExternalIds::from_iter([id]));
     let states = watch_states.of_titles(Some(user), &[title]).await.unwrap();
     states[0].first().map(|&(_, state)| state)
 }
 
-fn alien_id() -> ExternalId {
+pub(super) fn alien_id() -> ExternalId {
     ExternalId::tmdb(ALIEN_TMDB_ID)
 }
 
@@ -336,12 +340,12 @@ fn a_position_past_the_duration_is_the_end_and_a_zero_duration_is_refused() {
     assert_eq!(Progress::new(0, u64::MAX), None);
 }
 
-fn alien_imdb() -> ExternalId {
+pub(super) fn alien_imdb() -> ExternalId {
     ExternalId::new("imdb", "tt0078748").unwrap()
 }
 
 /// Alien under its TMDB id, known by its IMDb id too.
-fn alien_by_both_ids() -> Watched {
+pub(super) fn alien_by_both_ids() -> Watched {
     let ids = ExternalIds::from_iter([alien_id(), alien_imdb()]);
     alien().known_as(&ids)
 }
@@ -464,7 +468,7 @@ async fn each_write_returns_the_watch_state_it_left_under_every_id_preferred_fir
 
 /// A change to Alien made on another Server, or offline on a Device: at `position_ms` of 2000, or
 /// played, made `secs_ago` seconds ago, which may be negative.
-fn made_elsewhere(position_ms: u64, played: bool, secs_ago: i64) -> WatchStateChange {
+pub(super) fn made_elsewhere(position_ms: u64, played: bool, secs_ago: i64) -> WatchStateChange {
     WatchStateChange {
         episode: false,
         ids: vec![alien_imdb().to_string()],
@@ -591,7 +595,7 @@ async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
 }
 
 /// Where Alien stands for `user`: its position and when it last changed, in milliseconds.
-async fn alien_at(watch_states: &WatchStates, user: i64) -> (i64, i64) {
+pub(super) async fn alien_at(watch_states: &WatchStates, user: i64) -> (i64, i64) {
     let state = movie_state(watch_states, user, alien_id()).await.unwrap();
     (state.position_ms, state.updated_at * 1000)
 }
@@ -759,41 +763,4 @@ async fn a_newer_offline_change_shows_a_hidden_movie_again_in_continue_watching(
         .unwrap();
 
     assert_eq!(hidden(&watch_states, user).await, [false]);
-}
-
-#[tokio::test]
-async fn marking_unplayed_outlasts_a_restart_skips_older_pulls_and_goes_with_its_user() {
-    let data = tempfile::tempdir().unwrap();
-    let (before, user) = watch_states(&data).await;
-    let under_imdb = MovieOrEpisode::movie(&alien_imdb());
-    before.mark(user, vec![under_imdb], false).await.unwrap();
-    drop(before);
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let watch_states = WatchStates::new(Arc::clone(&db), ExtensionPoints::default());
-
-    // Played before it was marked unplayed, played after, then marked unplayed before that play.
-    for (secs_ago, pulled_played, played) in [
-        (60, true, None),
-        (-60, true, Some(true)),
-        (-30, false, Some(true)),
-    ] {
-        let pulled = made_elsewhere(0, pulled_played, secs_ago);
-        (watch_states.take_pulled(user, vec![(alien_by_both_ids(), pulled)]))
-            .await
-            .unwrap();
-        let state = movie_state(&watch_states, user, alien_id()).await;
-        assert_eq!(state.map(|state| state.played), played);
-    }
-
-    let delete_user = sqlx::query("DELETE FROM users WHERE id = ?").bind(user);
-    db.write(|tx| Box::pin(async move { delete_user.execute(&mut **tx).await.map(drop) }))
-        .await
-        .unwrap();
-    let forgotten = "SELECT COUNT(*) FROM forgotten_watch_states WHERE user_id = ?";
-    let left: i64 = sqlx::query_scalar(forgotten)
-        .bind(user)
-        .fetch_one(db.reader())
-        .await
-        .unwrap();
-    assert_eq!(left, 0);
 }
