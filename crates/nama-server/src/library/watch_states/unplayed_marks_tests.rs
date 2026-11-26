@@ -33,17 +33,16 @@ async fn marking_unplayed_outlasts_a_restart_skips_older_pulls_and_goes_with_its
         assert_eq!(state.map(|state| state.played), played);
     }
 
+    // The newer pulled play dropped the marks, so mark it again for the cascade to have some.
+    (watch_states.mark(user, vec![alien_by_both_ids()], false))
+        .await
+        .unwrap();
+    assert_eq!(unplayed_marks(&watch_states, user).await, 2);
     let delete_user = sqlx::query("DELETE FROM users WHERE id = ?").bind(user);
     db.write(|tx| Box::pin(async move { delete_user.execute(&mut **tx).await.map(drop) }))
         .await
         .unwrap();
-    let forgotten = "SELECT COUNT(*) FROM forgotten_watch_states WHERE user_id = ?";
-    let left: i64 = sqlx::query_scalar(forgotten)
-        .bind(user)
-        .fetch_one(db.reader())
-        .await
-        .unwrap();
-    assert_eq!(left, 0);
+    assert_eq!(unplayed_marks(&watch_states, user).await, 0);
 }
 
 /// How many of the User `user`'s marks of when a title was marked unplayed are kept.

@@ -1,7 +1,7 @@
 //! When each User last marked a Movie or Episode unplayed, under each of its ids, in
 //! `forgotten_watch_states`. Marking unplayed deletes its Watch State rows, so this is all that
 //! keeps a change made elsewhere before it, pulled or sent offline, from bringing it back
-//! (#2324). The title's next stored row is newer, so storing one drops the mark.
+//! (#2266, #2324). The title's next stored row is newer, so storing one drops the mark.
 
 use sqlx::SqliteConnection;
 
