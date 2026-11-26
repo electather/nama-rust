@@ -9,18 +9,22 @@ import {
 } from "nama-ui/components/dropdown-menu";
 
 import { useSignOut } from "@/app/data/use-sign-out";
+import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
 import { sectionSearch } from "@/features/settings/lib/sections";
 
 const watchlistLink = <Link to="/watchlist" />;
 
 /**
  * The signed-in User's menu, behind their initial: their Watchlist, switching to another of this
- * Device's Users, their Settings, and signing out.
+ * Device's Users, their Settings, and signing out. At the Hub, `atHub`, it's the Account's, which
+ * has no other User to switch to.
  */
-export function UserMenu({ userName }: { userName: string }) {
+export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean }) {
   const navigate = useNavigate();
   const here = useLocation({ select: (location) => location.href });
-  const signOut = useSignOut();
+  const signOutUser = useSignOut();
+  const signOutAccount = useSignOutAccount();
+  const signingOut = signOutUser.isPending || signOutAccount.isPending;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -39,28 +43,34 @@ export function UserMenu({ userName }: { userName: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuLinkItem render={watchlistLink}>Watchlist</DropdownMenuLinkItem>
-        <DropdownMenuItem
-          onClick={() => {
-            void navigate({ to: "/switch-user", search: { redirect: here } });
-          }}
-        >
-          Switch User
-        </DropdownMenuItem>
+        {!atHub && (
+          <DropdownMenuItem
+            onClick={() => {
+              void navigate({ to: "/switch-user", search: { redirect: here } });
+            }}
+          >
+            Switch User
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onClick={() => {
             // A history entry of its own, so Back closes Settings.
             void navigate({
               to: ".",
-              search: (rest) => ({ ...rest, ...sectionSearch("playback") }),
+              search: (rest) => ({ ...rest, ...sectionSearch(atHub ? "account" : "playback") }),
             });
           }}
         >
           Settings
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={signOut.isPending}
+          disabled={signingOut}
           onClick={() => {
-            signOut.mutate();
+            if (atHub) {
+              signOutAccount.mutate({});
+            } else {
+              signOutUser.mutate();
+            }
           }}
         >
           Sign out

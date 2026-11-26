@@ -1,12 +1,15 @@
+import type { LibraryGroup } from "@/app/data/use-top-bar-libraries";
 import { TopBarLink } from "@/app/top-bar/top-bar-link";
-import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
+
+const noLibraries: LibraryGroup = { libraries: [] };
 
 /**
- * The top bar's links: Home, then each Library. A phone has no room for them: there the mark goes
- * Home and `LibrariesMenu` to each Library.
+ * The top bar's links: Home, then each Library while `groups` holds one Server's. A phone has no
+ * room for them: there the mark goes Home and `LibrariesMenu` to each Library.
  */
-export function TopBarLinks() {
-  const libraries = useLoadedLibraries();
+export function TopBarLinks({ groups }: { groups: LibraryGroup[] }) {
+  // Two Servers' Libraries are too many for a row, so they show only in the menu.
+  const [{ server, libraries } = noLibraries] = groups.length === 1 ? groups : [];
   return (
     // Scrolls sideways rather than push search off a narrow bar; the padding keeps focus rings in.
     <nav
@@ -17,7 +20,12 @@ export function TopBarLinks() {
         Home
       </TopBarLink>
       {libraries.map(({ id, name }) => (
-        <TopBarLink key={String(id)} to="/libraries/$libraryId" params={{ libraryId: String(id) }}>
+        <TopBarLink
+          key={String(id)}
+          to="/libraries/$libraryId"
+          params={{ libraryId: String(id) }}
+          search={{ server: server?.id }}
+        >
           {name}
         </TopBarLink>
       ))}

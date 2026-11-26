@@ -1,5 +1,6 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { Outlet, createFileRoute, notFound } from "@tanstack/react-router";
 
+import { CentredUnderTopBar } from "@/features/auth/components/centred-under-top-bar";
 import { isAtHub } from "@/shared/hooks/access";
 
 /** Signed-in pages only the Hub has: a Server answers them "Page not found" (ADR 0105). */
@@ -9,4 +10,13 @@ export const Route = createFileRoute("/_member/_hub")({
       throw notFound();
     }
   },
+  component: HubPage,
 });
+
+function HubPage() {
+  return (
+    <CentredUnderTopBar>
+      <Outlet />
+    </CentredUnderTopBar>
+  );
+}
