@@ -3,6 +3,7 @@
 //! tests include single files by path.
 
 pub(crate) mod browsing;
+pub(crate) mod copies_ahead;
 pub(crate) mod custom_images;
 pub(crate) mod fake_hub;
 pub(crate) mod fake_s3;

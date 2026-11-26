@@ -2,7 +2,7 @@
 //! kept in a cache with a size limit, or sent as stored where they can't or needn't be resized,
 //! over a real socket.
 
-use crate::support::{browsing, http, server};
+use crate::support::{browsing, copies_ahead::until_exists, http, server};
 
 use std::{
     fs::{self, File, FileTimes},
@@ -20,8 +20,7 @@ use jxl::{
     image::JxlOutputBuffer,
 };
 use nama_proto::nama::v1::{
-    Episode, GetServerInfoRequest, GetServerInfoResponse, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, ListLibrariesRequest, ServerServiceClient,
+    Episode, LibraryKind, LibraryServiceClient, ListEpisodesRequest, ListLibrariesRequest,
 };
 use server::{
     TestServer,
@@ -62,17 +61,6 @@ async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
     let stored = fx.server.data_dir().join(key);
     until_exists(&stored).await;
     fs::write(&stored, image).unwrap();
-}
-
-/// Waits until a file is at `path`, failing the test after 60 seconds.
-async fn until_exists(path: &Path) {
-    let made = tokio::time::timeout(Duration::from_secs(60), async {
-        while !path.exists() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(made.is_ok(), "{} was never made", path.display());
 }
 
 /// `image` encoded as `format`.
@@ -177,7 +165,7 @@ fn dimensions(reply: &Reply) -> (u32, u32) {
 #[tokio::test]
 async fn a_poster_at_each_listed_width_below_its_own_is_a_jpeg_that_wide_with_its_shape() {
     let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
-    let info = server_info(&fx).await;
+    let info = fx.server_info().await;
     let narrower: Vec<u32> = (info.image_widths.into_iter())
         .filter(|&width| width < 1000)
         .collect();
@@ -293,31 +281,9 @@ async fn the_cache_keeps_each_format_of_a_width_apart_within_the_one_limit() {
     assert_eq!(again.body, b"kept");
 }
 
-/// Where the copies of the image served at `url`, under `/media/`, are kept, for an image whose
-/// key is its URL's path.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn copies_of(fx: &Fixture, url: &str) -> PathBuf {
-    let key = url.strip_prefix("/media/").unwrap();
-    fx.server.data_dir().join("resized").join(key)
-}
-
-/// What the Server tells clients about itself, the widths it offers each kind of image at among it.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn server_info(fx: &Fixture) -> GetServerInfoResponse {
-    let client = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    let info = client.get_server_info(GetServerInfoRequest::default());
-    info.await.unwrap().into_owned()
-}
-
 /// The widths the Server offers Posters at, which it makes each Poster at ahead of a request.
 async fn poster_widths(fx: &Fixture) -> Vec<u32> {
-    server_info(fx).await.poster_widths
+    fx.server_info().await.poster_widths
 }
 
 /// Checks that the image at `url`, whose copies are kept in `copies`, is sent at each of `widths`
@@ -385,11 +351,11 @@ async fn once_a_scan_has_finished_backdrop_and_title_logo_widths_are_sent_withou
 
     fx.scan_and_match().await;
 
-    let info = server_info(&fx).await;
-    let backdrop_copies = copies_of(&fx, &backdrop);
+    let info = fx.server_info().await;
+    let backdrop_copies = fx.copies_of(&backdrop);
     assert_sent_from_copies_made_ahead(&fx, &backdrop, &backdrop_copies, &info.backdrop_widths)
         .await;
-    let logo_copies = copies_of(&fx, &logo);
+    let logo_copies = fx.copies_of(&logo);
     assert_sent_from_copies_made_ahead(&fx, &logo, &logo_copies, &info.title_logo_widths).await;
 }
 
@@ -414,10 +380,10 @@ async fn alien_with_images_beside_the_media() -> (Fixture, String, String) {
 async fn images_beside_the_media_are_sent_at_their_widths_without_resizing_on_request() {
     let (fx, poster, backdrop) = alien_with_images_beside_the_media().await;
 
-    let info = server_info(&fx).await;
-    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster), &info.poster_widths)
+    let info = fx.server_info().await;
+    assert_sent_from_copies_made_ahead(&fx, &poster, &fx.copies_of(&poster), &info.poster_widths)
         .await;
-    let backdrop_copies = copies_of(&fx, &backdrop);
+    let backdrop_copies = fx.copies_of(&backdrop);
     assert_sent_from_copies_made_ahead(&fx, &backdrop, &backdrop_copies, &info.backdrop_widths)
         .await;
 }
@@ -425,7 +391,7 @@ async fn images_beside_the_media_are_sent_at_their_widths_without_resizing_on_re
 #[tokio::test]
 async fn images_beside_the_media_recorded_without_copies_get_them_on_a_rescan() {
     let (fx, poster, backdrop) = alien_with_images_beside_the_media().await;
-    let (poster_copies, backdrop_copies) = (copies_of(&fx, &poster), copies_of(&fx, &backdrop));
+    let (poster_copies, backdrop_copies) = (fx.copies_of(&poster), fx.copies_of(&backdrop));
     // As a Library scanned before images beside the media were resized ahead (#2152, #2244) has
     // them.
     until_exists(&poster_copies.join("320.jxl")).await;
@@ -435,7 +401,7 @@ async fn images_beside_the_media_recorded_without_copies_get_them_on_a_rescan() 
 
     fx.scan_and_match().await;
 
-    let info = server_info(&fx).await;
+    let info = fx.server_info().await;
     assert_sent_from_copies_made_ahead(&fx, &poster, &poster_copies, &info.poster_widths).await;
     assert_sent_from_copies_made_ahead(&fx, &backdrop, &backdrop_copies, &info.backdrop_widths)
         .await;
@@ -453,7 +419,7 @@ async fn a_backdrop_beside_the_media_a_custom_backdrop_hides_gets_no_copy_made_a
     fx.scan_and_match().await;
 
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    let poster_copies = copies_of(&fx, movie.poster_url.as_deref().unwrap());
+    let poster_copies = fx.copies_of(movie.poster_url.as_deref().unwrap());
     // Each scan's pass waits its turn on one lock, so once the Poster has its copies the pass
     // before, which saw only the Backdrop, has finished.
     until_exists(&poster_copies.join("320.jxl")).await;
@@ -477,7 +443,7 @@ async fn a_poster_beside_the_media_a_custom_poster_hides_gets_no_copy_made_ahead
     assert_eq!(uploaded.status, 204);
     let seasons = fx.get_dark().await.seasons;
     let season = seasons.iter().find(|season| season.number == 1).unwrap();
-    let season_copies = copies_of(&fx, season.poster_url.as_deref().unwrap());
+    let season_copies = fx.copies_of(season.poster_url.as_deref().unwrap());
     // Each scan's pass waits its turn on one lock, first come first served, so once the Season's
     // Poster has its copies the pass before, which saw only the Show's, has finished.
     until_exists(&season_copies.join("320.jxl")).await;
@@ -497,7 +463,7 @@ async fn an_uploaded_custom_poster_is_sent_at_the_poster_widths_without_resizing
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let poster = movie.poster_url.unwrap();
     let widths = poster_widths(&fx).await;
-    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster), &widths).await;
+    assert_sent_from_copies_made_ahead(&fx, &poster, &fx.copies_of(&poster), &widths).await;
 }
 
 #[tokio::test]
@@ -518,12 +484,11 @@ async fn uploaded_custom_backdrops_are_sent_at_the_backdrop_widths_without_resiz
         .into_owned()
         .libraries
         .remove(0);
-    let widths = server_info(&fx).await.backdrop_widths;
+    let widths = fx.server_info().await.backdrop_widths;
     for backdrop in [movie.backdrop_url, library.backdrop_url] {
         let backdrop = backdrop.unwrap();
         assert!(backdrop.starts_with("/media/custom-images/"), "{backdrop}");
-        assert_sent_from_copies_made_ahead(&fx, &backdrop, &copies_of(&fx, &backdrop), &widths)
-            .await;
+        assert_sent_from_copies_made_ahead(&fx, &backdrop, &fx.copies_of(&backdrop), &widths).await;
     }
 }
 
@@ -615,7 +580,7 @@ async fn an_svg_a_png_with_transparency_and_an_image_over_12_megapixels_are_sent
         assert_eq!(reply.status, 200, "{name}");
         assert!(reply.body == original, "{name} was changed");
         // Else its marker sends the next one as stored without looking at it.
-        fs::remove_dir_all(copies_of(&fx, &poster)).unwrap();
+        fs::remove_dir_all(fx.copies_of(&poster)).unwrap();
     }
 }
 

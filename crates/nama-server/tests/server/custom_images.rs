@@ -2,13 +2,13 @@
 //! everyone then sees in its place until it is removed (ADR 0036), over a real socket with the
 //! TMDB Plugin enabled against a fake TMDB, and a search-only title source of this file's own.
 
-use crate::support::{browsing, custom_images, http, server};
+use crate::support::{browsing, copies_ahead::until_exists, custom_images, http, server};
 
 use std::{fs, future, sync::Arc};
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
-use custom_images::image;
+use custom_images::{DARK_S01E01, image};
 use http::{Reply, fetch};
 use image::ImageFormat;
 use nama_plugin_api::{
@@ -18,8 +18,8 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
-    ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ReportProgressRequest,
-    SetMatchRequest, Show, TitleKind, WatchStateServiceClient,
+    ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest,
+    ReportProgressRequest, SetMatchRequest, Show, TitleKind, WatchStateServiceClient,
     continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
@@ -688,4 +688,56 @@ async fn a_custom_poster_kept_under_another_id_of_a_search_hit_shows_on_the_hit(
     assert_eq!(hit.id.namespace, OFFICE_HITS);
     let poster = hit.poster_url.clone().unwrap();
     assert!(poster.starts_with(&format!("/media{path}/")), "{poster}");
+}
+
+#[tokio::test]
+async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan() {
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    // Off while Dark is scanned and its Custom Images uploaded, so none of them is copied ahead,
+    // as one uploaded before its kind was isn't (#2372).
+    fx.server.set_image_settings(false, None).await;
+    fx.write(DARK_S01E01, b"video");
+    fx.scan_and_match().await;
+    let poster = image(ImageFormat::Jpeg, 1000, 1500);
+    let backdrop = image(ImageFormat::Jpeg, 2600, 1463);
+    let uploads = [
+        (format!("show/tmdb-{DARK}/poster"), &poster),
+        (format!("show/tmdb-{DARK}/season/1/poster"), &poster),
+        (format!("show/tmdb-{DARK}/backdrop"), &backdrop),
+        (format!("library/{}/backdrop", fx.library), &backdrop),
+    ];
+    for (slot, bytes) in uploads {
+        let uploaded = fx.upload(&format!("/custom-images/{slot}"), bytes).await;
+        assert_eq!(uploaded.status, 204, "{slot}");
+    }
+    fx.server.set_image_settings(true, None).await;
+
+    fx.scan_and_match().await;
+
+    let dark = fx.get_dark().await;
+    let season = dark.seasons.iter().find(|season| season.number == 1);
+    let library = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .list_libraries(ListLibrariesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .libraries
+        .remove(0);
+    let info = fx.server_info().await;
+    let show = dark.show.into_option().unwrap();
+    let images = [
+        (show.poster_url, &info.poster_widths),
+        (season.unwrap().poster_url.clone(), &info.poster_widths),
+        (show.backdrop_url, &info.backdrop_widths),
+        (library.backdrop_url, &info.backdrop_widths),
+    ];
+    for (url, widths) in images {
+        let url = url.unwrap();
+        assert!(url.starts_with("/media/custom-images/"), "{url}");
+        let copies = fx.copies_of(&url);
+        for width in widths {
+            until_exists(&copies.join(format!("{width}.jpg"))).await;
+            until_exists(&copies.join(format!("{width}.jxl"))).await;
+        }
+    }
 }

@@ -315,9 +315,10 @@ impl Artwork {
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
     /// Poster and Backdrop a title of it shows, downloaded before or just now or beside its media,
-    /// and each downloaded titled Backdrop and Title Logo, is resized to the widths the web app
-    /// offers it at too, where resizing is on now and those copies aren't there. A downloaded
-    /// Poster or Backdrop that a Custom Image or image beside the media stands in for gets none.
+    /// and each downloaded titled Backdrop and Title Logo, and each Custom Image of it and its
+    /// titles, is resized to the widths the web app offers it at too, where resizing is on now and
+    /// those copies aren't there. A downloaded Poster or Backdrop that a Custom Image or image
+    /// beside the media stands in for gets none.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
