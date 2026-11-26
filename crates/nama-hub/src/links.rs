@@ -412,7 +412,8 @@ impl Links {
                 name: server.name,
                 linked_at: server.linked_at,
                 addresses: [
-                    server.server_url.clone(),
+                    // Clients add `/` and a path to an address, and a Server URL may end in one.
+                    server.server_url.trim_end_matches('/').to_owned(),
                     server.public_address,
                     // A Server the Hub can't reach may have its Relay's as its Server URL too.
                     if server.relay_address == server.server_url {

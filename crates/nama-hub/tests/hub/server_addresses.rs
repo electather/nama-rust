@@ -125,6 +125,25 @@ async fn an_account_lists_the_servers_its_users_are_on_and_no_others(db: PgPool)
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_server_address_from_a_server_url_ending_in_a_slash_has_none(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    set_addresses(&hub, &living_room, "https://example.com/nama/", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [(
+            "Living room".to_owned(),
+            "https://example.com/nama/".to_owned(),
+            vec!["https://example.com/nama".to_owned()]
+        )]
+    );
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_server_sets_only_its_own_addresses(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
