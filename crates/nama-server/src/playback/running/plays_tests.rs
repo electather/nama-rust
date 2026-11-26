@@ -16,6 +16,7 @@ use super::{
 use crate::{
     events::{Filter, event},
     playback::viewer_of_caller,
+    signed_urls::Viewer,
 };
 
 #[tokio::test]
@@ -137,6 +138,11 @@ async fn an_admin_stopping_a_direct_play_cuts_off_its_devices_file_until_it_play
     let on_ripley = Some(viewer_of_caller(&ripley()));
     let while_playing = plans.stopped(4, on_ripley);
     let to_another = plans.stopped(4, Some(viewer(2)));
+    let to_another_user = Viewer {
+        user: 2,
+        ..viewer_of_caller(&ripley())
+    };
+    let to_another_user = plans.stopped(4, Some(to_another_user));
     let started = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
 
     plans
@@ -152,6 +158,7 @@ async fn an_admin_stopping_a_direct_play_cuts_off_its_devices_file_until_it_play
         "a stop isn't undone by asking again"
     );
     assert!(!to_another.is_cancelled());
+    assert!(!to_another_user.is_cancelled());
     assert!(
         !plans.stopped(4, on_ripley).is_cancelled(),
         "playing again lifts it"

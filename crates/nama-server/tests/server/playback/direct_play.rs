@@ -4,10 +4,7 @@
 
 use nama_proto::nama::v1::{ListPlaysRequest, ReportProgressRequest, WatchStateServiceClient};
 
-use super::{
-    switching_users::{sign_in_on, switch_back_to},
-    *,
-};
+use super::*;
 
 const REMOTE: &str = "203.0.113.7";
 const LOCAL: &str = "192.168.1.20";
@@ -110,9 +107,9 @@ async fn a_direct_play_planned_under_a_cap_lets_no_user_the_device_switches_to_p
     let plan = ask_for_plan_as(remotely, original).await.unwrap();
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
 
-    sign_in_on(&fx.server, &bishop.token, "Hicks").await;
+    fx.server.sign_in_on(&bishop.token, "Hicks").await;
     let as_hicks = status_for(&fx, p720, &bishop.token, REMOTE).await;
-    switch_back_to(&fx.server, &bishop.token, &bishop).await;
+    fx.server.switch_to(&bishop.token, bishop.id).await;
 
     assert_eq!(as_hicks, 403);
     assert_eq!(status_for(&fx, p720, &bishop.token, REMOTE).await, 200);

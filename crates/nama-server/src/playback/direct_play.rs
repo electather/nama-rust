@@ -171,8 +171,9 @@ pub(super) async fn sees_version(
 }
 
 /// Serves the Version `id`'s file to keep on the caller's Device as [`serve`] does, but only while
-/// the caller has a plan on that Device Direct Playing it, so it plays offline as it would now; 409 otherwise
-/// (#1422). Whether the caller may download is up to the layers the router is put behind.
+/// the caller has a plan on that Device Direct Playing it, so it plays offline as it would now;
+/// 409 otherwise (#1422). Whether the caller may download is up to the layers the router is put
+/// behind.
 async fn download(
     State((contents, running, db)): State<(Contents, RunningPlans, Arc<Database>)>,
     Path(id): Path<i64>,

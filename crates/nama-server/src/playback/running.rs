@@ -30,8 +30,8 @@
 //! after it was last asked for, or as the Server shuts down. A Direct Play is asked for through
 //! its file at `/media/versions/<id>`, which marks every Direct Play of that Version for the User
 //! and Device asking as the request arrives and again with each part of the file sent, so one
-//! being downloaded in a single request isn't stopped. [`sweep_leftovers`] deletes the folders of plans
-//! a run left behind when the next starts.
+//! being downloaded in a single request isn't stopped. [`sweep_leftovers`] deletes the folders of
+//! plans a run left behind when the next starts.
 //!
 //! Deleting a Version ends its plans first and cuts off each response serving its file
 //! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
