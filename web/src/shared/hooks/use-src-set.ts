@@ -8,9 +8,10 @@ import { useServerUrl } from "@/shared/hooks/use-server-url";
 export type OfferedWidths = "imageWidths" | "posterWidths" | "backdropWidths" | "titleLogoWidths";
 
 /**
- * The `srcset` for the image at `url`, on its Server (`useServerUrl`): a copy at each of the Server's `offered` widths, so the
- * browser fetches one that fits where it's shown. A kind's list holds only the widths the Server
- * makes ahead, so a first visit waits on no resize. `undefined` without an image, or widths to offer.
+ * The `srcset` for the image at `url`, on its Server (`useServerUrl`): a copy at each of the
+ * Server's `offered` widths, so the browser fetches one that fits where it's shown. A kind's list
+ * holds only the widths the Server makes ahead, so a first visit waits on no resize. `undefined`
+ * without an image, or widths to offer.
  */
 export function useSrcSet(url: string | undefined, offered: OfferedWidths = "imageWidths") {
   // Every signed-in page has the Server's info already: its access check fetched it.

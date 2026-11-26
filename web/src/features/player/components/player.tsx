@@ -5,7 +5,6 @@ import { PlannedPlayer } from "@/features/player/components/planned-player";
 import { useAutoplay } from "@/features/player/hooks/use-autoplay";
 import type { PlayerProps } from "@/features/player/lib/player-props";
 import { PageTitle } from "@/shared/components/page-title";
-import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { playerOpened } from "@/shared/lib/diagnostics";
 
 /**
@@ -13,12 +12,7 @@ import { playerOpened } from "@/shared/lib/diagnostics";
  * asking for a new plan when the browser fails to play one, or says so plainly when it can't play
  * here. While the Server works a plan out, which the first time can take minutes, it says so.
  */
-export function Player(played: PlayerProps) {
-  const props = {
-    ...played,
-    posterUrl: useServerUrl(played.posterUrl),
-    backdropUrl: useServerUrl(played.backdropUrl),
-  };
+export function Player(props: PlayerProps) {
   useEffect(playerOpened, []);
   const playing = props.heading === undefined ? props.title : `${props.heading}: ${props.title}`;
   return (

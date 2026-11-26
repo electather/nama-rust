@@ -20,11 +20,12 @@ test("on the Server's own page a path stays as it is", () => {
   expect(serverUrl(poster, "")).toBe(poster);
 });
 
-test("an absolute, empty or missing URL stays as it is", () => {
+test("an absolute, protocol-relative, empty or missing URL stays as it is", () => {
   expect(serverUrl("https://image.tmdb.org/t/p/w500/x.jpg")).toBe(
     "https://image.tmdb.org/t/p/w500/x.jpg",
   );
   expect(serverUrl("data:image/png;base64,AAAA")).toBe("data:image/png;base64,AAAA");
+  expect(serverUrl("//cdn.example/x.jpg")).toBe("//cdn.example/x.jpg");
   expect(serverUrl("")).toBe("");
   expect(serverUrl()).toBeUndefined();
 });
