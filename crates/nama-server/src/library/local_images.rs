@@ -268,6 +268,8 @@ impl LocalImages {
             if let Err(err) = beside_media {
                 tracing::error!(library, "could not list the images to resize: {err}");
             }
+            // Here, under the same lock, so a scan's Custom Images wait their turn on the resize
+            // thread too.
             let custom = custom_images
                 .copy_ahead(library, &posters, &backdrops)
                 .await;

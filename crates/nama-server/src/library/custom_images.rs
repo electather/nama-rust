@@ -309,6 +309,8 @@ impl CustomImages {
 
     /// Each Custom Image, as its slot and version, of the Library `library` or a Movie, Show or
     /// Season it has, kept under any of the title's ids.
+    // ponytail: reads every Custom Image, as `urls` does, once a scan. Query by slot if that ever
+    // grows.
     async fn of_library(&self, library: i64) -> sqlx::Result<Vec<(Slot, String)>> {
         let stored = self.stored().await?;
         let (mut movie_ids, mut show_ids) = (Vec::new(), Vec::new());

@@ -2,13 +2,13 @@
 //! everyone then sees in its place until it is removed (ADR 0036), over a real socket with the
 //! TMDB Plugin enabled against a fake TMDB, and a search-only title source of this file's own.
 
-use crate::support::{browsing, custom_images, http, server};
+use crate::support::{browsing, copies_ahead::until_exists, custom_images, http, server};
 
-use std::{fs, future, sync::Arc, time::Duration};
+use std::{fs, future, sync::Arc};
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
-use custom_images::image;
+use custom_images::{DARK_S01E01, image};
 use http::{Reply, fetch};
 use image::ImageFormat;
 use nama_plugin_api::{
@@ -17,10 +17,10 @@ use nama_plugin_api::{
     metadata::{MetadataError, SourceManifest, TitleMethod, TitleSource},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ContinueWatchingEntry, GetServerInfoRequest, LibraryKind,
-    LibraryServiceClient, ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest,
-    ListLibrariesRequest, ReportProgressRequest, ServerServiceClient, SetMatchRequest, Show,
-    TitleKind, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
+    ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest,
+    ReportProgressRequest, SetMatchRequest, Show, TitleKind, WatchStateServiceClient,
+    continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
 use server::{
@@ -690,37 +690,14 @@ async fn a_custom_poster_kept_under_another_id_of_a_search_hit_shows_on_the_hit(
     assert!(poster.starts_with(&format!("/media{path}/")), "{poster}");
 }
 
-/// Where the copies of the image served at `url`, under `/media/`, are kept.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn copies_of(fx: &Fixture, url: &str) -> std::path::PathBuf {
-    let key = url.strip_prefix("/media/").unwrap();
-    fx.server.data_dir().join("resized").join(key)
-}
-
-/// Waits until the image served at `url` has a copy at each of `widths` in both formats, failing
-/// the test after 60 seconds.
-async fn until_copied(fx: &Fixture, url: &str, widths: &[u32]) {
-    let copies = copies_of(fx, url);
-    let all_made = || {
-        (widths.iter()).all(|width| {
-            (["jpg", "jxl"].iter()).all(|format| copies.join(format!("{width}.{format}")).exists())
-        })
-    };
-    let made = tokio::time::timeout(Duration::from_secs(60), async {
-        while !all_made() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(made.is_ok(), "{url} was never copied at {widths:?}");
-}
-
 #[tokio::test]
 async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan() {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    // Off while Dark is scanned and its Custom Images uploaded, so none of them is copied ahead,
+    // as one uploaded before its kind was isn't (#2372).
+    fx.server.set_image_settings(false, None).await;
+    fx.write(DARK_S01E01, b"video");
+    fx.scan_and_match().await;
     let poster = image(ImageFormat::Jpeg, 1000, 1500);
     let backdrop = image(ImageFormat::Jpeg, 2600, 1463);
     let uploads = [
@@ -733,12 +710,12 @@ async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan
         let uploaded = fx.upload(&format!("/custom-images/{slot}"), bytes).await;
         assert_eq!(uploaded.status, 204, "{slot}");
     }
-    let show = fx.get_dark().await;
-    let season = show
-        .seasons
-        .iter()
-        .find(|season| season.number == 1)
-        .unwrap();
+    fx.server.set_image_settings(true, None).await;
+
+    fx.scan_and_match().await;
+
+    let dark = fx.get_dark().await;
+    let season = dark.seasons.iter().find(|season| season.number == 1);
     let library = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
         .list_libraries(ListLibrariesRequest::default())
         .await
@@ -746,28 +723,21 @@ async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan
         .into_owned()
         .libraries
         .remove(0);
-    let info = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .get_server_info(GetServerInfoRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
-    let show = show.show.into_option().unwrap();
+    let info = fx.server_info().await;
+    let show = dark.show.into_option().unwrap();
     let images = [
-        (show.poster_url.unwrap(), &info.poster_widths),
-        (season.poster_url.clone().unwrap(), &info.poster_widths),
-        (show.backdrop_url.unwrap(), &info.backdrop_widths),
-        (library.backdrop_url.unwrap(), &info.backdrop_widths),
+        (show.poster_url, &info.poster_widths),
+        (season.unwrap().poster_url.clone(), &info.poster_widths),
+        (show.backdrop_url, &info.backdrop_widths),
+        (library.backdrop_url, &info.backdrop_widths),
     ];
-    // Without their copies, as a Custom Image uploaded before its kind was copied ahead is (#2372).
-    for (url, widths) in &images {
+    for (url, widths) in images {
+        let url = url.unwrap();
         assert!(url.starts_with("/media/custom-images/"), "{url}");
-        until_copied(&fx, url, widths).await;
-        fs::remove_dir_all(copies_of(&fx, url)).unwrap();
-    }
-
-    fx.scan_and_match().await;
-
-    for (url, widths) in &images {
-        until_copied(&fx, url, widths).await;
+        let copies = fx.copies_of(&url);
+        for width in widths {
+            until_exists(&copies.join(format!("{width}.jpg"))).await;
+            until_exists(&copies.join(format!("{width}.jxl"))).await;
+        }
     }
 }
