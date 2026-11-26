@@ -6,8 +6,8 @@
 //! Server's own TLS (`tls.rs`) answers the client through it.
 //!
 //! The Relay runs as a process of its own (`nama-server relay`), with no Kernel and no Plugins, so
-//! it fetches the Hub's keys itself; the Server asks the Hub it is Linked with for its token
-//! (ADR 0094).
+//! it fetches the Hub's keys itself; the Server asks the Hub for its token through Linking
+//! (ADR 0105).
 //!
 //! A Server's dial is the token, framed as its length in two big-endian bytes and then itself, and
 //! then nothing until the Relay sends it a client: the client's address as `<ip>:<port>`, framed
@@ -404,8 +404,8 @@ impl HubKeys {
 
 /// The own name `token` names, if one of `keys` signed it for a Relay and it is unexpired at
 /// `now`, in seconds since the Unix epoch.
-// A copy of the Hub Plugin's check (`plugins/hub/src/token.rs`), which the Server can't depend on
-// (ADR 0006): a fix to one belongs in both.
+// Checks the signature as `link/token.rs`'s `verify` does, then a Relay's claims: a fix to the
+// signature check in one belongs in both.
 fn verify(keys: &[Key], token: &str, now: i64) -> Result<String, Rejected> {
     let (signed, signature) = token.rsplit_once('.').ok_or(Rejected::Invalid)?;
     let (header, claims) = signed.split_once('.').ok_or(Rejected::Invalid)?;
