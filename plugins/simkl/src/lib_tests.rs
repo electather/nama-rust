@@ -428,6 +428,54 @@ fn an_import_tells_each_episode_by_its_shows_ids_season_and_number() {
 }
 
 #[test]
+fn episodes_marked_by_their_shows_numbers_or_their_tvdb_id_round_trip_through_simkl() {
+    let fake = shared(FakeSimkl::new());
+    let mut kernel = kernel(&fake);
+    let numbered = |number, played| SyncedWatchState {
+        show_ids: title_ids(&[("tmdb", "1399")]),
+        season_number: Some(1),
+        episode_number: Some(number),
+        ..episode(&[("tmdb", &format!("6305{number}"))], played)
+    };
+    let by_tvdb = |played| episode(&[("tvdb", "349232")], played);
+    let strings = |ids: &[TitleId]| -> Vec<String> {
+        (ids.iter())
+            .map(|id| format!("{}-{}", id.namespace, id.value))
+            .collect()
+    };
+    let listed = |changes: Vec<SyncedWatchState>| {
+        (changes.iter())
+            .map(|change| {
+                let (show, ids) = (strings(&change.show_ids), strings(&change.ids));
+                (show, change.season_number, change.episode_number, ids)
+            })
+            .collect::<Vec<_>>()
+    };
+
+    scrobbled(
+        &mut kernel,
+        vec![numbered(2, true), numbered(3, true), by_tvdb(true)],
+    )
+    .unwrap();
+    let (all_watched, _) = imported(&mut kernel, "").unwrap();
+    scrobbled(&mut kernel, vec![numbered(2, false), by_tvdb(false)]).unwrap();
+    let (left, _) = imported(&mut kernel, "").unwrap();
+
+    let show = || vec!["tmdb-1399".to_owned()];
+    // The fake lists a TVDB-id Episode under a Show of Simkl's own id, which the Kernel doesn't
+    // keep.
+    assert_eq!(
+        listed(all_watched),
+        [
+            (vec![], Some(1), Some(1), vec!["tvdb-349232".to_owned()]),
+            (show(), Some(1), Some(2), vec![]),
+            (show(), Some(1), Some(3), vec![]),
+        ]
+    );
+    assert_eq!(listed(left), [(show(), Some(1), Some(3), vec![])]);
+}
+
+#[test]
 fn an_account_with_nothing_watched_imports_nothing() {
     let fake = shared(FakeSimkl::new());
     let mut kernel = kernel(&fake);

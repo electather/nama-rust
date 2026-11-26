@@ -187,25 +187,57 @@ impl FakeSimkl {
 
     fn added(&mut self, body: &Value) -> Response {
         for (list, kind) in [("movies", "movie"), ("episodes", "episode")] {
-            for title in body[list].as_array().into_iter().flatten() {
-                let watched_at = title["watched_at"]
-                    .as_str()
-                    .unwrap_or("2026-11-25T00:00:00Z");
-                self.watch(kind, &title["ids"], watched_at);
+            for title in items(&body[list]) {
+                self.watch(kind, &title["ids"], watched_at(title));
             }
+        }
+        for (show, numbers, episode) in episodes_in_shows(body) {
+            self.watch_episode(show, numbers, &json!({}), watched_at(episode));
         }
         Response::new(201, json!({ "added": {}, "not_found": {} }).to_string())
     }
 
     fn removed(&mut self, body: &Value) -> Response {
         for list in ["movies", "episodes"] {
-            for title in body[list].as_array().into_iter().flatten() {
+            for title in items(&body[list]) {
                 self.watched
                     .retain(|watched| watched["ids"] != title["ids"]);
             }
         }
+        for (show, (season, number), _episode) in episodes_in_shows(body) {
+            self.watched.retain(|watched| {
+                !(watched["show"] == *show
+                    && watched["season"] == season
+                    && watched["number"] == number)
+            });
+        }
         ok(&json!({ "deleted": {}, "not_found": {} }))
     }
+}
+
+/// Each Episode a `/sync/history` body names under `shows`, with its Show's ids and its season
+/// and number.
+fn episodes_in_shows(body: &Value) -> impl Iterator<Item = (&Value, (u32, u32), &Value)> {
+    let number = |value: &Value| u32::try_from(value["number"].as_u64()?).ok();
+    items(&body["shows"]).flat_map(move |show| {
+        items(&show["seasons"]).flat_map(move |season| {
+            items(&season["episodes"]).filter_map(move |episode| {
+                Some((&show["ids"], (number(season)?, number(episode)?), episode))
+            })
+        })
+    })
+}
+
+/// The items of the list `value`, none when it isn't one.
+fn items(value: &Value) -> impl Iterator<Item = &Value> {
+    value.as_array().into_iter().flatten()
+}
+
+/// When a `/sync/history` body says `title` was watched; Simkl takes a missing time as now.
+fn watched_at(title: &Value) -> &str {
+    title["watched_at"]
+        .as_str()
+        .unwrap_or("2026-11-25T00:00:00Z")
 }
 
 /// `value`, or `default` when it is missing.
