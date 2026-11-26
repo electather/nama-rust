@@ -2,10 +2,11 @@
 //! an Admin chose, everywhere the Server hands out titles, over a real socket with the fake TMDB,
 //! whose Similar source answers Alien's as Aliens and Heat.
 
-use crate::support::{http, refused, server};
+use crate::support::{browsing, http, refused, server};
 
 use std::time::{Duration, Instant};
 
+use browsing::{report_a_minute, send_back_a_minute};
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
@@ -105,6 +106,20 @@ fn tmdb_id(tmdb: i64) -> ExternalId {
         value: tmdb.to_string(),
         ..Default::default()
     }
+}
+
+/// How far into the Movie with the TMDB id `tmdb` of the Library `library` `who`'s Watch State
+/// has them, if they've started it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn position(who: &ClientConfig, library: i64, tmdb: i64) -> Option<u64> {
+    let movie = get_movie(who, library, tmdb).await.unwrap();
+    movie
+        .watch_state
+        .into_option()
+        .map(|state| state.position_ms)
 }
 
 /// The ids of the Libraries `who` lists.
@@ -509,4 +524,54 @@ async fn changing_a_users_library_access_ends_their_open_subscriptions() {
         .unwrap();
 
     assert!(hicks.message().await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn progress_on_a_hidden_librarys_version_is_refused_as_no_such_version_and_not_stored() {
+    let fx = Fixture::start().await;
+    let alien = fx.version(fx.alien.id, ALIEN).await;
+    let (vasquez, bishop) = (fx.vasquez.client_config(), fx.bishop.client_config());
+
+    let refused = report_a_minute(&vasquez, alien).await;
+    report_a_minute(&bishop, alien).await.unwrap();
+
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+    );
+    let admin = fx.server.client_config();
+    set_access(&admin, fx.vasquez.id, None).await.unwrap();
+    assert_eq!(position(&vasquez, fx.alien.id, ALIEN).await, None);
+    assert_eq!(position(&bishop, fx.alien.id, ALIEN).await, Some(60_000));
+}
+
+#[tokio::test]
+async fn offline_changes_to_a_hidden_librarys_titles_are_left_out_and_the_rest_taken() {
+    let fx = Fixture::start().await;
+    let vasquez = fx.vasquez.client_config();
+
+    send_back_a_minute(&vasquez, &[ALIEN, HEAT]).await.unwrap();
+
+    let admin = fx.server.client_config();
+    set_access(&admin, fx.vasquez.id, None).await.unwrap();
+    assert_eq!(position(&vasquez, fx.alien.id, ALIEN).await, None);
+    assert_eq!(position(&vasquez, fx.heat.id, HEAT).await, Some(60_000));
+}
+
+#[tokio::test]
+async fn an_offline_change_to_a_title_also_in_a_seen_library_is_taken_there() {
+    let fx = Fixture::start().await;
+    let newer = (fx.server)
+        .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_FILE])
+        .await;
+    let admin = fx.server.client_config();
+    set_access(&admin, fx.vasquez.id, Some(&[fx.heat.id, newer.id]))
+        .await
+        .unwrap();
+    let vasquez = fx.vasquez.client_config();
+
+    send_back_a_minute(&vasquez, &[ALIEN]).await.unwrap();
+
+    assert_eq!(position(&vasquez, newer.id, ALIEN).await, Some(60_000));
 }
