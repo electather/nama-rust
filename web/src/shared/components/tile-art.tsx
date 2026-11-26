@@ -4,12 +4,14 @@ import { type OfferedWidths, useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
  * A shelf tile's art, filling its box, its thumbhash until it loads, under a hairline drawn inside
- * its edge. Its tile names it, so the image says nothing more.
+ * its edge. Its tile names it, so the image says nothing more. `onError` hears when it fails to
+ * load.
  */
 export function TileArt({
   url,
   thumbhash,
   look,
+  onError,
 }: {
   url: string | undefined;
   thumbhash: Uint8Array | undefined;
@@ -18,6 +20,7 @@ export function TileArt({
    * radius, for its hairline.
    */
   look: { sizes: string; radius: string; widths: OfferedWidths };
+  onError?: () => void;
 }) {
   const src = useServerUrl(url);
   const srcSet = useSrcSet(url, look.widths);
@@ -32,6 +35,7 @@ export function TileArt({
           alt=""
           loading="lazy"
           className="absolute inset-0 size-full object-cover"
+          onError={onError}
         />
       )}
       <span
