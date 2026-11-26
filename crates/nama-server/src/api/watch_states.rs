@@ -13,7 +13,7 @@ use nama_proto::nama::v1::{
 use crate::{
     browse,
     library::{Progress, TitleTarget},
-    playback::{ReportedProgress, RunningPlans},
+    playback::{ReportedProgress, RunningPlans, viewer_of_caller},
 };
 
 use super::{
@@ -52,7 +52,7 @@ impl WatchStateService for WatchStateServiceHandler {
             position_ms: request.position_ms,
             duration_ms: request.duration_ms,
         };
-        (self.running).report_progress(request.version_id, caller.device.id, reported);
+        (self.running).report_progress(request.version_id, viewer_of_caller(caller), reported);
         Response::ok(ReportProgressResponse::default())
     }
 

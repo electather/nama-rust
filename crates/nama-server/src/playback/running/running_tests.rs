@@ -24,6 +24,7 @@ use crate::{
     playback::{ProbePasses, Probing, WholeFileReads, subtitles},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
+    signed_urls::Viewer,
 };
 
 pub(super) fn event_bus(db: &Arc<Database>) -> EventBus {
@@ -70,6 +71,11 @@ pub(super) fn playback(device: i64) -> Playback {
         method: PlaybackMethod::PLAYBACK_METHOD_REMUX.into(),
         ..Default::default()
     }
+}
+
+/// Who [`playback`]'s plans on the Device `device` are made for.
+pub(super) fn viewer(device: i64) -> Viewer {
+    Viewer { user: 0, device }
 }
 
 /// A playback's reasons when it has only one, of `kind`.
@@ -189,9 +195,9 @@ async fn a_running_plan_is_marked_with_its_method_and_found_only_by_its_device()
 
     let id = start_remux(&plans, 7).await;
 
-    let plan = plans.ask(id, 7).unwrap();
+    let plan = plans.ask(id, viewer(7)).unwrap();
     assert_eq!(plan.hls.as_ref().unwrap().method(), Method::Remux);
-    assert!(plans.ask(id, 8).is_none());
+    assert!(plans.ask(id, viewer(8)).is_none());
 }
 
 #[tokio::test]
@@ -204,7 +210,7 @@ async fn every_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
     start_faked(&plans, Method::Transcode, 8).await;
 
     let full = plans.running_transcodes().all;
-    plans.stop_for(first, 7).await;
+    plans.stop_for(first, viewer(7)).await;
 
     assert_eq!(full, 2);
     assert_eq!(plans.running_transcodes().all, 1);
@@ -254,7 +260,7 @@ async fn a_transcode_whose_hardware_fails_says_once_it_plays_in_software_and_end
     hardware.fail(0, "Failed to upload the frame to the GPU");
     software.until_started(1).await;
     software.fail(0, "Conversion failed!");
-    plans.stop_for(id, 7).await;
+    plans.stop_for(id, viewer(7)).await;
 
     let changed = Playback {
         reasons: software_reasons,
@@ -289,7 +295,7 @@ async fn a_plan_whose_ffmpeg_is_still_going_after_the_wait_for_its_first_file_st
 
     let (id, runs) = start_faked(&plans, Method::Transcode, 7).await;
 
-    assert!(plans.ask(id, 7).is_some());
+    assert!(plans.ask(id, viewer(7)).is_some());
     assert!(!runs.dropped(0));
 }
 
@@ -315,7 +321,7 @@ async fn a_transcode_whose_hardware_fails_while_it_starts_is_told_once_as_starte
     hardware.fail(0, "Failed to upload the frame to the GPU");
     software.until_started(1).await;
     let id = starting.await.unwrap().unwrap();
-    plans.stop_for(id, 7).await;
+    plans.stop_for(id, viewer(7)).await;
 
     let started = Playback {
         reasons: software_reasons,
@@ -346,14 +352,14 @@ async fn a_plan_unused_for_long_enough_is_stopped_and_its_files_deleted() {
     let (used, _) = start_faked(&plans, Method::Remux, device).await;
     let (unused, unused_runs) = start_faked(&plans, Method::Remux, device).await;
     tokio::time::sleep(Duration::from_millis(100)).await;
-    plans.ask(used, device).unwrap();
+    plans.ask(used, viewer(device)).unwrap();
 
     plans.stop_unused(Duration::from_millis(50)).await;
 
-    assert!(plans.ask(unused, device).is_none());
+    assert!(plans.ask(unused, viewer(device)).is_none());
     assert!(unused_runs.dropped(0));
     assert!(!plan_dir(data.path(), unused).exists());
-    assert!(plans.ask(used, device).is_some());
+    assert!(plans.ask(used, viewer(device)).is_some());
     assert!(plan_dir(data.path(), used).exists());
 }
 
@@ -375,7 +381,7 @@ async fn a_plan_whose_ffmpeg_cant_be_spawned_deletes_its_folder_and_isnt_kept() 
 
     assert!(matches!(failed.await, Err(StartError::Run(_))));
     assert!(!plan_dir(data.path(), first_id).exists());
-    assert!(plans.ask(first_id, device).is_none());
+    assert!(plans.ask(first_id, viewer(device)).is_none());
 }
 
 #[tokio::test]
@@ -425,11 +431,11 @@ async fn a_plan_its_device_stops_ends_at_once_and_another_device_cant_stop_it() 
     let (id, runs) = start_faked(&plans, Method::Remux, device).await;
     let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
 
-    plans.stop_for(id, another).await;
-    assert!(plans.ask(id, device).is_some());
-    plans.stop_for(id, device).await;
+    plans.stop_for(id, viewer(another)).await;
+    assert!(plans.ask(id, viewer(device)).is_some());
+    plans.stop_for(id, viewer(device)).await;
 
-    assert!(plans.ask(id, device).is_none());
+    assert!(plans.ask(id, viewer(device)).is_none());
     assert!(runs.dropped(0));
     assert!(!plan_dir(data.path(), id).exists());
     let ended = event(PlaybackEnded {
@@ -465,11 +471,45 @@ async fn a_direct_play_is_kept_while_its_device_asks_for_its_version_and_then_en
     );
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    plans.ask_direct_plays(version, device);
+    plans.ask_direct_plays(version, viewer(device));
     plans.stop_unused(Duration::from_millis(50)).await;
 
-    assert!(plans.ask(asked, device).is_some());
-    assert!(plans.ask(unasked, another).is_none());
+    assert!(plans.ask(asked, viewer(device)).is_some());
+    assert!(plans.ask(unasked, viewer(another)).is_none());
+}
+
+#[tokio::test]
+async fn a_plan_is_found_kept_and_stopped_only_as_the_user_it_was_made_for() {
+    let data = tempfile::tempdir().unwrap();
+    let db = database(data.path()).await;
+    let plans = plans_in(
+        &db,
+        settings(&db, data.path().join("transcodes")).playback(),
+    );
+    let (made_for, switched_to) = (viewer(7), Viewer { user: 1, device: 7 });
+    let direct_play = |version| Playback {
+        version_id: version,
+        method: PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY.into(),
+        ..playback(made_for.device)
+    };
+    let remux = start_remux(&plans, made_for.device).await;
+    let (asked_as_another, asked) = (
+        plans.direct_play(direct_play(4), false),
+        plans.direct_play(direct_play(5), false),
+    );
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    assert!(plans.ask(remux, switched_to).is_none());
+    plans.stop_for(remux, switched_to).await;
+    assert!(plans.ask(remux, made_for).is_some());
+    plans.ask_direct_plays(4, switched_to);
+    plans.ask_direct_plays(5, made_for);
+    plans.stop_unused(Duration::from_millis(50)).await;
+
+    assert!(plans.ask(asked_as_another, made_for).is_none());
+    assert!(plans.ask(asked, made_for).is_some());
+    plans.stop_for(remux, made_for).await;
+    assert!(plans.ask(remux, made_for).is_none());
 }
 
 #[tokio::test]
@@ -494,20 +534,23 @@ async fn a_direct_play_is_kept_while_its_file_is_sent_and_then_ends() {
     let late_part = futures_util::stream::once(async {
         tokio::time::sleep(Duration::from_millis(100)).await;
     });
-    let mut file =
-        std::pin::pin!(plans.ask_direct_plays_while_sending(version, Some(device), late_part));
+    let mut file = std::pin::pin!(plans.ask_direct_plays_while_sending(
+        version,
+        Some(viewer(device)),
+        late_part
+    ));
 
     file.next().await;
     plans.stop_unused(Duration::from_millis(50)).await;
 
-    assert!(plans.ask(sent_to, device).is_some());
-    assert!(plans.ask(not_sent_to, another).is_none());
+    assert!(plans.ask(sent_to, viewer(device)).is_some());
+    assert!(plans.ask(not_sent_to, viewer(another)).is_none());
 
     assert!(file.next().await.is_none());
     tokio::time::sleep(Duration::from_millis(100)).await;
     plans.stop_unused(Duration::from_millis(50)).await;
 
-    assert!(plans.ask(sent_to, device).is_none());
+    assert!(plans.ask(sent_to, viewer(device)).is_none());
 }
 
 #[tokio::test]
@@ -522,7 +565,7 @@ async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longe
     for n in 0..200 {
         fs::write(dir.join(format!("{n}.m4s")), "").unwrap();
     }
-    let plan = plans.ask(id, 7).unwrap();
+    let plan = plans.ask(id, viewer(7)).unwrap();
     plan.hls
         .as_ref()
         .unwrap()
@@ -564,7 +607,7 @@ async fn shutting_down_deletes_every_plans_files() {
 
     plans.shutdown().await;
 
-    assert!(plans.ask(id, 7).is_none());
+    assert!(plans.ask(id, viewer(7)).is_none());
     assert!(runs.dropped(0));
     assert!(!plan_dir(data.path(), id).exists());
 }

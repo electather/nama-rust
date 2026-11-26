@@ -6,12 +6,10 @@ use std::process::Command;
 
 use http_body_util::Empty;
 use hyper::body::Bytes;
-use nama_proto::nama::v1::{SessionDelivery, SignInRequest, SignInServiceClient};
 use serde_json::Value;
 
 use super::{
     http::{Reply, send},
-    server::PASSWORD,
     *,
 };
 
@@ -81,27 +79,6 @@ async fn poll(fx: &Fixture, token: &str, poll_url: &str) -> Option<Value> {
     }
     assert_eq!(reply.status, 200);
     Some(serde_json::from_slice(&reply.body).unwrap())
-}
-
-/// Signs `name` in on the Device holding the session `token`, which then acts as them, and
-/// returns the session it hands out.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn sign_in_on(server: &TestServer, token: &str, name: &str) -> String {
-    SignInServiceClient::new(HttpClient::plaintext(), server.client_config_as(token))
-        .sign_in(SignInRequest {
-            name: name.to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Phone".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .token
 }
 
 /// The files made for Devices to download that are in the segment folder.
@@ -236,7 +213,7 @@ async fn only_the_user_and_device_that_asked_are_answered_about_its_file() {
     let on_another_device = poll(&fx, &bishop.token, &poll_url).await;
     let fetched_on_another_device = fetch(&fx.server, file_url, Some(&bishop.token)).await;
     // Ada's Device now acts as Bishop (ADR 0106).
-    let on_her_device = sign_in_on(&fx.server, &ada.token, "bishop").await;
+    let on_her_device = fx.server.sign_in_on(&ada.token, "bishop").await;
     let as_bishop_on_her_device = poll(&fx, &on_her_device, &poll_url).await;
     let fetched_as_bishop = fetch(&fx.server, file_url, Some(&on_her_device)).await;
 

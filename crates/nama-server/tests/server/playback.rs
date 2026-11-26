@@ -22,6 +22,7 @@ mod sidecars;
 mod signed_urls;
 mod subtitle_offsets;
 mod subtitle_pass;
+mod switching_users;
 mod transcode_downloads;
 
 use crate::support::{browsing, http, refused, server};
