@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
+## 2026-11-26, #2281, nama.v1
+
+- `ENUM_VALUE_NO_DELETE`, `nama/v1/plugin.proto`: `ExtensionPoint.EXTENSION_POINT_DIAGNOSTICS_SHARER` (18), deleted with its number and name reserved.
+- The DiagnosticsSharer Extension Point is gone since #2221: the Kernel sends shared Diagnostics to the Hub itself, and no Server reports 18 in `PluginSummary.extension_points` or `ExtensionPointFailure.point`.
+- A client built before still knows 18 but never receives it, so it needs no change; it should regenerate to drop the name. The web app is the only client.
+
 ## 2026-11-24, #2214, nama.v1
 
 - None that `buf breaking` reports: in `nama/v1/sign_in.proto`, `SignInService` gains `SwitchUser`, and `WhoAmIResponse` gains `device_users` (3).
