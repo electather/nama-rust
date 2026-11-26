@@ -1,4 +1,5 @@
-import { type UseQueryResult, keepPreviousData, useQueries } from "@tanstack/react-query";
+import { type UseQueryResult, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import {
   type ServerToSearch,
@@ -15,22 +16,31 @@ import { searchQuery } from "@/shared/hooks/search-query";
  * (ADR 0105). The last answer stays while the next one loads, and a new search aborts the last.
  */
 export function useFound(words: string, kind: TitleKind) {
+  const queryClient = useQueryClient();
   const { servers, reaching } = useServersToSearch();
+  // The last words any Server answered, whose answers stay listed while the next ones load.
+  const [kept, setKept] = useState("");
   const asked = words !== "";
   // Not suspended: the list keeps its last results, and offers Retry as one of its rows, while it searches.
-  return useQueries({
+  const search = useQueries({
     queries: servers.map(({ transport }) => ({
       ...searchQuery(words, kind, transport),
       enabled: asked,
-      placeholderData: keepPreviousData,
+      // Not `keepPreviousData`: `useQueries` watches new words with a new observer, which has no
+      // last answer to keep.
+      placeholderData: () => queryClient.getQueryData(searchQuery(kept, kind, transport).queryKey),
     })),
     combine: (answers) => {
-      const found = asked ? foundIn(answersToList(servers, answers)) : undefined;
+      const searching = asked && isSearching(answers, reaching);
+      const found = asked ? foundIn(answersToList(servers, answers, searching)) : undefined;
       return {
         found,
         note: found?.note,
-        searching: asked && isSearching(answers, reaching),
+        searching,
         failed: allFailed(answers),
+        answered: answers.some(
+          ({ data, isPlaceholderData }) => data !== undefined && !isPlaceholderData,
+        ),
         retry: () => {
           for (const answer of answers.filter(({ isError }) => isError)) {
             void answer.refetch();
@@ -39,21 +49,29 @@ export function useFound(words: string, kind: TitleKind) {
       };
     },
   });
+  if (search.answered && kept !== words) {
+    setKept(words);
+  }
+  return search;
 }
 
 /** One Server's answer to a search, as it stands. */
 type Answer = UseQueryResult<SearchResponse[]>;
 
 /**
- * The answers of `servers` to list: once one answers the words asked, the others' answers to the
- * last words are dropped.
+ * The answers of `servers` to list. The last words' answers stay only while every Server is still
+ * `searching` and none has answered the words asked; after that they'd list titles for other words.
  */
-function answersToList(servers: readonly ServerToSearch[], answers: readonly Answer[]) {
+function answersToList(
+  servers: readonly ServerToSearch[],
+  answers: readonly Answer[],
+  searching: boolean,
+) {
   const answered = answers.flatMap(({ data, isPlaceholderData }, at) =>
     data === undefined ? [] : [{ server: servers[at]?.server, responses: data, isPlaceholderData }],
   );
   const fresh = answered.filter(({ isPlaceholderData }) => !isPlaceholderData);
-  return fresh.length > 0 ? fresh : answered;
+  return searching && fresh.length === 0 ? answered : fresh;
 }
 
 /**
