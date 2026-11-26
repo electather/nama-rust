@@ -165,8 +165,11 @@ pub struct ImageStore {
     switching: Arc<Mutex<Option<Switching>>>,
     /// Held from fetching an original to resize until its copy is made, so one original at a time
     /// is held in memory for it, and a request that waited behind the one making its copy finds
-    /// it rather than fetching the original again.
-    resizing: Arc<tokio::sync::Mutex<()>>,
+    /// it rather than fetching the original again. It holds the bytes the resized copies take, as
+    /// measured last, or `None` until a copy made ahead first needs it.
+    // shortcut: a deleted image's copies stay counted until the next copy made measures again;
+    // measure on delete too if scans skip copies the cache has room for.
+    resizing: Arc<tokio::sync::Mutex<Option<u64>>>,
     /// A permit is held by each original read whole, until it is sent or resized, so at most
     /// [`WHOLE_READS`] originals are in memory at once on a small device (ADR 0039, ADR 0052).
     // ponytail: a client that stops reading holds its permit with no timeout, so a few stalled

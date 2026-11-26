@@ -288,7 +288,14 @@ impl LocalImages {
         backdrops: &[Resize],
     ) -> sqlx::Result<()> {
         let folder = library.to_string();
-        for (stored, role) in self.shown(library, custom_images).await? {
+        let mut shown: Vec<_> = self
+            .shown(library, custom_images)
+            .await?
+            .into_iter()
+            .collect();
+        // Posters first, as Artwork's, so a cache near its limit holds those a first visit needs.
+        shown.sort_by_key(|(_, role)| *role == LocalRole::Title(Role::Backdrop));
+        for (stored, role) in shown {
             let copies = match role {
                 LocalRole::Title(Role::Backdrop) => backdrops,
                 LocalRole::Title(Role::Poster) | LocalRole::SeasonPoster => posters,
