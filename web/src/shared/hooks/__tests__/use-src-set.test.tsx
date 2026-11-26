@@ -1,10 +1,12 @@
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, renderHook, screen } from "@testing-library/react";
 import { rgbaToThumbHash } from "thumbhash";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { useSrcSet } from "@/shared/hooks/use-src-set";
 import { fakeServer, newUser, openApp } from "@/test-app";
+import { onServerAt } from "@/test-server-at";
 
 afterEach(cleanup);
 
@@ -144,4 +146,14 @@ test("a Poster without a thumbhash shows only its image", async () => {
   await screen.findByText("Heat");
 
   expect(previewBehind(heatPoster)).toBeNull();
+});
+
+test("a srcset offers each width on the Server the page talks to", async () => {
+  const { result } = renderHook(() => useSrcSet(poster), { wrapper: onServerAt() });
+
+  await expect
+    .poll(() => result.current)
+    .toBe(
+      `https://friend.example${poster}?width=320 320w, https://friend.example${poster}?width=640 640w`,
+    );
 });

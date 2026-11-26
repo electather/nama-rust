@@ -2,7 +2,6 @@ import { renderHook } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
 import { useServerUrl } from "@/shared/hooks/use-server-url";
-import { useSrcSet } from "@/shared/hooks/use-src-set";
 import { onServerAt } from "@/test-server-at";
 
 const poster = "/media/artwork/tmdb/%2Fposter.jpg";
@@ -28,14 +27,4 @@ test("an absolute, protocol-relative, empty or missing URL stays as it is", () =
   expect(serverUrl("//cdn.example/x.jpg")).toBe("//cdn.example/x.jpg");
   expect(serverUrl("")).toBe("");
   expect(serverUrl()).toBeUndefined();
-});
-
-test("a srcset offers each width on the Server the page talks to", async () => {
-  const { result } = renderHook(() => useSrcSet(poster), { wrapper: onServerAt() });
-
-  await expect
-    .poll(() => result.current)
-    .toBe(
-      `https://friend.example${poster}?width=320 320w, https://friend.example${poster}?width=640 640w`,
-    );
 });
