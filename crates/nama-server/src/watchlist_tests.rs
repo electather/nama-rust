@@ -12,29 +12,14 @@ use crate::{
         Metadata, TitleKind,
         fixture::{MatchedMovie, tmdb_movie},
     },
+    users::testing::insert_user,
 };
-
-async fn insert_user(db: &Database) -> i64 {
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
-            )
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
-}
 
 #[tokio::test]
 async fn deleting_a_user_deletes_their_watchlist() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let alien = ExternalId::new("tmdb", "348").unwrap();
     add(&db, ada, TitleKind::Movie, &alien).await.unwrap();
     let ids = ExternalIds::from_iter([alien]);
@@ -63,7 +48,7 @@ async fn deleting_a_user_deletes_their_watchlist() {
 async fn list_answers_the_newest_added_first() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let [alien, heat, up] = ["348", "949", "14160"].map(|id| ExternalId::new("tmdb", id).unwrap());
     for id in [&up, &alien, &heat] {
         add(&db, ada, TitleKind::Movie, id).await.unwrap();
@@ -81,7 +66,7 @@ async fn list_answers_the_newest_added_first() {
 async fn a_title_taken_off_is_kept_as_a_removal_that_nothing_but_sync_reads() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let alien = ExternalId::tmdb(348);
     add(&db, ada, TitleKind::Movie, &alien).await.unwrap();
 
@@ -111,7 +96,7 @@ fn movie(id: u64, removed: bool, changed_at_ms: i64) -> WatchlistEntry {
 async fn taking_synced_entries_keeps_the_latest_change_removals_included() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let take = async |synced: Vec<WatchlistEntry>| {
         take_synced(&db, ada, synced).await.unwrap();
         entries(&db, ada).await.unwrap()
@@ -143,7 +128,7 @@ async fn taking_synced_entries_keeps_the_latest_change_removals_included() {
 async fn of_two_changes_made_at_the_same_moment_the_removal_is_taken() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let take = async |id: u64, synced: Vec<WatchlistEntry>| {
         take_synced(&db, ada, synced).await.unwrap();
         let kept = entries(&db, ada).await.unwrap();
@@ -164,7 +149,7 @@ async fn of_two_changes_made_at_the_same_moment_the_removal_is_taken() {
 async fn a_synced_title_the_server_lacks_is_kept_by_its_id() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     let dark = WatchlistEntry {
         show: true,
         id: "tvdb-81189".to_owned(),
@@ -190,7 +175,7 @@ async fn a_title_the_server_matched_is_taken_off_under_each_of_its_ids() {
         ..tmdb_movie(348, "Alien")
     };
     MatchedMovie::new(&db, dir.path(), alien).await;
-    let ada = insert_user(&db).await;
+    let ada = insert_user(&db, "ada").await;
     add(&db, ada, TitleKind::Movie, &ExternalId::tmdb(348))
         .await
         .unwrap();

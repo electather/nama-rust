@@ -7,6 +7,7 @@ import {
   showOnLockScreen,
   trackKeyPlays,
 } from "@/features/player/lib/lock-screen";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 
 /**
  * Shows `nowPlaying` and the position on the lock screen and in the notification, whose buttons
@@ -19,14 +20,15 @@ export function useMediaSession(
   { title, artist, posterUrl }: NowPlaying,
   { next, previous }: { next: LinkOptions | undefined; previous: LinkOptions | undefined },
 ) {
+  const artwork = useServerUrl(posterUrl);
   useTrackKey("nexttrack", next);
   useTrackKey("previoustrack", previous);
   useEffect(() => {
     const video = videoRef.current;
     return video && "mediaSession" in navigator
-      ? showOnLockScreen(navigator.mediaSession, video, { title, artist, posterUrl })
+      ? showOnLockScreen(navigator.mediaSession, video, { title, artist, posterUrl: artwork })
       : undefined;
-  }, [videoRef, title, artist, posterUrl]);
+  }, [videoRef, title, artist, artwork]);
 }
 
 /** Has the `track` media key open `episode`, while there is one. */

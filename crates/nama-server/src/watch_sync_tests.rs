@@ -1,4 +1,4 @@
-use std::{future, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, future, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -22,17 +22,18 @@ use crate::{
     },
     log_capture::CapturedLog,
     plugins::Registry,
-    users::replace_personal_settings,
+    users::{personal_settings_of, replace_personal_settings, testing::insert_user},
 };
 
 const TRACKER: PluginId = PluginId::from_static("tracker");
 const ALIEN_TMDB_ID: i64 = 348;
 
-/// A Watch sync Plugin that hands the test each scrobble it's told, failing it if `down`, and
-/// answers each import with `imported`.
+/// A Watch sync Plugin that hands the test each scrobble it's told, answering it with `renewed`
+/// or failing it if `down`, and answers each import with `imported`.
 #[derive(Clone)]
 struct Tracker {
     scrobbled: mpsc::UnboundedSender<ScrobbleAsked>,
+    renewed: Scrobbled,
     imported: Imported,
     down: bool,
 }
@@ -60,7 +61,7 @@ impl WatchSync for Tracker {
         let answer = if self.down {
             Err("the tracker is down".into())
         } else {
-            Ok(Scrobbled::default())
+            Ok(self.renewed.clone())
         };
         Box::pin(future::ready(answer))
     }
@@ -122,6 +123,19 @@ impl Linked {
             .unwrap();
     }
 
+    /// Gives Ada a setting beside her token that no renewal may touch.
+    async fn add_adas_username(&self) {
+        let settings = vec![
+            ("token".to_owned(), "ada-token".to_owned(), true),
+            ("username".to_owned(), "ada".to_owned(), false),
+        ];
+        (replace_personal_settings(&self.db, self.ada, &TRACKER, settings).await).unwrap();
+    }
+
+    async fn adas_settings(&self) -> BTreeMap<String, (String, bool)> {
+        (personal_settings_of(&self.db, self.ada, &TRACKER).await).unwrap()
+    }
+
     async fn alien_state(&self, user: i64) -> Option<WatchState> {
         let alien = (WatchStateKind::Movie, ExternalIds::from_iter([alien_id()]));
         let states = (self.watch_states.of_titles(Some(user), &[alien]))
@@ -136,28 +150,11 @@ fn tracker(imported: Imported) -> (Tracker, mpsc::UnboundedReceiver<ScrobbleAske
     let (scrobbled, heard) = mpsc::unbounded_channel();
     let tracker = Tracker {
         scrobbled,
+        renewed: Scrobbled::default(),
         imported,
         down: false,
     };
     (tracker, heard)
-}
-
-async fn insert_user(db: &Database, name: &'static str) -> i64 {
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(name)
-            .bind(name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 fn alien_id() -> ExternalId {
@@ -373,4 +370,72 @@ async fn an_import_takes_what_is_newer_ignores_what_is_older_and_scrobbles_nothi
         quiet(&mut heard).await,
         "an imported change was scrobbled back"
     );
+}
+
+/// What the tracker answers having renewed Ada's token: her token, and a username that isn't a
+/// secret and a refresh token she never set, which are dropped.
+fn renewed_tokens<M: FromIterator<(String, String)>>() -> M {
+    [
+        ("token", "renewed-token"),
+        ("username", "mallory"),
+        ("refresh", "refresh-2"),
+    ]
+    .into_iter()
+    .map(|(key, value)| (key.to_owned(), value.to_owned()))
+    .collect()
+}
+
+/// Ada's settings once only her token was renewed.
+fn adas_renewed_settings() -> BTreeMap<String, (String, bool)> {
+    BTreeMap::from([
+        ("token".to_owned(), ("renewed-token".to_owned(), true)),
+        ("username".to_owned(), ("ada".to_owned(), false)),
+    ])
+}
+
+#[tokio::test]
+async fn a_scrobble_keeps_the_token_it_renewed_and_leaves_the_users_other_settings() {
+    let (tracker, mut heard) = tracker(Imported::default());
+    let renewed = Scrobbled {
+        personal_settings: renewed_tokens(),
+        ..Scrobbled::default()
+    };
+    let linked = Linked::with(Tracker { renewed, ..tracker }).await;
+    linked.add_adas_username().await;
+
+    (linked.mark_played(linked.ada, MovieOrEpisode::movie(&alien_id()))).await;
+    next(&mut heard).await;
+    let renewing = async {
+        while linked.adas_settings().await["token"].0 == "ada-token" {
+            tokio::task::yield_now().await;
+        }
+    };
+    (tokio::time::timeout(Duration::from_secs(5), renewing).await).expect("never renewed");
+
+    assert_eq!(linked.adas_settings().await, adas_renewed_settings());
+}
+
+#[tokio::test]
+async fn an_import_keeps_the_token_it_renewed_even_when_taking_its_changes_fails() {
+    let (tracker, _heard) = tracker(Imported {
+        changes: vec![alien_on_tracker(true, now_ms())],
+        cursor: "page-2".to_owned(),
+        personal_settings: renewed_tokens(),
+        ..Imported::default()
+    });
+    let linked = Linked::with(tracker).await;
+    linked.add_adas_username().await;
+    // Taking the changes reads every Library first, so this makes it fail.
+    let drop_libraries = sqlx::query("DROP TABLE libraries");
+    (linked.db)
+        .write(|tx| Box::pin(drop_libraries.execute(&mut **tx)))
+        .await
+        .unwrap();
+    let imports = WatchSyncImports::new(Arc::clone(&linked.db), linked.plugins.extension_points());
+
+    imports.import_each_user(TRACKER).await;
+
+    let cursor = import_cursor(&linked.db, linked.ada, &TRACKER).await;
+    assert_eq!(cursor.unwrap(), "", "taking the changes didn't fail");
+    assert_eq!(linked.adas_settings().await, adas_renewed_settings());
 }

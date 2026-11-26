@@ -1,7 +1,8 @@
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind, PageRequest,
-    Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, Requester, RequesterAdded,
+    Event, EventType, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind,
+    PageRequest, Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated,
+    RequestState, RequestStateChanged, Requester, RequesterAdded, SubscribeResponse,
+    subscribe_response,
 };
 
 use std::{
@@ -15,9 +16,10 @@ use nama_plugin_api::{
 };
 
 use axum::http::StatusCode;
+use futures_util::{Stream, StreamExt, future::join_all};
 use url::Url;
 
-use super::{Audience, EventBus, Filter, Viewer, deliver, event, users_to_tell};
+use super::{Audience, EventBus, Filter, Viewer, classify, deliver, event, users_to_tell};
 use crate::{
     content_ratings::MaximumAge,
     db::Database,
@@ -26,7 +28,7 @@ use crate::{
     server_settings::{ServerUrl, web_push_key},
     users::{
         LibraryAccess, Permissions, User, list_inbox, personal_settings_of,
-        replace_personal_settings, set_notification_preference,
+        replace_personal_settings, set_notification_preference, testing::insert_user,
     },
     web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
@@ -337,17 +339,18 @@ impl Notifier for KeepsUsers {
     }
 }
 
-async fn insert_user(db: &Database, name: &str) -> i64 {
+async fn insert_user_holding(db: &Database, name: &str, permissions: Permissions) -> i64 {
     let name = name.to_owned();
     db.write(move |tx| {
         Box::pin(async move {
             sqlx::query_scalar(
                 "INSERT INTO users (username, display_username, permissions, created_at,
                                     updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
+                 VALUES (?, ?, ?, 0, 0) RETURNING id",
             )
             .bind(&name)
             .bind(&name)
+            .bind(permissions)
             .fetch_one(&mut **tx)
             .await
         })
@@ -427,14 +430,8 @@ impl Notifier for KeepsRecipients {
 
 #[tokio::test]
 async fn shutting_down_stores_what_was_published_before_and_lets_go_of_the_database() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let (_data_dir, db, bus) = bus_on_new_database().await;
     let ada = insert_user(&db, "ada").await;
-    let bus = EventBus::new(
-        Arc::clone(&db),
-        ExtensionPoints::default(),
-        ServerUrl::default(),
-    );
 
     bus.publish(vec![moved_to(RequestState::Approved, &[ada])]);
     bus.shutdown().await;
@@ -542,8 +539,7 @@ fn an_empty_secret_leaves_a_message_alone() {
 
 #[tokio::test]
 async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind_turned_off() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let (_data_dir, db, bus) = bus_on_new_database().await;
     let (ada, lin) = (insert_user(&db, "ada").await, insert_user(&db, "lin").await);
     set_notification_preference(&db, ada, NotificationKind::Approved, false)
         .await
@@ -556,11 +552,6 @@ async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind
     subscribe_web_push(&db, lin, browser(&lin_endpoint))
         .await
         .unwrap();
-    let bus = EventBus::new(
-        Arc::clone(&db),
-        ExtensionPoints::default(),
-        ServerUrl::default(),
-    );
 
     bus.publish(vec![moved_to(RequestState::Approved, &[ada, lin])]);
     bus.shutdown().await;
@@ -574,4 +565,153 @@ async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind
         .ascii_serialization();
     let authorization = headers["authorization"].to_str().unwrap();
     assert_valid_vapid(authorization, &origin, key.public_key());
+}
+
+/// A bus on a new database, which lasts as long as the returned folder.
+async fn bus_on_new_database() -> (tempfile::TempDir, Arc<Database>, EventBus) {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let bus = EventBus::new(
+        Arc::clone(&db),
+        ExtensionPoints::default(),
+        ServerUrl::default(),
+    );
+    (data_dir, db, bus)
+}
+
+/// What a subscriber got of what [`seen_by`] published.
+#[derive(Debug, Default)]
+struct Seen {
+    /// Whose inbox each `InboxChanged` was about, with how many notifications it listed as it came.
+    inbox_changes: Vec<(i64, usize)>,
+    /// The type of each other event, but playing.
+    others: Vec<EventType>,
+}
+
+/// What each of `subscribers` gets once `bus` publishes `published` and stores its notifications.
+async fn seen_by(bus: &EventBus, subscribers: &[User], published: Vec<Event>) -> Vec<Seen> {
+    let subscriptions: Vec<_> = (subscribers.iter())
+        .map(|subscriber| {
+            let subscription = bus.subscribe(subscriber, LibraryAccess::All, Filter::default());
+            read_until_played(&bus.db, subscriber.id, Box::pin(subscription))
+        })
+        .collect();
+    bus.publish(published);
+    let storing = async {
+        bus.shutdown().await;
+        // Published once every notification is stored, so each reader stops after them.
+        bus.publish(subscribers.iter().map(|it| playback_of(it.id)).collect());
+    };
+    tokio::join!(join_all(subscriptions), storing).0
+}
+
+/// What `subscription` gets until `subscriber` starts playing, listing the inbox each
+/// `InboxChanged` is about the moment it comes.
+async fn read_until_played(
+    db: &Database,
+    subscriber: i64,
+    mut subscription: impl Stream<Item = SubscribeResponse> + Unpin,
+) -> Seen {
+    use nama_proto::nama::v1::event::Event as E;
+    let page = Page::read(&PageRequest::default(), b"").unwrap();
+    let mut seen = Seen::default();
+    while let Some(response) = subscription.next().await {
+        let Some(subscribe_response::Message::Event(got)) = response.message else {
+            panic!("fell behind");
+        };
+        match &got.event {
+            Some(E::InboxChanged(changed)) => {
+                let (listed, _) = list_inbox(db, changed.user_id, &page).await.unwrap();
+                seen.inbox_changes.push((changed.user_id, listed.len()));
+            }
+            Some(E::PlaybackStarted(started)) if started.playback.user_id == subscriber => {
+                return seen;
+            }
+            Some(E::PlaybackStarted(_)) => {}
+            _ => seen.others.push(classify(&got).unwrap().0),
+        }
+    }
+    panic!("the subscription ended")
+}
+
+#[tokio::test]
+async fn a_requester_hears_their_inbox_changed_only_once_it_lists_the_notification() {
+    let (_data_dir, db, bus) = bus_on_new_database().await;
+    let ada = insert_user(&db, "ada").await;
+
+    let seen = seen_by(
+        &bus,
+        &[user(ada, Permissions::NEW_USER)],
+        vec![moved_to(RequestState::Approved, &[ada])],
+    )
+    .await;
+
+    assert_eq!(seen[0].inbox_changes, [(ada, 1)]);
+}
+
+#[tokio::test]
+async fn a_request_manager_who_cannot_view_requests_hears_their_inbox_changed_for_a_new_pending_one()
+ {
+    let (_data_dir, db, bus) = bus_on_new_database().await;
+    let managing: Permissions = std::iter::once(Permission::ManageRequests).collect();
+    let manager = insert_user_holding(&db, "lin", managing).await;
+    let ada = insert_user(&db, "ada").await;
+
+    let seen = seen_by(
+        &bus,
+        &[user(manager, managing)],
+        vec![created(RequestState::Pending, &[ada])],
+    )
+    .await;
+
+    assert_eq!(seen[0].inbox_changes, [(manager, 1)]);
+    assert_eq!(seen[0].others, [], "no RequestCreated");
+}
+
+#[tokio::test]
+async fn nobody_hears_another_users_inbox_changed_nor_one_for_a_kind_they_turned_off() {
+    let (_data_dir, db, bus) = bus_on_new_database().await;
+    let (ada, lin) = (insert_user(&db, "ada").await, insert_user(&db, "lin").await);
+    let root = insert_user_holding(&db, "root", Permissions::ADMIN).await;
+    set_notification_preference(&db, lin, NotificationKind::Approved, false)
+        .await
+        .unwrap();
+    let subscribers = [
+        user(ada, Permissions::NEW_USER),
+        user(lin, Permissions::NEW_USER),
+        user(root, Permissions::ADMIN),
+    ];
+
+    let seen = seen_by(
+        &bus,
+        &subscribers,
+        vec![moved_to(RequestState::Approved, &[ada, lin])],
+    )
+    .await;
+
+    assert_eq!(seen[0].inbox_changes, [(ada, 1)]);
+    assert_eq!(seen[1].inbox_changes, []);
+    assert_eq!(seen[2].inbox_changes, []);
+    assert_eq!(
+        seen[2].others,
+        [EventType::EVENT_TYPE_REQUEST_STATE_CHANGED],
+        "the Admin's subscription was live"
+    );
+}
+
+#[tokio::test]
+async fn a_scan_making_many_seasons_available_changes_the_inbox_once_each_after_storing_it() {
+    const SEASONS: usize = 10;
+    let (_data_dir, db, bus) = bus_on_new_database().await;
+    let ada = insert_user(&db, "ada").await;
+    let available = vec![moved_to(RequestState::Available, &[ada]); SEASONS];
+
+    let seen = seen_by(&bus, &[user(ada, Permissions::NEW_USER)], available).await;
+
+    let changes = &seen[0].inbox_changes;
+    assert_eq!(changes.len(), SEASONS);
+    for (before, &(whose, listed)) in changes.iter().enumerate() {
+        assert_eq!(whose, ada);
+        assert!(listed > before, "change {before} came with {listed} listed");
+    }
 }

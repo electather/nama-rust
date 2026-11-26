@@ -1,9 +1,11 @@
 import { UserRound } from "lucide-react";
 
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /** A Person's round headshot, 128px, or a plain circle with a person in it. */
 export function Headshot({ url }: { url: string | undefined }) {
+  const src = useServerUrl(url);
   const srcSet = useSrcSet(url);
   if (url === undefined) {
     return (
@@ -15,7 +17,7 @@ export function Headshot({ url }: { url: string | undefined }) {
   // Its name is beside it, so the image itself says nothing more.
   return (
     <img
-      src={url}
+      src={src}
       srcSet={srcSet}
       sizes="128px"
       alt=""

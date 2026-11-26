@@ -15,7 +15,7 @@ use crate::{
     db::Database,
     library::{import_cursor, imported_watch_state, keep_import_cursor},
     plugins::{ExtensionPoints, without_secrets},
-    users::personal_settings_recipients,
+    users::{personal_settings_recipients, renew_personal_secrets},
 };
 
 /// How often each Plugin is asked, the first time as the Server starts.
@@ -80,8 +80,9 @@ impl WatchSyncImports {
         }
     }
 
-    /// Asks the Plugin `plugin` `asked`, from the User's cursor, and takes its answer, keeping its
-    /// cursor once taken. A failure is logged, and the next import asks from the same cursor.
+    /// Asks the Plugin `plugin` `asked`, from the User's cursor, and takes its answer, keeping the
+    /// tokens it renewed, then its cursor once taken. A failure is logged, and the next import
+    /// asks from the same cursor.
     async fn import(&self, plugin: &PluginId, asked: ImportAsked, secrets: &[String]) {
         let user = asked.user_id;
         let since = match import_cursor(&self.db, user, plugin).await {
@@ -111,6 +112,11 @@ impl WatchSyncImports {
             // Disabled since, which cancels this task too.
             None => return,
         };
+        // Before taking the changes, which may fail: the Plugin already spent the old tokens.
+        let renewed = renew_personal_secrets(&self.db, user, plugin, imported.personal_settings);
+        if let Err(err) = renewed.await {
+            error!(plugin = %plugin, user, "keeping the tokens an import renewed failed: {err}");
+        }
         let changes = imported.changes.iter();
         let changes = changes.filter_map(imported_watch_state).collect();
         if let Err(err) = self.browse.take_pulled(user, changes).await {

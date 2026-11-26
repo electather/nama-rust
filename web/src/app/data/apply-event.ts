@@ -156,17 +156,11 @@ function refreshRequests({ event }: Event, { queryClient, transport }: RouterCon
 }
 
 /**
- * Recounts the inbox on the Request events a notification comes with: a new Pending Request, a
- * change of state and a cancelling. Not on download progress, which ticks about once a minute.
- * The Server may store the notification just after sending its event, so this can miss it until
- * the next event or focus (#2309).
+ * Recounts the inbox once the Server has stored a notification in it, rather than on the Request
+ * event it comes from, which the Server sends before storing it.
  */
 function refreshInbox({ event }: Event, { queryClient, transport }: RouterContext) {
-  if (
-    event.case === "requestCreated" ||
-    event.case === "requestStateChanged" ||
-    event.case === "requestCancelled"
-  ) {
+  if (event.case === "inboxChanged") {
     void queryClient.invalidateQueries({ queryKey: inboxKey(transport) });
   }
 }

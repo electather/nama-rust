@@ -63,8 +63,7 @@ async fn serve_file(
     }
 }
 
-/// The HLS files of the plan `id`, if it runs any for the caller's Device.
+/// The HLS files of the plan `id`, if it runs any for the User and Device asking.
 fn asked(plans: &RunningPlans, id: u64, request: &Request) -> Option<Arc<Running>> {
-    let device = viewer_of(request)?.device;
-    plans.ask(id, device)?.hls.clone()
+    plans.ask(id, viewer_of(request)?)?.hls.clone()
 }

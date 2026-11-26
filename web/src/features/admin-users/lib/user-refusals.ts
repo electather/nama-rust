@@ -55,3 +55,18 @@ export function resetPasswordRefusal(error: unknown, name: string) {
     [Code.NotFound]: noLongerHere(name),
   }).form;
 }
+
+/** Why the Server refused to clear the Switch PIN of the User called `name`. */
+export function clearSwitchPinRefusal(error: unknown, name: string) {
+  return refusal(
+    error,
+    "clear the Switch PIN",
+    { [Code.NotFound]: noLongerHere(name) },
+    // The Server asks for this only to clear an Admin's.
+    {
+      [RefusalReason.PERMISSION_REQUIRED]: {
+        form: "Only an Admin can clear an Admin’s Switch PIN.",
+      },
+    },
+  ).form;
+}

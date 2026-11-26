@@ -112,6 +112,7 @@ pub mod event {
         ProbingFinished(
             ::buffa::alloc::boxed::Box<super::super::super::ProbingFinished>,
         ),
+        InboxChanged(::buffa::alloc::boxed::Box<super::super::super::InboxChanged>),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -362,6 +363,16 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::InboxChanged> for Event {
+        fn from(v: super::super::super::InboxChanged) -> Self {
+            Self::InboxChanged(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::InboxChanged> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::InboxChanged) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -441,6 +452,9 @@ pub mod event {
                 }
                 Self::ProbingFinished(v) => {
                     map.serialize_entry("probingFinished", &**v)?;
+                }
+                Self::InboxChanged(v) => {
+                    map.serialize_entry("inboxChanged", &**v)?;
                 }
             }
             map.end()

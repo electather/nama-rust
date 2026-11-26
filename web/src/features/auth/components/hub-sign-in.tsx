@@ -9,14 +9,16 @@ import { formText } from "@/shared/lib/forms";
 
 /**
  * The sign-in page at the Hub: an Account's email and password, or else a Sign-in Link, on a Hub
- * that `sendsSignInLinks`.
+ * that `sendsSignInLinks`, or a passkey, on one that `offersPasskeys`.
  */
 export function HubSignIn({
   redirect,
   sendsSignInLinks,
+  offersPasskeys,
 }: {
   redirect: string | undefined;
   sendsSignInLinks: boolean;
+  offersPasskeys: boolean;
 }) {
   const signIn = useSignInAtHub(useFinishSignIn(redirect));
   const errors = signIn.error ? hubErrors(signIn.error) : {};
@@ -29,7 +31,13 @@ export function HubSignIn({
       onSubmit={(form) => {
         signIn.mutate({ email: formText(form, "email"), password: formText(form, "password") });
       }}
-      footer={<OtherWaysIn redirect={redirect} sendsSignInLinks={sendsSignInLinks} />}
+      footer={
+        <OtherWaysIn
+          redirect={redirect}
+          sendsSignInLinks={sendsSignInLinks}
+          offersPasskeys={offersPasskeys}
+        />
+      }
     >
       <EmailField error={errors.email} />
       <FormField

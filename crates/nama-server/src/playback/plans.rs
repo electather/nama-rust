@@ -10,7 +10,7 @@ use super::{
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
     TrackKind, TrackPreferenceError, TrackPreferences, audio_asked, build,
     codecs::is_audio,
-    direct_play::sees_version,
+    direct_play::{sees_version, viewer_of_caller},
     on_local_network, playable_versions,
     probing::{self, ProbeError},
     subtitle_offsets, too_busy_to_play,
@@ -219,9 +219,9 @@ impl Plans {
         Ok(Some(build(&mut facts)))
     }
 
-    /// Stops the plan `plan` if the Device `device` owns it.
-    pub(crate) async fn stop(&self, plan: u64, device: i64) {
-        self.running.stop_for(plan, device).await;
+    /// Stops the plan `plan` if it's `caller`'s.
+    pub(crate) async fn stop(&self, plan: u64, caller: &Caller) {
+        self.running.stop_for(plan, viewer_of_caller(caller)).await;
     }
 
     /// Keeps `pick`, made by the User `user` in the Version `version`, as their Preference for the

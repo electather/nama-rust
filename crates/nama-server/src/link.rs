@@ -64,7 +64,7 @@ use crate::{
 };
 
 /// How long a page waits for the Server's Link or a User's, so Server info and the Users list
-/// answer even when the Hub or the Plugin doesn't.
+/// answer even when the Hub doesn't.
 const PAGE_READ: Duration = Duration::from_secs(10);
 
 /// How long a bulk transfer may take, so a Hub that never answers can't hold up every later scan's
