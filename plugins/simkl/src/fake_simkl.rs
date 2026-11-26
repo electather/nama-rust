@@ -188,11 +188,11 @@ impl FakeSimkl {
     fn added(&mut self, body: &Value) -> Response {
         for (list, kind) in [("movies", "movie"), ("episodes", "episode")] {
             for title in items(&body[list]) {
-                self.watch(kind, &title["ids"], watched_at(title));
+                self.watch(kind, &title["ids"], time_watched(title));
             }
         }
         for (show, numbers, episode) in episodes_in_shows(body) {
-            self.watch_episode(show, numbers, &json!({}), watched_at(episode));
+            self.watch_episode(show, numbers, &json!({}), time_watched(episode));
         }
         Response::new(201, json!({ "added": {}, "not_found": {} }).to_string())
     }
@@ -234,7 +234,7 @@ fn items(value: &Value) -> impl Iterator<Item = &Value> {
 }
 
 /// When a `/sync/history` body says `title` was watched; Simkl takes a missing time as now.
-fn watched_at(title: &Value) -> &str {
+fn time_watched(title: &Value) -> &str {
     title["watched_at"]
         .as_str()
         .unwrap_or("2026-11-25T00:00:00Z")

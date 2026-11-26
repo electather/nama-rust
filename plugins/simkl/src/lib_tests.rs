@@ -431,11 +431,11 @@ fn an_import_tells_each_episode_by_its_shows_ids_season_and_number() {
 fn episodes_marked_by_their_shows_numbers_or_their_tvdb_id_round_trip_through_simkl() {
     let fake = shared(FakeSimkl::new());
     let mut kernel = kernel(&fake);
-    let numbered = |number, played| SyncedWatchState {
+    let numbered = |season, number, played| SyncedWatchState {
         show_ids: title_ids(&[("tmdb", "1399")]),
-        season_number: Some(1),
+        season_number: Some(season),
         episode_number: Some(number),
-        ..episode(&[("tmdb", &format!("6305{number}"))], played)
+        ..episode(&[("tmdb", &format!("630{season}{number}"))], played)
     };
     let by_tvdb = |played| episode(&[("tvdb", "349232")], played);
     let strings = |ids: &[TitleId]| -> Vec<String> {
@@ -454,11 +454,16 @@ fn episodes_marked_by_their_shows_numbers_or_their_tvdb_id_round_trip_through_si
 
     scrobbled(
         &mut kernel,
-        vec![numbered(2, true), numbered(3, true), by_tvdb(true)],
+        vec![
+            numbered(1, 2, true),
+            numbered(1, 3, true),
+            numbered(2, 2, true),
+            by_tvdb(true),
+        ],
     )
     .unwrap();
     let (all_watched, _) = imported(&mut kernel, "").unwrap();
-    scrobbled(&mut kernel, vec![numbered(2, false), by_tvdb(false)]).unwrap();
+    scrobbled(&mut kernel, vec![numbered(1, 2, false), by_tvdb(false)]).unwrap();
     let (left, _) = imported(&mut kernel, "").unwrap();
 
     let show = || vec!["tmdb-1399".to_owned()];
@@ -470,9 +475,16 @@ fn episodes_marked_by_their_shows_numbers_or_their_tvdb_id_round_trip_through_si
             (vec![], Some(1), Some(1), vec!["tvdb-349232".to_owned()]),
             (show(), Some(1), Some(2), vec![]),
             (show(), Some(1), Some(3), vec![]),
+            (show(), Some(2), Some(2), vec![]),
         ]
     );
-    assert_eq!(listed(left), [(show(), Some(1), Some(3), vec![])]);
+    assert_eq!(
+        listed(left),
+        [
+            (show(), Some(1), Some(3), vec![]),
+            (show(), Some(2), Some(2), vec![])
+        ]
+    );
 }
 
 #[test]
