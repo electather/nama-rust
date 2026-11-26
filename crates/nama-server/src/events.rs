@@ -2,8 +2,9 @@
 //! client subscribed through `EventService.Subscribe` and to every Observer at
 //! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
 //! Plugin Connections and Personal settings of the Users told about it, whose inbox it goes in too,
-//! each then sent an `InboxChanged`, and from there to their browsers by Web Push. Each Link the Server keeps or forgets goes to
-//! Observers and Notifiers alone, the Admins told of it (ADR 0105).
+//! and from there to their browsers by Web Push. Each of them is sent an `InboxChanged` once it is
+//! stored. Each Link the Server keeps or forgets goes to Observers and Notifiers alone, the Admins
+//! told of it (ADR 0105).
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
@@ -268,7 +269,7 @@ impl EventBus {
         }
     }
 
-    /// Every event published from now on, whole, for a Kernel task that acts on them, such as
+    /// Every event published from now on, and each `InboxChanged`, whole, for a Kernel task that acts on them, such as
     /// pulling Watch State after a scan; one that falls [`BUFFERED`] behind misses the oldest.
     /// Never for a client, who sees only what [`Self::subscribe`] lets through.
     pub(crate) fn follow(&self) -> broadcast::Receiver<Event> {
@@ -302,7 +303,8 @@ impl EventBus {
         .take_until(self.closed.clone().cancelled_owned())
     }
 
-    /// [`Self::subscribe`] as an Admin, who sees every event whole.
+    /// [`Self::subscribe`] as an Admin, who sees every event whole but another User's
+    /// `InboxChanged`.
     #[cfg(test)]
     pub(crate) fn subscribe_as_admin(
         &self,
@@ -387,8 +389,8 @@ async fn store_and_push_each(
                 continue;
             }
         };
-        // Straight to subscribers, not through `publish`: it makes no notification, and the
-        // Plugin contract has no twin of it.
+        // Straight on the channel: this task holds no `EventBus` to `publish` through, and no
+        // Observer or Notifier needs it.
         for &(user_id, _) in &stored {
             let changed = InboxChanged {
                 user_id,

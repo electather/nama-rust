@@ -432,14 +432,8 @@ impl Notifier for KeepsRecipients {
 
 #[tokio::test]
 async fn shutting_down_stores_what_was_published_before_and_lets_go_of_the_database() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let (_data_dir, db, bus) = bus_on_new_database().await;
     let ada = insert_user(&db, "ada").await;
-    let bus = EventBus::new(
-        Arc::clone(&db),
-        ExtensionPoints::default(),
-        ServerUrl::default(),
-    );
 
     bus.publish(vec![moved_to(RequestState::Approved, &[ada])]);
     bus.shutdown().await;
@@ -547,8 +541,7 @@ fn an_empty_secret_leaves_a_message_alone() {
 
 #[tokio::test]
 async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind_turned_off() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let (_data_dir, db, bus) = bus_on_new_database().await;
     let (ada, lin) = (insert_user(&db, "ada").await, insert_user(&db, "lin").await);
     set_notification_preference(&db, ada, NotificationKind::Approved, false)
         .await
@@ -561,11 +554,6 @@ async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind
     subscribe_web_push(&db, lin, browser(&lin_endpoint))
         .await
         .unwrap();
-    let bus = EventBus::new(
-        Arc::clone(&db),
-        ExtensionPoints::default(),
-        ServerUrl::default(),
-    );
 
     bus.publish(vec![moved_to(RequestState::Approved, &[ada, lin])]);
     bus.shutdown().await;
@@ -603,16 +591,11 @@ struct Seen {
 }
 
 /// What each of `subscribers` gets once `bus` publishes `published` and stores its notifications.
-async fn seen_by(
-    db: &Database,
-    bus: &EventBus,
-    subscribers: &[User],
-    published: Vec<Event>,
-) -> Vec<Seen> {
+async fn seen_by(bus: &EventBus, subscribers: &[User], published: Vec<Event>) -> Vec<Seen> {
     let subscriptions: Vec<_> = (subscribers.iter())
         .map(|subscriber| {
             let subscription = bus.subscribe(subscriber, LibraryAccess::All, Filter::default());
-            read_until_played(db, subscriber.id, Box::pin(subscription))
+            read_until_played(&bus.db, subscriber.id, Box::pin(subscription))
         })
         .collect();
     bus.publish(published);
@@ -659,7 +642,6 @@ async fn a_requester_hears_their_inbox_changed_only_once_it_lists_the_notificati
     let ada = insert_user(&db, "ada").await;
 
     let seen = seen_by(
-        &db,
         &bus,
         &[user(ada, Permissions::NEW_USER)],
         vec![moved_to(RequestState::Approved, &[ada])],
@@ -678,7 +660,6 @@ async fn a_request_manager_who_cannot_view_requests_hears_their_inbox_changed_fo
     let ada = insert_user(&db, "ada").await;
 
     let seen = seen_by(
-        &db,
         &bus,
         &[user(manager, managing)],
         vec![created(RequestState::Pending, &[ada])],
@@ -704,7 +685,6 @@ async fn nobody_hears_another_users_inbox_changed_nor_one_for_a_kind_they_turned
     ];
 
     let seen = seen_by(
-        &db,
         &bus,
         &subscribers,
         vec![moved_to(RequestState::Approved, &[ada, lin])],
@@ -728,7 +708,7 @@ async fn a_scan_making_many_seasons_available_changes_the_inbox_once_each_after_
     let ada = insert_user(&db, "ada").await;
     let available = vec![moved_to(RequestState::Available, &[ada]); SEASONS];
 
-    let seen = seen_by(&db, &bus, &[user(ada, Permissions::NEW_USER)], available).await;
+    let seen = seen_by(&bus, &[user(ada, Permissions::NEW_USER)], available).await;
 
     let changes = &seen[0].inbox_changes;
     assert_eq!(changes.len(), SEASONS);
