@@ -149,6 +149,22 @@ test("a Server has no page for creating an Account", async () => {
   await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });
 
+// The fake Hub doesn't answer `nama.v1`, so a page that called it would fail instead.
+test.each(["/sign-in/code", "/sign-in/code/waiting", "/sign-in/account", "/invite/a-token"])(
+  "the Hub has no Server's page %s",
+  async (path) => {
+    openApp(path, fakeHub().transport);
+
+    await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
+  },
+);
+
+test("a Server opens its page for signing in with a code", async () => {
+  openApp("/sign-in/code", fakeServer({}));
+
+  await expect(screen.findByLabelText("Device name")).resolves.toBeDefined();
+});
+
 test("a Sign-in Link is emailed, to continue where signing in was going", async () => {
   const hub = fakeHub();
   openApp("/sign-in?redirect=%2Fhistory", hub.transport);
