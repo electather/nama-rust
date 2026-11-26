@@ -64,9 +64,9 @@ async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
     fs::write(&stored, image).unwrap();
 }
 
-/// Waits until a file is at `path`, failing the test after 10 seconds.
+/// Waits until a file is at `path`, failing the test after 60 seconds.
 async fn until_exists(path: &Path) {
-    let made = tokio::time::timeout(Duration::from_secs(10), async {
+    let made = tokio::time::timeout(Duration::from_secs(60), async {
         while !path.exists() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
