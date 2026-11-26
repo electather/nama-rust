@@ -1,12 +1,15 @@
 import { create } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
+import { PluginService } from "@/gen/nama/v1/plugin_pb";
 import type { UpdateServerSettingsRequest } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
+import { plugins, summaryOf } from "@/test-plugin-list";
 import { findSettingsLink, offered, pick } from "@/test-settings";
 
 afterEach(() => {
@@ -51,9 +54,12 @@ function fakeServerOf(
 }
 
 /** Opens Settings at the Hub, for an Account on Basement, Cabin or both, each the fake in `at`. */
-function openHubSettings(at: Record<string, ReturnType<typeof fakeServer>>) {
+function openHubSettings(
+  at: Record<string, ReturnType<typeof fakeServer>>,
+  url = "/?settings=account",
+) {
   const servers = [basement, cabin].filter(({ addresses }) => at[addresses[0] ?? ""]);
-  openApp("/?settings=account", accountHub({ servers }).transport, undefined, (origin) => {
+  openApp(url, accountHub({ servers }).transport, undefined, (origin) => {
     const server = at[origin];
     if (!server) {
       throw new Error(`no fake Server at ${origin}`);
@@ -102,4 +108,50 @@ test("a Section the picked Server doesn't report says to update it, and offers n
   const update = await screen.findByRole("link", { name: "Update this Server" });
   expect(update.getAttribute("href")).toBe("https://basement.example");
   expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+});
+
+/** A fake Server whose Admin is signed in, serving only Plugins, which `listPlugins` answers. */
+function fakeServerOfPlugins(listPlugins: ServiceImpl<typeof PluginService>["listPlugins"]) {
+  return fakeServer(
+    {
+      signedIn: [Permission.ADMIN],
+      serverService: {
+        getServerInfo: () => ({ version: "0.3.0", settingsSections: ["plugins"] }),
+      },
+    },
+    { signInWithHubToken: () => ({ token: "session" }) },
+    {},
+    (router) => {
+      router.service(PluginService, { listPlugins });
+    },
+  );
+}
+
+test("a crumb that failed on one picked Server shows its name again on the next", async () => {
+  let refusals = 0;
+  const refused = () => {
+    refusals += 1;
+    throw new ConnectError("refused", Code.Internal);
+  };
+  const servers = {
+    "https://basement.example": fakeServerOfPlugins(refused),
+    "https://cabin.example": fakeServerOfPlugins(() => ({
+      summaries: plugins.map((listed) => summaryOf(listed)),
+    })),
+  };
+  // React logs the error it hands to the boundary.
+  vi.spyOn(console, "error").mockReturnValue();
+  openHubSettings(servers, "/?settings=plugins&plugin=tmdb&manage=basement");
+
+  await screen.findByRole("combobox", { name: "Settings for" });
+  await waitFor(() => {
+    expect(refusals).toBeGreaterThan(0);
+  });
+  pick("Settings for", "Cabin");
+  fireEvent.click(await screen.findByRole("link", { name: /TMDB/u }));
+
+  // The header's crumbs, not the Plugin pane's own.
+  await waitFor(() => {
+    expect(globalThis.document.querySelector("header nav")?.textContent).toMatch(/TMDB/u);
+  });
 });
