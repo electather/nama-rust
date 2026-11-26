@@ -6,14 +6,14 @@ use browsing::{ALIEN_1080P, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, BrowseServiceClient, ExternalId, GetMovieRequest, GetShowRequest,
-    LibraryKind, ListContinueWatchingRequest, ListEpisodesRequest, RemoveFromWatchlistRequest,
-    ReportProgressRequest, TitleKind, WatchStateServiceClient, WatchlistServiceClient,
-    continue_watching_entry::MovieOrEpisode,
+    LibraryKind, ListContinueWatchingRequest, ListEpisodesRequest, ListWatchlistRequest,
+    RemoveFromWatchlistRequest, ReportProgressRequest, TitleKind, WatchStateServiceClient,
+    WatchlistServiceClient, continue_watching_entry::MovieOrEpisode, home_row_title::MovieOrShow,
 };
 use server::{
     TestServer,
     requests::title_id,
-    tmdb::{ALIEN, ALIEN_IMDB, DARK, DARK_TVDB, HEAT, UNLISTED},
+    tmdb::{ALIEN, ALIEN_IMDB, DARK, DARK_TVDB, DUNE, HEAT, UNLISTED},
 };
 
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
@@ -305,4 +305,42 @@ async fn continue_watching_says_its_movie_and_show_are_on_the_watchlist() {
         .collect::<Vec<_>>();
     on.sort_unstable();
     assert_eq!(on, [("movie", true), ("show", true)]);
+}
+
+#[tokio::test]
+async fn listing_shows_titles_newest_first_on_the_server_or_missing() {
+    let fx = Fixture::start().await;
+    let watchlist = fx.watchlist();
+    let alien = title_id("imdb", ALIEN_IMDB);
+    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, alien.clone()).await;
+    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(UNLISTED)).await;
+    add(&watchlist, TitleKind::TITLE_KIND_MOVIE, tmdb_id(DUNE)).await;
+    add(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+
+    let listed = watchlist
+        .list_watchlist(ListWatchlistRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let shown: Vec<_> = (listed.titles.into_iter())
+        .map(|listed| {
+            let shown = match listed.title.into_option().and_then(|t| t.movie_or_show) {
+                Some(MovieOrShow::Show(show)) => ("show", Some(show.library_id), show.id),
+                Some(MovieOrShow::Movie(movie)) => ("movie", Some(movie.library_id), movie.id),
+                Some(MovieOrShow::MissingMovie(movie)) => ("missing movie", None, movie.id),
+                other => panic!("an unexpected title: {other:?}"),
+            };
+            (listed.id.into_option().unwrap(), shown)
+        })
+        .collect();
+    let (on_shows, on_movies) = (Some(fx.shows), Some(fx.movies));
+    assert_eq!(
+        shown,
+        [
+            (tmdb_id(DARK), ("show", on_shows, tmdb_id(DARK).into())),
+            (tmdb_id(DUNE), ("missing movie", None, tmdb_id(DUNE).into())),
+            (alien, ("movie", on_movies, tmdb_id(ALIEN).into())),
+        ]
+    );
 }

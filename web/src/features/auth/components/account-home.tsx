@@ -10,8 +10,9 @@ import { Notice } from "@/shared/components/sign-in-layout/notice";
 import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
 
 /**
- * The Hub's page for the Account with `email` signed in: who it is, its Servers' Libraries, the Users waiting for it,
- * Linking a Server or a User by the code it shows, its Settings, and signing it out.
+ * The Hub's page for the Account with `email` signed in: who it is, its Servers' Libraries, its
+ * Watchlist across them, the Users waiting for it, Linking a Server or a User by the code it
+ * shows, its Settings, and signing it out.
  */
 export function AccountHome({ email }: { email: string }) {
   const signOut = useSignOutAccount();
@@ -22,6 +23,9 @@ export function AccountHome({ email }: { email: string }) {
         <dd className="text-base break-all">{email}</dd>
       </dl>
       <AccountServers />
+      <Link to="/watchlist" className={buttonVariants({ variant: "outline", size: "lg" })}>
+        Watchlist
+      </Link>
       <AccountLinks />
       <LinkServerForm />
       <LinkUserForm />

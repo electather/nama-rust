@@ -49,10 +49,9 @@ mod titles;
 use box_sets::box_set_to_proto;
 pub(super) use home_rows::{home_rows_of, recently_added_rows};
 pub(super) use people::headshot_url;
-use refusals::home_rows_refused;
-pub(super) use refusals::{Fields, not_found, refused};
-use titles::{episode_beside_to_proto, featured_to_proto, row_title_to_proto, started_to_proto};
-pub(super) use titles::{roles_to_proto, trailers_to_proto};
+pub(super) use refusals::{Fields, home_rows_refused, not_found, refused};
+use titles::{episode_beside_to_proto, featured_to_proto, started_to_proto};
+pub(super) use titles::{roles_to_proto, row_title_to_proto, trailers_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.

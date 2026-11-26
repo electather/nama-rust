@@ -93,7 +93,7 @@ pub(in crate::api) fn not_found(fields: Fields, err: &NotFound) -> Refused {
 
 /// The Connect error a client gets when Home rows couldn't be read. Database failures are logged,
 /// not sent.
-pub(super) fn home_rows_refused(err: home_rows::Error) -> ConnectError {
+pub(in crate::api) fn home_rows_refused(err: home_rows::Error) -> ConnectError {
     match err {
         home_rows::Error::PageTokenInvalid(_) => refuse(
             RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
