@@ -4,31 +4,12 @@ use nama_proto::nama::v1::{
 use tempfile::TempDir;
 
 use super::{KEPT, list, mark_all_read, mark_read, store, unread};
-use crate::{db::Database, page::Page};
+use crate::{db::Database, page::Page, users::testing::insert_user};
 
 async fn open() -> (TempDir, Database) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
     (data_dir, db)
-}
-
-async fn insert_user(db: &Database, name: &str) -> i64 {
-    let name = name.to_owned();
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(&name)
-            .bind(&name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 fn movie(id: i64, title: &str) -> Request {

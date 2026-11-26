@@ -8,5 +8,5 @@ Pushing each inbox notification to every browser its User turned Web Push on in 
 
 ### Neighbours
 
-- Uses: `db`, `diagnostics` (the TLS provider).
+- Uses: `db`, `diagnostics` (the TLS provider), and `users` (`testing::insert_user`) in tests.
 - Used by: `events` (pushing what it stored in inboxes), `server_settings` (`VapidKey`, which it makes and keeps), the `api` parts (`WebPushService`).
