@@ -51,7 +51,7 @@ impl Browse {
     /// `version`: through its Movie, or split across each Episode its file holds, under each one's
     /// preferred id. An Unmatched Item has no Watch State, so progress on it stores nothing (ADR
     /// 0013). Fails with [`NotFound::NoSuchVersion`] for a Version this Browse doesn't let them
-    /// play, as for one there isn't. Tells `WatchStatesChanged` Observers of each change it made.
+    /// play, as for one there isn't. Tells Watch sync Plugins of each change it made.
     pub(crate) async fn report(
         &self,
         user: i64,
@@ -83,7 +83,7 @@ impl Browse {
     /// `user`: a Season or Show is each of its Episodes. Played is written under each one's
     /// preferred id; unplayed forgets it under every id. Either, where it changes a Watch State,
     /// shows the Movie or Show again in Continue Watching. Fails as browsing to it does if the
-    /// Library has no such title. Tells `WatchStatesChanged` Observers of each change it made.
+    /// Library has no such title. Tells Watch sync Plugins of each change it made.
     pub(crate) async fn mark(
         &self,
         user: i64,
@@ -166,8 +166,8 @@ impl Browse {
     /// offline, of each Movie or Episode a Library has under any of its ids, in the oldest Library
     /// that has it, where it is newer than this Server's own (see
     /// [`crate::library::WatchStates::take_offline`]). One no Library this Browse reads has, or one
-    /// its Maximum Age keeps out, is left out. Tells `WatchStatesChanged` Observers of each change
-    /// it stored.
+    /// its Maximum Age keeps out, is left out. Tells Watch sync Plugins of each change it
+    /// stored.
     pub(crate) async fn take_offline(
         &self,
         user: i64,

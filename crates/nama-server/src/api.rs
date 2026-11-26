@@ -115,7 +115,7 @@ pub(crate) fn router(
         Contents::new(Arc::clone(&db)),
         image_settings.clone(),
     );
-    let preferences = TrackPreferences::new(Arc::clone(&db), plugins.clone());
+    let preferences = TrackPreferences::new(Arc::clone(&db));
     let plans = Plans::new(
         probing,
         abilities.clone(),
