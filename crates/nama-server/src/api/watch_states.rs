@@ -41,7 +41,7 @@ impl WatchStateService for WatchStateServiceHandler {
         let caller = caller(&ctx)?;
         let progress = Progress::new(request.position_ms, request.duration_ms)
             .ok_or_else(|| duration_out_of_range("duration_ms"))?;
-        self.browse
+        (seen_by(&self.browse, caller.user.id).await?)
             .report(caller.user.id, request.version_id, progress)
             .await
             .map_err(refused(Fields {
@@ -65,7 +65,7 @@ impl WatchStateService for WatchStateServiceHandler {
         let changes = (request.to_owned_message().changes.into_iter().enumerate())
             .map(|(index, change)| offline_change(change, &format!("changes[{index}]")))
             .collect::<Result<_, _>>()?;
-        self.browse
+        (seen_by(&self.browse, user).await?)
             .take_offline(user, changes)
             .await
             .map_err(refused(Fields::NONE))?;

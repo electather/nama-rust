@@ -3,10 +3,11 @@
 //! titles, over a real socket with the fake TMDB, which rates Alien R and Dark TV-MA and gives
 //! Heat and Dune no US rating.
 
-use crate::support::{http, refused, server};
+use crate::support::{browsing, http, refused, server};
 
 use std::time::{Duration, Instant};
 
+use browsing::{report_a_minute, send_back_a_minute};
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
@@ -114,6 +115,26 @@ impl Fixture {
         let admin = self.server.client_config();
         let movie = self.movie(&admin, tmdb).await.unwrap().movie.into_option();
         movie.unwrap().versions.first().unwrap().id
+    }
+
+    /// How far into the Movie with the TMDB id `tmdb` `who`'s Watch State has them, if they've
+    /// started it.
+    async fn position(&self, who: &SignedIn, tmdb: i64) -> Option<u64> {
+        let movie = self.movie(&who.client_config(), tmdb).await.unwrap();
+        let state = movie.movie.into_option().unwrap().watch_state;
+        state.into_option().map(|state| state.position_ms)
+    }
+
+    /// Dark's one Episode, as `who` lists it.
+    async fn dark_episode(&self, who: &ClientConfig) -> nama_proto::nama::v1::Episode {
+        let client = browse(who);
+        let listed = client.list_episodes(ListEpisodesRequest {
+            library_id: self.shows.id,
+            show_id: tmdb_id(DARK).into(),
+            ..Default::default()
+        });
+        let episodes = listed.await.unwrap().into_owned().episodes;
+        episodes.into_iter().next().unwrap()
     }
 }
 
@@ -505,4 +526,50 @@ async fn the_users_list_reads_each_maximum_age_back() {
     };
     assert_eq!(max_of(fx.newt.id), Some((12, true)));
     assert_eq!(max_of(fx.hicks.id), None);
+}
+
+#[tokio::test]
+async fn progress_on_a_version_over_the_age_or_unrated_is_refused_as_no_such_version_and_not_stored()
+ {
+    let fx = Fixture::start().await;
+    fx.cap_newt(16, false).await;
+    let (newt, hicks) = (fx.newt.client_config(), fx.hicks.client_config());
+    let admin = fx.server.client_config();
+    let dark = fx.dark_episode(&admin).await.versions.first().unwrap().id;
+
+    for version in [fx.version(ALIEN).await, fx.version(HEAT).await, dark] {
+        assert_refused(
+            report_a_minute(&newt, version).await,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+        );
+        report_a_minute(&hicks, version).await.unwrap();
+    }
+
+    set_maximum_age(&admin, fx.newt.id, None).await.unwrap();
+    assert_eq!(fx.position(&fx.newt, ALIEN).await, None);
+    assert_eq!(fx.position(&fx.newt, HEAT).await, None);
+    assert!(
+        fx.dark_episode(&newt)
+            .await
+            .watch_state
+            .into_option()
+            .is_none()
+    );
+    assert_eq!(fx.position(&fx.hicks, ALIEN).await, Some(60_000));
+}
+
+#[tokio::test]
+async fn offline_changes_to_titles_over_the_age_are_left_out_and_the_rest_taken() {
+    let fx = Fixture::start().await;
+    fx.cap_newt(13, true).await;
+
+    send_back_a_minute(&fx.newt.client_config(), &[ALIEN, HEAT])
+        .await
+        .unwrap();
+
+    let admin = fx.server.client_config();
+    set_maximum_age(&admin, fx.newt.id, None).await.unwrap();
+    assert_eq!(fx.position(&fx.newt, ALIEN).await, None);
+    assert_eq!(fx.position(&fx.newt, HEAT).await, Some(60_000));
 }

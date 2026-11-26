@@ -156,18 +156,10 @@ pub(super) async fn sees_version(
     user: i64,
     version: i64,
 ) -> Result<bool, sqlx::Error> {
-    let contents = Contents::new(Arc::clone(db));
-    let Some(library) = contents.library_of_version(version).await? else {
-        return Ok(true);
-    };
-    if !library_access(db, user).await?.sees(library) {
-        return Ok(false);
-    }
+    let seen = library_access(db, user).await?;
     let max_age = maximum_age(db, user).await?;
-    let ratings = contents.version_content_ratings(version).await?;
-    Ok(ratings
-        .iter()
-        .all(|rating| max_age.allows(rating.as_deref())))
+    let contents = Contents::new(Arc::clone(db));
+    contents.lets_play(version, &seen, max_age).await
 }
 
 /// Serves the Version `id`'s file to keep on the caller's Device as [`serve`] does, but only while

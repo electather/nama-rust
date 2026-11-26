@@ -12,8 +12,7 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use super::{
-    Browse, Episode, Error, NotFound, Show, Target, Titles, Version, episode_ids, finding_failed,
-    with_tracks,
+    Browse, Episode, Error, NotFound, Show, Target, Titles, Version, episode_ids, with_tracks,
 };
 use crate::{
     library::{
@@ -51,13 +50,17 @@ impl Browse {
     /// Records, as of now, that the User `user` has got as far as `progress` through the Version
     /// `version`: through its Movie, or split across each Episode its file holds, under each one's
     /// preferred id. An Unmatched Item has no Watch State, so progress on it stores nothing (ADR
-    /// 0013). Tells `WatchStatesChanged` Observers of each change it made.
+    /// 0013). Fails with [`NotFound::NoSuchVersion`] for a Version this Browse doesn't let them
+    /// play, as for one there isn't. Tells `WatchStatesChanged` Observers of each change it made.
     pub(crate) async fn report(
         &self,
         user: i64,
         version: i64,
         progress: Progress,
     ) -> Result<(), Error> {
+        if !(self.contents.lets_play(version, &self.seen, self.max_age)).await? {
+            return Err(NotFound::NoSuchVersion.into());
+        }
         let titles = match self.contents.titles_in(version).await? {
             TitlesIn::NoSuchVersion => return Err(NotFound::NoSuchVersion.into()),
             TitlesIn::Movie(None) => return Ok(()),
@@ -162,8 +165,9 @@ impl Browse {
     /// Takes `offline`, the changes the User `user`'s Device made to their Watch State while
     /// offline, of each Movie or Episode a Library has under any of its ids, in the oldest Library
     /// that has it, where it is newer than this Server's own (see
-    /// [`crate::library::WatchStates::take_offline`]). One no Library has is left out. Tells
-    /// `WatchStatesChanged` Observers of each change it stored.
+    /// [`crate::library::WatchStates::take_offline`]). One no Library this Browse reads has, or one
+    /// its Maximum Age keeps out, is left out. Tells `WatchStatesChanged` Observers of each change
+    /// it stored.
     pub(crate) async fn take_offline(
         &self,
         user: i64,
@@ -174,8 +178,8 @@ impl Browse {
         Ok(())
     }
 
-    /// Each of `changes` beside the Movie or Episode it changes, as the oldest Library that has it
-    /// under any of its ids knows it. One no Library has is left out.
+    /// Each of `changes` beside the Movie or Episode it changes, as the oldest Library this Browse
+    /// reads that has it under any of its ids knows it. One no such Library has is left out.
     async fn found_here(
         &self,
         changes: Vec<WatchStateChange>,
@@ -202,11 +206,11 @@ impl Browse {
     }
 
     /// Each Movie or Episode here, by whether it's an Episode and each of its ids, in the oldest
-    /// Library that has that id.
+    /// Library this Browse reads that has that id.
     async fn watched_here(&self) -> Result<HashMap<(bool, String), WatchedTitle>, Error> {
         let mut here = HashMap::new();
         // ponytail: whole-Library read
-        for library in self.libraries.list().await.map_err(finding_failed)? {
+        for library in self.libraries().await? {
             add_watched(&mut here, self.titles(&library).await?);
         }
         Ok(here)

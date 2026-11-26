@@ -3,10 +3,12 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
+use connectrpc::client::ClientConfig;
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
     BrowseServiceClient, ExternalId, GetMovieRequest, LibraryKind, ListMoviesRequest,
-    MatchServiceClient, Movie,
+    MatchServiceClient, Movie, OfflineWatchStateChange, ReportOfflineWatchStateRequest,
+    ReportProgressRequest, WatchStateServiceClient, offline_watch_state_change::Title,
 };
 use nama_server::ffmpeg::Ffmpeg;
 
@@ -156,4 +158,40 @@ pub(crate) fn tmdb_id(id: i64) -> ExternalId {
         value: id.to_string(),
         ..Default::default()
     }
+}
+
+/// Has `who` report being a minute into the Version `version`.
+pub(crate) async fn report_a_minute(who: &ClientConfig, version: i64) -> Result<(), ConnectError> {
+    let client = WatchStateServiceClient::new(HttpClient::plaintext(), who.clone());
+    let request = ReportProgressRequest {
+        version_id: version,
+        position_ms: 60_000,
+        duration_ms: 7_200_000,
+        ..Default::default()
+    };
+    client.report_progress(request).await.map(drop)
+}
+
+/// Has `who`'s Device send back being a minute into each Movie with a TMDB id in `movies`, from
+/// while it was offline.
+pub(crate) async fn send_back_a_minute(
+    who: &ClientConfig,
+    movies: &[i64],
+) -> Result<(), ConnectError> {
+    let changes = (movies.iter())
+        .map(|&tmdb| OfflineWatchStateChange {
+            title: Some(Title::MovieId(Box::new(tmdb_id(tmdb)))),
+            position_ms: 60_000,
+            duration_ms: 7_200_000,
+            // The Server takes a change dated in the future as made now.
+            changed_at_ms: i64::MAX,
+            ..Default::default()
+        })
+        .collect();
+    let client = WatchStateServiceClient::new(HttpClient::plaintext(), who.clone());
+    let request = ReportOfflineWatchStateRequest {
+        changes,
+        ..Default::default()
+    };
+    client.report_offline_watch_state(request).await.map(drop)
 }
