@@ -138,11 +138,11 @@ async fn an_admin_stopping_a_direct_play_cuts_off_its_devices_file_until_it_play
     let on_ripley = Some(viewer_of_caller(&ripley()));
     let while_playing = plans.stopped(4, on_ripley);
     let to_another = plans.stopped(4, Some(viewer(2)));
-    let to_another_user = Viewer {
+    let another_user = Viewer {
         user: 2,
         ..viewer_of_caller(&ripley())
     };
-    let to_another_user = plans.stopped(4, Some(to_another_user));
+    let to_another_user = plans.stopped(4, Some(another_user));
     let started = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
 
     plans

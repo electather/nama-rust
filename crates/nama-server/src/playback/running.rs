@@ -2,15 +2,15 @@
 //! Remuxes and Transcodes, played over HLS with fMP4 segments. Each plan's start and end are
 //! published as `PlaybackStarted` and `PlaybackEnded`.
 //!
-//! A plan belongs to the Device it was planned for, and only that Device is served its files, at
-//! `/media/plans/<id>/`: the playlist `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`.
-//! The playlist lists the whole Version up front, cut at keyframes where it will be cut, so HLS
-//! time is the file's time and Watch State needs no conversion. ffmpeg writes a file per keyframe
-//! to `nama-plan-<id>/` in the segment folder, and the plan joins those starting from each listed
-//! keyframe up to the next into that keyframe's file, by the times ffmpeg's own playlist gives, as
-//! the Version's index may list only some (ADR 0066). A segment joins its keyframes' files. A
-//! Remux keeps the Version's own keyframes; a Transcode forces one every [`SEGMENT_MS`], so each
-//! of its segments is one file.
+//! A plan belongs to the User and Device it was planned for, and only that Device, while it acts
+//! as that User (ADR 0106), is served its files, at `/media/plans/<id>/`: the playlist
+//! `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`. The playlist lists the whole Version
+//! up front, cut at keyframes where it will be cut, so HLS time is the file's time and Watch State
+//! needs no conversion. ffmpeg writes a file per keyframe to `nama-plan-<id>/` in the segment
+//! folder, and the plan joins those starting from each listed keyframe up to the next into that
+//! keyframe's file, by the times ffmpeg's own playlist gives, as the Version's index may list only
+//! some (ADR 0066). A segment joins its keyframes' files. A Remux keeps the Version's own
+//! keyframes; a Transcode forces one every [`SEGMENT_MS`], so each of its segments is one file.
 //!
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
