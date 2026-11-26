@@ -15526,6 +15526,10 @@ pub struct ShowInLibraryView<'a> {
     ///
     /// Field 5: `poster_thumbhash`
     pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// When it first aired, as `YYYY-MM-DD`.
+    ///
+    /// Field 6: `first_air_date`
+    pub first_air_date: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowInLibraryView<'a> {
@@ -15607,6 +15611,13 @@ impl<'a> ::buffa::MessageView<'a> for ShowInLibraryView<'a> {
                 )?;
                 view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.first_air_date = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -15642,6 +15653,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowInLibraryView<'a> {
             title: self.title.to_string(),
             poster_url: self.poster_url.map(|s| s.to_string()),
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
+            first_air_date: self.first_air_date.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -15673,6 +15685,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowInLibraryView<'a> {
         if let Some(ref v) = self.poster_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.first_air_date {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -15703,6 +15718,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowInLibraryView<'a> {
         }
         if let Some(ref v) = self.poster_thumbhash {
             ::buffa::types::put_shared_bytes_field(5u32, v, buf);
+        }
+        if let Some(ref v) = self.first_air_date {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -15749,6 +15767,9 @@ impl<'__a> ::serde::Serialize for ShowInLibraryView<'__a> {
                     "posterThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.first_air_date {
+            __map.serialize_entry("firstAirDate", __v)?;
         }
         __map.end()
     }
@@ -15875,6 +15896,13 @@ impl ShowInLibraryOwnedView {
     #[must_use]
     pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().poster_thumbhash
+    }
+    /// When it first aired, as `YYYY-MM-DD`.
+    ///
+    /// Field 6: `first_air_date`
+    #[must_use]
+    pub fn first_air_date(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().first_air_date
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowInLibraryView<'static>>>

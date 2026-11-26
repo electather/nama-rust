@@ -14,7 +14,6 @@ export type TileBadgeShown = Shown & { short?: string };
 /** A row's title as its shelf shows it: a poster that opens its page, maybe with a badge. */
 export interface RowTile {
   title: string;
-  /** None for a Show on the Server, whose row title carries no date. */
   year: string | undefined;
   posterUrl: string | undefined;
   posterThumbhash: Uint8Array | undefined;
@@ -82,7 +81,10 @@ function yearOfRowTitle(title: RowTitle) {
   if (title.case === "movie") {
     return yearOf(title.value.releaseDate);
   }
-  return title.case === "show" ? undefined : title.value.year?.toString();
+  if (title.case === "show") {
+    return yearOf(title.value.firstAirDate);
+  }
+  return title.value.year?.toString();
 }
 
 /** A missing Movie opens in the Library that has it since, if one does. */

@@ -17,7 +17,12 @@ afterEach(() => {
 });
 
 const heat = { libraryId: 1n, id: { namespace: "tmdb", value: "949" }, title: "Heat" };
-const dark = { libraryId: 2n, id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
+const dark = {
+  libraryId: 2n,
+  id: { namespace: "tmdb", value: "70523" },
+  title: "Dark",
+  firstAirDate: "2017-12-01",
+};
 const dune = {
   id: { namespace: "tmdb", value: "438631" },
   title: "Dune",
@@ -46,12 +51,7 @@ const severance = { id: { namespace: "tmdb", value: "95396" }, title: "Severance
 const picksRow = pluginRow("lists", "picks", "Picks");
 const emptyRow = pluginRow("lists", "empty", "Nothing here");
 // Linked to the TV Library, whose titles it lists.
-const showsRow: HomeRowInit = {
-  kernelOrPlugin: {
-    case: "plugin",
-    value: { pluginId: "trakt", key: "shows", heading: "Trending Shows", libraryId: 2n },
-  },
-};
+const showsRow = pluginRow("trakt", "shows", "Trending Shows", 2n);
 
 /**
  * Home on a Server that lists an empty Continue Watching, then the Plugin rows `picks`, `empty`
@@ -126,7 +126,7 @@ test("home shows each Plugin's row in order, each poster opening its title and a
   openHome();
 
   // A row shows its skeleton under its heading until its titles arrive.
-  await screen.findByRole("link", { name: "Dark" });
+  await screen.findByRole("link", { name: "Dark, 2017" });
   await waitFor(() => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings).toStrictEqual(["Picks", "Trending Shows"]);
@@ -136,7 +136,7 @@ test("home shows each Plugin's row in order, each poster opening its title and a
   expect(within(picks).getByRole("link", { name: "Heat" }).getAttribute("href")).toBe(
     "/libraries/1/movies/tmdb-949",
   );
-  expect(within(shows).getByRole("link", { name: "Dark" }).getAttribute("href")).toBe(
+  expect(within(shows).getByRole("link", { name: "Dark, 2017" }).getAttribute("href")).toBe(
     "/libraries/2/shows/tmdb-70523",
   );
   expect(within(shows).getByRole("link", { name: "Trending Shows" }).getAttribute("href")).toBe(
@@ -149,7 +149,7 @@ test("home draws Continue Watching where the Server lists it among the Plugins' 
   scrollable().scrolled();
   openHome([], [picksRow, continueWatchingRow, showsRow]);
 
-  await screen.findByRole("link", { name: "Dark" });
+  await screen.findByRole("link", { name: "Dark, 2017" });
   await screen.findByRole("link", { name: /Alien/u });
   const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
   expect(headings).toStrictEqual(["Picks", "Continue Watching", "Trending Shows"]);
@@ -174,7 +174,7 @@ test("the first Plugin row loads at once, and each below it only as you scroll n
   expect(asked.map((request) => request.key)).toStrictEqual(["picks"]);
 
   scrolled();
-  await screen.findByRole("link", { name: "Dark" });
+  await screen.findByRole("link", { name: "Dark, 2017" });
   await waitFor(() => {
     expect(screen.queryByRole("region", { name: "Nothing here" })).toBeNull();
   });
