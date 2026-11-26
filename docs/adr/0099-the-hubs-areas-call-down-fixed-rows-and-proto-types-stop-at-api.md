@@ -21,7 +21,7 @@ The rows, highest first:
 Where a request came from, through trusted proxies only (ADR 0018), is the `nama-forwarded` crate, which the Server shares. `lib` and `main` start the Hub, run its subcommands and schedule its periodic work, and may call any row. Each area arrives with the first ticket that needs it.
 
 - `links` owns every Link, whether a Server's or a User's: the device flow, a Linked Server's credential, Unlinking, and the sign-in tokens signed for Servers.
-- `links` also owns every way a client reaches a Linked Server: its names, its Server Addresses, reachability, the certificates' DNS records and Relays. A sign-in returns only to one of the Server's Server Addresses, the check that guards its one-time code (#1934), so they sit in the area that owns the sign-in, which may call only down.
+- `links` also owns every way a client reaches a Linked Server: its names, its Server Addresses, reachability, the certificates' DNS records and Relays. A sign-in returns only to its Server URL or a LAN address, the check that guards its one-time code (#1934), so they sit in the area that owns the sign-in, which may call only down.
 
 Unlike the Server's areas, the Hub's never use proto types. They take and return their own types, and `api` converts in both directions. The Hub API has to keep serving every Hub Plugin already deployed, and an area whose types are the wire contract can't change without changing the contract.
 

@@ -1,7 +1,7 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
 //! Server's opaque credential, the Server Addresses it reports and whether its public port can be
-//! reached (`server_addresses.rs`), its names in the Server-names zone (`names.rs`), Unlinking, and the tokens signed
-//! for a Server once it is Linked and for the Relay it dials out to.
+//! reached (`server_addresses.rs`), its names in the Server-names zone (`names.rs`), Unlinking,
+//! and the tokens signed for a Server once it is Linked and for the Relay it dials out to.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
