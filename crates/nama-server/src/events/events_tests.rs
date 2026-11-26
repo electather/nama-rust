@@ -87,11 +87,7 @@ fn rated(rating: Option<&'static str>) -> RatingLookup {
 
 /// A viewer with no Maximum Age.
 fn uncapped(user: &User, libraries: LibraryAccess) -> Viewer {
-    let age_check = AgeCheck {
-        max_age: MaximumAge::default(),
-        ratings: rated(None),
-    };
-    Viewer::of(user, libraries, age_check)
+    Viewer::of(user, libraries, AgeCheck::uncapped())
 }
 
 fn alien_matched() -> Event {

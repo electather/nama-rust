@@ -245,6 +245,24 @@ impl<V> Episode<V> {
 }
 
 impl Contents {
+    /// The Content Rating of the title named `title` the Item `item` is Matched to, an
+    /// Episode's its Show's, `None` for one without. Fails with `RowNotFound` if the Item isn't
+    /// Matched, or is Matched to a title named otherwise.
+    pub(crate) async fn item_content_rating(
+        &self,
+        item: i64,
+        title: &str,
+    ) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!(
+            "SELECT content_rating FROM item_matches
+             WHERE item_id = ? AND state = 'matched' AND title = ?",
+            item,
+            title
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// What the Version `version` is Matched to, as [`Contents::titles_in`] finds it: its Movie,
     /// or for a file of Episodes only the Show of its first Matched one, by season and number,
     /// each with every id, so what is kept for it is found under any of them.

@@ -91,7 +91,7 @@ pub(crate) struct Filter {
 /// without, failing if the Item is no longer Matched to a title of the name it's given, so a
 /// re-Match before the event is delivered can't judge it by another title's. The Library keeps
 /// Matches, above this module.
-// shortcut: a re-Match to a title of the same name is judged by that title's rating; carry the
+// ponytail: a re-Match to a title of the same name is judged by that title's rating; carry the
 // rating beside each Event on the bus if that ever matters.
 type RatingLookup = Arc<
     dyn Fn(i64, String) -> BoxFuture<'static, Result<Option<String>, sqlx::Error>> + Send + Sync,
@@ -101,6 +101,17 @@ type RatingLookup = Arc<
 pub(crate) struct AgeCheck {
     pub(crate) max_age: MaximumAge,
     pub(crate) ratings: RatingLookup,
+}
+
+impl AgeCheck {
+    /// No Maximum Age: every title gets through, so no Content Rating is ever read.
+    #[cfg(test)]
+    pub(crate) fn uncapped() -> Self {
+        Self {
+            max_age: MaximumAge::default(),
+            ratings: Arc::new(|_, _| Box::pin(async { Ok(None) })),
+        }
+    }
 }
 
 /// Which events a subscriber may see, and what of them, from their Permissions, the Libraries
@@ -328,12 +339,7 @@ impl EventBus {
             permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
-        let age_check = AgeCheck {
-            max_age: MaximumAge::default(),
-            // Never asked: no Maximum Age lets every title through.
-            ratings: Arc::new(|_, _| Box::pin(async { Ok(None) })),
-        };
-        self.subscribe(&admin, LibraryAccess::All, age_check, filter)
+        self.subscribe(&admin, LibraryAccess::All, AgeCheck::uncapped(), filter)
     }
 
     /// Ends every subscription, as the Server shuts down, so none holds up the shutdown.
