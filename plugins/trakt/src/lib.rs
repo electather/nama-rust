@@ -113,11 +113,12 @@ struct Trakt;
 
 impl WatchSync for Trakt {
     /// Adds each newly played title to the User's Trakt history as of when it was played, and
-    /// removes each one marked unplayed. Position reports of an unplayed title are skipped.
+    /// removes each one marked unplayed. Position reports of an unplayed title are skipped. A
+    /// failure after renewing the User's tokens is logged, not returned, so the tokens are kept.
     fn scrobble(asked: ScrobbleAsked) -> Result<Scrobbled, Error> {
         let mut account = Account::of(&asked.personal_settings)?;
         let sent = send_changes(&mut account, &asked);
-        account.unless_renewed(sent)?;
+        account.forgiven_if_renewed(sent)?;
         Ok(Scrobbled {
             personal_settings: account.renewed(),
             ..Scrobbled::default()
@@ -134,7 +135,7 @@ impl WatchSync for Trakt {
         // Failing after a renewal imports nothing and keeps the cursor, so the next import redoes
         // it.
         let (changes, cursor) =
-            (account.unless_renewed(imported)?).unwrap_or_else(|| (Vec::new(), asked.since));
+            (account.forgiven_if_renewed(imported)?).unwrap_or_else(|| (Vec::new(), asked.since));
         Ok(Imported {
             changes,
             cursor,
@@ -306,7 +307,7 @@ impl Account {
     /// failure instead.
     // A failure carries no answer to hand the renewed tokens back in, and Trakt already spent the
     // old refresh token, so failing would make the User link again.
-    fn unless_renewed<T>(&self, outcome: Result<T, Error>) -> Result<Option<T>, Error> {
+    fn forgiven_if_renewed<T>(&self, outcome: Result<T, Error>) -> Result<Option<T>, Error> {
         match outcome {
             Err(error) if self.renewed => {
                 nama_pdk::warn!(

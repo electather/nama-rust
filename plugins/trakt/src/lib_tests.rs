@@ -266,7 +266,7 @@ fn imported_renewing(kernel: &mut Kernel, fake: &Rc<RefCell<FakeTrakt>>, since: 
 }
 
 #[test]
-fn an_ask_failing_after_renewing_still_hands_back_the_renewed_tokens() {
+fn a_retry_failing_after_renewing_imports_nothing_but_hands_back_the_tokens() {
     let fake = shared(FakeTrakt::linked());
     let mut kernel = kernel_failing(&fake, |request| {
         request.headers.get("Authorization").map(String::as_str) == Some("Bearer access-2")
