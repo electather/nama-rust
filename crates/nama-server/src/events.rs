@@ -269,9 +269,9 @@ impl EventBus {
         }
     }
 
-    /// Every event published from now on, and each `InboxChanged`, whole, for a Kernel task that acts on them, such as
-    /// pulling Watch State after a scan; one that falls [`BUFFERED`] behind misses the oldest.
-    /// Never for a client, who sees only what [`Self::subscribe`] lets through.
+    /// Every event published from now on, and each `InboxChanged`, whole, for a Kernel task that
+    /// acts on them, such as pulling Watch State after a scan; one that falls [`BUFFERED`] behind
+    /// misses the oldest. Never for a client, who sees only what [`Self::subscribe`] lets through.
     pub(crate) fn follow(&self) -> broadcast::Receiver<Event> {
         self.sender.subscribe()
     }
