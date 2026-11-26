@@ -12,31 +12,13 @@ use super::{Error, delete, get, put, put_within, take_over_hub_viewing_events};
 use crate::{
     db::{self, Database},
     link::{self, Link, Linking, ServerLink},
+    users::testing::insert_user,
 };
 
 async fn open() -> (TempDir, Database) {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
     (data_dir, db)
-}
-
-async fn insert_user(db: &Database, name: &str) -> i64 {
-    let name = name.to_owned();
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(&name)
-            .bind(&name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 #[tokio::test]

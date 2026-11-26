@@ -196,16 +196,31 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         &["plugin_settings", "PluginSettings"],
         "the Segments tests enable a Plugin as an Admin does, to check it makes Versions due",
     ),
+    (
+        Importers::TestCode,
+        &["users", "testing"],
+        "the crate's One in-file fixture rule sends every in-file test needing a User through \
+         users::testing::insert_user, whatever its row",
+    ),
 ];
 
 /// The modules neighbours reach inside an area anyway, each with why re-exporting it would be
 /// wrong. An entry no import uses fails.
-const SURFACE_EXCEPTIONS: &[Exception] = &[(
-    "ffmpeg",
-    "fake",
-    "the crate's Fake programs rule sends every test's fake program through ffmpeg::fake::script, \
-     and neighbours' tests share its two-GPU VAAPI fake",
-)];
+const SURFACE_EXCEPTIONS: &[Exception] = &[
+    (
+        "ffmpeg",
+        "fake",
+        "the crate's Fake programs rule sends every test's fake program through ffmpeg::fake::script, \
+         and neighbours' tests share its two-GPU VAAPI fake",
+    ),
+    (
+        "users",
+        "testing",
+        "the crate's One in-file fixture rule sends every in-file test needing a User through \
+         users::testing::insert_user, which users.rs can't re-export: its own insert_user is \
+         the production one",
+    ),
+];
 
 // ponytail: a text scan; a call split across lines or reached through a `use` alias is not seen.
 #[test]
