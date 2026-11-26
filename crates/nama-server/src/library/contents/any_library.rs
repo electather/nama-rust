@@ -102,11 +102,7 @@ impl Contents {
         &self,
         ids: &[ExternalId],
     ) -> Result<Option<EpisodeNumbers>, sqlx::Error> {
-        let asked: Vec<[&str; 2]> = (ids.iter())
-            .map(|id| [id.namespace(), id.value()])
-            .collect();
-        // Pairs, not `ids_json`'s joined strings, so each is found through `item_match_ids_by_id`.
-        let asked = serde_json::Value::from(asked).to_string();
+        let asked = id_pairs_json(ids);
         // Matching finds an Episode by the numbers its file's name gives, so they are the Episode's.
         macro_rules! select {
             ($ids:literal) => {
@@ -136,6 +132,54 @@ impl Contents {
             episode: row.episode,
         }))
     }
+
+    /// The ids of Episode `number` of Season `season` of the Show known by any of `show_ids`,
+    /// Matched in any Library, or none if none has it. Where several Items have it, the oldest
+    /// Library's first by path answers.
+    pub(in crate::library) async fn episode_ids(
+        &self,
+        show_ids: &[ExternalId],
+        (season, number): (i64, i64),
+    ) -> Result<ExternalIds, sqlx::Error> {
+        let asked = id_pairs_json(show_ids);
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query_scalar!(
+                    r#"SELECT "#
+                        + $ids
+                        + r#"'title') AS "ids?: String"
+                       FROM json_each(?) AS asked
+                       JOIN item_match_ids AS show
+                           ON show.scope = 'show'
+                          AND show.namespace = json_extract(asked.value, '$[0]')
+                          AND show.value = json_extract(asked.value, '$[1]')
+                       JOIN item_matches ON item_matches.item_id = show.item_id
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE item_matches.state = 'matched'
+                         AND library_items.kind = 'episode'
+                         AND library_items.season = ?
+                         AND library_items.episode = ?
+                       ORDER BY library_files.library_id, library_files.path
+                       LIMIT 1"#,
+                    asked,
+                    season,
+                    number
+                )
+            };
+        }
+        let ids = ids_sql!(select).fetch_optional(self.db.reader()).await?;
+        Ok(ids_from_json(ids.flatten().as_deref()))
+    }
+}
+
+/// `ids` as a JSON array of `[namespace, value]` pairs: pairs, not `ids_json`'s joined strings, so
+/// a query finds each through `item_match_ids_by_id`.
+fn id_pairs_json(ids: &[ExternalId]) -> String {
+    let pairs: Vec<[&str; 2]> = (ids.iter())
+        .map(|id| [id.namespace(), id.value()])
+        .collect();
+    serde_json::Value::from(pairs).to_string()
 }
 
 #[cfg(test)]

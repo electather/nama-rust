@@ -7,8 +7,8 @@ use std::sync::Arc;
 use buffa::EnumValue;
 use nama_plugin_api::{
     PluginError, PluginId,
-    contract::{ScrobbleAsked, SyncedWatchState, TitleRefKind},
-    metadata::ExternalId,
+    contract::{ScrobbleAsked, SyncedWatchState, TitleId, TitleRefKind},
+    metadata::{ExternalId, ExternalIds},
     points::{WatchStateChange, WatchStateChanges},
     watch_sync::WatchSync,
 };
@@ -138,9 +138,32 @@ fn external_ids(change: &WatchStateChange) -> Vec<ExternalId> {
         .collect()
 }
 
-/// `state`, which a Watch sync Plugin imported, as a change to take, or `None` if it names
-/// neither a Movie nor an Episode or no well-formed id.
-pub(crate) fn imported(state: &SyncedWatchState) -> Option<WatchStateChange> {
+/// `states`, which a Watch sync Plugin imported, as changes to take. An Episode is also known by
+/// the ids of the Library Episode its Show's ids, season and number name, after its own, so one of
+/// its own that a Library has still wins. One naming neither a Movie nor an Episode is dropped.
+pub(crate) async fn imported(
+    db: &Arc<Database>,
+    states: &[SyncedWatchState],
+) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+    let contents = Contents::new(Arc::clone(db));
+    let mut changes = Vec::with_capacity(states.len());
+    for state in states {
+        let Some(mut change) = as_change(state) else {
+            continue;
+        };
+        // ponytail: one read per imported Episode; find them in one query once imports run long.
+        if change.episode {
+            let numbered = numbered_episode_ids(&contents, state).await?;
+            change.ids.extend(numbered.iter().map(|id| id.to_string()));
+        }
+        changes.push(change);
+    }
+    Ok(changes)
+}
+
+/// `state` as a change, known by those of its own ids that are well formed, or `None` if it names
+/// neither a Movie nor an Episode.
+fn as_change(state: &SyncedWatchState) -> Option<WatchStateChange> {
     let episode = match state.kind {
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => false,
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => true,
@@ -148,18 +171,33 @@ pub(crate) fn imported(state: &SyncedWatchState) -> Option<WatchStateChange> {
             return None;
         }
     };
-    let ids: Vec<String> = (state.ids.iter())
-        .filter_map(|id| ExternalId::new(&id.namespace, id.value.clone()).ok())
-        .map(|id| id.to_string())
-        .collect();
-    (!ids.is_empty()).then_some(WatchStateChange {
+    Some(WatchStateChange {
         episode,
-        ids,
+        ids: (state.ids.iter())
+            .filter_map(external_id)
+            .map(|id| id.to_string())
+            .collect(),
         played: state.played,
         position_ms: state.position_ms,
         duration_ms: state.duration_ms,
         changed_at_ms: state.changed_at_ms,
     })
+}
+
+/// The ids of the Library Episode that `state`'s Show ids, season and number name, or none.
+async fn numbered_episode_ids(
+    contents: &Contents,
+    state: &SyncedWatchState,
+) -> Result<ExternalIds, sqlx::Error> {
+    let (Some(season), Some(number)) = (state.season_number, state.episode_number) else {
+        return Ok(ExternalIds::default());
+    };
+    let show_ids: Vec<ExternalId> = state.show_ids.iter().filter_map(external_id).collect();
+    (contents.episode_ids(&show_ids, (season.into(), number.into()))).await
+}
+
+fn external_id(id: &TitleId) -> Option<ExternalId> {
+    ExternalId::new(&id.namespace, id.value.clone()).ok()
 }
 
 /// Where the Plugin `plugin`'s next import of the User `user`'s Watch State continues from: the

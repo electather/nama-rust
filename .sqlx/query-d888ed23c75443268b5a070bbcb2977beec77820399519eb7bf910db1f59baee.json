@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\"\n                       FROM json_each(?) AS asked\n                       JOIN item_match_ids AS show\n                           ON show.scope = 'show'\n                          AND show.namespace = json_extract(asked.value, '$[0]')\n                          AND show.value = json_extract(asked.value, '$[1]')\n                       JOIN item_matches ON item_matches.item_id = show.item_id\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       WHERE item_matches.state = 'matched'\n                         AND library_items.kind = 'episode'\n                         AND library_items.season = ?\n                         AND library_items.episode = ?\n                       ORDER BY library_files.library_id, library_files.path\n                       LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "ids?: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d888ed23c75443268b5a070bbcb2977beec77820399519eb7bf910db1f59baee"
+}

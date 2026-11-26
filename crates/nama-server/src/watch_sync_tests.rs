@@ -226,7 +226,7 @@ async fn an_episode_in_a_library_is_scrobbled_with_its_shows_ids_season_and_numb
     let (tracker, mut heard) = tracker(Imported::default());
     let linked = Linked::with(tracker).await;
     let media = tempfile::tempdir().unwrap();
-    let show_ids = ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121_361)]);
+    let show_ids = library_show();
     let second = ExternalId::tmdb(1_350_210);
     matched_episodes_file(&linked.db, media.path(), show_ids.clone(), [1, 1_350_210]).await;
 
@@ -369,6 +369,98 @@ async fn an_import_takes_what_is_newer_ignores_what_is_older_and_scrobbles_nothi
     assert!(
         quiet(&mut heard).await,
         "an imported change was scrobbled back"
+    );
+}
+
+/// The Show of `matched_episodes_file`, whose Episode 2 of Season 1 is TMDB Episode 1,350,210.
+fn library_show() -> ExternalIds {
+    ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121_361)])
+}
+
+/// Episode `number` of Season `season` of the Show `show` as the tracker lists it, with `ids` of
+/// its own, played now.
+fn episode_on_tracker(
+    ids: &[ExternalId],
+    (show, season, number): (&[ExternalId], u32, u32),
+) -> SyncedWatchState {
+    let title_ids = |listed: &[ExternalId]| -> Vec<TitleId> {
+        (listed.iter())
+            .map(|id| TitleId {
+                namespace: id.namespace().to_owned(),
+                value: id.value().to_owned(),
+                ..TitleId::default()
+            })
+            .collect()
+    };
+    SyncedWatchState {
+        kind: TitleRefKind::TITLE_REF_KIND_EPISODE.into(),
+        ids: title_ids(ids),
+        show_ids: title_ids(show),
+        season_number: Some(season),
+        episode_number: Some(number),
+        played: true,
+        changed_at_ms: now_ms(),
+        ..SyncedWatchState::default()
+    }
+}
+
+impl Linked {
+    /// Ada's Watch State of the Library Episode `tmdb` of [`library_show`], if any.
+    async fn adas_episode_state(&self, tmdb: i64) -> Option<WatchState> {
+        let episode = (
+            WatchStateKind::Episode,
+            ExternalIds::from_iter([ExternalId::tmdb(tmdb)]),
+        );
+        let states = (self.watch_states.of_titles(Some(self.ada), &[episode]))
+            .await
+            .unwrap();
+        states[0].first().map(|&(_, state)| state)
+    }
+}
+
+#[tokio::test]
+async fn an_imported_episode_without_an_id_lands_on_the_library_episode_its_show_and_number_name() {
+    let by_tvdb_show = [ExternalId::tvdb(121_361)];
+    let (tracker, _heard) = tracker(Imported {
+        changes: vec![episode_on_tracker(&[], (&by_tvdb_show, 1, 2))],
+        ..Imported::default()
+    });
+    let linked = Linked::with(tracker).await;
+    let media = tempfile::tempdir().unwrap();
+    matched_episodes_file(&linked.db, media.path(), library_show(), [1, 1_350_210]).await;
+    let imports = WatchSyncImports::new(Arc::clone(&linked.db), linked.plugins.extension_points());
+
+    imports.import_each_user(TRACKER).await;
+
+    let second = linked.adas_episode_state(1_350_210).await;
+    assert!(second.is_some_and(|state| state.played));
+    assert_eq!(linked.adas_episode_state(1).await, None);
+}
+
+#[tokio::test]
+async fn an_imported_episodes_own_id_wins_over_its_numbers_and_one_no_library_has_is_dropped() {
+    let show: Vec<ExternalId> = library_show().iter().collect();
+    let elsewhere = [ExternalId::tmdb(999)];
+    let (tracker, _heard) = tracker(Imported {
+        changes: vec![
+            episode_on_tracker(&[ExternalId::tmdb(1_350_210)], (&show, 1, 1)),
+            episode_on_tracker(&[], (&elsewhere, 1, 1)),
+        ],
+        ..Imported::default()
+    });
+    let linked = Linked::with(tracker).await;
+    let media = tempfile::tempdir().unwrap();
+    matched_episodes_file(&linked.db, media.path(), library_show(), [1, 1_350_210]).await;
+    let imports = WatchSyncImports::new(Arc::clone(&linked.db), linked.plugins.extension_points());
+
+    imports.import_each_user(TRACKER).await;
+
+    let second = linked.adas_episode_state(1_350_210).await;
+    assert!(second.is_some_and(|state| state.played));
+    let first = linked.adas_episode_state(1).await;
+    assert_eq!(
+        first, None,
+        "an Episode of another Show or by number landed"
     );
 }
 
