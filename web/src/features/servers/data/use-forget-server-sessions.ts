@@ -17,7 +17,7 @@ export function useForgetServerSessions() {
   const { transport: hub, serverAt } = useRouteContext({ from: "__root__" });
   return async (leave?: () => Promise<void> | void) => {
     // Read before `leave` may clear the cache: once signed out, the Hub lists no Servers.
-    // shortcut: a Server neither cached nor on the signed-in Account's list keeps its Device until
+    // ponytail: a Server neither cached nor on the signed-in Account's list keeps its Device until
     // it expires; keep each Server's address with its session if that matters.
     const listed = queryClient.getQueryData(
       createConnectQueryKey({
@@ -30,24 +30,26 @@ export function useForgetServerSessions() {
     await leave?.();
     const kept = forgetServerSessions();
     if (kept.length > 0) {
-      const listServers = async () =>
-        listed ?? (await callUnaryMethod(hub, LinkService.method.listLinkedServers, {}));
+      const listServers = async (signal: AbortSignal) =>
+        listed ??
+        (await callUnaryMethod(hub, LinkService.method.listLinkedServers, {}, { signal }));
       void signOutKept(kept, listServers, serverAt);
     }
   };
 }
 
-// Nothing waits on a sign-out, but one a Server never answers shouldn't stay open with the page.
+// Nothing waits on these calls, but one the Hub or a Server never answers shouldn't stay open.
 const signOutTimeoutMs = 10_000;
 
 /** Signs each of `kept` out on its Server, at the address the Hub lists first, ignoring failures. */
 async function signOutKept(
   kept: { serverId: string; token: string }[],
-  listServers: () => Promise<ListLinkedServersResponse>,
+  listServers: (signal: AbortSignal) => Promise<ListLinkedServersResponse>,
   serverAt: ServerAt,
 ) {
+  const signal = AbortSignal.timeout(signOutTimeoutMs);
   try {
-    const { servers } = await listServers();
+    const { servers } = await listServers(signal);
     await Promise.allSettled(
       kept.map(async ({ serverId, token }) => {
         const [origin] = servers.find(({ id }) => id === serverId)?.addresses ?? [];
@@ -56,9 +58,7 @@ async function signOutKept(
             serverAt(origin, [bearer(token)]),
             SignInService.method.signOut,
             {},
-            {
-              signal: AbortSignal.timeout(signOutTimeoutMs),
-            },
+            { signal },
           );
         }
       }),

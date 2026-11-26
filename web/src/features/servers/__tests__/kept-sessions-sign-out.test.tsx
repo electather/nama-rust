@@ -21,13 +21,13 @@ const servers = ["basement", "cabin"].map((id) =>
 
 /**
  * Keeps a session on each of `servers`, one on a Server the Hub doesn't list, and one under a key
- * naming no Server.
+ * naming no Account, which a careless reader would take for the session on "basement".
  */
 function keepSessions() {
   for (const { id } of [...servers, { id: "unlisted" }]) {
     localStorage.setItem(serverSessionKey(ada.id, id), `${id} token`);
   }
-  localStorage.setItem("nama:server-session:v1:no-server", "lost token");
+  localStorage.setItem("nama:server-session:v1:basement", "lost token");
 }
 
 function keptKeys() {
@@ -35,17 +35,17 @@ function keptKeys() {
 }
 
 /**
- * Servers that note the Authorization of each `SignOut` they get, by origin, then answer it, or
+ * Servers that note the origin and Authorization of each `SignOut` they get, then answer it, or
  * refuse or never answer it where `answer` says so for that origin.
  */
 function serversSigningOut(answer: Record<string, "refuses" | "never answers">) {
-  const signedOut: Record<string, string | null> = {};
+  const signedOut: string[] = [];
   const serverAt: ServerAt = (origin, interceptors) =>
     createRouterTransport(
       ({ service }) => {
         service(SignInService, {
           signOut: async (_request, { requestHeader }) => {
-            signedOut[origin] = requestHeader.get("Authorization");
+            signedOut.push(`${origin} ${requestHeader.get("Authorization")}`);
             if (answer[origin] === "refuses") {
               throw new ConnectError("revoked", Code.Unauthenticated);
             }
@@ -61,10 +61,10 @@ function serversSigningOut(answer: Record<string, "refuses" | "never answers">) 
   return { signedOut, serverAt };
 }
 
-const signedOutBoth = {
-  "https://basement.example": "Bearer basement token",
-  "https://cabin.example": "Bearer cabin token",
-};
+const signedOutBoth = new Set([
+  "https://basement.example Bearer basement token",
+  "https://cabin.example Bearer cabin token",
+]);
 
 test("signing the Account out signs each kept Device out on its Server, despite one refusing", async () => {
   keepSessions();
@@ -79,7 +79,7 @@ test("signing the Account out signs each kept Device out on its Server, despite 
 
   await screen.findByRole("heading", { name: "Sign in to the Hub" });
   await waitFor(() => {
-    expect(signedOut).toStrictEqual(signedOutBoth);
+    expect(new Set(signedOut)).toStrictEqual(signedOutBoth);
   });
   expect(keptKeys()).toStrictEqual([]);
 });
@@ -97,7 +97,7 @@ test("signing in at the Hub signs out the Devices kept from before, despite one 
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
   await waitFor(() => {
-    expect(signedOut).toStrictEqual(signedOutBoth);
+    expect(new Set(signedOut)).toStrictEqual(signedOutBoth);
   });
   expect(keptKeys()).toStrictEqual([]);
 });
