@@ -40,10 +40,11 @@ const onTitle: Partial<Record<RequestState, string>> = {
 /** The states a title shows in red: turned down, or stalled. */
 const red = new Set<RequestState>([RequestState.DECLINED, RequestState.FAILED]);
 
-/** A Request's state as a title's pill shows it. */
-export function shownOnTitle(state: RequestState) {
+/** A Request's state as a title's pill shows it, its red lighter `onPopover` (DESIGN.md, "Red"). */
+export function shownOnTitle(state: RequestState, onPopover = false) {
   const shown = shownRequestState(state);
-  const tone = red.has(state) ? ("destructive" as const) : ("quiet" as const);
+  const destructive = onPopover ? ("destructiveOnPopover" as const) : ("destructive" as const);
+  const tone = red.has(state) ? destructive : ("quiet" as const);
   return { ...shown, label: onTitle[state] ?? shown.label, tone };
 }
 

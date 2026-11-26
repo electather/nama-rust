@@ -28,6 +28,8 @@ import { isStarted } from "@/shared/lib/watch-progress";
 export interface Card {
   /** Unique on the shelf, which lists it by this. */
   key: string;
+  /** Its Movie or Show, as `movie/<id>` or `show/<id>`, which the Hub lists once across Servers. */
+  titleId: string;
   link: LinkOptions;
   backdrop: {
     url: string | undefined;
@@ -70,6 +72,7 @@ function movieCard(library: bigint, movie: Movie): Card[] {
   return [
     {
       key: `${libraryId}/${movieId}`,
+      titleId: `movie/${movieId}`,
       page: {
         label: "Go to Movie",
         link: { to: "/libraries/$libraryId/movies/$movieId", params: { libraryId, movieId } },
@@ -106,6 +109,7 @@ function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
   return [
     {
       key: `${libraryId}/${showId}/${season}/${number}`,
+      titleId: `show/${showId}`,
       page: {
         label: "Go to Show",
         link: { to: "/libraries/$libraryId/shows/$showId", params: { libraryId, showId } },
