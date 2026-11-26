@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { CodeWaiting } from "@/features/auth/components/code-waiting";
 
-export const Route = createFileRoute("/_signed-out/sign-in/code/waiting")({
+export const Route = createFileRoute("/_signed-out/sign-in/_server/code/waiting")({
   beforeLoad: ({ location, search }) => {
     const shown = location.state.waitingCode;
     if (shown === undefined) {
