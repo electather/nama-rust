@@ -1,10 +1,10 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use nama_pdk::{
-    ImportAsked, LinkPolled, PollLinkAsked, ScrobbleAsked, SettingKind, StartLinkAsked,
+    ImportAsked, Imported, LinkPolled, PollLinkAsked, ScrobbleAsked, SettingKind, StartLinkAsked,
     SyncedWatchState, TitleId, WatchSync,
     extism_pdk::{
-        Error,
+        Error, HttpRequest,
         json::{self, Value, json},
     },
     nama_plugin_proto::nama::plugin::v1::TitleRefKind,
@@ -28,12 +28,25 @@ fn shared(fake: FakeTrakt) -> Rc<RefCell<FakeTrakt>> {
 
 /// The Admin's app settings, the Store granted, and `fake` answering every request.
 fn kernel(fake: &Rc<RefCell<FakeTrakt>>) -> Kernel {
+    kernel_failing(fake, |_request| false)
+}
+
+/// As [`kernel`], but Trakt answers each request `fails` picks with a 500.
+fn kernel_failing(
+    fake: &Rc<RefCell<FakeTrakt>>,
+    fails: impl Fn(&HttpRequest) -> bool + 'static,
+) -> Kernel {
     let fake = Rc::clone(fake);
     Kernel::new()
         .setting("client_id", CLIENT_ID)
         .setting("client_secret", CLIENT_SECRET)
         .store()
-        .http(move |request, body| Ok(fake.borrow_mut().answer(request, body)))
+        .http(move |request, body| {
+            if fails(request) {
+                return Ok(nama_pdk::Response::new(500, ""));
+            }
+            Ok(fake.borrow_mut().answer(request, body))
+        })
 }
 
 /// The Personal settings linking `fake`'s account gave.
@@ -240,6 +253,102 @@ fn a_refused_refresh_token_asks_the_user_to_link_again() {
     );
 }
 
+/// Ada's import since `since`, their access token having expired, with `kernel` answering.
+fn imported_renewing(kernel: &mut Kernel, fake: &Rc<RefCell<FakeTrakt>>, since: &str) -> Imported {
+    let asked = ImportAsked {
+        personal_settings: linked(fake),
+        user_id: ADA,
+        since: since.to_owned(),
+        ..ImportAsked::default()
+    };
+    fake.borrow_mut().expire_access_token();
+    with(kernel, || Trakt::import(asked)).unwrap()
+}
+
+#[test]
+fn a_retry_failing_after_renewing_imports_nothing_but_hands_back_the_tokens() {
+    let fake = shared(FakeTrakt::linked());
+    let mut kernel = kernel_failing(&fake, |request| {
+        request.headers.get("Authorization").map(String::as_str) == Some("Bearer access-2")
+    });
+
+    let imported = imported_renewing(&mut kernel, &fake, "2026-11-01T00:00:00.000Z");
+
+    assert_eq!(
+        asked(&kernel),
+        [
+            "GET /sync/last_activities",
+            "POST /oauth/token",
+            "GET /sync/last_activities",
+        ]
+    );
+    assert_eq!(imported.changes, []);
+    assert_eq!(imported.cursor, "2026-11-01T00:00:00.000Z");
+    let renewed: HashMap<_, _> = imported.personal_settings.into_iter().collect();
+    assert_eq!(renewed, tokens("access-2", "refresh-2"));
+}
+
+#[test]
+fn a_removal_failing_after_renewing_still_hands_back_the_renewed_tokens() {
+    let fake = shared(FakeTrakt::linked());
+    let mut kernel = kernel_failing(&fake, |request| {
+        request.url.ends_with("/sync/history/remove")
+    });
+    let scrobble = ScrobbleAsked {
+        personal_settings: linked(&fake),
+        user_id: ADA,
+        changes: vec![
+            movie(&[("tmdb", "438631")], true),
+            movie(&[("tmdb", "329865")], false),
+        ],
+        ..ScrobbleAsked::default()
+    };
+    fake.borrow_mut().expire_access_token();
+
+    let scrobbled = with(&mut kernel, || Trakt::scrobble(scrobble)).unwrap();
+
+    assert_eq!(
+        asked(&kernel),
+        [
+            "POST /sync/history",
+            "POST /oauth/token",
+            "POST /sync/history",
+            "POST /sync/history/remove",
+        ]
+    );
+    let renewed: HashMap<_, _> = scrobbled.personal_settings.into_iter().collect();
+    assert_eq!(renewed, tokens("access-2", "refresh-2"));
+}
+
+#[test]
+fn a_later_history_page_failing_after_renewing_imports_nothing_but_hands_back_the_tokens() {
+    let fake = shared(FakeTrakt::linked());
+    {
+        let mut fake = fake.borrow_mut();
+        fake.page_size = 1;
+        fake.watch("movie", &json!({ "tmdb": 1 }), "2026-11-02T10:00:00.000Z");
+        fake.watch("movie", &json!({ "tmdb": 2 }), "2026-11-03T10:00:00.000Z");
+    }
+    let mut kernel = kernel_failing(&fake, |request| request.url.contains("page=2"));
+
+    let imported = imported_renewing(&mut kernel, &fake, "2026-11-01T00:00:00.000Z");
+
+    assert_eq!(
+        asked(&kernel),
+        [
+            "GET /sync/last_activities",
+            "POST /oauth/token",
+            "GET /sync/last_activities",
+            "GET /sync/history",
+            "GET /sync/history",
+        ]
+    );
+    assert_eq!(imported.changes, []);
+    assert_eq!(imported.cursor, "2026-11-01T00:00:00.000Z");
+    let renewed: HashMap<_, _> = imported.personal_settings.into_iter().collect();
+    assert_eq!(renewed, tokens("access-2", "refresh-2"));
+}
+
 #[test]
 fn a_played_movie_and_episode_go_to_the_history_as_of_when_they_were_played() {
     let fake = shared(FakeTrakt::linked());
@@ -353,17 +462,9 @@ fn a_title_marked_unplayed_leaves_the_history_and_a_later_play_is_added_again() 
 #[test]
 fn a_failed_removal_still_keeps_the_play_added_beside_it() {
     let fake = shared(FakeTrakt::linked());
-    let answering = Rc::clone(&fake);
-    let mut kernel = Kernel::new()
-        .setting("client_id", CLIENT_ID)
-        .setting("client_secret", CLIENT_SECRET)
-        .store()
-        .http(move |request, body| {
-            if request.url.ends_with("/sync/history/remove") {
-                return Ok(nama_pdk::Response::new(500, ""));
-            }
-            Ok(answering.borrow_mut().answer(request, body))
-        });
+    let mut kernel = kernel_failing(&fake, |request| {
+        request.url.ends_with("/sync/history/remove")
+    });
     let dune = &[("tmdb", "438631")];
     let reported_again = SyncedWatchState {
         changed_at_ms: EVENING_MS + 10_000,

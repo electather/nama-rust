@@ -113,28 +113,12 @@ struct Trakt;
 
 impl WatchSync for Trakt {
     /// Adds each newly played title to the User's Trakt history as of when it was played, and
-    /// removes each one marked unplayed. Position reports of an unplayed title are skipped.
+    /// removes each one marked unplayed. Position reports of an unplayed title are skipped. A
+    /// failure after renewing the User's tokens is logged, not returned, so the tokens are kept.
     fn scrobble(asked: ScrobbleAsked) -> Result<Scrobbled, Error> {
         let mut account = Account::of(&asked.personal_settings)?;
-        let mut plays = Plays::kept(asked.user_id)?;
-        let (mut watched, mut unwatched) = (History::default(), History::default());
-        for change in &asked.changes {
-            // The contract marks a title unplayed at 0 of 0; any other unplayed change is a
-            // position report.
-            let marked_unplayed =
-                !change.played && change.position_ms == 0 && change.duration_ms == 0;
-            if change.played && plays.is_new(change) {
-                watched.add(change, rfc3339(change.changed_at_ms));
-            } else if marked_unplayed {
-                plays.forget(change);
-                unwatched.add(change, None);
-            }
-        }
-        account.post_history("/sync/history", &watched)?;
-        // Kept before removing, so a failed removal doesn't make the next report add the plays
-        // just added again.
-        plays.keep(asked.user_id)?;
-        account.post_history("/sync/history/remove", &unwatched)?;
+        let sent = send_changes(&mut account, &asked);
+        account.forgiven_if_renewed(sent)?;
         Ok(Scrobbled {
             personal_settings: account.renewed(),
             ..Scrobbled::default()
@@ -147,16 +131,14 @@ impl WatchSync for Trakt {
     /// when they were watched, so one added there dated before the cursor doesn't either.
     fn import(asked: ImportAsked) -> Result<Imported, Error> {
         let mut account = Account::of(&asked.personal_settings)?;
-        let activities: LastActivities =
-            account.send("GET", "/sync/last_activities", None)?.json()?;
-        let changes = if activities.all == asked.since {
-            Vec::new()
-        } else {
-            account.history_since(asked.since.parse().ok())?
-        };
+        let imported = import_since(&mut account, &asked.since);
+        // Failing after a renewal imports nothing and keeps the cursor, so the next import redoes
+        // it.
+        let (changes, cursor) =
+            (account.forgiven_if_renewed(imported)?).unwrap_or_else(|| (Vec::new(), asked.since));
         Ok(Imported {
             changes,
-            cursor: activities.all,
+            cursor,
             personal_settings: account.renewed(),
             ..Imported::default()
         })
@@ -201,6 +183,42 @@ impl WatchSync for Trakt {
             }
         }
     }
+}
+
+/// [`Trakt::scrobble`]'s asks to Trakt, once it knows the User's account.
+fn send_changes(account: &mut Account, asked: &ScrobbleAsked) -> Result<(), Error> {
+    let mut plays = Plays::kept(asked.user_id)?;
+    let (mut watched, mut unwatched) = (History::default(), History::default());
+    for change in &asked.changes {
+        // The contract marks a title unplayed at 0 of 0; any other unplayed change is a position
+        // report.
+        let marked_unplayed = !change.played && change.position_ms == 0 && change.duration_ms == 0;
+        if change.played && plays.is_new(change) {
+            watched.add(change, rfc3339(change.changed_at_ms));
+        } else if marked_unplayed {
+            plays.forget(change);
+            unwatched.add(change, None);
+        }
+    }
+    account.post_history("/sync/history", &watched)?;
+    // Kept before removing, so a failed removal doesn't make the next report add the plays just
+    // added again.
+    plays.keep(asked.user_id)?;
+    account.post_history("/sync/history/remove", &unwatched)
+}
+
+/// [`Trakt::import`]'s changes and cursor, once it knows the User's account.
+fn import_since(
+    account: &mut Account,
+    since: &str,
+) -> Result<(Vec<SyncedWatchState>, String), Error> {
+    let activities: LastActivities = account.send("GET", "/sync/last_activities", None)?.json()?;
+    let changes = if activities.all == since {
+        Vec::new()
+    } else {
+        account.history_since(since.parse().ok())?
+    };
+    Ok((changes, activities.all))
 }
 
 /// A request to Trakt's API at `path`, naming the Admin's app.
@@ -264,8 +282,6 @@ impl Account {
     }
 
     /// Trades the refresh token for new tokens, which the call's answer hands back to keep.
-    // A call that fails after renewing loses them, as a failure carries no answer, and the User
-    // links again.
     fn refresh(&mut self) -> Result<(), Error> {
         let body = json!({
             "refresh_token": self.tokens.refresh_token,
@@ -285,6 +301,22 @@ impl Account {
         self.tokens = TRAKT.accepted(answer)?.json()?;
         self.renewed = true;
         Ok(())
+    }
+
+    /// `outcome`'s value, or `None` when it failed after the call renewed the tokens, logging the
+    /// failure instead.
+    // A failure carries no answer to hand the renewed tokens back in, and Trakt already spent the
+    // old refresh token, so failing would make the User link again.
+    fn forgiven_if_renewed<T>(&self, outcome: Result<T, Error>) -> Result<Option<T>, Error> {
+        match outcome {
+            Err(error) if self.renewed => {
+                nama_pdk::warn!(
+                    "Trakt failed after renewing a User's tokens, which are kept: {error}"
+                );
+                Ok(None)
+            }
+            outcome => outcome.map(Some),
+        }
     }
 
     /// The tokens the call renewed, by Personal setting key, or none.
