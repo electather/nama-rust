@@ -27,6 +27,16 @@ fn a_server_address_a_browser_opens_is_one_the_hub_admits() {
 }
 
 #[test]
+fn an_address_without_slashes_after_its_scheme_is_refused_as_a_hub_page_reads_it_as_a_path() {
+    assert!(
+        Url::parse("https:nama.example").is_ok_and(|url| url.host_str() == Some("nama.example"))
+    );
+    assert!(!is_address("https:nama.example"));
+    assert!(!is_address("https:/nama.example"));
+    assert!(!is_on_server("https:nama.example/sign-in", ADDRESSES));
+}
+
+#[test]
 fn a_return_address_is_on_a_server_address_by_scheme_host_and_port() {
     assert!(is_on_server("https://nama.example/sign-in?a=b", ADDRESSES));
     assert!(is_on_server("https://NAMA.example:443/sign-in", ADDRESSES));

@@ -224,12 +224,11 @@ fn is_address(address: &str) -> bool {
 /// that finishes the sign-in, so an address anyone else chose would hand it to them, and any other
 /// scheme, such as `javascript:`, would run on the Hub's origin.
 fn is_on_server<'a>(url: &str, addresses: impl IntoIterator<Item = &'a str>) -> bool {
-    let Ok(parsed) = Url::parse(url) else {
-        return false;
-    };
     is_web_url(url)
-        && addresses.into_iter().any(|address| {
-            Url::parse(address).is_ok_and(|address| address.origin() == parsed.origin())
+        && Url::parse(url).is_ok_and(|parsed| {
+            addresses.into_iter().any(|address| {
+                Url::parse(address).is_ok_and(|address| address.origin() == parsed.origin())
+            })
         })
 }
 
@@ -240,10 +239,17 @@ pub(super) fn is_web_url(url: &str) -> bool {
     url.len() <= RETURN_ADDRESS_LENGTH && is_http(url)
 }
 
-/// Whether `url` is an absolute `http` or `https` URL with a host, as a browser reads it.
+/// Whether `url` is an absolute `http` or `https` URL with a host, as a browser reads it. It needs
+/// `://` after its scheme: alone `https:nama.example` parses as `https://nama.example/`, but a link
+/// to it on one of the Hub's `https` pages goes to a path on the Hub.
 fn is_http(url: &str) -> bool {
-    Url::parse(url)
-        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
+    Url::parse(url).is_ok_and(|parsed| {
+        matches!(parsed.scheme(), "http" | "https")
+            && parsed.host().is_some()
+            && url
+                .split_once("://")
+                .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case(parsed.scheme()))
+    })
 }
 
 #[cfg(test)]

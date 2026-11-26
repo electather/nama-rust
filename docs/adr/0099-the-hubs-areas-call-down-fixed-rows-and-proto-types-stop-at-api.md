@@ -16,7 +16,7 @@ The rows, highest first:
 3. `sync`, `viewing`
 4. `links`
 5. `accounts`, `titles`
-6. `signing`, `mail`, `web`, `db`, `config`
+6. `signing`, `probe`, `mail`, `web`, `db`, `config`
 
 Where a request came from, through trusted proxies only (ADR 0018), is the `nama-forwarded` crate, which the Server shares. `lib` and `main` start the Hub, run its subcommands and schedule its periodic work, and may call any row. Each area arrives with the first ticket that needs it.
 

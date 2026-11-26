@@ -18,7 +18,7 @@ pub trait Probe: Send + Sync {
     fn reaches(&self, public: SocketAddr) -> Probing<'_>;
 }
 
-/// Tries a port with a TCP connection within 5 seconds, and sends nothing on it.
+/// Tries a port with a TCP connection within `REACH_WITHIN`, and sends nothing on it.
 // ponytail: a connection shows only that something listens there; check that it is this Server,
 // over TLS to its name (#1830), in this adapter rather than beside it.
 #[derive(Debug)]
