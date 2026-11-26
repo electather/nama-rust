@@ -181,7 +181,7 @@ impl Accounts {
         session: &AccountSession,
     ) -> Result<Vec<ListedSession>, sqlx::Error> {
         let listed = sqlx::query!(
-            r#"SELECT id, user_agent, extract(epoch FROM last_used_at)::bigint AS "last_used_at!"
+            r#"SELECT id, user_agent, floor(extract(epoch FROM last_used_at))::bigint AS "last_used_at!"
              FROM account_sessions
              WHERE account_id = $1 AND created_at > now() - make_interval(days => $2)
              ORDER BY id = $3 DESC, last_used_at DESC, id"#,
