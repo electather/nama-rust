@@ -50,6 +50,13 @@ fn title_ids(ids: &[(&str, &str)]) -> Vec<TitleId> {
         .collect()
 }
 
+/// `ids` as `namespace-value`, to compare them at a glance.
+fn id_strings(ids: &[TitleId]) -> Vec<String> {
+    (ids.iter())
+        .map(|id| format!("{}-{}", id.namespace, id.value))
+        .collect()
+}
+
 fn change(kind: TitleRefKind, ids: &[(&str, &str)], played: bool) -> SyncedWatchState {
     SyncedWatchState {
         kind: kind.into(),
@@ -355,12 +362,8 @@ fn the_first_import_brings_everything_watched_and_later_ones_what_changed_since(
     let ids = |changes: &[SyncedWatchState]| -> Vec<(bool, Vec<String>, i64)> {
         (changes.iter())
             .map(|change| {
-                let ids = change
-                    .ids
-                    .iter()
-                    .map(|id| format!("{}-{}", id.namespace, id.value));
                 let episode = change.kind == TitleRefKind::TITLE_REF_KIND_EPISODE;
-                (episode, ids.collect(), change.changed_at_ms)
+                (episode, id_strings(&change.ids), change.changed_at_ms)
             })
             .collect()
     };
@@ -415,16 +418,75 @@ fn an_import_tells_each_episode_by_its_shows_ids_season_and_number() {
     let [change] = &changes[..] else {
         panic!("imported {changes:?}");
     };
-    let show_ids: Vec<String> = (change.show_ids.iter())
-        .map(|id| format!("{}-{}", id.namespace, id.value))
-        .collect();
-    assert_eq!(show_ids, ["tmdb-1399", "tvdb-121361"]);
+    assert_eq!(id_strings(&change.show_ids), ["tmdb-1399", "tvdb-121361"]);
     assert_eq!(
         (change.season_number, change.episode_number),
         (Some(2), Some(3))
     );
     assert_eq!(change.ids, []);
     assert_eq!(change.kind, TitleRefKind::TITLE_REF_KIND_EPISODE);
+}
+
+#[test]
+fn episodes_marked_by_their_shows_numbers_or_their_tvdb_id_round_trip_through_simkl() {
+    let fake = shared(FakeSimkl::new());
+    let mut kernel = kernel(&fake);
+    let numbered = |show, season, number, played| SyncedWatchState {
+        show_ids: title_ids(&[("tmdb", show)]),
+        season_number: Some(season),
+        episode_number: Some(number),
+        ..episode(&[("tmdb", &format!("{show}{season}{number}"))], played)
+    };
+    let by_tvdb = |played| episode(&[("tvdb", "349232")], played);
+    let listed = |changes: Vec<SyncedWatchState>| {
+        (changes.iter())
+            .map(|change| {
+                let (show, ids) = (id_strings(&change.show_ids), id_strings(&change.ids));
+                (show, change.season_number, change.episode_number, ids)
+            })
+            .collect::<Vec<_>>()
+    };
+
+    scrobbled(
+        &mut kernel,
+        vec![
+            numbered("1399", 1, 2, true),
+            numbered("1399", 1, 3, true),
+            numbered("1399", 2, 2, true),
+            numbered("1400", 1, 2, true),
+            by_tvdb(true),
+        ],
+    )
+    .unwrap();
+    let (all_watched, _) = imported(&mut kernel, "").unwrap();
+    scrobbled(
+        &mut kernel,
+        vec![numbered("1399", 1, 2, false), by_tvdb(false)],
+    )
+    .unwrap();
+    let (left, _) = imported(&mut kernel, "").unwrap();
+
+    let show = |id: &str| vec![format!("tmdb-{id}")];
+    // The fake lists a TVDB-id Episode under a Show of Simkl's own id, which the Kernel doesn't
+    // keep.
+    assert_eq!(
+        listed(all_watched),
+        [
+            (vec![], Some(1), Some(1), vec!["tvdb-349232".to_owned()]),
+            (show("1399"), Some(1), Some(2), vec![]),
+            (show("1399"), Some(1), Some(3), vec![]),
+            (show("1399"), Some(2), Some(2), vec![]),
+            (show("1400"), Some(1), Some(2), vec![]),
+        ]
+    );
+    assert_eq!(
+        listed(left),
+        [
+            (show("1399"), Some(1), Some(3), vec![]),
+            (show("1399"), Some(2), Some(2), vec![]),
+            (show("1400"), Some(1), Some(2), vec![]),
+        ]
+    );
 }
 
 #[test]
