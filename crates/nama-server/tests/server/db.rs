@@ -579,3 +579,44 @@ async fn upgrading_to_device_users_keeps_each_device_signed_in_as_its_user() {
     );
     assert_eq!(signed_in, [(3, 1, Some(5), 15), (4, 1, None, 0)]);
 }
+
+/// The version of the migration that adds `content_rating` to Requests and Followed Shows.
+const REQUEST_CONTENT_RATINGS: i64 = 20_261_126_172_407;
+
+#[tokio::test]
+async fn upgrading_to_request_content_ratings_leaves_each_existing_request_and_followed_show_unrated()
+ {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = migrations
+        .iter()
+        .map(|m| m.version)
+        .filter(|&version| version < REQUEST_CONTENT_RATINGS)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO followed_shows (id, show_id, title, state, created_at)
+         VALUES (7, 'tmdb-70523', 'Dark', 'pending', 0);
+         INSERT INTO requests (id, title_id, title, state, created_at)
+         VALUES (1, 'tmdb-348', 'Alien', 'pending', 0);",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let ratings: Vec<Option<String>> = sqlx::query_scalar(
+        "SELECT content_rating FROM requests UNION ALL SELECT content_rating FROM followed_shows",
+    )
+    .fetch_all(db.reader())
+    .await
+    .unwrap();
+    db.close().await;
+
+    assert_eq!(ratings, [None, None]);
+}

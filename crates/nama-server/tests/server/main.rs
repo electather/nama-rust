@@ -66,6 +66,7 @@ mod plugin_settings;
 mod plugins;
 mod preview_frames;
 mod recognisers;
+mod request_maximum_age;
 mod requests;
 mod resized_images;
 mod search;

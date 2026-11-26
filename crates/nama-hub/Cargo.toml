@@ -16,7 +16,7 @@ features = ["web"]
 [features]
 # Embeds the built web app (`web/dist`, from `vp build` in web/) and serves it (ADR 0105). Off
 # by default so builds and tests need no Node; release builds turn it on.
-web = ["dep:tower", "dep:tower-http"]
+web = ["dep:nama-web"]
 
 [dependencies]
 argon2 = "0.6"
@@ -30,6 +30,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
 nama-forwarded = { version = "0.1.0", path = "../nama-forwarded" }
 nama-hub-proto = { version = "0.1.0", path = "../nama-hub-proto" }
+nama-web = { version = "0.1.0", path = "../nama-web", features = ["embed"], optional = true }
 # Diagnostics (ADR 0054), as the Server's: traces and logs exported over OTLP/HTTP only when an
 # endpoint is set.
 opentelemetry = { version = "0.33.1", default-features = false, features = ["trace"] }
@@ -49,8 +50,6 @@ sha2 = "0.11"
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "sqlx-toml", "tls-rustls-ring-webpki", "uuid"] }
 thiserror = "2"
 tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
-tower = { version = "0.5", default-features = false, features = ["util"], optional = true }
-tower-http = { version = "0.7.1", default-features = false, features = ["compression-br", "compression-gzip"], optional = true }
 tracing = "0.1"
 tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -63,6 +62,7 @@ connectrpc = { version = "0.9.1", features = ["client"] }
 figment = { version = "0.10", features = ["test"] }
 nama-structure = { path = "../nama-structure" }
 tokio = { version = "1", features = ["sync", "time"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
 
 [lints]
 workspace = true

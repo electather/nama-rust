@@ -8,7 +8,7 @@ import {
   section,
 } from "@/features/action-bar/lib/rows";
 import { shortcutGroups } from "@/features/action-bar/lib/shortcuts";
-import type { Found, FoundTitle } from "@/features/action-bar/lib/titles";
+import type { Found, FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { modKey } from "@/shared/lib/mod-key";
@@ -32,7 +32,7 @@ export interface BarActions {
   go: (page: Page) => void;
   open: (title: FoundTitle) => void;
   openLibrary: (library: Library) => void;
-  openPerson: (personId: string) => void;
+  openPerson: (person: FoundPerson) => void;
   retry: () => void;
 }
 

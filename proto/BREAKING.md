@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
+## 2026-11-26, #2330, nama.v1
+
+- `ENUM_VALUE_NO_DELETE`, `nama/v1/plugin.proto`: `ExtensionPoint.EXTENSION_POINT_SERVER_LINKER` (17), deleted with its number and name reserved.
+- The ServerLinker Extension Point is gone since #2222: the Server Links itself with the Hub its config names, and no Server reports 17 in `PluginSummary.extension_points` or `ExtensionPointFailure.point`.
+- A client built before still knows 17 but never receives it, so it keeps working unchanged; regenerating only drops the name. The web app is the only client.
+
 ## 2026-11-26, #2281, nama.v1
 
 - `ENUM_VALUE_NO_DELETE`, `nama/v1/plugin.proto`: `ExtensionPoint.EXTENSION_POINT_DIAGNOSTICS_SHARER` (18), deleted with its number and name reserved.

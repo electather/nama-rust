@@ -50,8 +50,8 @@ impl EventService for EventServiceHandler {
                 users.permissions_changed(caller.user.id, caller.user.permissions);
             let watched = users.library_access_watched(caller.user.id).await;
             let (libraries, library_access_changed) = watched.map_err(database_failed)?;
-            let events = events
-                .subscribe(&caller.user, libraries, filter)
+            let events = (events.subscribe(&caller.user, libraries, filter).await)
+                .map_err(database_failed)?
                 .take_until(signed_out)
                 .take_until(permissions_changed)
                 .take_until(library_access_changed);
