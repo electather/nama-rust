@@ -255,6 +255,7 @@ pub(super) async fn follow(
         events: happened,
         hand_off: seasons.hand_off,
         unfollow: None,
+        removed: Vec::new(),
     })
 }
 
@@ -391,6 +392,7 @@ pub(super) async fn decide_followed(
         events,
         hand_off,
         unfollow: None,
+        removed: Vec::new(),
     })
 }
 
@@ -427,15 +429,14 @@ async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Applied
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
     let followed_season = followed_season(conn, id).await?;
-    sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
-        .execute(&mut *conn)
-        .await?;
+    let removed = asked::remove(conn, Asked::FollowedShow, id).await?;
     let cancelled = event(FollowedShowCancelled {
         followed_show: followed.into(),
         ..Default::default()
     });
     Ok(Applied {
         unfollow: followed_season,
+        removed: vec![removed],
         ..Applied::saying((), cancelled)
     })
 }
@@ -476,14 +477,14 @@ async fn withdraw_followed(
         &followed.requesters
     })?;
     let followed_season = followed_season(conn, id).await?;
-    let was_last = asked::leave(conn, Asked::FollowedShow, id, user).await?;
-    if was_last {
+    if let Some(removed) = asked::leave(conn, Asked::FollowedShow, id, user).await? {
         let withdrawn = event(FollowedShowWithdrawn {
             followed_show: followed.into(),
             ..Default::default()
         });
         return Ok(Applied {
             unfollow: followed_season,
+            removed: vec![removed],
             ..Applied::saying((), withdrawn)
         });
     }

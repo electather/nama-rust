@@ -3,7 +3,7 @@
 //! titles, over a real socket with the fake TMDB, which rates Alien R and Dark TV-MA and gives
 //! Heat and Dune no US rating.
 
-use crate::support::{http, refused, server};
+use crate::support::{http, maximum_age::set_maximum_age, refused, server};
 
 use std::time::{Duration, Instant};
 
@@ -16,9 +16,9 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, ExternalId, GetMovieRequest,
     GetShowRequest, GetUnmatchedVersionRequest, HomeRowTitle, LibraryKind, LibraryServiceClient,
     ListContinueWatchingRequest, ListEpisodesRequest, ListHomeRowTitlesRequest, ListMoviesRequest,
-    ListShowsRequest, ListUnmatchedRequest, ListUsersRequest, LookUpMovieRequest, MaximumAge,
-    Permission, PlanPlaybackRequest, PlaybackServiceClient, RefusalReason, ReportProgressRequest,
-    RequestServiceClient, SetMaximumAgeRequest, UserServiceClient, WatchStateServiceClient,
+    ListShowsRequest, ListUnmatchedRequest, ListUsersRequest, LookUpMovieRequest, Permission,
+    PlanPlaybackRequest, PlaybackServiceClient, RefusalReason, ReportProgressRequest,
+    RequestServiceClient, UserServiceClient, WatchStateServiceClient,
     continue_watching_entry::MovieOrEpisode, home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
@@ -115,27 +115,6 @@ impl Fixture {
         let movie = self.movie(&admin, tmdb).await.unwrap().movie.into_option();
         movie.unwrap().versions.first().unwrap().id
     }
-}
-
-/// Has `by` give the User `user` the Maximum Age `max`, an age and whether unrated titles reach
-/// them, or none if it's `None`.
-async fn set_maximum_age(
-    by: &ClientConfig,
-    user: i64,
-    max: Option<(u32, bool)>,
-) -> Result<(), ConnectError> {
-    let users = UserServiceClient::new(HttpClient::plaintext(), by.clone());
-    let maximum_age = max.map(|(age, allow_unrated)| MaximumAge {
-        age,
-        allow_unrated,
-        ..Default::default()
-    });
-    let request = SetMaximumAgeRequest {
-        user_id: user,
-        maximum_age: maximum_age.into(),
-        ..Default::default()
-    };
-    users.set_maximum_age(request).await.map(drop)
 }
 
 fn browse(who: &ClientConfig) -> BrowseServiceClient<HttpClient> {

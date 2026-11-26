@@ -3,6 +3,7 @@ use std::sync::Arc;
 use nama_proto::nama::v1::{PageRequest, Permission, RequestState, request::MovieOrSeason};
 
 use crate::{
+    content_ratings::MaximumAge,
     plugins::ExtensionPoints,
     requests::{
         Requests,
@@ -12,7 +13,7 @@ use crate::{
             user,
         },
     },
-    users::{Permissions, User},
+    users::{Permissions, User, Users},
 };
 
 #[tokio::test]
@@ -108,21 +109,14 @@ async fn a_capped_viewer_pages_and_counts_only_others_requests_their_maximum_age
     };
     follow_as(&db, ADA, dark, RequestState::Pending).await;
     let bob = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
+    let users = Users::new(Arc::clone(&db), ExtensionPoints::default());
     let caps = [(None, false), (Some(13), false), (Some(13), true)];
 
     let mut seen = Vec::new();
     for (age, allow_unrated) in caps {
-        db.write(move |tx| {
-            Box::pin(
-                sqlx::query("UPDATE users SET max_age = ?, allow_unrated = ? WHERE id = ?")
-                    .bind(age)
-                    .bind(allow_unrated)
-                    .bind(BOB)
-                    .execute(&mut **tx),
-            )
-        })
-        .await
-        .unwrap();
+        let cap = MaximumAge { age, allow_unrated };
+        let admin = ada(Permissions::ADMIN);
+        users.set_maximum_age(&admin, BOB, cap).await.unwrap();
         seen.push(listed_one_at_a_time(&requests, &bob).await);
     }
 

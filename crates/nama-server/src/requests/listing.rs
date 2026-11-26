@@ -138,7 +138,7 @@ impl Requests {
         // each for Requests and Followed Shows if pages get slow.
         for row in rows {
             if row.is_request {
-                let request = self.visible(&mut tx, Some(row.id), viewer).await?;
+                let request = (self.visible_under(&mut tx, Some(row.id), viewer, max_age)).await?;
                 listed.requests.extend(request);
             } else {
                 let followed = load_followed(&mut tx, Some(row.id), None).await?;
@@ -157,24 +157,14 @@ impl Requests {
         count(&mut tx, &seen, Some(stored(RequestState::Pending))).await
     }
 
-    /// The Request `id`, if `viewer` may see it, as [`Self::list`] would list it to them.
+    /// The Request `id`, if `viewer` may see it.
     pub(crate) async fn get(&self, viewer: &User, id: i64) -> Result<Request, Error> {
-        let max_age = maximum_age(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
-        let no_such = || Error::NoSuch(Asked::Request, id);
-        let found = self.visible(&mut conn, Some(id), viewer).await?.pop();
-        let request = found.ok_or_else(no_such)?;
-        if max_age.lets_every_title() || is_requester(viewer.id, &request.requesters) {
-            return Ok(request);
-        }
-        let rating = sqlx::query_scalar!("SELECT content_rating FROM requests WHERE id = ?", id)
-            .fetch_optional(&mut *conn)
-            .await?;
-        if max_age.allows(rating.flatten().as_deref()) {
-            Ok(request)
-        } else {
-            Err(no_such())
-        }
+        let found = self.visible(&mut conn, Some(id), viewer).await?;
+        found
+            .into_iter()
+            .next()
+            .ok_or(Error::NoSuch(Asked::Request, id))
     }
 
     /// The open Request for the Movie `title`, or for its Season `season` if `title` is a Show's,
@@ -234,19 +224,56 @@ impl Requests {
     /// The Requests `viewer` may see, newest first, only the one with the ID `id` if given, each
     /// with what its Fulfiller is downloading for it.
     ///
-    /// The one read of a Request for a viewer, so none misses its downloads.
+    /// The one read of a Request for a viewer, so none misses its downloads or the viewer's
+    /// Maximum Age.
     async fn visible(
         &self,
         conn: &mut SqliteConnection,
         id: Option<i64>,
         viewer: &User,
     ) -> Result<Vec<Request>, sqlx::Error> {
-        let requests = load(conn, id, viewer.whose_requests()).await?;
-        Ok(requests
-            .into_iter()
-            .map(|request| self.progress.attach(request))
-            .collect())
+        let max_age = maximum_age(&self.db, viewer.id).await?;
+        self.visible_under(conn, id, viewer, max_age).await
     }
+
+    /// [`Self::visible`], for a viewer whose Maximum Age is `max_age`.
+    async fn visible_under(
+        &self,
+        conn: &mut SqliteConnection,
+        id: Option<i64>,
+        viewer: &User,
+        max_age: MaximumAge,
+    ) -> Result<Vec<Request>, sqlx::Error> {
+        let mut visible = Vec::new();
+        for request in load(conn, id, viewer.whose_requests()).await? {
+            if title_seen(conn, viewer, max_age, &request).await? {
+                visible.push(self.progress.attach(request));
+            }
+        }
+        Ok(visible)
+    }
+}
+
+/// Whether `viewer`, whose Maximum Age is `max_age`, sees the title of `request`: theirs whatever
+/// its stored Content Rating, as they asked while it let them, another's only if that rating
+/// passes (#1414), as [`listed_sql!`] asks it.
+async fn title_seen(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    max_age: MaximumAge,
+    request: &Request,
+) -> Result<bool, sqlx::Error> {
+    if max_age.lets_every_title() || is_requester(viewer.id, &request.requesters) {
+        return Ok(true);
+    }
+    let rating = sqlx::query_scalar!(
+        "SELECT content_rating FROM requests WHERE id = ?",
+        request.id
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    // Gone since it was loaded, so not there to see.
+    Ok(rating.is_some_and(|rating| max_age.allows(rating.as_deref())))
 }
 
 /// A row of [`Requests::list`], before it is read in full.

@@ -9,7 +9,10 @@
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
 //! place.
 
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+};
 
 use futures_util::{Stream, StreamExt, stream};
 use nama_plugin_api::{
@@ -64,6 +67,34 @@ pub(crate) struct EventBus {
     /// The one task that stores personal notifications in inboxes, so they are stored in the
     /// order they were published, and pushes them to their Users' browsers.
     inboxes: Arc<Mutex<Inboxes>>,
+    /// The Requests and Followed Shows removed last, oldest first, [`BUFFERED`] at most. Each
+    /// removal publishes an event after it, so an event about one removed before those is one
+    /// every subscriber has read or lagged past. Their ids are never reused (`AUTOINCREMENT`), so
+    /// a rating kept here is never another row's.
+    removed: Arc<Mutex<VecDeque<Removed>>>,
+}
+
+/// A Request or Followed Show, by id, whose title's Content Rating a Maximum Age judges events
+/// about it by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Rated {
+    Request(i64),
+    FollowedShow(i64),
+}
+
+/// A Request or Followed Show a write removes, with the Content Rating its row stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Removed {
+    pub(crate) row: Rated,
+    pub(crate) content_rating: Option<String>,
+}
+
+/// Where a subscriber reads the Content Rating of a Request's or Followed Show's title: its row,
+/// or once that is gone, what [`EventBus::removing`] kept of it.
+#[derive(Debug)]
+struct Ratings {
+    db: Arc<Database>,
+    removed: Arc<Mutex<VecDeque<Removed>>>,
 }
 
 /// The task that stores personal notifications in inboxes and pushes them, as
@@ -139,7 +170,18 @@ impl EventBus {
             server_url,
             closed: CancellationToken::new(),
             inboxes: Arc::default(),
+            removed: Arc::default(),
         }
+    }
+
+    /// Keeps the Content Rating of each of `removed`, which a write is removing, for subscribers
+    /// to judge events about them by once their rows are gone. Called inside that write, before it
+    /// commits, so no subscriber finds a row gone before its rating is kept here.
+    pub(crate) fn removing(&self, removed: Vec<Removed>) {
+        let mut kept = lock(&self.removed);
+        kept.extend(removed);
+        let over = kept.len().saturating_sub(BUFFERED);
+        kept.drain(..over);
     }
 
     /// Publishes `events`, in order, to each subscriber, and those of the kinds the Plugin contract
@@ -298,16 +340,19 @@ impl EventBus {
         filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
-        let db = Arc::clone(&self.db);
+        let ratings = Ratings {
+            db: Arc::clone(&self.db),
+            removed: Arc::clone(&self.removed),
+        };
         stream::unfold(
-            (receiver, viewer, filter, db),
-            |(mut receiver, viewer, filter, db)| async move {
-                let message = next_message(&mut receiver, &viewer, &filter, &db).await?;
+            (receiver, viewer, filter, ratings),
+            |(mut receiver, viewer, filter, ratings)| async move {
+                let message = next_message(&mut receiver, &viewer, &filter, &ratings).await?;
                 let response = SubscribeResponse {
                     message: Some(message),
                     ..Default::default()
                 };
-                Some((response, (receiver, viewer, filter, db)))
+                Some((response, (receiver, viewer, filter, ratings)))
             },
         )
         .take_until(self.closed.clone().cancelled_owned())
@@ -352,18 +397,18 @@ impl Filter {
 
 /// The next event from `receiver` that `viewer` may see and `filter` lets through, as `viewer`
 /// may see it, or a `Lagged` if events were dropped first. `None` once nothing more can be
-/// published. Reads the Content Ratings `viewer`'s Maximum Age asks for from `db`.
+/// published. Reads the Content Ratings `viewer`'s Maximum Age asks for from `ratings`.
 async fn next_message(
     receiver: &mut broadcast::Receiver<Event>,
     viewer: &Viewer,
     filter: &Filter,
-    db: &Database,
+    ratings: &Ratings,
 ) -> Option<subscribe_response::Message> {
     loop {
         match receiver.recv().await {
             Ok(event) if filter.lets_through(&event) => {
                 if let Some(seen) = viewer.sees(event)
-                    && viewer.allows_title_of(db, &seen).await
+                    && viewer.allows_title_of(ratings, &seen).await
                 {
                     return Some(seen.into());
                 }
@@ -599,44 +644,30 @@ impl Viewer {
     }
 
     /// Whether this viewer's Maximum Age lets `event` reach them: one about another User's Request
-    /// or Followed Show of a title over it doesn't, as their Request list leaves those out. One gone
-    /// from `db` by now, or that can't be read, logged, doesn't either: its title is unknown.
-    // ponytail: a cancelled or last-withdrawn row is deleted before its event is read, so a capped
-    // User misses that event even under their age, and their list keeps it until it reloads;
-    // publish the rating with the event if that bites.
-    async fn allows_title_of(&self, db: &Database, event: &Event) -> bool {
+    /// or Followed Show of a title over it doesn't, as their Request list leaves those out. One
+    /// whose rating can't be read, logged, doesn't either.
+    async fn allows_title_of(&self, ratings: &Ratings, event: &Event) -> bool {
         if self.max_age.lets_every_title() {
             return true;
         }
-        // The Request and Followed Show protos carry no Content Rating, so it's read from the row.
-        let rating = match classify(event) {
+        let row = match classify(event) {
             Some((_, About::Request(request)))
                 if !users::is_requester(self.user, &request.requesters) =>
             {
-                sqlx::query_scalar!(
-                    "SELECT content_rating FROM requests WHERE id = ?",
-                    request.id
-                )
-                .fetch_optional(db.reader())
-                .await
+                Rated::Request(request.id)
             }
             Some((_, About::FollowedShow(followed)))
                 if !users::is_requester(self.user, &followed.requesters) =>
             {
-                sqlx::query_scalar!(
-                    "SELECT content_rating FROM followed_shows WHERE id = ?",
-                    followed.id
-                )
-                .fetch_optional(db.reader())
-                .await
+                Rated::FollowedShow(followed.id)
             }
             _ => return true,
         };
-        match rating {
+        match ratings.of(row).await {
             Ok(Some(rating)) => self.max_age.allows(rating.as_deref()),
             Ok(None) => false,
             Err(err) => {
-                error!("could not read a Request's Content Rating for a subscriber: {err}");
+                error!("could not read the Content Rating of {row:?} for a subscriber: {err}");
                 false
             }
         }
@@ -662,6 +693,31 @@ impl Viewer {
             added.path.clear();
         }
         Some(event)
+    }
+}
+
+impl Ratings {
+    /// The Content Rating stored for `row`, `None` if neither its row nor
+    /// [`EventBus::removing`] has it any more.
+    async fn of(&self, row: Rated) -> Result<Option<Option<String>>, sqlx::Error> {
+        // The Request and Followed Show protos carry no Content Rating, so it's read from the row.
+        let stored = match row {
+            Rated::Request(id) => {
+                sqlx::query_scalar!("SELECT content_rating FROM requests WHERE id = ?", id)
+                    .fetch_optional(self.db.reader())
+                    .await?
+            }
+            Rated::FollowedShow(id) => {
+                sqlx::query_scalar!("SELECT content_rating FROM followed_shows WHERE id = ?", id)
+                    .fetch_optional(self.db.reader())
+                    .await?
+            }
+        };
+        Ok(stored.or_else(|| {
+            let kept = lock(&self.removed);
+            let found = kept.iter().rev().find(|removed| removed.row == row);
+            found.map(|removed| removed.content_rating.clone())
+        }))
     }
 }
 

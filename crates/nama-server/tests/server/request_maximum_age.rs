@@ -3,15 +3,14 @@
 //! TMDB, which rates Alien R (17) and Dark TV-MA (17) and gives Heat and Dune no US rating. Their
 //! own Requests reach them whatever their rating.
 
-use crate::support::server;
+use crate::support::{maximum_age::set_maximum_age, server};
 
 use std::collections::BTreeSet;
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    EventType, GetRequestRequest, ListRequestsRequest, MaximumAge, Request, RequestServiceClient,
-    RequestState, SetMaximumAgeRequest, UserServiceClient, WithdrawFollowedShowRequest, event,
-    request::MovieOrSeason,
+    CancelRequestRequest, EventType, GetRequestRequest, ListRequestsRequest, Request,
+    RequestServiceClient, RequestState, WithdrawFollowedShowRequest, event, request::MovieOrSeason,
 };
 use server::{
     SignedIn, Subscription, TestServer,
@@ -33,6 +32,10 @@ struct Fixture {
 }
 
 impl Fixture {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
     async fn start() -> Self {
         let server = TestServer::builder().tmdb().start().await;
         let hicks = server.user_with_default_permissions("Hicks").await;
@@ -44,9 +47,8 @@ impl Fixture {
                 .user_with_default_permissions(&format!("Viewer {n}"))
                 .await;
             dune = server.requests(&viewer).ask(DUNE).await.id;
-            if let Some((age, allow_unrated)) = cap {
-                set_maximum_age(&server, viewer.id, age, allow_unrated).await;
-            }
+            let admin = server.client_config();
+            (set_maximum_age(&admin, viewer.id, cap).await).unwrap();
             viewers.push((viewer, cap));
         }
         Self {
@@ -57,33 +59,16 @@ impl Fixture {
         }
     }
 
-    /// Hicks asks for Alien, follows Dark and asks for Heat, and the Admin declines Alien.
-    async fn hicks_asks(&self) {
+    /// Hicks asks for Alien, follows Dark and asks for Heat, and the Admin declines Alien. Returns
+    /// Heat's Request.
+    async fn hicks_asks(&self) -> Request {
         let hicks = self.server.requests(&self.hicks);
         let alien = hicks.ask(ALIEN).await;
         hicks.follow(DARK).await;
-        hicks.ask(HEAT).await;
+        let heat = hicks.ask(HEAT).await;
         self.server.decline(alien.id, "").await;
+        heat
     }
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn set_maximum_age(server: &TestServer, user: i64, age: u32, allow_unrated: bool) {
-    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    let request = SetMaximumAgeRequest {
-        user_id: user,
-        maximum_age: MaximumAge {
-            age,
-            allow_unrated,
-            ..Default::default()
-        }
-        .into(),
-        ..Default::default()
-    };
-    users.set_maximum_age(request).await.unwrap();
 }
 
 /// The title a Request asks for: the Movie's, or the Show's for a Season.
@@ -166,14 +151,15 @@ async fn request_events_reach_a_capped_user_only_for_titles_their_maximum_age_le
         EventType::EVENT_TYPE_FOLLOWED_SHOW_CREATED,
         EventType::EVENT_TYPE_REQUESTER_ADDED,
         EventType::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
+        EventType::EVENT_TYPE_REQUEST_CANCELLED,
     ];
     let mut subscriptions = Vec::new();
     for (viewer, _) in &fx.viewers {
         subscriptions.push(subscribe(&viewer.client_config(), &types).await);
     }
 
-    fx.hicks_asks().await;
-    // Gone once withdrawn, so to a capped viewer its title is unknown, even allowing unrated ones.
+    let heat = fx.hicks_asks().await;
+    // Each removed, so judged by the rating its row held.
     let followed = fx
         .server
         .requests(&fx.hicks)
@@ -189,6 +175,11 @@ async fn request_events_reach_a_capped_user_only_for_titles_their_maximum_age_le
         .withdraw_followed_show(withdraw)
         .await)
         .unwrap();
+    let cancel = CancelRequestRequest {
+        id: heat.id,
+        ..Default::default()
+    };
+    (fx.server.admin_requests().cancel_request(cancel).await).unwrap();
     // Hicks joining the viewers' own Dune comes last and reaches each, so whatever they heard
     // before it is all they hear of the rest.
     fx.server.requests(&fx.hicks).ask(DUNE).await;
@@ -207,15 +198,17 @@ async fn request_events_reach_a_capped_user_only_for_titles_their_maximum_age_le
                 "Dark created",
                 "Dark followed",
                 "Dark withdrawn",
+                "Heat cancelled",
                 "Heat created"
             ]),
             said(&[
                 "Alien created",
                 "Alien declined",
                 "Dark created",
-                "Dark followed"
+                "Dark followed",
+                "Dark withdrawn"
             ]),
-            said(&["Heat created"]),
+            said(&["Heat cancelled", "Heat created"]),
             BTreeSet::new(),
         ]
     );
@@ -241,6 +234,9 @@ async fn until_dune_joined(subscription: &mut Subscription) -> BTreeSet<String> 
             }
             event::Event::FollowedShowCreated(created) => {
                 format!("{} followed", created.followed_show.show_title)
+            }
+            event::Event::RequestCancelled(cancelled) => {
+                format!("{} cancelled", title_of(&cancelled.request))
             }
             event::Event::FollowedShowWithdrawn(withdrawn) => {
                 format!("{} withdrawn", withdrawn.followed_show.show_title)
