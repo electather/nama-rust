@@ -8,7 +8,7 @@ use super::{
         Change, Decided, ImageRef, Item, ItemKind,
         any_library::matched_episodes,
         fixture::{MatchedMovie, tmdb_movie},
-        match_images::TitlePoster,
+        match_images::StoredTitleImage,
         testing::{ALIEN, Fixture, movie},
     },
     TitlesIn, genre_ids, show_poster,
@@ -431,7 +431,7 @@ async fn an_episodes_posters_are_its_seasons_and_its_shows_by_the_shows_ids_and_
     posters.sort_by(|a, b| a.path.cmp(&b.path));
 
     let show_ids = ExternalIds::from_iter([ExternalId::tmdb(1437)]);
-    let tmdb = |image_path: &str, of| TitlePoster {
+    let tmdb = |image_path: &str, of| StoredTitleImage {
         plugin: "tmdb".to_owned(),
         path: image_path.to_owned(),
         ids: show_ids.clone(),
