@@ -13,3 +13,7 @@ test("redirectSearch overwrites a redirect elsewhere with undefined", () => {
     redirect: undefined,
   });
 });
+
+test("redirectSearch overwrites a protocol-relative redirect with undefined", () => {
+  expect(redirectSearch({ redirect: "//evil.example/" })).toStrictEqual({ redirect: undefined });
+});
