@@ -10,7 +10,7 @@ use nama_plugin_api::{
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::RequestState;
 
-use super::{Wanted, ask_movie, ask_seasons};
+use super::{Wanted, WantedSeasons, ask_movie, ask_seasons};
 use crate::db::Database;
 use crate::library::{
     Metadata,
@@ -22,8 +22,8 @@ use crate::requests::deciding::{cancel, decline};
 use crate::requests::listing::load_one;
 use crate::requests::testing::{
     ADA, Asked, BOB, DARK, NOTHING, ada, ada_and_bob, approved_on, ask_each, ask_for, asked_movie,
-    asked_season, dark, dark_with_seasons, enable_tmdb, fulfilled, handed_off, happened,
-    match_in_a_library, movie, requests_on, settled,
+    asked_season, dark, dark_with_seasons, enable_tmdb, follow_as, fulfilled, handed_off, happened,
+    match_dark_episodes, match_in_a_library, movie, requests_on, scan_dark, settled,
 };
 use crate::requests::{Error, qualities};
 use crate::users::Permissions;
@@ -40,6 +40,7 @@ async fn a_movie_and_a_show_with_the_same_tmdb_id_have_requests_of_their_own() {
         ids: ExternalIds::default(),
         followed_show: None,
         quality: qualities::Ask::default(),
+        content_rating: None,
     });
 
     let ids = db
@@ -191,6 +192,7 @@ async fn a_season_request_lists_every_id_its_show_was_asked_with_and_is_kept_und
         ids: show_ids,
         followed_show: None,
         quality: qualities::Ask::default(),
+        content_rating: None,
     };
 
     let id = db
@@ -405,4 +407,46 @@ async fn asking_for_specials_on_their_own_opens_a_request_for_season_0() {
         .map(|request| asked_season(request).season_number)
         .collect();
     assert_eq!(seasons, [0]);
+}
+
+#[tokio::test]
+async fn a_request_a_followed_show_and_each_season_it_opens_store_the_titles_content_rating() {
+    let (_data, db) = ada_and_bob().await;
+    let rated = |rating: &str| Some(rating.to_owned());
+    let alien = Wanted {
+        content_rating: rated("R"),
+        ..movie(348)
+    };
+    db.write(move |tx| Box::pin(ask_movie(tx, ADA, alien, RequestState::Pending)))
+        .await
+        .unwrap();
+    let dark = WantedSeasons {
+        content_rating: rated("TV-MA"),
+        ..dark()
+    };
+    follow_as(&db, ADA, dark, RequestState::Approved).await;
+    match_dark_episodes(&db, 3, &[1]).await;
+    scan_dark(&db, &[3]).await;
+
+    // The Followed Show's row as Season -1.
+    let stored: Vec<(Option<i64>, Option<String>)> = sqlx::query_as(
+        "SELECT season, content_rating FROM requests
+         UNION ALL SELECT -1, content_rating FROM followed_shows
+         ORDER BY season",
+    )
+    .fetch_all(db.reader())
+    .await
+    .unwrap();
+
+    let (r, tv_ma) = (rated("R"), rated("TV-MA"));
+    assert_eq!(
+        stored,
+        [
+            (None, r),
+            (Some(-1), tv_ma.clone()),
+            (Some(1), tv_ma.clone()),
+            (Some(2), tv_ma.clone()),
+            (Some(3), tv_ma),
+        ]
+    );
 }

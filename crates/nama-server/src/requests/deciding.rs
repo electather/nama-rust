@@ -12,7 +12,10 @@ use super::asked::{self, Asked};
 use super::listing::{load, load_one};
 use super::quality::{NewQuality, change_quality};
 use super::{Error, Requests};
-use crate::{events::event, users::User};
+use crate::{
+    events::{Removed, event},
+    users::User,
+};
 
 /// A Movie, or a Season of a Show, as a Request names it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -173,8 +176,11 @@ async fn retry(
 
 /// Removes the Request `id`, and its Requesters with it.
 pub(super) async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
-    let cancelled = remove(conn, id, None).await?;
-    Ok(Applied::saying((), cancelled))
+    let (cancelled, removed) = remove(conn, id, None).await?;
+    Ok(Applied {
+        removed: vec![removed],
+        ..Applied::saying((), cancelled)
+    })
 }
 
 /// Removes the Request waiting on each of `titles`, which `by` deleted media of.
@@ -184,35 +190,38 @@ async fn cancel_deleted(
     by: String,
 ) -> Result<Applied<()>, Error> {
     let mut events = Vec::new();
+    let mut removed = Vec::new();
     for title in titles {
         if let Some(id) = waiting_on(conn, &title).await? {
-            events.push(remove(conn, id, Some(by.clone())).await?);
+            let (cancelled, gone) = remove(conn, id, Some(by.clone())).await?;
+            events.push(cancelled);
+            removed.push(gone);
         }
     }
     Ok(Applied {
         events,
+        removed,
         ..Applied::quiet(())
     })
 }
 
 /// Removes the Request `id`, and its Requesters with it, and returns the event saying so, which
-/// names who `deleted_by` if deleting media cancelled it.
+/// names who `deleted_by` if deleting media cancelled it, and the Request as removed.
 async fn remove(
     conn: &mut SqliteConnection,
     id: i64,
     deleted_by: Option<String>,
-) -> Result<Event, Error> {
+) -> Result<(Event, Removed), Error> {
     let request = load_one(conn, id)
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
-    sqlx::query!("DELETE FROM requests WHERE id = ?", id)
-        .execute(&mut *conn)
-        .await?;
-    Ok(event(RequestCancelled {
+    let removed = asked::remove(conn, Asked::Request, id).await?;
+    let cancelled = event(RequestCancelled {
         request: request.into(),
         deleted_by,
         ..Default::default()
-    }))
+    });
+    Ok((cancelled, removed))
 }
 
 /// The Request still waiting on `title`'s media, which deleting any of it cancels: its open one,
@@ -247,8 +256,8 @@ async fn withdraw(
     if request.state != RequestState::Pending {
         return Err(Error::NotPending(Asked::Request, id));
     }
-    let was_last = asked::leave(conn, Asked::Request, id, user).await?;
-    let left = if was_last {
+    let removed = asked::leave(conn, Asked::Request, id, user).await?;
+    let left = if removed.is_some() {
         event(RequestWithdrawn {
             request: request.into(),
             ..Default::default()
@@ -260,7 +269,10 @@ async fn withdraw(
             ..Default::default()
         })
     };
-    Ok(Applied::saying((), left))
+    Ok(Applied {
+        removed: removed.into_iter().collect(),
+        ..Applied::saying((), left)
+    })
 }
 
 #[cfg(test)]

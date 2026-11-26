@@ -21,6 +21,7 @@ use url::Url;
 
 use super::{Audience, EventBus, Filter, Viewer, classify, deliver, event, users_to_tell};
 use crate::{
+    content_ratings::MaximumAge,
     db::Database,
     page::Page,
     plugins::{ExtensionPoints, ProviderError, without_secrets},
@@ -144,7 +145,7 @@ fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
     ];
 
     for (subscriber, expected) in table {
-        let viewer = Viewer::of(&subscriber, LibraryAccess::All);
+        let viewer = Viewer::of(&subscriber, LibraryAccess::All, MaximumAge::default());
         let got = [&with_path, &requested, &followed, &played]
             .map(|published| viewer.sees(published.clone()));
         assert_eq!(
@@ -168,6 +169,7 @@ fn a_viewer_gets_library_events_only_about_the_libraries_they_see() {
     let viewer = Viewer::of(
         &user(1, Permissions::ADMIN),
         LibraryAccess::Only(std::iter::once(1).collect()),
+        MaximumAge::default(),
     );
 
     assert_eq!(viewer.sees(added(1)), Some(added(1)));
@@ -588,12 +590,18 @@ struct Seen {
 
 /// What each of `subscribers` gets once `bus` publishes `published` and stores its notifications.
 async fn seen_by(bus: &EventBus, subscribers: &[User], published: Vec<Event>) -> Vec<Seen> {
-    let subscriptions: Vec<_> = (subscribers.iter())
-        .map(|subscriber| {
-            let subscription = bus.subscribe(subscriber, LibraryAccess::All, Filter::default());
-            read_until_played(&bus.db, subscriber.id, Box::pin(subscription))
-        })
-        .collect();
+    let mut subscriptions = Vec::new();
+    for subscriber in subscribers {
+        let subscription = (bus
+            .subscribe(subscriber, LibraryAccess::All, Filter::default())
+            .await)
+            .expect("subscribe");
+        subscriptions.push(read_until_played(
+            &bus.db,
+            subscriber.id,
+            Box::pin(subscription),
+        ));
+    }
     bus.publish(published);
     let storing = async {
         bus.shutdown().await;

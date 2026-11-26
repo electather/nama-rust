@@ -10,7 +10,10 @@
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
 //! place.
 
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+};
 
 use futures_util::{Stream, StreamExt, stream};
 use nama_plugin_api::{
@@ -32,8 +35,12 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use self::notifying::{Audience, deliver};
+use self::{
+    notifying::{Audience, deliver},
+    ratings::Ratings,
+};
 use crate::{
+    content_ratings::MaximumAge,
     db::Database,
     link::{LinkChange, Linking, Whose},
     plugins::{self, ExtensionPoints},
@@ -43,6 +50,8 @@ use crate::{
 };
 
 mod notifying;
+mod ratings;
+pub(crate) use ratings::{Rated, Removed};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -64,6 +73,11 @@ pub(crate) struct EventBus {
     /// The one task that stores personal notifications in inboxes, so they are stored in the
     /// order they were published, and pushes them to their Users' browsers.
     inboxes: Arc<Mutex<Inboxes>>,
+    /// The Requests and Followed Shows removed last, oldest first, [`BUFFERED`] at most. Each
+    /// removal publishes an event after it, so an event about one removed before those is one
+    /// every subscriber has read or lagged past. Their ids are never reused (`AUTOINCREMENT`), so
+    /// a rating kept here is never another row's.
+    removed: Arc<Mutex<VecDeque<Removed>>>,
 }
 
 /// The task that stores personal notifications in inboxes and pushes them, as
@@ -92,13 +106,16 @@ pub(crate) struct Filter {
 /// an Event").
 #[derive(Debug)]
 struct Viewer {
-    /// Who they are, who alone sees their inbox's events.
+    /// Who they are, who alone sees their inbox's events, and who gets events about their own
+    /// Requests and Followed Shows whatever [`Self::max_age`] says, as the list shows them those.
     user: i64,
     /// Only Library events about these Libraries.
     libraries: LibraryAccess,
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
     requester: Option<i64>,
+    /// Only events about others' Requests and Followed Shows of titles this lets through.
+    max_age: MaximumAge,
     /// Only playback events about this User's playing; `None` means every User's.
     player: Option<i64>,
     /// Whether they see where a Library's files are on the Server.
@@ -138,7 +155,18 @@ impl EventBus {
             server_url,
             closed: CancellationToken::new(),
             inboxes: Arc::default(),
+            removed: Arc::default(),
         }
+    }
+
+    /// Keeps the Content Rating of each of `removed`, which a write is removing, for subscribers
+    /// to judge events about them by once their rows are gone. Called inside that write, before it
+    /// commits, so no subscriber finds a row gone before its rating is kept here.
+    pub(crate) fn removing(&self, removed: Vec<Removed>) {
+        let mut kept = lock(&self.removed);
+        kept.extend(removed);
+        let over = kept.len().saturating_sub(BUFFERED);
+        kept.drain(..over);
     }
 
     /// Publishes `events`, in order, to each subscriber, and those of the kinds the Plugin contract
@@ -279,25 +307,38 @@ impl EventBus {
     /// The events published from now on that `user`, who sees `libraries`, may see and `filter`
     /// lets through, as `user` may see them, with a `Lagged` wherever the subscriber fell too far
     /// behind. Ends when the bus is closed.
-    pub(crate) fn subscribe(
+    pub(crate) async fn subscribe(
         &self,
         user: &User,
         libraries: LibraryAccess,
         filter: Filter,
+    ) -> Result<impl Stream<Item = SubscribeResponse> + Send + use<>, sqlx::Error> {
+        // Fixed for the stream's life: `api::events` ends it when its User's Permissions or
+        // Library access change, and a new Maximum Age applies from their next subscription.
+        let max_age = users::maximum_age(&self.db, user.id).await?;
+        Ok(self.stream(Viewer::of(user, libraries, max_age), filter))
+    }
+
+    /// [`Self::subscribe`]'s stream, for `viewer`.
+    fn stream(
+        &self,
+        viewer: Viewer,
+        filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
-        // Fixed for the stream's life: `api::events` ends it when its User's Permissions or
-        // Library access change.
-        let viewer = Viewer::of(user, libraries);
+        let ratings = Ratings {
+            db: Arc::clone(&self.db),
+            removed: Arc::clone(&self.removed),
+        };
         stream::unfold(
-            (receiver, viewer, filter),
-            |(mut receiver, viewer, filter)| async move {
-                let message = next_message(&mut receiver, &viewer, &filter).await?;
+            (receiver, viewer, filter, ratings),
+            |(mut receiver, viewer, filter, ratings)| async move {
+                let message = next_message(&mut receiver, &viewer, &filter, &ratings).await?;
                 let response = SubscribeResponse {
                     message: Some(message),
                     ..Default::default()
                 };
-                Some((response, (receiver, viewer, filter)))
+                Some((response, (receiver, viewer, filter, ratings)))
             },
         )
         .take_until(self.closed.clone().cancelled_owned())
@@ -316,7 +357,8 @@ impl EventBus {
             permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
-        self.subscribe(&admin, LibraryAccess::All, filter)
+        let viewer = Viewer::of(&admin, LibraryAccess::All, MaximumAge::default());
+        self.stream(viewer, filter)
     }
 
     /// Ends every subscription, as the Server shuts down, so none holds up the shutdown.
@@ -342,16 +384,19 @@ impl Filter {
 
 /// The next event from `receiver` that `viewer` may see and `filter` lets through, as `viewer`
 /// may see it, or a `Lagged` if events were dropped first. `None` once nothing more can be
-/// published.
+/// published. Reads the Content Ratings `viewer`'s Maximum Age asks for from `ratings`.
 async fn next_message(
     receiver: &mut broadcast::Receiver<Event>,
     viewer: &Viewer,
     filter: &Filter,
+    ratings: &Ratings,
 ) -> Option<subscribe_response::Message> {
     loop {
         match receiver.recv().await {
             Ok(event) if filter.lets_through(&event) => {
-                if let Some(seen) = viewer.sees(event) {
+                if let Some(seen) = viewer.sees(event)
+                    && viewer.allows_title_of(ratings, &seen).await
+                {
                     return Some(seen.into());
                 }
             }
@@ -587,13 +632,44 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 }
 
 impl Viewer {
-    fn of(user: &User, libraries: LibraryAccess) -> Self {
+    fn of(user: &User, libraries: LibraryAccess, max_age: MaximumAge) -> Self {
         Self {
             user: user.id,
             libraries,
             requester: user.whose_requests(),
+            max_age,
             player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
+        }
+    }
+
+    /// Whether this viewer's Maximum Age lets `event` reach them: one about another User's Request
+    /// or Followed Show of a title over it doesn't, as their Request list leaves those out. One
+    /// whose rating can't be read, logged, doesn't either.
+    async fn allows_title_of(&self, ratings: &Ratings, event: &Event) -> bool {
+        if self.max_age.lets_every_title() {
+            return true;
+        }
+        let row = match classify(event) {
+            Some((_, About::Request(request)))
+                if !users::is_requester(self.user, &request.requesters) =>
+            {
+                Rated::Request(request.id)
+            }
+            Some((_, About::FollowedShow(followed)))
+                if !users::is_requester(self.user, &followed.requesters) =>
+            {
+                Rated::FollowedShow(followed.id)
+            }
+            _ => return true,
+        };
+        match ratings.of(row).await {
+            Ok(Some(rating)) => self.max_age.allows(rating.as_deref()),
+            Ok(None) => false,
+            Err(err) => {
+                error!("could not read the Content Rating of {row:?} for a subscriber: {err}");
+                false
+            }
         }
     }
 
