@@ -26,6 +26,9 @@ pub(super) struct Claims {
     /// web app at the Hub trades: the Device it makes has Recent Authentication from then.
     #[serde(default)]
     pub(super) auth_time: Option<i64>,
+    /// When the Hub signed it, by the Hub's clock, as `auth_time` is.
+    #[serde(default)]
+    pub(super) iat: Option<i64>,
     exp: u64,
 }
 

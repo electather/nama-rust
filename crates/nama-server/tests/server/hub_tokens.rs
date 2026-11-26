@@ -120,22 +120,24 @@ async fn a_device_traded_within_ten_minutes_of_its_accounts_hub_sign_in_has_rece
 {
     let (server, hub) = FakeHub::linked_server().await;
     let grace = server.user_with_default_permissions("Grace").await.id;
-    let signed_in_ago = |secs: u64| {
-        let auth_time = in_5_minutes() - 300 - secs;
+    // By a Hub clock running `ahead` of the Server's, signed now, `ago` seconds after signing in.
+    let signed_in = |ago: u64, ahead: u64| {
+        let iat = in_5_minutes() - 300 + ahead;
         hub.signed(&json!({
             "sub": grace.to_string(), "aud": SERVER_ID, "exp": in_5_minutes(),
-            "jti": format!("signed in {secs}s ago"), "auth_time": auth_time,
+            "jti": format!("{ago}s ago, {ahead}s ahead"), "iat": iat, "auth_time": iat - ago,
         }))
     };
-    let just_now = trade(&server, &signed_in_ago(5)).await.unwrap().token;
-    let eleven_minutes_ago = trade(&server, &signed_in_ago(660)).await.unwrap().token;
+    let just_now = trade(&server, &signed_in(5, 0)).await.unwrap().token;
+    let eleven_minutes_ago = trade(&server, &signed_in(660, 0)).await.unwrap().token;
+    let by_a_clock_an_hour_ahead = trade(&server, &signed_in(660, 3600)).await.unwrap().token;
     let unsaid = hub.signed(&json!({
         "sub": grace.to_string(), "aud": SERVER_ID, "exp": in_5_minutes(), "jti": "unsaid",
     }));
     let unsaid = trade(&server, &unsaid).await.unwrap().token;
 
     set_switch_pin(&server, &just_now).await.unwrap();
-    for lacking in [eleven_minutes_ago, unsaid] {
+    for lacking in [eleven_minutes_ago, by_a_clock_an_hour_ahead, unsaid] {
         assert_refused(
             set_switch_pin(&server, &lacking).await,
             ErrorCode::FailedPrecondition,

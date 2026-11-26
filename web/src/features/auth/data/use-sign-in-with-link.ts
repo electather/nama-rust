@@ -18,7 +18,7 @@ export function useSignInWithLink() {
   return useMutation(AccountService.method.signInWithLink, {
     onSuccess: async ({ continueTo }) => {
       queryClient.clear();
-      // As `useSignInAtHub` does.
+      // A Device kept from before lacks this sign-in's Recent Authentication; a new trade has it.
       forgetServerSessions();
       // A used link can't sign in again, so Back skips its page (`src/routes/AGENTS.md`).
       await navigate({ href: continueTo, replace: true });

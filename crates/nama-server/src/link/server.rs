@@ -533,8 +533,8 @@ impl ServerLink {
     }
 
     /// The id of the User `token` names, a token the Hub signed for the web app at the Hub to trade
-    /// for a Device (ADR 0105), using it up, and when their Account's Hub session signed in: 0 when
-    /// it doesn't say, and never later than now. `None`, logged, when it is for another Server, or
+    /// for a Device (ADR 0105), using it up, and when their Account's Hub session signed in by the
+    /// Server's clock: 0 when it doesn't say, and never later than now. `None`, logged, when it is for another Server, or
     /// isn't one the Hub signed, unexpired and unused, since the page's caller chose it.
     pub(super) async fn hub_token_user(&self, token: &str) -> Result<Option<(i64, i64)>, Failure> {
         let claims = match self.checked(token).await? {
@@ -551,8 +551,10 @@ impl ServerLink {
             tracing::info!("a Hub token was refused: it isn't for a Device here");
             return Ok(None);
         };
-        // A Hub whose clock runs ahead mustn't stretch Recent Authentication past its 10 minutes.
-        let signed_in_at = claims.auth_time.unwrap_or_default().min(db::now());
+        // How long before signing it the Hub's session signed in, both by the Hub's clock, so one
+        // running ahead of the Server's can't stretch Recent Authentication past its 10 minutes.
+        let signed_in_at = (claims.auth_time.zip(claims.iat))
+            .map_or(0, |(auth_time, iat)| db::now() - (iat - auth_time).max(0));
         Ok(self
             .use_up(jti, passes_until)
             .await?
