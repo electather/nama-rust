@@ -60,7 +60,7 @@ const ROLES: [LocalRole; 3] = [
 pub(crate) struct LocalImages {
     contents: Contents,
     store: ImageStore,
-    /// Held while one Library's Posters are resized ahead, so at most one of them waits on the
+    /// Held while one Library's images are resized ahead, so at most one of them waits on the
     /// resize thread ahead of a request's (ADR 0039).
     resizing: Arc<Mutex<()>>,
 }
@@ -164,18 +164,6 @@ impl TitleLocalImage {
             (LocalRole::SeasonPoster, None) => None,
         }
     }
-
-    /// Which of its title's Posters this stands in for, if it is one.
-    fn poster(&self) -> Option<TitleImage> {
-        self.shown_as().filter(|image| {
-            matches!(
-                image,
-                TitleImage::Movie(Role::Poster)
-                    | TitleImage::Show(Role::Poster)
-                    | TitleImage::SeasonPoster(_)
-            )
-        })
-    }
 }
 
 impl LocalImages {
@@ -259,56 +247,61 @@ impl LocalImages {
             .await
     }
 
-    /// Makes, in the background, `copies` of each Poster beside the Library `library`'s media that a
-    /// title shows, having none of `custom_images` in its place, where they aren't there. Each
-    /// one, not only those a scan just copied in, so a Library recorded before Posters were
-    /// resized ahead gets its copies too (#2152).
-    pub(super) fn resize_shown_posters(
+    /// Makes, in the background, `posters` of each Poster and `backdrops` of each Backdrop beside
+    /// the Library `library`'s media that a title shows, having none of `custom_images` in its
+    /// place, where they aren't there. Each one, not only those a scan just copied in, so a Library
+    /// recorded before they were resized ahead gets its copies too (#2152, #2244).
+    pub(super) fn resize_shown(
         &self,
         library: i64,
         custom_images: CustomImages,
-        copies: Vec<Resize>,
+        posters: Vec<Resize>,
+        backdrops: Vec<Resize>,
     ) {
         let local_images = self.clone();
         tokio::spawn(async move {
             let _resizing = local_images.resizing.lock().await;
-            let posters = match local_images.shown_posters(library, &custom_images).await {
-                Ok(posters) => posters,
+            let shown = match local_images.shown(library, &custom_images).await {
+                Ok(shown) => shown,
                 Err(err) => {
-                    tracing::error!(library, "could not list the Posters to resize: {err}");
+                    tracing::error!(library, "could not list the images to resize: {err}");
                     return;
                 }
             };
             let folder = library.to_string();
-            for poster in posters {
+            for (stored, role) in shown {
+                let copies = match role {
+                    LocalRole::Title(Role::Backdrop) => &backdrops,
+                    LocalRole::Title(Role::Poster) | LocalRole::SeasonPoster => &posters,
+                };
                 (local_images.store)
-                    .copy_ahead(&[DIR, &folder, &poster], &copies)
+                    .copy_ahead(&[DIR, &folder, &stored], copies)
                     .await;
             }
         });
     }
 
-    /// Each Poster beside the Library `library`'s media, as stored in its folder, that a title
-    /// shows, having none of `custom_images` in its place.
-    async fn shown_posters(
+    /// Each image beside the Library `library`'s media, as stored in its folder, with what it stands
+    /// in for, that a title shows, having none of `custom_images` in its place.
+    async fn shown(
         &self,
         library: i64,
         custom_images: &CustomImages,
-    ) -> sqlx::Result<HashSet<String>> {
+    ) -> sqlx::Result<HashSet<(String, LocalRole)>> {
         let (images, custom) =
             tokio::try_join!(self.contents.titles_local_images(), custom_images.urls())?;
         // Filed from the rows just read, which `InPlaceOfDownloaded::read` would read again.
         let in_place = InPlaceOfDownloaded::new(custom, LocalImageUrls::filed(&images));
         let shown = |image: &TitleLocalImage| {
             image.library == library
-                && image.poster().is_some_and(|poster| {
-                    in_place.shows_beside_media(&image.ids, poster, &url(library, &image.stored))
+                && image.shown_as().is_some_and(|shown_as| {
+                    in_place.shows_beside_media(&image.ids, shown_as, &url(library, &image.stored))
                 })
         };
         Ok(images
             .into_iter()
             .filter(shown)
-            .map(|image| image.stored)
+            .map(|image| (image.stored, image.role))
             .collect())
     }
 
