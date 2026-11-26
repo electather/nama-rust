@@ -28,11 +28,15 @@ const alienBoxSet: MessageInitShape<typeof BoxSetSchema> = {
 
 /**
  * A fake Server with a Movies Library (1) holding Alien, whose Box Set is `boxSet` on its page and
- * by `GetBoxSet`, which finds no other. Alien³ is there to Request.
+ * by `GetBoxSet`, which finds no other. Alien³ is there to Request. It makes Posters ahead at fewer
+ * widths than it resizes to.
  */
 function server(boxSet?: MessageInitShape<typeof BoxSetSchema>) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+  const serverService = {
+    getServerInfo: () => ({ imageWidths: [320, 480, 640], posterWidths: [320, 480] }),
+  };
+  return fakeServer({ signedIn: newUser, libraries, serverService }, {}, {}, (router) => {
     router.service(BrowseService, {
       getMovie: () => ({ movie: { ...alien, versions: [{ id: 1n }] }, boxSet }),
       getBoxSet: (request) => {
@@ -101,6 +105,17 @@ test("a Box Set's page shows its name, overview and Movies in order", async () =
     within(movies).getByRole("link", { name: "Alien³", description: "Not on this Server" }),
   ).toBeDefined();
   expect(within(movies).getByText("Not here")).toBeDefined();
+});
+
+test("a Box Set's Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
+  const poster = "/media/artwork/tmdb/%2Falien-collection.jpg";
+  openApp("/box-sets/tmdb-8091", server({ ...alienBoxSet, posterUrl: poster }));
+
+  await screen.findByRole("heading", { level: 1, name: "Alien Collection" });
+
+  expect(document.querySelector(`img[src="${poster}"]`)?.getAttribute("srcset")).toBe(
+    `${poster}?width=320 320w, ${poster}?width=480 480w`,
+  );
 });
 
 test("a Box Set's missing Movie opens its page to Request", async () => {
