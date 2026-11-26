@@ -118,9 +118,9 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 /// The Server's modules in rows of who may call whom, highest row first (ADR 0051). A module may
 /// call a lower row, or a module to its right in its own row; `STARTUP` calls any row. The calls
 /// allowed against the order are in `ALLOWED_UPWARD`.
-// `web` imports nothing from the crate. `plugin_settings` stays a single file: its folder holds only
-// private helpers (`stored.rs`, `put_back.rs`, `running.rs`) and its one rule, "One owner for
-// Plugin changes", stays in the crate's AGENTS.md.
+// `plugin_settings` stays a single file: its folder holds only private helpers (`stored.rs`,
+// `put_back.rs`, `running.rs`) and its one rule, "One owner for Plugin changes", stays in the
+// crate's AGENTS.md.
 const ROWS: &[&[&str]] = &[
     &["api", "automation", "status"],
     &[

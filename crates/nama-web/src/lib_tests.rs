@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use axum::{
     Router,
@@ -41,10 +44,14 @@ fn linked_asset(extension: &str) -> &'static str {
         .unwrap()
 }
 
+/// Where `vp build` writes the app.
+fn dist() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist")
+}
+
 /// The path of a file with `extension` that `vp build` wrote under `/assets/`, linked or not.
 fn built_asset(extension: &str) -> String {
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
-    let name = fs::read_dir(assets)
+    let name = fs::read_dir(dist().join("assets"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .find(|name| Path::new(name).extension().is_some_and(|e| e == extension))
@@ -115,11 +122,11 @@ async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
 async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
     let script = linked_asset("js");
     let stylesheet = linked_asset("css");
-    for (path, built) in [
-        ("/", SHELL),
-        (script, asset(script).unwrap()),
-        (stylesheet, asset(stylesheet).unwrap()),
-        ("/icon.svg", asset("/icon.svg").unwrap()),
+    for (path, file) in [
+        ("/", "index.html"),
+        (script, script.trim_start_matches('/')),
+        (stylesheet, stylesheet.trim_start_matches('/')),
+        ("/icon.svg", "icon.svg"),
     ] {
         let response = get(path, &[]).await;
 
@@ -128,7 +135,7 @@ async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
             "{path}"
         );
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(body, built, "{path}");
+        assert_eq!(body, fs::read(dist().join(file)).unwrap(), "{path}");
     }
 }
 

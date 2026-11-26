@@ -445,7 +445,8 @@ jobs:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 
-  # The Server and the Hub with the `web` feature, which embeds the `vp build` output and serves it.
+  # `nama-web`, the Server and the Hub with the `web` feature, which embeds the `vp build` output
+  # and serves it.
   # Runs for a web-only PR too.
   web-test:
     needs: changes
@@ -475,13 +476,13 @@ jobs:
       # `rust-check` lints without `web`, which needs the built app, so the `web` code is linted
       # here.
       - run: cargo clippy -p nama-web --features web --all-targets --locked -- -D warnings
-      - run: cargo nextest run -p nama-web --features web --locked --profile ci
       - run: cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
-      # Its other tests need PostgreSQL, which `hub` has, so this runs only the Hub's `lib` unit
-      # test of the web app around its routes, which needs none.
       - run: cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings
-      - run: cargo nextest run -p nama-hub --features web --lib --locked --profile ci -E 'test(/^tests::/)'
+      # One run, since a second on the `ci` profile would overwrite its report: `nama-web`'s tests,
+      # and the Hub's `lib` test of the web app around its routes. The Hub's other tests need
+      # PostgreSQL, which `hub` has.
+      - run: cargo nextest run -p nama-web -p nama-hub --features web --lib --locked --profile ci -E 'test(/^tests::/)'
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
         run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
       - uses: actions/upload-artifact@v7
