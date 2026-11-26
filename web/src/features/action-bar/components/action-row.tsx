@@ -10,7 +10,15 @@ import { keepInView } from "@/shared/lib/keep-in-view";
  * One option of the action bar's list. Focus never comes here: the field keeps it and names the
  * selected option with `aria-activedescendant`, so typing goes on while the arrows move.
  */
-export function ActionRow({ row, bar, listId }: { row: Row; bar: Bar; listId: string }) {
+export function ActionRow({
+  row,
+  bar,
+  listId,
+}: {
+  row: Row;
+  bar: Pick<Bar, "active" | "pick">;
+  listId: string;
+}) {
   const selected = bar.active?.id === row.id;
   const handleClick = row.run;
   return (
