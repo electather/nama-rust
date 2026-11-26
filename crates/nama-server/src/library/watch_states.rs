@@ -277,9 +277,8 @@ impl WatchStates {
     }
 
     /// Runs `write` of the User `user`'s Watch State, queuing the changes it returns for the Hub in
-    /// the same write, then tells Watch sync Plugins of them, in a task of
-    /// its own, so they're queued and told even if the caller stops waiting once the write is sent
-    /// (ADR 0029).
+    /// the same write, then tells Watch sync Plugins of them, in a task of its own, so they're queued
+    /// and told even if the caller stops waiting once the write is sent (ADR 0029).
     async fn write_and_tell<F>(
         &self,
         user: i64,
@@ -311,8 +310,8 @@ impl WatchStates {
     /// each Movie or Episode here, made after any this Server has of it and after it was last
     /// marked unplayed here, under any of its ids, in one write: as of when it was made, it forgets
     /// one marked unplayed and stores any other, under the preferred id. One once played here stays
-    /// played. Queues nothing for the Hub and tells no Watch sync Plugin: the
-    /// change is the service's own news, so it never echoes back.
+    /// played. Queues nothing for the Hub and tells no Watch sync Plugin: the change
+    /// is the service's own news, so it never echoes back.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,
