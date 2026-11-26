@@ -80,9 +80,9 @@ impl EventService for EventServiceHandler {
 fn age_check(max_age: MaximumAge, contents: Contents) -> AgeCheck {
     AgeCheck {
         max_age,
-        ratings: Arc::new(move |item| {
+        ratings: Arc::new(move |item, title| {
             let contents = contents.clone();
-            Box::pin(async move { contents.item_content_rating(item).await })
+            Box::pin(async move { contents.item_content_rating(item, &title).await })
         }),
     }
 }

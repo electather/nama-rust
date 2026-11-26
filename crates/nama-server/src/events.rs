@@ -88,9 +88,14 @@ pub(crate) struct Filter {
 }
 
 /// Reads the Content Rating of the title the Item it's given is Matched to, `None` for one
-/// without, failing if the Item isn't Matched. The Library keeps Matches, above this module.
-type RatingLookup =
-    Arc<dyn Fn(i64) -> BoxFuture<'static, Result<Option<String>, sqlx::Error>> + Send + Sync>;
+/// without, failing if the Item is no longer Matched to a title of the name it's given, so a
+/// re-Match before the event is delivered can't judge it by another title's. The Library keeps
+/// Matches, above this module.
+// shortcut: a re-Match to a title of the same name is judged by that title's rating; carry the
+// rating beside each Event on the bus if that ever matters.
+type RatingLookup = Arc<
+    dyn Fn(i64, String) -> BoxFuture<'static, Result<Option<String>, sqlx::Error>> + Send + Sync,
+>;
 
 /// A subscriber's Maximum Age, and where the Content Rating of each title it judges is read.
 pub(crate) struct AgeCheck {
@@ -112,7 +117,7 @@ struct Viewer {
     /// Whether they see where a Library's files are on the Server.
     sees_paths: bool,
     /// Only `ItemMatched` events naming a title whose Content Rating this allows.
-    ages: AgeCheck,
+    age_check: AgeCheck,
 }
 
 /// What an event is about.
@@ -284,19 +289,19 @@ impl EventBus {
     }
 
     /// The events published from now on that `user`, who sees `libraries` and whose Maximum Age
-    /// `ages` checks, may see and `filter` lets through, as `user` may see them, with a `Lagged`
+    /// `age_check` checks, may see and `filter` lets through, as `user` may see them, with a `Lagged`
     /// wherever the subscriber fell too far behind. Ends when the bus is closed.
     pub(crate) fn subscribe(
         &self,
         user: &User,
         libraries: LibraryAccess,
-        ages: AgeCheck,
+        age_check: AgeCheck,
         filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
         // Fixed for the stream's life: `api::events` ends it when its User's Permissions, Library
         // access or Maximum Age change.
-        let viewer = Viewer::of(user, libraries, ages);
+        let viewer = Viewer::of(user, libraries, age_check);
         stream::unfold(
             (receiver, viewer, filter),
             |(mut receiver, viewer, filter)| async move {
@@ -323,12 +328,12 @@ impl EventBus {
             permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
-        let ages = AgeCheck {
+        let age_check = AgeCheck {
             max_age: MaximumAge::default(),
             // Never asked: no Maximum Age lets every title through.
-            ratings: Arc::new(|_| Box::pin(async { Ok(None) })),
+            ratings: Arc::new(|_, _| Box::pin(async { Ok(None) })),
         };
-        self.subscribe(&admin, LibraryAccess::All, ages, filter)
+        self.subscribe(&admin, LibraryAccess::All, age_check, filter)
     }
 
     /// Ends every subscription, as the Server shuts down, so none holds up the shutdown.
@@ -588,13 +593,13 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 }
 
 impl Viewer {
-    fn of(user: &User, libraries: LibraryAccess, ages: AgeCheck) -> Self {
+    fn of(user: &User, libraries: LibraryAccess, age_check: AgeCheck) -> Self {
         Self {
             libraries,
             requester: user.whose_requests(),
             player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
-            ages,
+            age_check,
         }
     }
 
@@ -628,11 +633,11 @@ impl Viewer {
         let Some(event::Event::ItemMatched(matched)) = &event.event else {
             return true;
         };
-        let AgeCheck { max_age, ratings } = &self.ages;
+        let AgeCheck { max_age, ratings } = &self.age_check;
         if max_age.lets_every_title() {
             return true;
         }
-        match ratings(matched.item_id).await {
+        match ratings(matched.item_id, matched.title.clone()).await {
             Ok(rating) => max_age.allows(rating.as_deref()),
             Err(err) => {
                 warn!(

@@ -82,16 +82,16 @@ fn moved_to(state: RequestState, requesters: &[i64]) -> Event {
 
 /// What reads every Item's Content Rating as `rating`.
 fn rated(rating: Option<&'static str>) -> RatingLookup {
-    Arc::new(move |_| Box::pin(async move { Ok(rating.map(str::to_owned)) }))
+    Arc::new(move |_, _| Box::pin(async move { Ok(rating.map(str::to_owned)) }))
 }
 
 /// A viewer with no Maximum Age.
 fn uncapped(user: &User, libraries: LibraryAccess) -> Viewer {
-    let ages = AgeCheck {
+    let age_check = AgeCheck {
         max_age: MaximumAge::default(),
         ratings: rated(None),
     };
-    Viewer::of(user, libraries, ages)
+    Viewer::of(user, libraries, age_check)
 }
 
 fn alien_matched() -> Event {
@@ -239,14 +239,18 @@ async fn a_viewer_is_told_of_a_match_only_if_their_maximum_age_allows_its_rating
 
 #[tokio::test]
 async fn a_capped_viewer_is_not_told_of_a_match_whose_rating_cant_be_read() {
-    let ages = AgeCheck {
+    let age_check = AgeCheck {
         max_age: MaximumAge {
             age: Some(18),
             allow_unrated: true,
         },
-        ratings: Arc::new(|_| Box::pin(async { Err(sqlx::Error::RowNotFound) })),
+        ratings: Arc::new(|_, _| Box::pin(async { Err(sqlx::Error::RowNotFound) })),
     };
-    let viewer = Viewer::of(&user(1, Permissions::NEW_USER), LibraryAccess::All, ages);
+    let viewer = Viewer::of(
+        &user(1, Permissions::NEW_USER),
+        LibraryAccess::All,
+        age_check,
+    );
 
     assert!(!viewer.allows_title_of(&alien_matched()).await);
 }

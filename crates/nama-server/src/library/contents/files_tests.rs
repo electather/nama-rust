@@ -11,8 +11,29 @@ use super::{
 };
 use crate::{
     db,
-    library::{libraries::Kind, versions::PARSER_VERSION},
+    library::{Metadata, fixture::tmdb_movie, libraries::Kind, versions::PARSER_VERSION},
 };
+
+#[tokio::test]
+async fn an_items_content_rating_is_read_only_while_it_is_matched_to_the_title_named() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let item = fx.item(ALIEN).await;
+    let alien = Metadata {
+        content_rating: Some("R".to_owned()),
+        ..tmdb_movie(348, "Alien")
+    };
+    let matched = vec![(item, Decided::Matched(Box::new(alien)))];
+    fx.contents.record(matched).await.unwrap();
+
+    let rating = fx.contents.item_content_rating(item, "Alien").await;
+    assert_eq!(rating.unwrap().as_deref(), Some("R"));
+    let renamed = fx.contents.item_content_rating(item, "Dune").await;
+    assert!(
+        matches!(renamed, Err(sqlx::Error::RowNotFound)),
+        "{renamed:?}"
+    );
+}
 
 #[tokio::test]
 async fn storing_a_changed_file_replaces_its_items_and_their_matches_go_with_them() {
