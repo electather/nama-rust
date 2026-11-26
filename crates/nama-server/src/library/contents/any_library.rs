@@ -136,7 +136,7 @@ impl Contents {
     /// The ids of Episode `number` of Season `season` of the Show known by any of `show_ids`,
     /// Matched in any Library, or none if none has it. Where several Items have it, the oldest
     /// Library's first by path answers.
-    pub(crate) async fn episode_ids(
+    pub(in crate::library) async fn episode_ids(
         &self,
         show_ids: &[ExternalId],
         (season, number): (i64, i64),

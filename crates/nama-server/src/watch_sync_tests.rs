@@ -226,7 +226,7 @@ async fn an_episode_in_a_library_is_scrobbled_with_its_shows_ids_season_and_numb
     let (tracker, mut heard) = tracker(Imported::default());
     let linked = Linked::with(tracker).await;
     let media = tempfile::tempdir().unwrap();
-    let show_ids = ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121_361)]);
+    let show_ids = library_show();
     let second = ExternalId::tmdb(1_350_210);
     matched_episodes_file(&linked.db, media.path(), show_ids.clone(), [1, 1_350_210]).await;
 
