@@ -590,12 +590,18 @@ struct Seen {
 
 /// What each of `subscribers` gets once `bus` publishes `published` and stores its notifications.
 async fn seen_by(bus: &EventBus, subscribers: &[User], published: Vec<Event>) -> Vec<Seen> {
-    let subscriptions: Vec<_> = (subscribers.iter())
-        .map(|subscriber| {
-            let subscription = bus.subscribe(subscriber, LibraryAccess::All, Filter::default());
-            read_until_played(&bus.db, subscriber.id, Box::pin(subscription))
-        })
-        .collect();
+    let mut subscriptions = Vec::new();
+    for subscriber in subscribers {
+        let subscription = (bus
+            .subscribe(subscriber, LibraryAccess::All, Filter::default())
+            .await)
+            .expect("subscribe");
+        subscriptions.push(read_until_played(
+            &bus.db,
+            subscriber.id,
+            Box::pin(subscription),
+        ));
+    }
     bus.publish(published);
     let storing = async {
         bus.shutdown().await;

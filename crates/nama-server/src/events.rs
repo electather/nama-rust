@@ -35,7 +35,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use self::notifying::{Audience, deliver};
+use self::{
+    notifying::{Audience, deliver},
+    ratings::Ratings,
+};
 use crate::{
     content_ratings::MaximumAge,
     db::Database,
@@ -47,6 +50,8 @@ use crate::{
 };
 
 mod notifying;
+mod ratings;
+pub(crate) use ratings::{Rated, Removed};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -72,29 +77,6 @@ pub(crate) struct EventBus {
     /// removal publishes an event after it, so an event about one removed before those is one
     /// every subscriber has read or lagged past. Their ids are never reused (`AUTOINCREMENT`), so
     /// a rating kept here is never another row's.
-    removed: Arc<Mutex<VecDeque<Removed>>>,
-}
-
-/// A Request or Followed Show, by id, whose title's Content Rating a Maximum Age judges events
-/// about it by.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Rated {
-    Request(i64),
-    FollowedShow(i64),
-}
-
-/// A Request or Followed Show a write removes, with the Content Rating its row stored.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Removed {
-    pub(crate) row: Rated,
-    pub(crate) content_rating: Option<String>,
-}
-
-/// Where a subscriber reads the Content Rating of a Request's or Followed Show's title: its row,
-/// or once that is gone, what [`EventBus::removing`] kept of it.
-#[derive(Debug)]
-struct Ratings {
-    db: Arc<Database>,
     removed: Arc<Mutex<VecDeque<Removed>>>,
 }
 
@@ -124,16 +106,14 @@ pub(crate) struct Filter {
 /// an Event").
 #[derive(Debug)]
 struct Viewer {
-    /// Who they are, who alone sees their inbox's events.
+    /// Who they are, who alone sees their inbox's events, and who gets events about their own
+    /// Requests and Followed Shows whatever [`Self::max_age`] says, as the list shows them those.
     user: i64,
     /// Only Library events about these Libraries.
     libraries: LibraryAccess,
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
     requester: Option<i64>,
-    /// The User subscribed, who gets events about their own Requests and Followed Shows whatever
-    /// [`Self::max_age`] says, as the list shows them those.
-    user: i64,
     /// Only events about others' Requests and Followed Shows of titles this lets through.
     max_age: MaximumAge,
     /// Only playback events about this User's playing; `None` means every User's.
@@ -657,7 +637,6 @@ impl Viewer {
             user: user.id,
             libraries,
             requester: user.whose_requests(),
-            user: user.id,
             max_age,
             player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
@@ -716,31 +695,6 @@ impl Viewer {
             added.path.clear();
         }
         Some(event)
-    }
-}
-
-impl Ratings {
-    /// The Content Rating stored for `row`, `None` if neither its row nor
-    /// [`EventBus::removing`] has it any more.
-    async fn of(&self, row: Rated) -> Result<Option<Option<String>>, sqlx::Error> {
-        // The Request and Followed Show protos carry no Content Rating, so it's read from the row.
-        let stored = match row {
-            Rated::Request(id) => {
-                sqlx::query_scalar!("SELECT content_rating FROM requests WHERE id = ?", id)
-                    .fetch_optional(self.db.reader())
-                    .await?
-            }
-            Rated::FollowedShow(id) => {
-                sqlx::query_scalar!("SELECT content_rating FROM followed_shows WHERE id = ?", id)
-                    .fetch_optional(self.db.reader())
-                    .await?
-            }
-        };
-        Ok(stored.or_else(|| {
-            let kept = lock(&self.removed);
-            let found = kept.iter().rev().find(|removed| removed.row == row);
-            found.map(|removed| removed.content_rating.clone())
-        }))
     }
 }
 
