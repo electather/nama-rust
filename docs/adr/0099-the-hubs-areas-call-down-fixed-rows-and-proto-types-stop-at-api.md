@@ -14,9 +14,9 @@ The rows, highest first:
 3. `sync`, `viewing`
 4. `links`
 5. `accounts`, `titles`
-6. `signing`, `mail`, `web`, `db`, `config`
+6. `signing`, `mail`, `db`, `config`
 
-Where a request came from, through trusted proxies only (ADR 0018), is the `nama-forwarded` crate, which the Server shares. `lib` and `main` start the Hub, run its subcommands and schedule its periodic work, and may call any row. Each area arrives with the first ticket that needs it.
+Where a request came from, through trusted proxies only (ADR 0018), is the `nama-forwarded` crate, and serving the web app (ADR 0105) the `nama-web` crate, both of which the Server shares. `lib` and `main` start the Hub, run its subcommands and schedule its periodic work, and may call any row. Each area arrives with the first ticket that needs it.
 
 - `links` owns every Link, whether a Server's or a User's: the device flow, a Linked Server's credential, Unlinking, and the sign-in tokens signed for Servers.
 - `discovery` owns how clients reach a Linked Server: its names, its Server Addresses, reachability, the certificates' DNS records and Relays.

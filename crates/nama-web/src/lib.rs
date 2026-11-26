@@ -1,10 +1,12 @@
-//! The web app at the Hub (ADR 0105): the same `web/dist` that `vp build` writes and a Server
-//! serves, embedded in the binary by `build.rs`.
+//! The web app the Server (ADR 0004) and the Hub (ADR 0105) serve: the `web/dist` that `vp build`
+//! writes, embedded in the binary by `build.rs` with the `web` feature, without which this crate is
+//! empty.
+#![cfg(feature = "web")]
 
 use std::convert::Infallible;
 
 use axum::{
-    extract::Request,
+    extract::{Request, State},
     http::{Method, header},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -17,16 +19,22 @@ use tower_http::compression::{
 
 include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 
-/// Answers a `GET` for any path but an RPC's or the key set's with the app's file at that path, or
-/// else with `index.html`, so a reloaded deep link still loads the app, which then routes to the
-/// page. A file under `/assets/` is marked to be kept for a year, and `index.html` isn't, so a new
-/// release still loads. It compresses the file with brotli or gzip when the request accepts one.
-/// Every other request goes on to `next`, so an unknown RPC still gets a 404. With `NAMA_HUB_URL`
-/// set, `vp dev` proxies the Hub's RPCs to it (`web/vite.config.ts`).
-pub(crate) async fn serve(request: Request, next: Next) -> Response {
+/// Middleware, layered with `axum::middleware::from_fn_with_state(passed_on, serve)`, that answers
+/// a `GET` for any path but an RPC's or one starting with `passed_on` with the app's file at that
+/// path, or else with `index.html`, so a reloaded deep link still loads the app, which then routes
+/// to the page. A file under `/assets/` is marked to be kept for a year, and `index.html` isn't, so
+/// a new release still loads. It compresses the file with brotli or gzip when the request accepts
+/// one. Every other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev` proxies
+/// RPCs and the Server's `/media/` the same way, and the Hub's RPCs to `NAMA_HUB_URL` when it's set
+/// (`web/vite.config.ts`).
+pub async fn serve(
+    State(passed_on): State<&'static str>,
+    request: Request,
+    next: Next,
+) -> Response {
     let path = request.uri().path();
-    let passed_on = path.starts_with("/nama.") || path.starts_with("/.well-known/");
-    if request.method() != Method::GET || passed_on {
+    if request.method() != Method::GET || path.starts_with("/nama.") || path.starts_with(passed_on)
+    {
         return next.run(request).await;
     }
     // `DefaultPredicate` leaves images but SVG alone; fonts are woff2, compressed already.
@@ -77,5 +85,5 @@ fn content_type(path: &str) -> &'static str {
 }
 
 #[cfg(test)]
-#[path = "web_tests.rs"]
+#[path = "lib_tests.rs"]
 mod tests;

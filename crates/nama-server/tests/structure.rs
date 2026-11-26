@@ -149,7 +149,6 @@ const ROWS: &[&[&str]] = &[
         "server_settings",
         "web_push",
         "ffmpeg",
-        "web",
         "port_mapping",
         "tls",
         "diagnostics",

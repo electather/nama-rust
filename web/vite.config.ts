@@ -64,9 +64,9 @@ export default defineConfig({
   server: {
     proxy: {
       // Connect paths (`/nama.v1.ServerService/GetServerInfo` and the like) and media: the same
-      // paths the Server keeps out of the web app (`crates/nama-server/src/web.rs`). Custom Images
-      // are uploaded with `PUT` and removed with `DELETE`, which the web app never answers, and
-      // the web app's Diagnostics are posted.
+      // paths the Server keeps out of the web app (`nama_web::serve`). Custom Images are uploaded
+      // with `PUT` and removed with `DELETE`, which the web app never answers, and the web app's
+      // Diagnostics are posted.
       // The first key a path matches wins, so the Hub's API goes ahead of the Server's.
       ...(hubUrl === undefined ? {} : { "^/nama\\.hub\\.": hubUrl }),
       "^/nama\\.": serverUrl,

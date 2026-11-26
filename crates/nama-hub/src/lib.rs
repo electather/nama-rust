@@ -14,8 +14,6 @@ pub mod signing;
 mod sync;
 pub mod titles;
 mod viewing;
-#[cfg(feature = "web")]
-mod web;
 
 use std::{future::Future, io, net::SocketAddr, sync::Arc};
 
@@ -67,7 +65,10 @@ pub fn serve(
         public_url,
     );
     #[cfg(feature = "web")]
-    let app = app.layer(axum::middleware::from_fn(web::serve));
+    let app = app.layer(axum::middleware::from_fn_with_state(
+        "/.well-known/",
+        nama_web::serve,
+    ));
     let app = app.into_make_service_with_connect_info::<SocketAddr>();
     async move {
         axum::serve(listener, app)
@@ -87,3 +88,7 @@ pub async fn train_vectors(db: &PgPool) -> Result<usize, sqlx::Error> {
     // Here, not in `titles`, which sits below `viewing` and can't read its counts (ADR 0099).
     titles::train(db, &viewing::pooled_counts(db).await?).await
 }
+
+#[cfg(all(test, feature = "web"))]
+#[path = "lib_tests.rs"]
+mod tests;
