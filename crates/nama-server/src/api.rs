@@ -210,6 +210,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
+            requests: requests.clone(),
             syncing,
             home_rows: home_rows.clone(),
             images: images.clone(),

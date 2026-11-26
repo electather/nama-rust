@@ -8,7 +8,7 @@ use connectrpc::{
     client::{ClientConfig, HttpClient},
 };
 use nama_proto::nama::v1::{
-    AddToWatchlistRequest, Permission, RefusalReason, RemoveFromWatchlistRequest,
+    AddToWatchlistRequest, LibraryKind, Permission, RefusalReason, RemoveFromWatchlistRequest,
     RequestServiceClient, Role, TitleKind, WatchlistServiceClient,
 };
 use nama_server::{config::Config, plugins::Registry};
@@ -278,4 +278,47 @@ async fn a_looked_up_movie_and_show_have_their_trailers() {
         )
     );
     assert_eq!((alien.trailers.len(), dark.trailers.len()), (2, 5));
+}
+
+#[tokio::test]
+async fn a_looked_up_shows_seasons_list_every_episode_each_with_whether_a_library_has_it() {
+    let fixture = Fixture::start().await;
+    let shows = LibraryKind::LIBRARY_KIND_SHOWS;
+    let s01e01 = "Dark (2017)/Season 01/Dark - S01E01.mkv";
+    fixture.server.matched_library(shows, &[s01e01]).await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+
+    let dark = fixture
+        .server
+        .requests(&grace)
+        .try_look_up_show(tmdb_id(DARK))
+        .await;
+
+    let dark = dark.unwrap();
+    let episodes: Vec<Vec<_>> = (dark.seasons.iter())
+        .map(|season| {
+            (season.episodes.iter())
+                .map(|episode| (episode.episode_number, episode.in_library))
+                .collect()
+        })
+        .collect();
+    assert_eq!(
+        episodes,
+        [
+            vec![(1, true), (2, false), (3, false)],
+            vec![(1, false)],
+            vec![(1, false), (2, false)]
+        ]
+    );
+    let first = &dark.seasons[0].episodes[0];
+    assert_eq!(
+        (
+            first.title.as_str(),
+            first.air_date.as_deref(),
+            first.runtime_minutes
+        ),
+        ("Secrets", Some("2017-12-01"), Some(52))
+    );
+    assert!(first.still_url.is_some(), "{first:?}");
+    assert_eq!(dark.seasons[1].episodes[0].still_url, None);
 }

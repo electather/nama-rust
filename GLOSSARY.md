@@ -103,7 +103,7 @@ One play of a Movie or Episode by a Linked User, as the Hub records it: when it 
 _Avoid_: play log, scrobble, watch history entry, telemetry
 
 **Watchlist**:
-A User's list of titles to watch later, whether or not their Server has them. Across Accounts, the Hub counts them only by the pooled counts' rules (ADR 0093).
+A User's list of titles to watch later, whether or not their Server has them. A Show on it is a Followed Show. Across Accounts, the Hub counts them only by the pooled counts' rules (ADR 0093).
 _Avoid_: queue, favorites, wishlist
 
 **Setting**:
@@ -506,7 +506,7 @@ A User with the Manage Requests Permission, who approves, declines, retries and 
 _Avoid_: approver, admin, moderator
 
 **Followed Show**:
-Users asking for a whole Show, approved once, so every numbered Season, and new ones as they come out, is Requested without asking again. Specials, Season 0, are left out: a User who wants them asks for them on their own. A Season Request appears for a new Season when its Fulfiller fetches it and a Library scan Matches its Episodes. A Season it asked for that was then declined, cancelled or withdrawn, or that was once Available, isn't asked for again.
+A Show on a User's Watchlist, which Requests each new numbered Season as it comes out, without asking again. Seasons already out aren't Requested by it: the User asks for those from the Show's page. Specials, Season 0, are left out. A Season it asked for that was then declined, cancelled or withdrawn, or that was once Available, isn't asked for again. Taking the Show off the Watchlist stops it. A User who may not Request Shows only has it on their Watchlist.
 _Avoid_: monitored show, subscription, series request
 
 **Hand-off**:

@@ -8,7 +8,7 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{
-    FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
+    Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, Permission,
     Request, RequestState,
 };
@@ -64,6 +64,52 @@ impl Requests {
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
         self.apply(move |tx| Box::pin(follow(tx, user, wanted, state)))
+            .await
+    }
+
+    /// Follows the Show `show_id` for `asker`, who put it on their Watchlist, as [`Self::follow`]
+    /// does but asking for none of its Seasons out already: the Followed Show covers each, so only
+    /// a later one is asked for, by a scan. The User asks for the others from the Show's page.
+    ///
+    /// Fails as [`Self::follow`] does.
+    pub(crate) async fn follow_new_seasons(
+        &self,
+        asker: &User,
+        show_id: &ExternalId,
+    ) -> Result<FollowedShow, Error> {
+        let quality = self.quality::<Shows>(asker, None).await?;
+        let (_, show) = self.show(show_id).await?;
+        if self
+            .kept_from(asker, show.content_rating.as_deref())
+            .await?
+        {
+            return Err(Error::NoSuchShow(show_id.clone()));
+        }
+        let latest = show.seasons.iter().copied().max();
+        let wanted = WantedSeasons {
+            seasons: Vec::new(),
+            show_id: kept_under(show_id, &show.ids),
+            show_ids: show.ids,
+            show_title: show.title,
+            quality,
+            content_rating: show.content_rating,
+        };
+        let state = opening_state(asker, Permission::AutoApproveTv);
+        let user = asker.id;
+        self.apply(move |tx| Box::pin(follow_new_seasons(tx, user, wanted, latest, state)))
+            .await
+    }
+
+    /// Takes `requester` off the open Followed Show of the Show `show_id`, as
+    /// [`Self::withdraw_followed`] does, if they are one of its Requesters.
+    pub(crate) async fn stop_following(
+        &self,
+        requester: &User,
+        show_id: &ExternalId,
+    ) -> Result<(), Error> {
+        let user = requester.id;
+        let show = ExternalIds::from_iter([show_id.clone()]);
+        self.apply(move |tx| Box::pin(stop_following(tx, user, show)))
             .await
     }
 
@@ -210,31 +256,8 @@ pub(super) async fn follow(
     show: WantedSeasons,
     state: RequestState,
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
-    let now = now();
     let mut asking = SeasonsToAsk::read(conn, show).await?;
-    let already_open = open_followed_show_by_any(conn, &asking.show_ids).await?;
-    let id = if let Some(id) = already_open {
-        store_ids(conn, id, &asking.show_ids).await?;
-        id
-    } else {
-        open_followed(conn, &asking, state, now).await?
-    };
-    let joined = asked::join(conn, Asked::FollowedShow, id, user, now).await?;
-    let followed = load_followed(conn, Some(id), None).await?.pop();
-    let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
-    let mut happened = Vec::new();
-    if already_open.is_none() {
-        happened.push(event(FollowedShowCreated {
-            followed_show: followed.clone().into(),
-            ..Default::default()
-        }));
-    } else if joined {
-        happened.push(event(FollowedShowRequesterAdded {
-            followed_show: followed.clone().into(),
-            user_id: user,
-            ..Default::default()
-        }));
-    }
+    let (followed, mut happened) = open_or_join(conn, user, &asking, state).await?;
     let way = Way::Following {
         user,
         state,
@@ -257,6 +280,93 @@ pub(super) async fn follow(
         unfollow: None,
         removed: Vec::new(),
     })
+}
+
+/// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
+/// is none, and covers the Season `latest` with it, so a scan asks only for later ones. Returns the
+/// Followed Show, with its event if it opened or `user` joined it.
+pub(super) async fn follow_new_seasons(
+    conn: &mut SqliteConnection,
+    user: i64,
+    show: WantedSeasons,
+    latest: Option<u32>,
+    state: RequestState,
+) -> Result<Applied<FollowedShow>, Error> {
+    let asking = SeasonsToAsk::read(conn, show).await?;
+    let (followed, happened) = open_or_join(conn, user, &asking, state).await?;
+    if let Some(latest) = latest {
+        let way = Way::Following {
+            user,
+            state,
+            followed_show: &followed,
+        };
+        way.cover(conn, latest).await?;
+    }
+    Ok(Applied {
+        events: happened,
+        ..Applied::quiet(followed)
+    })
+}
+
+/// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
+/// is none. Returns it with its event if it opened or `user` joined it.
+async fn open_or_join(
+    conn: &mut SqliteConnection,
+    user: i64,
+    show: &SeasonsToAsk,
+    state: RequestState,
+) -> Result<(FollowedShow, Vec<Event>), sqlx::Error> {
+    let now = now();
+    let already_open = open_followed_show_by_any(conn, &show.show_ids).await?;
+    let id = if let Some(id) = already_open {
+        store_ids(conn, id, &show.show_ids).await?;
+        id
+    } else {
+        open_followed(conn, show, state, now).await?
+    };
+    let joined = asked::join(conn, Asked::FollowedShow, id, user, now).await?;
+    let followed = load_followed(conn, Some(id), None).await?.pop();
+    let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
+    let mut happened = Vec::new();
+    if already_open.is_none() {
+        happened.push(event(FollowedShowCreated {
+            followed_show: followed.clone().into(),
+            ..Default::default()
+        }));
+    } else if joined {
+        happened.push(event(FollowedShowRequesterAdded {
+            followed_show: followed.clone().into(),
+            user_id: user,
+            ..Default::default()
+        }));
+    }
+    Ok((followed, happened))
+}
+
+/// The open Followed Show of the Show with the ids `show`, found by any of them, if `user` is one
+/// of its Requesters.
+pub(super) async fn followed_by(
+    conn: &mut SqliteConnection,
+    show: &ExternalIds,
+    user: i64,
+) -> Result<Option<FollowedShow>, sqlx::Error> {
+    let Some(id) = open_followed_show_by_any(conn, show).await? else {
+        return Ok(None);
+    };
+    Ok(load_followed(conn, Some(id), Some(user)).await?.pop())
+}
+
+/// Takes `user` off the open Followed Show of the Show with the ids `show`, as
+/// [`withdraw_followed`] does, if they are one of its Requesters.
+async fn stop_following(
+    conn: &mut SqliteConnection,
+    user: i64,
+    show: ExternalIds,
+) -> Result<Applied<()>, Error> {
+    match followed_by(conn, &show, user).await? {
+        Some(followed) => withdraw_followed(conn, user, Some(user), followed.id).await,
+        None => Ok(Applied::quiet(())),
+    }
 }
 
 /// Opens a Followed Show of `show` at the Quality its Seasons take, in `state`, storing every id of
@@ -399,8 +509,9 @@ pub(super) async fn decide_followed(
 /// `request` as its Fulfiller is handed it: naming its Followed Show only while that is Approved,
 /// which asks the Fulfiller to follow the Show.
 // ponytail: only a hand-off asks to follow, so a Followed Show that hands nothing off, such as one
-// whose aired Seasons are all in a Library or already have open Requests, isn't followed until a
-// Fulfiller contract call asks to follow without a hand-off.
+// whose aired Seasons are all in a Library or already have open Requests, or one on a Watchlist
+// whose Requesters asked for no Season through it, isn't followed until a Fulfiller contract call
+// asks to follow without a hand-off.
 pub(super) async fn as_handed_off(
     conn: &mut SqliteConnection,
     mut request: Request,

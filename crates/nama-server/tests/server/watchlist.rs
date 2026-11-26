@@ -7,12 +7,13 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, BrowseServiceClient, ExternalId, GetMovieRequest, GetShowRequest,
     LibraryKind, ListContinueWatchingRequest, ListEpisodesRequest, ListWatchlistRequest,
-    RemoveFromWatchlistRequest, ReportProgressRequest, TitleKind, WatchStateServiceClient,
-    WatchlistServiceClient, continue_watching_entry::MovieOrEpisode, home_row_title::MovieOrShow,
+    Permission, RemoveFromWatchlistRequest, ReportProgressRequest, RequestState, TitleKind,
+    WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
+    home_row_title::MovieOrShow,
 };
 use server::{
     TestServer,
-    requests::title_id,
+    requests::{Requester, title_id},
     tmdb::{ALIEN, ALIEN_IMDB, DARK, DARK_TVDB, DUNE, HEAT, UNLISTED},
 };
 
@@ -362,4 +363,94 @@ async fn a_listed_show_on_the_server_carries_when_it_first_aired() {
         panic!("Dark isn't on the Server: {title:?}");
     };
     assert_eq!(dark.first_air_date.as_deref(), Some("2017-12-01"));
+}
+
+/// Each open Followed Show the Admin sees, by its Show's id, with its Requesters' ids.
+async fn followed_shows(fx: &Fixture) -> Vec<(String, Vec<i64>)> {
+    let (_, followed) = fx
+        .server
+        .admin_requests()
+        .list_in(RequestState::Unspecified)
+        .await;
+    (followed.into_iter())
+        .map(|followed| {
+            let show = followed.show_id.as_option().map(|id| id.value.clone());
+            let requesters = followed.requesters.iter().map(|one| one.user_id).collect();
+            (show.unwrap_or_default(), requesters)
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn adding_a_show_follows_it_without_asking_for_a_season_out_already() {
+    let fx = Fixture::start().await;
+    let grace = fx.server.user("Grace", &[Permission::RequestTv]).await;
+    let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), grace.client_config());
+
+    add(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+
+    assert_eq!(
+        followed_shows(&fx).await,
+        [(DARK.to_string(), vec![grace.id])]
+    );
+    assert_eq!(fx.server.admin_requests().list().await, []);
+}
+
+#[tokio::test]
+async fn a_user_who_may_not_request_shows_only_puts_a_show_on_their_watchlist() {
+    let fx = Fixture::start().await;
+    let bea = fx.server.user("Bea", &[Permission::RequestMovie]).await;
+    let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), bea.client_config());
+
+    add(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+
+    assert_eq!(fx.on_watchlist(bea.client_config()).await, (false, true));
+    assert_eq!(followed_shows(&fx).await, []);
+}
+
+#[tokio::test]
+async fn taking_a_show_off_withdraws_its_user_from_its_followed_show_and_keeps_their_seasons() {
+    let fx = Fixture::start().await;
+    let may_request_tv = [Permission::RequestTv];
+    let grace = fx.server.user("Grace", &may_request_tv).await;
+    let ada = fx.server.user("Ada", &may_request_tv).await;
+    let as_grace = WatchlistServiceClient::new(HttpClient::plaintext(), grace.client_config());
+    let as_ada = WatchlistServiceClient::new(HttpClient::plaintext(), ada.client_config());
+    add(&as_grace, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+    add(
+        &as_ada,
+        TitleKind::TITLE_KIND_SHOW,
+        title_id("tvdb", &DARK_TVDB.to_string()),
+    )
+    .await;
+    let season_2 = fx.server.requests(&grace).ask_seasons(DARK, &[2]).await;
+
+    remove(&as_grace, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+    let after_grace = followed_shows(&fx).await;
+    remove(&as_ada, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+
+    assert_eq!(after_grace, [(DARK.to_string(), vec![ada.id])]);
+    assert_eq!(followed_shows(&fx).await, []);
+    let kept: Vec<_> = (fx.server.admin_requests().list().await.into_iter())
+        .map(|request| request.id)
+        .collect();
+    assert_eq!(kept, [season_2[0].id]);
+}
+
+#[tokio::test]
+async fn a_season_a_follower_asks_for_is_opened_for_their_followed_show() {
+    let fx = Fixture::start().await;
+    let grace = fx.server.user("Grace", &[Permission::RequestTv]).await;
+    let watchlist = WatchlistServiceClient::new(HttpClient::plaintext(), grace.client_config());
+    add(&watchlist, TitleKind::TITLE_KIND_SHOW, tmdb_id(DARK)).await;
+    let (_, followed) = fx
+        .server
+        .admin_requests()
+        .list_in(RequestState::Unspecified)
+        .await;
+
+    let asked = fx.server.requests(&grace).ask_seasons(DARK, &[2]).await;
+
+    let id = followed.first().map(|followed| followed.id);
+    assert_eq!(asked[0].followed_show_id, id);
 }

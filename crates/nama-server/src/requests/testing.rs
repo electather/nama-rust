@@ -24,9 +24,9 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use super::apply::Applied;
-use super::asking::{Wanted, WantedSeasons, ask, ask_movie, opening_state};
+use super::asking::{Wanted, WantedSeasons, ask, ask_movie, ask_seasons, opening_state};
 use super::availability::make_seasons_available;
-use super::followed::follow;
+use super::followed::{follow, follow_new_seasons};
 use super::state::{STATES, settle};
 use super::{Requests, qualities};
 use crate::{
@@ -677,6 +677,36 @@ pub(super) async fn follow_as(
     state: RequestState,
 ) -> Applied<(FollowedShow, Vec<Request>)> {
     db.write(move |tx| Box::pin(follow(tx, user, show, state)))
+        .await
+        .unwrap()
+}
+
+/// `user` puts `show` on their Watchlist, following it for the Seasons after those out already, of
+/// which `latest` is the last, as [`follow_as`] does.
+pub(super) async fn follow_new_as(
+    db: &Database,
+    user: i64,
+    latest: Option<u32>,
+    state: RequestState,
+) -> Applied<FollowedShow> {
+    let show = WantedSeasons {
+        seasons: Vec::new(),
+        ..dark()
+    };
+    db.write(move |tx| Box::pin(follow_new_seasons(tx, user, show, latest, state)))
+        .await
+        .unwrap()
+}
+
+/// `user` asks for each of the Seasons of `show` from its page, their new Requests opening in
+/// `state`.
+pub(super) async fn ask_seasons_as(
+    db: &Database,
+    user: i64,
+    show: WantedSeasons,
+    state: RequestState,
+) -> Applied<Vec<Request>> {
+    db.write(move |tx| Box::pin(ask_seasons(tx, user, show, state)))
         .await
         .unwrap()
 }
