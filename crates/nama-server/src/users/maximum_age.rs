@@ -11,6 +11,10 @@ use crate::{
     db::{Database, now},
 };
 
+/// How many Maximum Age changes may happen before a waiter in [`Users::maximum_age_watched`] has
+/// seen them. One that falls further behind reads its User's Maximum Age instead.
+pub(super) const MAXIMUM_AGE_CHANGES_BUFFERED: usize = 64;
+
 /// The Maximum Age of the User `user`: none for one who isn't there, who sees nothing anyway.
 pub(crate) async fn maximum_age(db: &Database, user: i64) -> Result<MaximumAge, sqlx::Error> {
     let stored = sqlx::query!(

@@ -57,6 +57,7 @@ pub(crate) use invites::Invite;
 pub(crate) use library_access::{LibraryAccess, library_access};
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 pub(crate) use managing::{every_user, remote_cap};
+use maximum_age::MAXIMUM_AGE_CHANGES_BUFFERED;
 pub(crate) use maximum_age::maximum_age;
 use names::checked_name;
 pub(crate) use names::name_key;
@@ -110,10 +111,6 @@ const PERMISSION_CHANGES_BUFFERED: usize = 64;
 /// [`Users::library_access_watched`] has seen them. One that falls further behind reads its User's
 /// Library access instead.
 const LIBRARY_ACCESS_CHANGES_BUFFERED: usize = 64;
-
-/// How many Maximum Age changes may happen before a waiter in [`Users::maximum_age_watched`] has
-/// seen them. One that falls further behind reads its User's Maximum Age instead.
-const MAXIMUM_AGE_CHANGES_BUFFERED: usize = 64;
 
 /// The Server's Users, Devices and sessions, kept in its database.
 ///

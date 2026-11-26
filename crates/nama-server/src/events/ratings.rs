@@ -5,8 +5,35 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::lock;
-use crate::{db::Database, library::Contents};
+use futures_util::future::BoxFuture;
+use nama_proto::nama::v1::{Event, event};
+use tracing::{error, warn};
+
+use super::{About, Viewer, classify, lock};
+use crate::{content_ratings::MaximumAge, db::Database, users};
+
+/// Reads the Content Rating of the title the Item it's given is Matched to, `None` for one
+/// without, failing if the Item is no longer Matched to a title of the name it's given, so a
+/// re-Match before the event is delivered can't judge it by another title's. The Library keeps
+/// Matches, above this module, so a subscriber hands this in.
+// ponytail: a re-Match to a title of the same name is judged by that title's rating; carry the
+// rating beside each Event on the bus if that ever matters.
+pub(crate) type MatchRatings = Arc<
+    dyn Fn(i64, String) -> BoxFuture<'static, Result<Option<String>, sqlx::Error>> + Send + Sync,
+>;
+
+/// A subscriber's Maximum Age, and where the Content Rating of each Matched title it judges is
+/// read.
+pub(crate) struct AgeCheck {
+    pub(crate) max_age: MaximumAge,
+    pub(crate) matches: MatchRatings,
+}
+
+/// Reads no Match's Content Rating, for a subscriber whose Maximum Age lets every title through.
+#[cfg(test)]
+pub(super) fn unread_matches() -> MatchRatings {
+    Arc::new(|_, _| Box::pin(async { Ok(None) }))
+}
 
 /// A Request or Followed Show, by id, whose title's Content Rating a Maximum Age judges events
 /// about it by.
@@ -24,27 +51,23 @@ pub(crate) struct Removed {
 }
 
 /// Where a subscriber reads the Content Rating of a Request's or Followed Show's title: its row,
-/// or once that is gone, what [`super::EventBus::removing`] kept of it.
-#[derive(Debug)]
+/// or once that is gone, what [`super::EventBus::removing`] kept of it; and of a Match's title,
+/// from `matches`.
 pub(super) struct Ratings {
     pub(super) db: Arc<Database>,
     pub(super) removed: Arc<Mutex<VecDeque<Removed>>>,
+    pub(super) matches: MatchRatings,
 }
 
 impl Ratings {
-    /// The Content Rating of the title named `title` that the Item `item` is Matched to, `None`
-    /// for one without. Fails if the Item is no longer Matched to a title of that name, so a
-    /// re-Match before delivery can't judge the event by another title's.
-    // ponytail: a re-Match to a title of the same name is judged by that title's rating; carry the
-    // rating beside each Event on the bus if that ever matters.
+    /// The Content Rating of the title named `title` that the Item `item` is Matched to, as
+    /// [`MatchRatings`] reads it.
     pub(super) async fn of_match(
         &self,
         item: i64,
         title: &str,
     ) -> Result<Option<String>, sqlx::Error> {
-        Contents::new(Arc::clone(&self.db))
-            .item_content_rating(item, title)
-            .await
+        (self.matches)(item, title.to_owned()).await
     }
 
     /// The Content Rating stored for `row`, `None` if neither its row nor
@@ -68,5 +91,50 @@ impl Ratings {
             let found = kept.iter().rev().find(|removed| removed.row == row);
             found.map(|removed| removed.content_rating.clone())
         }))
+    }
+}
+
+impl Viewer {
+    /// Whether this viewer's Maximum Age lets `event` reach them: one about another User's Request
+    /// or Followed Show, or any `ItemMatched`, of a title over it doesn't, as their lists leave
+    /// those out. One whose rating can't be read, logged, doesn't either.
+    pub(super) async fn allows_title_of(&self, ratings: &Ratings, event: &Event) -> bool {
+        if self.max_age.lets_every_title() {
+            return true;
+        }
+        if let Some(event::Event::ItemMatched(matched)) = &event.event {
+            return match ratings.of_match(matched.item_id, &matched.title).await {
+                Ok(rating) => self.max_age.allows(rating.as_deref()),
+                Err(err) => {
+                    warn!(
+                        item = matched.item_id,
+                        "a subscriber with a Maximum Age wasn't told of a Match whose Content \
+                         Rating couldn't be read: {err}"
+                    );
+                    false
+                }
+            };
+        }
+        let row = match classify(event) {
+            Some((_, About::Request(request)))
+                if !users::is_requester(self.user, &request.requesters) =>
+            {
+                Rated::Request(request.id)
+            }
+            Some((_, About::FollowedShow(followed)))
+                if !users::is_requester(self.user, &followed.requesters) =>
+            {
+                Rated::FollowedShow(followed.id)
+            }
+            _ => return true,
+        };
+        match ratings.of(row).await {
+            Ok(Some(rating)) => self.max_age.allows(rating.as_deref()),
+            Ok(None) => false,
+            Err(err) => {
+                error!("could not read the Content Rating of {row:?} for a subscriber: {err}");
+                false
+            }
+        }
     }
 }

@@ -1,8 +1,8 @@
 use nama_proto::nama::v1::{
-    Event, EventType, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind,
-    PageRequest, Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated,
-    RequestState, RequestStateChanged, Requester, RequesterAdded, SubscribeResponse,
-    subscribe_response,
+    Event, EventType, FollowedShow, FollowedShowCreated, ItemMatched, LibraryItemAdded,
+    NotificationKind, PageRequest, Permission, Playback, PlaybackStarted, Request,
+    RequestCancelled, RequestCreated, RequestState, RequestStateChanged, Requester, RequesterAdded,
+    SubscribeResponse, subscribe_response,
 };
 
 use std::{
@@ -19,7 +19,10 @@ use axum::http::StatusCode;
 use futures_util::{Stream, StreamExt, future::join_all};
 use url::Url;
 
-use super::{Audience, EventBus, Filter, Viewer, classify, deliver, event, users_to_tell};
+use super::{
+    AgeCheck, Audience, EventBus, Filter, MatchRatings, Viewer, classify, deliver, event,
+    ratings::Ratings, users_to_tell,
+};
 use crate::{
     content_ratings::MaximumAge,
     db::Database,
@@ -175,6 +178,73 @@ fn a_viewer_gets_library_events_only_about_the_libraries_they_see() {
     assert_eq!(viewer.sees(added(1)), Some(added(1)));
     assert_eq!(viewer.sees(added(2)), None);
     assert_eq!(viewer.sees(playback_of(1)), Some(playback_of(1)));
+}
+
+/// What reads every Matched title's Content Rating from `matches`, and every other from nowhere.
+async fn ratings_of_matches(matches: MatchRatings) -> (tempfile::TempDir, Ratings) {
+    let (data_dir, db, _) = bus_on_new_database().await;
+    let removed = Arc::default();
+    (
+        data_dir,
+        Ratings {
+            db,
+            removed,
+            matches,
+        },
+    )
+}
+
+/// What reads every Matched title's Content Rating as `rating`.
+fn rated(rating: Option<&'static str>) -> MatchRatings {
+    Arc::new(move |_, _| Box::pin(async move { Ok(rating.map(str::to_owned)) }))
+}
+
+fn alien_matched() -> Event {
+    event(ItemMatched {
+        library_id: 1,
+        item_id: 1,
+        title: "Alien".to_owned(),
+        ..Default::default()
+    })
+}
+
+#[tokio::test]
+async fn a_viewer_is_told_of_a_match_only_if_their_maximum_age_allows_its_rating() {
+    let capped = |allow_unrated| MaximumAge {
+        age: Some(13),
+        allow_unrated,
+    };
+    // Each subscriber's Maximum Age, the Matched title's Content Rating, and whether they're told.
+    let table = [
+        (Permissions::ADMIN, MaximumAge::default(), Some("R"), true),
+        (Permissions::NEW_USER, MaximumAge::default(), None, true),
+        (Permissions::NEW_USER, capped(false), Some("R"), false),
+        (Permissions::NEW_USER, capped(false), Some("PG-13"), true),
+        (Permissions::NEW_USER, capped(false), None, false),
+        (Permissions::NEW_USER, capped(true), None, true),
+        (Permissions::NEW_USER, capped(true), Some("R"), false),
+    ];
+
+    for (permissions, max_age, rating, told) in table {
+        let (_data_dir, ratings) = ratings_of_matches(rated(rating)).await;
+        let viewer = Viewer::of(&user(1, permissions), LibraryAccess::All, max_age);
+        let got = viewer.allows_title_of(&ratings, &alien_matched()).await;
+        assert_eq!(got, told, "{max_age:?} and {rating:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_capped_viewer_is_not_told_of_a_match_whose_rating_cant_be_read() {
+    let unreadable: MatchRatings =
+        Arc::new(|_, _| Box::pin(async { Err(sqlx::Error::RowNotFound) }));
+    let (_data_dir, ratings) = ratings_of_matches(unreadable).await;
+    let max_age = MaximumAge {
+        age: Some(18),
+        allow_unrated: true,
+    };
+    let viewer = Viewer::of(&user(1, Permissions::NEW_USER), LibraryAccess::All, max_age);
+
+    assert!(!viewer.allows_title_of(&ratings, &alien_matched()).await);
 }
 
 #[test]
@@ -595,7 +665,10 @@ async fn seen_by(bus: &EventBus, subscribers: &[User], published: Vec<Event>) ->
             let subscription = bus.subscribe(
                 subscriber,
                 LibraryAccess::All,
-                MaximumAge::default(),
+                AgeCheck {
+                    max_age: MaximumAge::default(),
+                    matches: super::ratings::unread_matches(),
+                },
                 Filter::default(),
             );
             read_until_played(&bus.db, subscriber.id, Box::pin(subscription))

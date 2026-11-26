@@ -1,5 +1,7 @@
 //! Live updates: `nama.v1.EventService`.
 
+use std::sync::Arc;
+
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
@@ -8,7 +10,8 @@ use futures_util::StreamExt;
 use nama_proto::nama::v1::{EventService, EventType, SubscribeRequest, SubscribeResponse};
 
 use crate::{
-    events::{EventBus, Filter},
+    events::{AgeCheck, EventBus, Filter, MatchRatings},
+    library::Contents,
     users::Users,
 };
 
@@ -21,6 +24,8 @@ pub(super) struct EventServiceHandler {
     /// and Maximum Age changes end the streams they opened, so a stream never sees what its User
     /// no longer may.
     pub(super) users: Users,
+    /// Where the Content Rating of a Matched title is read, for a capped subscriber's Maximum Age.
+    pub(super) contents: Contents,
 }
 
 impl EventService for EventServiceHandler {
@@ -34,6 +39,7 @@ impl EventService for EventServiceHandler {
         let request = request.to_owned_message();
         let caller = caller(&ctx).cloned();
         let (events, users) = (self.events.clone(), self.users.clone());
+        let matches = match_ratings(self.contents.clone());
         async move {
             let caller = caller?;
             let types = request
@@ -53,7 +59,12 @@ impl EventService for EventServiceHandler {
             let max_age_watched = users.maximum_age_watched(caller.user.id).await;
             let (max_age, maximum_age_changed) = max_age_watched.map_err(database_failed)?;
             let events = events
-                .subscribe(&caller.user, libraries, max_age, filter)
+                .subscribe(
+                    &caller.user,
+                    libraries,
+                    AgeCheck { max_age, matches },
+                    filter,
+                )
                 .take_until(signed_out)
                 .take_until(permissions_changed)
                 .take_until(library_access_changed)
@@ -62,6 +73,14 @@ impl EventService for EventServiceHandler {
             Response::ok(stream)
         }
     }
+}
+
+/// Each Matched title's Content Rating, as `contents` holds it.
+fn match_ratings(contents: Contents) -> MatchRatings {
+    Arc::new(move |item, title| {
+        let contents = contents.clone();
+        Box::pin(async move { contents.item_content_rating(item, &title).await })
+    })
 }
 
 fn event_type_from_proto(kind: EnumValue<EventType>) -> Result<EventType, ConnectError> {
