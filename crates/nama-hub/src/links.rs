@@ -315,9 +315,10 @@ impl Links {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::CodeNotFound)?;
+        // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
         let linked = sqlx::query!(
             r#"INSERT INTO linked_servers (account_id, name) VALUES ($1, $2)
-             RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!""#,
+             RETURNING id, floor(extract(epoch FROM created_at))::bigint AS "linked_at!""#,
             session.account.id.0,
             waiting.server_name,
         )
@@ -393,9 +394,10 @@ impl Links {
 
     /// The Linked Servers `account` owns or has a User on, oldest first.
     pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
+        // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
         let servers = sqlx::query!(
             r#"SELECT id, name, server_url, public_address, relay_address, lan_addresses,
-             extract(epoch FROM created_at)::bigint AS "linked_at!"
+             floor(extract(epoch FROM created_at))::bigint AS "linked_at!"
              FROM linked_servers WHERE account_id = $1
              OR id IN (SELECT linked_server_id FROM user_links WHERE account_id = $1)
              ORDER BY created_at, id"#,

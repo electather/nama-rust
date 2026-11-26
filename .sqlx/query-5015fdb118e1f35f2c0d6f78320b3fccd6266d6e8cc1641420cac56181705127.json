@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO linked_servers (account_id, name) VALUES ($1, $2)\n             RETURNING id, extract(epoch FROM created_at)::bigint AS \"linked_at!\"",
+  "query": "INSERT INTO linked_servers (account_id, name) VALUES ($1, $2)\n             RETURNING id, floor(extract(epoch FROM created_at))::bigint AS \"linked_at!\"",
   "describe": {
     "columns": [
       {
@@ -32,5 +32,5 @@
       null
     ]
   },
-  "hash": "e54d2e8e2c77fc6e0ef8c61e671f0b883ab2f95e5853ea98ca3b56d2dd5c9004"
+  "hash": "5015fdb118e1f35f2c0d6f78320b3fccd6266d6e8cc1641420cac56181705127"
 }

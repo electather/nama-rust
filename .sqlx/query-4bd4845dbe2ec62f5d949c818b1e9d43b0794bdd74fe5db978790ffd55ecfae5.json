@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO linked_servers (account_id, name, created_at)\n         VALUES ($1, 'Den', to_timestamp(1700000000.7))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4bd4845dbe2ec62f5d949c818b1e9d43b0794bdd74fe5db978790ffd55ecfae5"
+}
