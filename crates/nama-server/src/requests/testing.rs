@@ -39,7 +39,7 @@ use crate::{
     },
     plugins::{Answer, ExtensionPoints, Failure, Registry},
     server_settings::ServerUrl,
-    users::{Permissions, User},
+    users::{Permissions, User, testing::insert_user},
 };
 
 /// The Movie `request` asks for, panicking if it asks for a Season.
@@ -89,27 +89,19 @@ pub(super) fn episode(number: u32, air_date: Option<&str>) -> SourceEpisode {
 
 /// Asks for each of `wanted` in turn as a new User, opening Requests in `state`, and returns
 /// the Requests' ids.
-pub(super) async fn ask_each(
-    conn: &mut SqliteConnection,
-    wanted: Vec<Wanted>,
-    state: RequestState,
-) -> Result<Vec<i64>, sqlx::Error> {
-    let user = insert_ada(conn).await?;
-    let mut ids = Vec::new();
-    for one in wanted {
-        ids.push(ask(conn, user, one, state).await?.value.id);
-    }
-    Ok(ids)
-}
-
-/// Adds the User [`ada`] stands for, and returns the id.
-pub(super) async fn insert_ada(conn: &mut SqliteConnection) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar(
-        "INSERT INTO users (username, display_username, permissions, created_at, updated_at)
-         VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
-    )
-    .fetch_one(&mut *conn)
+pub(super) async fn ask_each(db: &Database, wanted: Vec<Wanted>, state: RequestState) -> Vec<i64> {
+    let user = insert_user(db, "ada").await;
+    db.write(move |tx| {
+        Box::pin(async move {
+            let mut ids = Vec::new();
+            for one in wanted {
+                ids.push(ask(tx, user, one, state).await?.value.id);
+            }
+            Ok::<_, sqlx::Error>(ids)
+        })
+    })
     .await
+    .unwrap()
 }
 
 /// A Fulfiller for Movies and Shows that takes every Request at once, giving a Movie's TMDB id
@@ -316,7 +308,7 @@ pub(super) async fn approved_on<Kind: 'static>(
 ) -> (tempfile::TempDir, Requests) {
     let data = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    db.write(|tx| Box::pin(insert_ada(tx))).await.unwrap();
+    insert_user(&db, "ada").await;
     plugins
         .enable(Arc::new(FulfillerPlugin("gated", fulfiller)))
         .unwrap();
@@ -481,20 +473,8 @@ pub(super) const BOB: i64 = 2;
 pub(super) async fn ada_and_bob() -> (tempfile::TempDir, Arc<Database>) {
     let data = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    db.write(|tx| {
-        Box::pin(async move {
-            insert_ada(tx).await?;
-            sqlx::query(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES ('bob', 'Bob', 0, 0, 0)",
-            )
-            .execute(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap();
+    insert_user(&db, "ada").await;
+    insert_user(&db, "bob").await;
     (data, db)
 }
 

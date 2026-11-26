@@ -16,7 +16,7 @@ use crate::requests::{Error, Requests};
 use crate::{
     db::Database,
     plugins::ExtensionPoints,
-    users::{Permissions, User},
+    users::{Permissions, User, testing::insert_user},
 };
 
 const KINDS: [Asked; 2] = [Asked::Request, Asked::FollowedShow];
@@ -432,18 +432,7 @@ async fn ada_asks_then_bob_and_carol_follow(db: &Arc<Database>) -> (i64, i64) {
         .0
         .id;
     match_dark_episodes(db, 1, &[1, 2]).await;
-    db.write(|tx| {
-        Box::pin(
-            sqlx::query(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES ('carol', 'Carol', 0, 0, 0)",
-            )
-            .execute(&mut **tx),
-        )
-    })
-    .await
-    .unwrap();
+    insert_user(db, "carol").await;
     follow_as(db, CAROL, dark(), RequestState::Pending).await;
     (followed, season_1)
 }
