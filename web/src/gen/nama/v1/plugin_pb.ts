@@ -1285,8 +1285,8 @@ export const ExtensionPoint = {
   SIMILAR_SOURCE: 16,
 
   /**
-   * Links the Server to an outside service an Admin signs in to there, such as the Hub, through
-   * `ServerService.StartServerLink` (ADR 0011).
+   * Linked the Server with the Hub through `ServerService.StartServerLink` (ADR 0011). Unused: the
+   * Server Links itself with the Hub its config names.
    *
    * @generated from enum value: EXTENSION_POINT_SERVER_LINKER = 17;
    */

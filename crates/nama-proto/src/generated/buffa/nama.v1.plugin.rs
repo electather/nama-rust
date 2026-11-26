@@ -669,8 +669,8 @@ pub enum ExtensionPoint {
     EXTENSION_POINT_SEARCH_SOURCE = 15i32,
     /// Says which titles are like a title, for its Similar titles (ADR 0084).
     EXTENSION_POINT_SIMILAR_SOURCE = 16i32,
-    /// Links the Server to an outside service an Admin signs in to there, such as the Hub, through
-    /// `ServerService.StartServerLink` (ADR 0011).
+    /// Linked the Server with the Hub through `ServerService.StartServerLink` (ADR 0011). Unused: the
+    /// Server Links itself with the Hub its config names.
     EXTENSION_POINT_SERVER_LINKER = 17i32,
     /// Takes the Diagnostics and Usage Analytics an Admin shares with Nama's developers to them, such
     /// as through the Hub (ADR 0054).

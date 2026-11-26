@@ -103,7 +103,7 @@ export function fakeServer(
       getServerSettings: () => ({ settings: {} }),
       getPlaybackSettings: () => ({ settings: {} }),
       getImageSettings: () => ({ settings: { resizeImages: true } }),
-      // No Plugin links the Server.
+      // The Server's config names no Hub.
       getServerLink: () => ({}),
       ...state.serverService,
     });

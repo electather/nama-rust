@@ -1670,9 +1670,9 @@ export const UserService: GenService<{
    * Linked to the Hub (ADR 0092). They have no password: the Account with `email` accepts them on
    * the Hub, which Links them to it, and from then on they sign in with it. It answers the same
    * whether or not an Account has the email. Fails like `CreateUser` for the name, with
-   * `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER`, creating no User, without an
-   * enabled Plugin that links the Server, and with `unavailable`, creating no User, while the
-   * Server isn't Linked or the Hub can't be reached.
+   * `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER`, creating no User, when the
+   * Server's config names no Hub, and with `unavailable`, creating no User, while the Server isn't
+   * Linked or the Hub can't be reached.
    *
    * @generated from rpc nama.v1.UserService.CreateUserFromAccount
    */
@@ -2044,9 +2044,9 @@ export const UserService: GenService<{
   /**
    * Returns whether the caller is Linked to an Account, and to which, or the code they show while
    * they wait for it to be entered on the Hub (ADR 0011). While it waits, this is also what has the
-   * Plugin ask the Hub whether it was entered. `link` is unset while the Server can't Link Users:
-   * without an enabled Plugin that links it, such as the Hub Plugin, or before the Server is Linked
-   * itself. Fails with `unavailable` if the Plugin failed.
+   * Server ask the Hub whether it was entered. `link` is unset while the Server can't Link Users:
+   * when its config names no Hub, or before the Server is Linked itself. Fails with `unavailable`
+   * if the Hub couldn't be asked, such as while it's unreachable.
    *
    * @generated from rpc nama.v1.UserService.GetUserLink
    */
@@ -2058,8 +2058,8 @@ export const UserService: GenService<{
   /**
    * Starts Linking the caller to an Account, replacing a code they were showing, and returns the
    * new one. A User Links to one Account, so a caller Linked already gets that Link back. Fails
-   * with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
-   * with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+   * with `REFUSAL_REASON_NO_SERVER_LINKER` when the Server's config names no Hub, and with
+   * `unavailable` if the Hub couldn't start it, such as while it's unreachable.
    *
    * @generated from rpc nama.v1.UserService.StartUserLink
    */
