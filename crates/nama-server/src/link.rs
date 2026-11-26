@@ -304,8 +304,8 @@ impl Linking {
 
     /// The id of the User `token` names, a token the Hub signed for the web app at the Hub to trade
     /// here for a Device (ADR 0105), using it up, and when their Account's Hub session signed in by
-    /// the Server's clock, 0 when it doesn't say; `None` when it is refused: one for another Server, expired, used
-    /// already or not the Hub's.
+    /// the Server's clock, 0 when it doesn't say; `None` when it is refused: one for another
+    /// Server, expired, used already or not the Hub's.
     pub(crate) async fn hub_token_user(&self, token: &str) -> Result<Option<(i64, i64)>, Error> {
         self.ask_hub(async |server| server.hub_token_user(token).await)
             .await

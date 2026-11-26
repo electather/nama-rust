@@ -197,10 +197,10 @@ impl SignIn {
     }
 
     /// Signs a new `device` in as the User `hub_token` names, a token the Hub signed for the web
-    /// app at the Hub (ADR 0105), at `now`, with Recent Authentication from when their Account's Hub
-    /// session signed in. A refused token counts as a failed attempt from the
-    /// client IP, as does a Hub that can't be asked for its key set: either may be anyone's token,
-    /// and an unknown key fetches the set again.
+    /// app at the Hub (ADR 0105), at `now`, with Recent Authentication from when their Account's
+    /// Hub session signed in. A refused token counts as a failed attempt from the client IP, as
+    /// does a Hub that can't be asked for its key set: either may be anyone's token, and an unknown
+    /// key fetches the set again.
     pub(crate) async fn sign_in_with_hub_token(
         &self,
         hub_token: &str,
