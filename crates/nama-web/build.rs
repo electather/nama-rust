@@ -1,9 +1,9 @@
 //! Build script for the web app.
 //!
-//! With the `web` feature, it embeds the built web app so a Server's or a Hub's release is one
-//! binary (ADR 0004, ADR 0105). It writes `web_assets.rs` to `OUT_DIR` for `src/lib.rs`: `SHELL`,
-//! the app's `index.html`, and `asset`, which looks up every file `vp build` wrote to `web/dist` by
-//! its URL path.
+//! With the `embed` feature, it embeds the built web app so a release is one binary (ADR 0004,
+//! ADR 0105). It writes `web_assets.rs` to `OUT_DIR` for `src/lib.rs`: `SHELL`, the app's
+//! `index.html`, and `asset`, which looks up every file `vp build` wrote to `web/dist` by its URL
+//! path.
 
 use std::{
     env,
@@ -14,14 +14,14 @@ use std::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
-    if env::var_os("CARGO_FEATURE_WEB").is_none() {
+    if env::var_os("CARGO_FEATURE_EMBED").is_none() {
         return Ok(());
     }
     let dist = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../../web/dist");
     println!("cargo:rerun-if-changed={}", dist.display());
     let dist = dist.canonicalize().map_err(|err| {
         format!(
-            "the `web` feature embeds {}, which can't be read ({err}): run `vp build` in web/ first",
+            "nama-web embeds {}, which can't be read ({err}): run `vp build` in web/ first",
             dist.display()
         )
     })?;

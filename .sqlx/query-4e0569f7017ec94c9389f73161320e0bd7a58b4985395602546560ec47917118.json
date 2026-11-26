@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE personal_settings SET value = ?\n                     WHERE user_id = ? AND plugin_id = ? AND key = ? AND secret",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "4e0569f7017ec94c9389f73161320e0bd7a58b4985395602546560ec47917118"
+}

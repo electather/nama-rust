@@ -39,6 +39,8 @@ pub mod users;
 mod viewing;
 mod watch_sync;
 mod watchlist;
+#[cfg(feature = "web")]
+mod web;
 mod web_push;
 
 use std::{future::Future, io, sync::Arc, time::Duration};
@@ -272,10 +274,7 @@ pub fn serve(
         ffmpeg,
     );
     #[cfg(feature = "web")]
-    let app = app.layer(axum::middleware::from_fn_with_state(
-        "/media/",
-        nama_web::serve,
-    ));
+    let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
         sharing.serve(Some(linking.clone())).await;
         log_jobs_time_zone();

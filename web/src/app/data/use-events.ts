@@ -35,6 +35,7 @@ const types = [
   EventType.PLAYBACK_STARTED,
   EventType.PLAYBACK_CHANGED,
   EventType.PLAYBACK_ENDED,
+  EventType.INBOX_CHANGED,
 ];
 
 // How long to wait before subscribing again after the stream ends or fails.

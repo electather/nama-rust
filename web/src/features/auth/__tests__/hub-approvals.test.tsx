@@ -165,7 +165,7 @@ test("a Linking by redirect that expired says to start again in the Server's Set
 test("approving a sign-in to a Server goes back to that Server", async () => {
   // Going to another site would end the test's page, so where it went is only noted.
   const went: string[] = [];
-  vi.spyOn(globalThis.location, "assign").mockImplementation((url) => {
+  vi.spyOn(globalThis.location, "replace").mockImplementation((url) => {
     went.push(String(url));
   });
   openApp("/server-sign-in/1", fakeHub());

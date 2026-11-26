@@ -48,6 +48,7 @@ enum EventType {
   EVENT_TYPE_PLAYBACK_CHANGED = 22;
   EVENT_TYPE_MATCHING_FINISHED = 23;
   EVENT_TYPE_PROBING_FINISHED = 24;
+  EVENT_TYPE_INBOX_CHANGED = 25;
 }
 
 message SubscribeRequest {
@@ -100,6 +101,7 @@ message Event {
     PlaybackChanged playback_changed = 22;
     MatchingFinished matching_finished = 23;
     ProbingFinished probing_finished = 24;
+    InboxChanged inbox_changed = 25;
   }
 }
 
@@ -162,6 +164,13 @@ message ProbingFinished {
   uint64 probed = 2;
   // Files ffprobe couldn't read.
   uint64 failed = 3;
+}
+
+// The Server stored a notification in the subscriber's inbox, so its unread count may have changed.
+// Sent once the notification is stored, so `InboxService` lists it by then. Only that User gets it.
+message InboxChanged {
+  // The User whose inbox it is.
+  int64 user_id = 1;
 }
 
 // A scan stored an Item, for a new file, one that changed or one a newer name parser read.

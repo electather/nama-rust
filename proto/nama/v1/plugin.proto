@@ -423,9 +423,9 @@ enum ExtensionPoint {
   EXTENSION_POINT_SEARCH_SOURCE = 15;
   // Says which titles are like a title, for its Similar titles (ADR 0084).
   EXTENSION_POINT_SIMILAR_SOURCE = 16;
-  // Linked the Server with the Hub through `ServerService.StartServerLink` (ADR 0011). Unused: the
-  // Server Links itself with the Hub its config names.
-  EXTENSION_POINT_SERVER_LINKER = 17;
+  // Was the ServerLinker Extension Point; the Server Links itself with the Hub its config names.
+  reserved 17;
+  reserved "EXTENSION_POINT_SERVER_LINKER";
   // Was the DiagnosticsSharer Extension Point; the Kernel now sends shared Diagnostics to the Hub
   // itself.
   reserved 18;

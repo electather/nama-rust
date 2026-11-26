@@ -149,5 +149,10 @@ pub mod event {
                 super::super::super::super::__buffa::view::ProbingFinishedView<'a>,
             >,
         ),
+        InboxChanged(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::InboxChangedView<'a>,
+            >,
+        ),
     }
 }

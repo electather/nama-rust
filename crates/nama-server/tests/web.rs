@@ -1,5 +1,5 @@
-//! The web app the Server serves, with the `web` feature on, around its own routes; `nama-web`
-//! tests how it serves the app. Needs `vp build` in `web/` first.
+//! The web app the Server serves, with the `web` feature on. Needs `vp build` in `web/` first.
+//! What `nama-web` does the same for the Hub, such as compressing and caching, it tests itself.
 #![cfg(feature = "web")]
 
 #[path = "support/server.rs"]
@@ -48,28 +48,14 @@ async fn http1_get(addr: SocketAddr, path: &str) -> (u16, HeaderMap, Vec<u8>) {
 }
 
 /// Like [`http1_get`], presenting `token`, if any, as a bearer token.
-async fn http1_get_as(
-    addr: SocketAddr,
-    path: &str,
-    token: Option<&str>,
-) -> (u16, HeaderMap, Vec<u8>) {
-    let authorization = token.map(|token| format!("Bearer {token}"));
-    let header = authorization
-        .as_deref()
-        .map(|value| ("authorization", value));
-    http1_get_with(addr, path, header.as_slice()).await
-}
-
-/// Sends a plain HTTP/1.1 `GET` for `path` with `request_headers` and returns the status, the
-/// response's headers and its body as sent.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn http1_get_with(
+async fn http1_get_as(
     addr: SocketAddr,
     path: &str,
-    request_headers: &[(&str, &str)],
+    token: Option<&str>,
 ) -> (u16, HeaderMap, Vec<u8>) {
     use http_body_util::{BodyExt, Empty};
     use hyper::{Request, body::Bytes, client::conn::http1};
@@ -80,8 +66,8 @@ async fn http1_get_with(
     tokio::spawn(connection);
 
     let mut request = Request::get(path).header("host", addr.to_string());
-    for (name, value) in request_headers {
-        request = request.header(*name, *value);
+    if let Some(token) = token {
+        request = request.header("authorization", format!("Bearer {token}"));
     }
     let request = request.body(Empty::<Bytes>::new()).unwrap();
     let response = sender.send_request(request).await.unwrap();

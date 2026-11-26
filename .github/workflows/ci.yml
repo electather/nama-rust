@@ -445,8 +445,8 @@ jobs:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 
-  # `nama-web`, the Server and the Hub with the `web` feature, which embeds the `vp build` output
-  # and serves it.
+  # The Server and the Hub with the `web` feature, which embeds the `vp build` output through
+  # `nama-web` and serves it.
   # Runs for a web-only PR too.
   web-test:
     needs: changes
@@ -473,16 +473,19 @@ jobs:
           working-directory: web
           cache: true
       - run: vp -C web build
-      # `rust-check` lints without `web`, which needs the built app, so the `web` code is linted
-      # here.
-      - run: cargo clippy -p nama-web --features web --all-targets --locked -- -D warnings
+      # `rust-check` lints without `web`, which needs the built app, so both crates' `web` code
+      # is linted here.
       - run: cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
+      # The Hub embeds the same web app. Its other tests need PostgreSQL, which `hub` has, so this
+      # runs only its `web::` unit tests, which need none.
       - run: cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings
-      # One run, since a second on the `ci` profile would overwrite its report: `nama-web`'s tests,
-      # and the Hub's `lib` test of the web app around its routes. The Hub's other tests need
-      # PostgreSQL, which `hub` has.
-      - run: cargo nextest run -p nama-web -p nama-hub --features web --lib --locked --profile ci -E 'test(/^tests::/)'
+      - run: cargo clippy -p nama-web --features embed --all-targets --locked -- -D warnings
+      # One run, since a second under the `ci` profile would overwrite this one's junit.xml. The
+      # Hub's `web` turns on `nama-web`'s `embed`, whose tests cover what both crates serve.
+      - run: >-
+          cargo nextest run -p nama-web -p nama-hub --features nama-hub/web --lib --locked
+          --profile ci -E 'package(nama-web) | (package(nama-hub) & test(/^web::/))'
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
         run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
       - uses: actions/upload-artifact@v7
