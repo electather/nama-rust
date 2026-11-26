@@ -572,7 +572,7 @@ impl Users {
 
     /// Whether the Device `device` still acts as the User `user`. If that can't be found out, it is
     /// taken not to, so what it opened ends rather than outlive it.
-    async fn still_acting_as(&self, device: i64, user: i64) -> bool {
+    pub(crate) async fn still_acting_as(&self, device: i64, user: i64) -> bool {
         let found = sqlx::query_scalar!(
             r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?)
                    AS "exists!: bool""#,

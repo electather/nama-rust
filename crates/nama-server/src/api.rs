@@ -35,7 +35,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings,
-    signed_urls::{PlanRuns, UrlSigner, admit},
+    signed_urls::{PlanRuns, StillActing, UrlSigner, admit},
     sync::Syncing,
     users::{
         Caller, Device, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
@@ -265,6 +265,11 @@ pub(crate) fn router(
         .into_axum_service()
         .with_interceptor(RecordFailures);
     let linking = users.linking().clone();
+    let acting_users = users.clone();
+    let still_acting: StillActing = Arc::new(move |viewer| {
+        let acting = acting_users.clone();
+        Box::pin(async move { acting.still_acting_as(viewer.device, viewer.user).await })
+    });
     let routes = axum::Router::new()
         .fallback_service(rpcs)
         .merge(artwork_router)
@@ -291,8 +296,9 @@ pub(crate) fn router(
         .layer(Extension(signer.clone()));
     let plan_runs: PlanRuns = Arc::new(move |plan, device| running.runs_for(plan, device));
     // Outside the routes, since a layer on them runs after routing, too late to rewrite the path.
-    axum::Router::new()
-        .fallback_service(middleware::from_fn_with_state((signer, plan_runs), admit).layer(routes))
+    axum::Router::new().fallback_service(
+        middleware::from_fn_with_state((signer, plan_runs, still_acting), admit).layer(routes),
+    )
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.
