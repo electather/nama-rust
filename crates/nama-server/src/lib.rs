@@ -91,8 +91,8 @@ use crate::{
 /// The Hub [`Config::hub_url`] names, if any, is told the Server's Server Addresses every minute
 /// and as soon as the Server URL is saved, and while the Server is Linked with it, it keeps its
 /// port open on the router with UPnP or NAT-PMP, unless [`Config::forwarded_port`] names the one
-/// the Admin forwarded. The enabled Plugin that syncs its Linked Users, if any, is asked for each
-/// User's Watch State on their other Servers after each scan.
+/// the Admin forwarded. After each scan, that Hub is asked for each Linked User's Watch State on
+/// their other Servers.
 ///
 /// While the Server is Linked and the Hub names it, the Server gets a certificate for its names
 /// from [`Config::acme_directory`] and keeps it renewed, and its public name is its Server URL

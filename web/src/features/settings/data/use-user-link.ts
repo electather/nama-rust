@@ -15,8 +15,8 @@ export function userLinkKey(transport: Transport) {
 
 /**
  * Where Linking the signed-in User to an Account stands, or `undefined` while the Server can't
- * Link Users: without the Hub Plugin, or before the Server is Linked. Looked at again while a code
- * waits to be entered.
+ * Link Users: when its config names no Hub, or before the Server is Linked. Looked at again while
+ * a code waits to be entered.
  */
 export function useUserLink() {
   return useSuspenseQuery(

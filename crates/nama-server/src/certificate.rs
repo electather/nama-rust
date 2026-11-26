@@ -1,10 +1,10 @@
 //! The certificate for the Server's names on the Hub (ADR 0057): one for its own name and the
 //! wildcard under it, which its LAN names fall under, from an ACME CA, Let's Encrypt unless
-//! `Config::acme_directory` names another. The CA checks a DNS-01 challenge the Plugin that links
-//! the Server has its service publish, but the Server makes the certificate's key itself, so the
-//! service never holds it. The certificate is kept in the data directory and served from startup,
-//! whether or not the service answers, and renewed a month before it expires. While the Server has
-//! none it serves plain HTTP alone (`tls.rs`).
+//! `Config::acme_directory` names another. The CA checks a DNS-01 challenge the Server has the Hub
+//! it is Linked with publish, but the Server makes the certificate's key itself, so the Hub never
+//! holds it. The certificate is kept in the data directory and served from startup, whether or not
+//! the Hub answers, and renewed a month before it expires. While the Server has none it serves
+//! plain HTTP alone (`tls.rs`).
 
 use std::{
     fmt::Display,

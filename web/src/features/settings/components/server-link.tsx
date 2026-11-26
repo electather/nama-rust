@@ -8,7 +8,7 @@ import { linkFailure } from "@/features/settings/lib/server-link";
 
 /**
  * Whether the Server is Linked to an Account on the Hub, and Linking or Unlinking it. Shown only
- * while a Plugin that links the Server, the Hub Plugin, is enabled.
+ * when the Server's config names a Hub.
  */
 export function ServerLink() {
   const link = useServerLink();

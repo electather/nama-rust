@@ -14,8 +14,8 @@ export function serverLinkKey(transport: Transport) {
 }
 
 /**
- * Where Linking the Server stands, or `undefined` without an enabled Plugin that links it, such
- * as the Hub Plugin. Looked at again while a code waits to be entered.
+ * Where Linking the Server stands, or `undefined` when its config names no Hub. Looked at again
+ * while a code waits to be entered.
  */
 export function useServerLink() {
   return useSuspenseQuery(

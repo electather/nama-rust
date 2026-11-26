@@ -278,8 +278,10 @@ async fn a_titled_backdrop_is_kept_while_a_match_stores_it_and_dropped_once_none
     let items = server.scan_and_match(&library).await;
     until_kept(&server, TITLED, &[TITLED_BACKDROP]).await;
 
-    // A scan ends by deleting the images no Match stores.
+    // A scan ends by deleting the images no Match stores. Its sweep and downloads run on after
+    // `MatchingFinished`; one still listing the image could store it again after the clear's sweep.
     server.scan_and_match(&library).await;
+    server.artwork_settled().await;
     let kept_while_matched = kept(&server, TITLED, TITLED_BACKDROP).exists();
     let matches = MatchServiceClient::new(HttpClient::plaintext(), server.client_config());
     let cleared = ClearMatchRequest {
