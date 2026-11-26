@@ -33,7 +33,13 @@ export function EpisodeCard({
       className="w-tile-backdrop shrink-0 snap-start"
     >
       <BackdropCard
-        art={{ url: episode.stillUrl, thumbhash: episode.stillThumbhash, sizes: backdropTileSizes }}
+        art={{
+          url: episode.stillUrl,
+          thumbhash: episode.stillThumbhash,
+          sizes: backdropTileSizes,
+          // Stills have no prerendered width list.
+          widths: "imageWidths",
+        }}
         link={{
           to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
           params: {

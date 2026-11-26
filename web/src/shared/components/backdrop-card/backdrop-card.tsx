@@ -23,7 +23,7 @@ export function BackdropCard({
     url: string | undefined;
     thumbhash: Uint8Array | undefined;
     sizes: string;
-    widths?: OfferedWidths | undefined;
+    widths: OfferedWidths;
   };
   link: LinkOptions;
   label: string;
