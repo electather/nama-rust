@@ -14,6 +14,14 @@ pub type OwnedRemoveFromWatchlistRequestView = ::buffa::view::OwnedView<
 pub type OwnedRemoveFromWatchlistResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::RemoveFromWatchlistResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListWatchlistRequestView<'static>>`.
+pub type OwnedListWatchlistRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListWatchlistRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListWatchlistResponseView<'static>>`.
+pub type OwnedListWatchlistResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListWatchlistResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::AddToWatchlistResponse>
 for crate::messages::nama::v1::__buffa::view::AddToWatchlistResponseView<'_> {
     fn encode(
@@ -82,6 +90,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListWatchlistResponse>
+for crate::messages::nama::v1::__buffa::view::ListWatchlistResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListWatchlistResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListWatchlistResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const WATCHLIST_SERVICE_SERVICE_NAME: &str = "nama.v1.WatchlistService";
 /// Static [`Spec`](::connectrpc::Spec) for the `AddToWatchlist` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -96,6 +138,12 @@ pub const WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC: ::connectrpc::Spec = ::c
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListWatchlist` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const WATCHLIST_SERVICE_LIST_WATCHLIST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.WatchlistService/ListWatchlist",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// The signed-in caller's Watchlist (ADR 0056): the Movies and Shows they mean to watch.
 ///
 /// A Watchlist keeps each title by its kind and external id, whether or not the Server has it, so
@@ -200,6 +248,32 @@ pub trait WatchlistService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Lists the caller's Watchlist, newest added first, each title as a Home row shows it: on the
+    /// Server in the oldest Library they see that has it, or else missing as the title source has it
+    /// now, if they may Request its kind. One only Libraries they don't see have, that their Maximum
+    /// Age keeps out, or that the title source doesn't have or can't be asked about now is left out.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_watchlist<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListWatchlistRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListWatchlistResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -290,6 +364,35 @@ impl<S: WatchlistService> WatchlistServiceExt for S {
                 },
             )
             .with_spec(WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC)
+            .route_view_idempotent(
+                WATCHLIST_SERVICE_SERVICE_NAME,
+                "ListWatchlist",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListWatchlistRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListWatchlistRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_watchlist(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListWatchlistResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(WATCHLIST_SERVICE_LIST_WATCHLIST_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -356,6 +459,12 @@ impl<T: WatchlistService> ::connectrpc::Dispatcher for WatchlistServiceServer<T>
                         .with_spec(WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC),
                 )
             }
+            "ListWatchlist" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(WATCHLIST_SERVICE_LIST_WATCHLIST_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -412,6 +521,28 @@ impl<T: WatchlistService> ::connectrpc::Dispatcher for WatchlistServiceServer<T>
                         .await?
                         .encode::<
                             crate::messages::nama::v1::RemoveFromWatchlistResponse,
+                        >(format)
+                })
+            }
+            "ListWatchlist" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListWatchlistRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListWatchlistRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListWatchlistRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_watchlist(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListWatchlistResponse,
                         >(format)
                 })
             }
@@ -627,6 +758,51 @@ where
                 &self.transport,
                 &self.config,
                 WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListWatchlist RPC. Sends a request to /nama.v1.WatchlistService/ListWatchlist.
+    pub async fn list_watchlist(
+        &self,
+        request: crate::messages::nama::v1::ListWatchlistRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListWatchlistResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_watchlist_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListWatchlist RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_watchlist_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListWatchlistRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListWatchlistResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                WATCHLIST_SERVICE_LIST_WATCHLIST_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

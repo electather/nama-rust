@@ -4,6 +4,8 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { HomeRowTitle } from "./browse_pb";
+import { file_nama_v1_browse } from "./browse_pb";
 import type { ExternalId, TitleKind } from "./match_pb";
 import { file_nama_v1_match } from "./match_pb";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/watchlist.proto.
  */
 export const file_nama_v1_watchlist: GenFile = /*@__PURE__*/
-  fileDesc("ChduYW1hL3YxL3dhdGNobGlzdC5wcm90bxIHbmFtYS52MSJaChVBZGRUb1dhdGNobGlzdFJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIhgKFkFkZFRvV2F0Y2hsaXN0UmVzcG9uc2UiXwoaUmVtb3ZlRnJvbVdhdGNobGlzdFJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIh0KG1JlbW92ZUZyb21XYXRjaGxpc3RSZXNwb25zZTLRAQoQV2F0Y2hsaXN0U2VydmljZRJWCg5BZGRUb1dhdGNobGlzdBIeLm5hbWEudjEuQWRkVG9XYXRjaGxpc3RSZXF1ZXN0Gh8ubmFtYS52MS5BZGRUb1dhdGNobGlzdFJlc3BvbnNlIgOQAgISZQoTUmVtb3ZlRnJvbVdhdGNobGlzdBIjLm5hbWEudjEuUmVtb3ZlRnJvbVdhdGNobGlzdFJlcXVlc3QaJC5uYW1hLnYxLlJlbW92ZUZyb21XYXRjaGxpc3RSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_match]);
+  fileDesc("ChduYW1hL3YxL3dhdGNobGlzdC5wcm90bxIHbmFtYS52MSJaChVBZGRUb1dhdGNobGlzdFJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIhgKFkFkZFRvV2F0Y2hsaXN0UmVzcG9uc2UiXwoaUmVtb3ZlRnJvbVdhdGNobGlzdFJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIh0KG1JlbW92ZUZyb21XYXRjaGxpc3RSZXNwb25zZSIWChRMaXN0V2F0Y2hsaXN0UmVxdWVzdCJAChVMaXN0V2F0Y2hsaXN0UmVzcG9uc2USJwoGdGl0bGVzGAEgAygLMhcubmFtYS52MS5XYXRjaGxpc3RUaXRsZSJXCg5XYXRjaGxpc3RUaXRsZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIkCgV0aXRsZRgCIAEoCzIVLm5hbWEudjEuSG9tZVJvd1RpdGxlMqYCChBXYXRjaGxpc3RTZXJ2aWNlElYKDkFkZFRvV2F0Y2hsaXN0Eh4ubmFtYS52MS5BZGRUb1dhdGNobGlzdFJlcXVlc3QaHy5uYW1hLnYxLkFkZFRvV2F0Y2hsaXN0UmVzcG9uc2UiA5ACAhJlChNSZW1vdmVGcm9tV2F0Y2hsaXN0EiMubmFtYS52MS5SZW1vdmVGcm9tV2F0Y2hsaXN0UmVxdWVzdBokLm5hbWEudjEuUmVtb3ZlRnJvbVdhdGNobGlzdFJlc3BvbnNlIgOQAgISUwoNTGlzdFdhdGNobGlzdBIdLm5hbWEudjEuTGlzdFdhdGNobGlzdFJlcXVlc3QaHi5uYW1hLnYxLkxpc3RXYXRjaGxpc3RSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_browse, file_nama_v1_match]);
 
 /**
  * @generated from message nama.v1.AddToWatchlistRequest
@@ -93,6 +95,65 @@ export const RemoveFromWatchlistResponseSchema: GenMessage<RemoveFromWatchlistRe
   messageDesc(file_nama_v1_watchlist, 3);
 
 /**
+ * @generated from message nama.v1.ListWatchlistRequest
+ */
+export type ListWatchlistRequest = Message<"nama.v1.ListWatchlistRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListWatchlistRequest.
+ * Use `create(ListWatchlistRequestSchema)` to create a new message.
+ */
+export const ListWatchlistRequestSchema: GenMessage<ListWatchlistRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watchlist, 4);
+
+/**
+ * @generated from message nama.v1.ListWatchlistResponse
+ */
+export type ListWatchlistResponse = Message<"nama.v1.ListWatchlistResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.WatchlistTitle titles = 1;
+   */
+  titles: WatchlistTitle[];
+};
+
+/**
+ * Describes the message nama.v1.ListWatchlistResponse.
+ * Use `create(ListWatchlistResponseSchema)` to create a new message.
+ */
+export const ListWatchlistResponseSchema: GenMessage<ListWatchlistResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watchlist, 5);
+
+/**
+ * A title on the caller's Watchlist.
+ *
+ * @generated from message nama.v1.WatchlistTitle
+ */
+export type WatchlistTitle = Message<"nama.v1.WatchlistTitle"> & {
+  /**
+   * The id it was added under, which `RemoveFromWatchlist` takes it off by. A title added under
+   * two of its ids the Server can't tell apart is listed once under each.
+   *
+   * @generated from field: nama.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * How it shows, its kind being the title's.
+   *
+   * @generated from field: nama.v1.HomeRowTitle title = 2;
+   */
+  title?: HomeRowTitle | undefined;
+};
+
+/**
+ * Describes the message nama.v1.WatchlistTitle.
+ * Use `create(WatchlistTitleSchema)` to create a new message.
+ */
+export const WatchlistTitleSchema: GenMessage<WatchlistTitle> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watchlist, 6);
+
+/**
  * The signed-in caller's Watchlist (ADR 0056): the Movies and Shows they mean to watch.
  *
  * A Watchlist keeps each title by its kind and external id, whether or not the Server has it, so
@@ -124,6 +185,19 @@ export const WatchlistService: GenService<{
     methodKind: "unary";
     input: typeof RemoveFromWatchlistRequestSchema;
     output: typeof RemoveFromWatchlistResponseSchema;
+  },
+  /**
+   * Lists the caller's Watchlist, newest added first, each title as a Home row shows it: on the
+   * Server in the oldest Library they see that has it, or else missing as the title source has it
+   * now, if they may Request its kind. One only Libraries they don't see have, that their Maximum
+   * Age keeps out, or that the title source doesn't have or can't be asked about now is left out.
+   *
+   * @generated from rpc nama.v1.WatchlistService.ListWatchlist
+   */
+  listWatchlist: {
+    methodKind: "unary";
+    input: typeof ListWatchlistRequestSchema;
+    output: typeof ListWatchlistResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_watchlist, 0);

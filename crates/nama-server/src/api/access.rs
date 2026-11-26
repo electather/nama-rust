@@ -131,6 +131,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::WATCHLIST_SERVICE_ADD_TO_WATCHLIST_SPEC.procedure,    Access::SignedIn),
     (proto::WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC.procedure, Access::SignedIn),
+    (proto::WATCHLIST_SERVICE_LIST_WATCHLIST_SPEC.procedure,      Access::SignedIn),
     (proto::INBOX_SERVICE_LIST_INBOX_NOTIFICATIONS_SPEC.procedure, Access::SignedIn),
     (proto::INBOX_SERVICE_COUNT_UNREAD_INBOX_NOTIFICATIONS_SPEC.procedure, Access::SignedIn),
     (proto::INBOX_SERVICE_MARK_INBOX_NOTIFICATION_READ_SPEC.procedure, Access::SignedIn),

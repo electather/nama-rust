@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/browse.proto";
 import "nama/v1/match.proto";
 
 // The signed-in caller's Watchlist (ADR 0056): the Movies and Shows they mean to watch.
@@ -20,6 +21,13 @@ service WatchlistService {
   // isn't on it changes nothing. Fails as `AddToWatchlist` does.
   rpc RemoveFromWatchlist(RemoveFromWatchlistRequest) returns (RemoveFromWatchlistResponse) {
     option idempotency_level = IDEMPOTENT;
+  }
+  // Lists the caller's Watchlist, newest added first, each title as a Home row shows it: on the
+  // Server in the oldest Library they see that has it, or else missing as the title source has it
+  // now, if they may Request its kind. One only Libraries they don't see have, that their Maximum
+  // Age keeps out, or that the title source doesn't have or can't be asked about now is left out.
+  rpc ListWatchlist(ListWatchlistRequest) returns (ListWatchlistResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
   }
 }
 
@@ -40,3 +48,18 @@ message RemoveFromWatchlistRequest {
 }
 
 message RemoveFromWatchlistResponse {}
+
+message ListWatchlistRequest {}
+
+message ListWatchlistResponse {
+  repeated WatchlistTitle titles = 1;
+}
+
+// A title on the caller's Watchlist.
+message WatchlistTitle {
+  // The id it was added under, which `RemoveFromWatchlist` takes it off by. A title added under
+  // two of its ids the Server can't tell apart is listed once under each.
+  ExternalId id = 1;
+  // How it shows, its kind being the title's.
+  HomeRowTitle title = 2;
+}

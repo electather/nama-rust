@@ -17,6 +17,7 @@ import { Route as MemberHubRouteImport } from './routes/_member/_hub'
 import { Route as MemberServerRouteImport } from './routes/_member/_server'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
+import { Route as MemberWatchlistRouteImport } from './routes/_member/watchlist'
 import { Route as SignedOutHubRouteImport } from './routes/_signed-out/_hub'
 import { Route as SignedOutServerRouteImport } from './routes/_signed-out/_server'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
@@ -86,6 +87,11 @@ const MemberCodeRoute = MemberCodeRouteImport.update({
 const MemberSearchRoute = MemberSearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberWatchlistRoute = MemberWatchlistRouteImport.update({
+  id: '/watchlist',
+  path: '/watchlist',
   getParentRoute: () => MemberRoute,
 } as any)
 const SignedOutHubRoute = SignedOutHubRouteImport.update({
@@ -283,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof MemberSplatRoute
   '/code': typeof MemberCodeRouteWithChildren
   '/search': typeof MemberSearchRoute
+  '/watchlist': typeof MemberWatchlistRoute
   '/setup': typeof SignedOutSetupRoute
   '/sign-in': typeof SignedOutSignInRouteWithChildren
   '/switch-user': typeof SignedOutSwitchUserRouteWithChildren
@@ -319,6 +326,7 @@ export interface FileRoutesByTo {
   '/': typeof MemberIndexRoute
   '/$': typeof MemberSplatRoute
   '/search': typeof MemberSearchRoute
+  '/watchlist': typeof MemberWatchlistRoute
   '/setup': typeof SignedOutSetupRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
@@ -358,6 +366,7 @@ export interface FileRoutesById {
   '/_member/_server': typeof MemberServerRouteWithChildren
   '/_member/code': typeof MemberCodeRouteWithChildren
   '/_member/search': typeof MemberSearchRoute
+  '/_member/watchlist': typeof MemberWatchlistRoute
   '/_signed-out/_hub': typeof SignedOutHubRouteWithChildren
   '/_signed-out/_server': typeof SignedOutServerRouteWithChildren
   '/_signed-out/setup': typeof SignedOutSetupRoute
@@ -401,6 +410,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/code'
     | '/search'
+    | '/watchlist'
     | '/setup'
     | '/sign-in'
     | '/switch-user'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/search'
+    | '/watchlist'
     | '/setup'
     | '/code/approve'
     | '/code/done'
@@ -475,6 +486,7 @@ export interface FileRouteTypes {
     | '/_member/_server'
     | '/_member/code'
     | '/_member/search'
+    | '/_member/watchlist'
     | '/_signed-out/_hub'
     | '/_signed-out/_server'
     | '/_signed-out/setup'
@@ -573,6 +585,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof MemberSearchRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/watchlist': {
+      id: '/_member/watchlist'
+      path: '/watchlist'
+      fullPath: '/watchlist'
+      preLoaderRoute: typeof MemberWatchlistRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_signed-out/_hub': {
@@ -890,6 +909,7 @@ interface MemberRouteChildren {
   MemberServerRoute: typeof MemberServerRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
+  MemberWatchlistRoute: typeof MemberWatchlistRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberReauthenticateAccountRoute: typeof MemberReauthenticateAccountRoute
 }
@@ -900,6 +920,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberServerRoute: MemberServerRouteWithChildren,
   MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
+  MemberWatchlistRoute: MemberWatchlistRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberReauthenticateAccountRoute: MemberReauthenticateAccountRoute,
 }
