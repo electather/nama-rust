@@ -73,8 +73,43 @@ const serverSignInWording: HubWording = {
   }),
 };
 
+/**
+ * What to say about a passkey that couldn't be added, removed or signed in with: nothing, `""`, when the person
+ * cancelled the browser's prompt.
+ */
+export function passkeyError(error: unknown) {
+  if (error instanceof DOMException) {
+    return browserWording[error.name] ?? "This browser couldn’t use a passkey here.";
+  }
+  return sayHubRefusal(error, passkeyWording, "The Hub couldn’t do that just now. Try again.").form;
+}
+
+/** What the browser's passkey prompt failing says, by the `DOMException`'s name. */
+const browserWording: Partial<Record<string, string>> = {
+  // Cancelled, or left until it timed out: nothing went wrong, so nothing is said.
+  NotAllowedError: "",
+  AbortError: "",
+  // A passkey `excludeCredentials` lists.
+  InvalidStateError: "This passkey is on your Account already.",
+};
+
+const passkeyWording: HubWording = {
+  [RefusalReason.PASSKEYS_OFF]: () => ({ form: "This Hub isn’t set up for passkeys." }),
+  [RefusalReason.PASSKEY_NOT_ACCEPTED]: () => ({ form: "The Hub didn’t accept that passkey." }),
+  [RefusalReason.TOO_MANY_ATTEMPTS]: (param) => ({
+    form: tooManyTries(param("retryAfterSeconds")),
+  }),
+  [RefusalReason.PASSKEY_NAME_LENGTH]: (param) => ({
+    form: `Give it a name of up to ${param("maxLength")} characters.`,
+  }),
+  [RefusalReason.PASSKEY_NOT_FOUND]: () => ({ form: "That passkey was removed already." }),
+  [RefusalReason.LAST_SIGN_IN_METHOD]: () => ({
+    form: "This passkey is your only way to sign in, so it can’t be removed.",
+  }),
+};
+
 /** That the Hub refused for too many tries, and to try again in `seconds`. */
-export function tooManyTries(seconds: string) {
+function tooManyTries(seconds: string) {
   return `There have been too many tries. Try again in ${minutes(seconds)}.`;
 }
 

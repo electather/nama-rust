@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { AccountSchema, AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
@@ -16,17 +16,35 @@ function signInRequired() {
   return hubRefused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
 }
 
+const bytes = (text: string) => new TextEncoder().encode(text).buffer;
+
+/** What a browser's `navigator.credentials.get` gives for Ada's passkey, as far as the page reads it. */
+const adasPasskey = {
+  rawId: bytes("ada-passkey"),
+  response: {
+    clientDataJSON: bytes("{}"),
+    authenticatorData: bytes("authenticator data"),
+    signature: bytes("signature"),
+    userHandle: bytes("0193-ada"),
+  },
+};
+
+/** Has the browser sign in with passkeys as `get` does. */
+function browserGets(get: () => Promise<unknown>) {
+  Object.defineProperty(navigator, "credentials", { value: { get }, configurable: true });
+}
+
 /**
  * A fake Hub with Ada's Account, whose password is "correct horse", signed in from the start when
  * `signedIn` says so. It emails Sign-in Links, and its one link, "link-token", signs Ada in once;
- * it fails to look up "broken-token".
+ * it fails to look up "broken-token". Where it offers `passkeys`, it accepts only Ada's.
  */
-function fakeHub({ signedIn = false } = {}) {
+function fakeHub({ signedIn = false, passkeys = false } = {}) {
   let session = signedIn ? ada : undefined;
   let linkUsed = false;
   const sent: { email: string; continueTo: string }[] = [];
   const transport = createRouterTransport(({ service }) => {
-    service(HubService, { getHubInfo: () => ({ version: "1.0.0", signInLinks: true }) });
+    service(HubService, { getHubInfo: () => ({ version: "1.0.0", signInLinks: true, passkeys }) });
     service(AccountService, {
       getAccount: () => {
         if (!session) {
@@ -68,6 +86,14 @@ function fakeHub({ signedIn = false } = {}) {
         linkUsed = true;
         session = ada;
         return { account: ada, continueTo: "/" };
+      },
+      startPasskeySignIn: () => ({ challenge: new Uint8Array(32), rpId: "hub.example" }),
+      signInWithPasskey: ({ credentialId }) => {
+        if (new TextDecoder().decode(credentialId) !== "ada-passkey") {
+          throw hubRefused(Code.Unauthenticated, RefusalReason.PASSKEY_NOT_ACCEPTED);
+        }
+        session = ada;
+        return { account: ada };
       },
       signOut: () => {
         if (!session) {
@@ -234,4 +260,83 @@ test("a Sign-in Link the Hub can't look up says so, and offers to try again", as
 
   await screen.findByText("The Hub couldn’t open this Sign-in Link just now.");
   expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+});
+
+test("a browser without passkeys has no passkey sign-in", async () => {
+  openApp("/sign-in", fakeHub({ passkeys: true }).transport);
+
+  await screen.findByRole("link", { name: "Email me a Sign-in Link" });
+  expect(screen.queryByRole("button", { name: "Sign in with a passkey" })).toBeNull();
+});
+
+describe("signing in at the Hub with a passkey", () => {
+  beforeAll(() => {
+    // happy-dom has no WebAuthn. As `Object`, every fake passes the page's `instanceof` checks.
+    vi.stubGlobal("PublicKeyCredential", Object);
+    vi.stubGlobal("AuthenticatorAssertionResponse", Object);
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("a Hub that offers no passkeys has no passkey sign-in", async () => {
+    openApp("/sign-in", fakeHub().transport);
+
+    await screen.findByRole("link", { name: "Email me a Sign-in Link" });
+    expect(screen.queryByRole("button", { name: "Sign in with a passkey" })).toBeNull();
+  });
+
+  test("a passkey signs in with no email or password, and goes on to the redirect", async () => {
+    browserGets(vi.fn<() => Promise<unknown>>().mockResolvedValue(adasPasskey));
+    const router = openApp("/sign-in?redirect=%2Fcode", fakeHub({ passkeys: true }).transport);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
+
+    await screen.findByRole("heading", { name: "Sign in a Device" });
+    expect(router.state.location.pathname).toBe("/code");
+  });
+
+  test("while the browser's passkey prompt is open, the button says it's signing in", async () => {
+    browserGets(async () => {
+      await new Promise<never>(() => {});
+    });
+    openApp("/sign-in", fakeHub({ passkeys: true }).transport);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
+
+    await expect(screen.findByRole("button", { name: "Signing in…" })).resolves.toHaveProperty(
+      "disabled",
+      true,
+    );
+  });
+
+  test("a passkey the Hub refuses says so", async () => {
+    browserGets(
+      vi.fn<() => Promise<unknown>>().mockResolvedValue({ ...adasPasskey, rawId: bytes("other") }),
+    );
+    openApp("/sign-in", fakeHub({ passkeys: true }).transport);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in with a passkey" }));
+
+    await expect(screen.findByText("The Hub didn’t accept that passkey.")).resolves.toBeDefined();
+  });
+
+  test("cancelling the browser's passkey prompt says nothing", async () => {
+    browserGets(
+      vi
+        .fn<() => Promise<unknown>>()
+        .mockRejectedValue(new DOMException("cancelled", "NotAllowedError")),
+    );
+    openApp("/sign-in", fakeHub({ passkeys: true }).transport);
+
+    const button = await screen.findByRole("button", { name: "Sign in with a passkey" });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(button).toHaveProperty("disabled", false);
+    });
+    const said = screen.queryAllByRole("alert").filter((alert) => alert.textContent !== "");
+    expect(said).toStrictEqual([]);
+  });
 });
