@@ -1,14 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { pathOnThisServer } from "@/features/auth/lib/path-on-this-server";
+import { redirectSearch } from "@/features/auth/lib/redirect-search";
 import { hubInfo, isSetupRequired, skipsSignIn } from "@/shared/hooks/access";
 
 // Every way to sign in: its pages share `redirect`, where signing in goes.
 export const Route = createFileRoute("/_signed-out/sign-in")({
-  // The router merges this over the raw search, so a refused `redirect` has to be overwritten.
-  validateSearch: (search): { redirect?: string | undefined } => ({
-    redirect: pathOnThisServer(search["redirect"]),
-  }),
+  validateSearch: redirectSearch,
   beforeLoad: async ({ context, search }) => {
     if (await isSetupRequired(context)) {
       throw redirect({ to: "/setup" });
