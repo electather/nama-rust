@@ -73,9 +73,10 @@ impl Links {
         &self,
         account: AccountId,
     ) -> Result<Vec<ListedInvite>, sqlx::Error> {
+        // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
         let invites = sqlx::query!(
             r#"SELECT user_invites.id, user_invites.user_name, linked_servers.name AS server_name,
-             extract(epoch FROM user_invites.created_at)::bigint AS "invited_at!"
+             floor(extract(epoch FROM user_invites.created_at))::bigint AS "invited_at!"
              FROM user_invites JOIN linked_servers ON linked_servers.id = user_invites.linked_server_id
              WHERE user_invites.account_id = $1 ORDER BY user_invites.created_at, user_invites.id"#,
             account.0,

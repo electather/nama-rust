@@ -4,6 +4,7 @@ use buffa::EnumValue;
 use tempfile::TempDir;
 
 use super::*;
+use crate::users::testing::insert_user;
 
 fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
     Quality {
@@ -101,19 +102,7 @@ impl Listed {
         let plugin = PluginId::from(RADARR.to_owned());
         let listed = [quality("4", "HD", true), quality("5", "4K", false)];
         let saved = replace(&db, plugin.clone(), listed.into()).await.unwrap();
-        let user = db
-            .write(|tx| {
-                Box::pin(
-                    sqlx::query_scalar(
-                        "INSERT INTO users (username, display_username, permissions,
-                                            created_at, updated_at)
-                         VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
-                    )
-                    .fetch_one(&mut **tx),
-                )
-            })
-            .await
-            .unwrap();
+        let user = insert_user(&db, "ada").await;
         let four_k = saved[1].id;
         set_personal_default(&db, user, plugin.clone(), Some(four_k))
             .await
@@ -133,7 +122,7 @@ impl Listed {
     fn asker(&self, permissions: &[Permission]) -> User {
         User {
             id: self.user,
-            name: "Ada".to_owned(),
+            name: "ada".to_owned(),
             permissions: permissions.iter().copied().collect(),
             created_at: 0,
         }

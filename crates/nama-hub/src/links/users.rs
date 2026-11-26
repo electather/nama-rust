@@ -197,9 +197,10 @@ impl Links {
         &self,
         account: AccountId,
     ) -> Result<Vec<ListedUser>, sqlx::Error> {
+        // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
         let users = sqlx::query!(
             r#"SELECT user_links.id, user_links.user_name, linked_servers.name AS server_name,
-             extract(epoch FROM user_links.created_at)::bigint AS "linked_at!"
+             floor(extract(epoch FROM user_links.created_at))::bigint AS "linked_at!"
              FROM user_links JOIN linked_servers ON linked_servers.id = user_links.linked_server_id
              WHERE user_links.account_id = $1 ORDER BY user_links.created_at, user_links.id"#,
             account.0,
@@ -244,10 +245,11 @@ pub(super) async fn insert_link(
     user_id: i64,
     name: String,
 ) -> Result<ListedUser, Error> {
+    // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
     let linked = sqlx::query!(
         r#"INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)
              VALUES ($1, $2, $3, $4) ON CONFLICT (linked_server_id, server_user_id) DO NOTHING
-             RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!",
+             RETURNING id, floor(extract(epoch FROM created_at))::bigint AS "linked_at!",
              (SELECT name FROM linked_servers WHERE id = $2) AS "server_name!""#,
         account.0,
         server.0,

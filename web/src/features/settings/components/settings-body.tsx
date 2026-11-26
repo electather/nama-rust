@@ -59,7 +59,14 @@ export function SettingsBody({
       {/* Wider, the sections run the full height beside the title and the pane. A phone drops
           this box so its title can sit over the strip of sections. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col max-md:contents">
-        <SettingsHeader section={shown} served={served} {...header} />
+        {/* Keyed by the Server like the pane, so a crumb that failed on one Server asks the next. The
+            prefix keeps it from the pane's key, its sibling. */}
+        <SettingsHeader
+          key={`header-${picked?.server.id}`}
+          section={shown}
+          served={served}
+          {...header}
+        />
         {pickedPane ?? pane}
       </div>
     </>

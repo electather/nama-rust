@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, user_agent, extract(epoch FROM last_used_at)::bigint AS \"last_used_at!\"\n             FROM account_sessions\n             WHERE account_id = $1 AND created_at > now() - make_interval(days => $2)\n             ORDER BY id = $3 DESC, last_used_at DESC, id",
+  "query": "SELECT id, user_agent, floor(extract(epoch FROM last_used_at))::bigint AS \"last_used_at!\"\n             FROM account_sessions\n             WHERE account_id = $1 AND created_at > now() - make_interval(days => $2)\n             ORDER BY id = $3 DESC, last_used_at DESC, id",
   "describe": {
     "columns": [
       {
@@ -45,5 +45,5 @@
       null
     ]
   },
-  "hash": "2ea4a4b68392c8ec62b763dd99001ebd144a4f96b9e512aa21b7a7110dd3b433"
+  "hash": "8c1b13b2b0a570ad41fd69b674e04eb3bdda149f37140013b222210c8c10f515"
 }

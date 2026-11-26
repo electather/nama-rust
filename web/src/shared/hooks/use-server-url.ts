@@ -9,5 +9,5 @@ import { onServer } from "@/shared/lib/server";
  */
 export function useServerUrl(url: string | undefined) {
   const transport = useTransport();
-  return url !== undefined && /^\/(?!\/)/u.test(url) ? onServer(transport, url) : url;
+  return url === undefined ? url : onServer(transport, url);
 }

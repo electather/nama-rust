@@ -98,10 +98,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
         quality: qualities::Ask::default(),
         content_rating: None,
     };
-    let request = db
-        .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
-        .await
-        .unwrap()[0];
+    let request = ask_each(&db, vec![wanted], RequestState::Pending).await[0];
     let scan = |episode_2_airs| Decisions {
         items: vec![(item, matched(ExternalIds::default(), tmdb(DARK)))],
         seasons: vec![(
