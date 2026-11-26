@@ -60,7 +60,7 @@ function menuItems(groups: LibraryGroup[]) {
     : groups.flatMap((group) => libraryItems(group));
 }
 
-/** `server`'s Libraries under its name. */
+/** A group's Libraries under its Server's name. */
 function serverItems(group: LibraryGroup) {
   return (
     <DropdownMenuGroup key={group.server?.id}>

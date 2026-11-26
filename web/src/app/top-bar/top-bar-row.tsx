@@ -11,7 +11,7 @@ import { Logo } from "@/shared/components/logo";
 /**
  * The top bar's one row: the mark and the links, or on a phone the Libraries menu, at its start;
  * search, your notifications and your menu at its end. At the Hub, `atHub`, it links the Libraries
- * of every Server the Account reached, and has no notifications.
+ * of every Server the page reached, and has no notifications.
  */
 export function TopBarRow({
   userName,

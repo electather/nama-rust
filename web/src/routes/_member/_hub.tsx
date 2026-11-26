@@ -10,10 +10,10 @@ export const Route = createFileRoute("/_member/_hub")({
       throw notFound();
     }
   },
-  component: HubPage,
+  component: HubPageLayout,
 });
 
-function HubPage() {
+function HubPageLayout() {
   return (
     <CentredUnderTopBar>
       <Outlet />

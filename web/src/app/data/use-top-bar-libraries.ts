@@ -15,7 +15,7 @@ export interface LibraryGroup {
 
 /**
  * The Libraries the top bar links, without suspending: this Server's, or at the Hub each reached
- * Server's, as each loads. A Server whose Libraries haven't loaded, or failed to, isn't listed.
+ * Server's, with none until they load or if they fail.
  */
 export function useTopBarLibraries(atHub: boolean): LibraryGroup[] {
   // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the bar shows without its Libraries while they load or if they fail
@@ -37,7 +37,9 @@ export function useTopBarLibraries(atHub: boolean): LibraryGroup[] {
         select: ({ libraries }: { libraries: Library[] }) => ({ server, libraries }),
       }),
     ),
-    combine: (results) => results.flatMap(({ data }) => (data ? [data] : [])),
+    // Listed even before its Libraries load, or if they fail, so a second Server still groups them.
+    combine: (results) =>
+      reached.map(({ server }, at) => results[at]?.data ?? { server, libraries: [] }),
   });
   return (atHub ? theirs : own.data) ?? [];
 }

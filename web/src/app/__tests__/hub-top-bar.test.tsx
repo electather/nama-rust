@@ -1,5 +1,5 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import { type Interceptor, createRouterTransport } from "@connectrpc/connect";
+import { Code, ConnectError, type Interceptor, createRouterTransport } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
@@ -10,8 +10,12 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
 
+/** The origins whose Servers fail to list their Libraries. */
+const failing = new Set<string>();
+
 afterEach(() => {
   cleanup();
+  failing.clear();
   localStorage.clear();
   vi.unstubAllGlobals();
 });
@@ -45,7 +49,12 @@ function fakeServerAt(origin: string, interceptors: Interceptor[]) {
         whoAmI: () => ({ user: { id: 1n, name: "Ada" } }),
       });
       router.service(LibraryService, {
-        listLibraries: () => ({ libraries: libraries[origin] ?? [] }),
+        listLibraries: () => {
+          if (failing.has(origin)) {
+            throw new ConnectError("failed", Code.Internal);
+          }
+          return { libraries: libraries[origin] ?? [] };
+        },
       });
     },
     { transport: { interceptors } },
@@ -102,6 +111,19 @@ test("with two Servers the Hub's bar links Home and a menu of each Server's Libr
   expect(linksIn(main)).toStrictEqual([["Home", "/"]]);
 });
 
+test("a second Server whose Libraries fail still folds the first's into the menu", async () => {
+  failing.add("https://cabin.example");
+  openHub("/", [basement, cabin]);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Libraries" }));
+  await screen.findByRole("group", { name: "Basement" });
+  expect(itemsOn("Basement")).toStrictEqual([
+    ["Films", "/libraries/1?server=basement"],
+    ["Series", "/libraries/2?server=basement"],
+  ]);
+  expect(screen.queryByRole("group", { name: "Cabin" })).toBeNull();
+});
+
 test("the Hub's menu has the Watchlist, the Account's Settings and signing out, and the bar no Inbox", async () => {
   const router = openHub("/");
 
@@ -128,6 +150,7 @@ test("a Server's page at the Hub keeps the Hub's bar", async () => {
   await vi.waitFor(() => {
     expect(screen.getAllByRole("group")).toHaveLength(2);
   });
+  expect(linksIn(screen.getByRole("navigation", { name: "Main" }))).toStrictEqual([["Home", "/"]]);
 });
 
 test("the Watchlist and the Hub's own pages sit under the bar, out of the signed-out frame", async () => {
