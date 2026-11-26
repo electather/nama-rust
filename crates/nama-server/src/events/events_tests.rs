@@ -27,7 +27,7 @@ use crate::{
     server_settings::{ServerUrl, web_push_key},
     users::{
         LibraryAccess, Permissions, User, list_inbox, personal_settings_of,
-        replace_personal_settings, set_notification_preference,
+        replace_personal_settings, set_notification_preference, testing::insert_user,
     },
     web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
@@ -335,10 +335,6 @@ impl Notifier for KeepsUsers {
             }
         })
     }
-}
-
-async fn insert_user(db: &Database, name: &str) -> i64 {
-    insert_user_holding(db, name, std::iter::empty().collect()).await
 }
 
 async fn insert_user_holding(db: &Database, name: &str, permissions: Permissions) -> i64 {

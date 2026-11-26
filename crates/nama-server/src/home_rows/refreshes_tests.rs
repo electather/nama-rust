@@ -21,10 +21,11 @@ use crate::{
     db::{self, Database},
     home_rows::{
         HomeRows,
-        tests::{Calls, SHARED, handle, insert_user, recorded, set_handle, started},
+        tests::{Calls, SHARED, handle, recorded, set_handle, started},
     },
     library::{MovieOrEpisode, WatchStates},
     plugins::ExtensionPoints,
+    users::testing::insert_user,
 };
 
 const ALL: &[HomeRowMethod] = &[

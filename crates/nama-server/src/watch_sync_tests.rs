@@ -22,7 +22,7 @@ use crate::{
     },
     log_capture::CapturedLog,
     plugins::Registry,
-    users::replace_personal_settings,
+    users::{replace_personal_settings, testing::insert_user},
 };
 
 const TRACKER: PluginId = PluginId::from_static("tracker");
@@ -140,24 +140,6 @@ fn tracker(imported: Imported) -> (Tracker, mpsc::UnboundedReceiver<ScrobbleAske
         down: false,
     };
     (tracker, heard)
-}
-
-async fn insert_user(db: &Database, name: &'static str) -> i64 {
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query_scalar(
-                "INSERT INTO users (username, display_username, permissions, created_at,
-                                    updated_at)
-                 VALUES (?, ?, 0, 0, 0) RETURNING id",
-            )
-            .bind(name)
-            .bind(name)
-            .fetch_one(&mut **tx)
-            .await
-        })
-    })
-    .await
-    .unwrap()
 }
 
 fn alien_id() -> ExternalId {

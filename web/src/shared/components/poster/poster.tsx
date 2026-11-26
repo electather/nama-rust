@@ -2,6 +2,7 @@ import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { Thumbhash } from "@/shared/components/thumbhash";
 import { PlayedMark } from "@/shared/components/watch-state/played-mark";
 import { WatchedBar } from "@/shared/components/watch-state/watched-bar";
+import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
@@ -22,6 +23,7 @@ export function Poster({
   detail?: string | undefined;
   watchState?: WatchState | undefined;
 }) {
+  const src = useServerUrl(url);
   const srcSet = useSrcSet(url, "posterWidths");
   return (
     <>
@@ -30,7 +32,7 @@ export function Poster({
         {url !== undefined && (
           // Its title is the caption, so the image itself says nothing more.
           <img
-            src={url}
+            src={src}
             srcSet={srcSet}
             // A column of `PosterGrid` at each of its breakpoints.
             sizes="(min-width: 1024px) 183px, (min-width: 768px) 22vw, (min-width: 640px) 30vw, 45vw"
