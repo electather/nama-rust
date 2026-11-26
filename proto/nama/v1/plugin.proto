@@ -426,9 +426,10 @@ enum ExtensionPoint {
   // Linked the Server with the Hub through `ServerService.StartServerLink` (ADR 0011). Unused: the
   // Server Links itself with the Hub its config names.
   EXTENSION_POINT_SERVER_LINKER = 17;
-  // Takes the Diagnostics and Usage Analytics an Admin shares with Nama's developers to them, such
-  // as through the Hub (ADR 0054).
-  EXTENSION_POINT_DIAGNOSTICS_SHARER = 18;
+  // Was the DiagnosticsSharer Extension Point; the Kernel now sends shared Diagnostics to the Hub
+  // itself.
+  reserved 18;
+  reserved "EXTENSION_POINT_DIAGNOSTICS_SHARER";
   // Follows each User's Watch State to an outside tracker, such as Trakt, and brings the changes
   // made there back, for the Users who linked their account in its Personal settings.
   EXTENSION_POINT_WATCH_SYNC = 19;
