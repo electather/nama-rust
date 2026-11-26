@@ -257,7 +257,7 @@ test("a search that finds nothing says so", async () => {
   await expect(screen.findByText("No results for “dune”")).resolves.toBeDefined();
 });
 
-test("a search that fails offers Retry, which searches again", async () => {
+test("a search that fails says so and offers Retry, which searches again", async () => {
   let answer = down;
   const search: Search = (request, context) => answer(request, context);
   openApp("/code", serverToSearch(search));
