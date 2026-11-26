@@ -13,11 +13,7 @@ export function DroppedChoice({ justChose, plan }: { justChose: Choice; plan: Pl
   }
   return (
     <output className="mt-4 flex px-5">
-      <StateLabel
-        tone="warning"
-        Icon={TriangleAlert}
-        label={`${dropped} Playback info says why.`}
-      />
+      <StateLabel Icon={TriangleAlert} label={`${dropped} Playback info says why.`} />
     </output>
   );
 }

@@ -14,12 +14,12 @@ import { pluginName } from "@/shared/lib/plugins";
  */
 export function PluginAttention({ plugin }: { plugin: PluginSummary }) {
   if (plugin.refusedReason !== "") {
-    return <StateLabel tone="warning" label="Can’t run" Icon={Ban} />;
+    return <StateLabel label="Can’t run" Icon={Ban} />;
   }
   return (
     needsAttention(plugin) && (
       <>
-        <StateLabel tone="warning" label="Missing a setting" Icon={TriangleAlert} />
+        <StateLabel label="Missing a setting" Icon={TriangleAlert} />
         <Link
           to="."
           search={(rest) => ({ ...rest, plugin: plugin.id })}
