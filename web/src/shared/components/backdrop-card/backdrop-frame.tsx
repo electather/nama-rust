@@ -22,7 +22,7 @@ export function BackdropFrame({
     url: string | undefined;
     thumbhash: Uint8Array | undefined;
     sizes: string;
-    widths?: OfferedWidths | undefined;
+    widths: OfferedWidths;
   };
   tall?: boolean;
   caption: ReactNode;

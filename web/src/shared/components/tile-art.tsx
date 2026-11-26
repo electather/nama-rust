@@ -17,7 +17,7 @@ export function TileArt({
    * How wide it shows and which widths it offers, for its `srcset`, and its tile's corners'
    * radius, for its hairline.
    */
-  look: { sizes: string; radius: string; widths?: OfferedWidths | undefined };
+  look: { sizes: string; radius: string; widths: OfferedWidths };
 }) {
   const src = useServerUrl(url);
   const srcSet = useSrcSet(url, look.widths);
