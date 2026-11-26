@@ -48,10 +48,10 @@ export interface FoundPerson {
   headshot: string | undefined;
 }
 
-/** What a search found, by kind, each in the order to list it. */
+/** What a search found, each kind in the order to list it. */
 export interface Found {
-  movies: FoundTitle[];
-  shows: FoundTitle[];
+  /** The Movies and Shows in one list, as the root list mixes them in the Server's order. */
+  titles: FoundTitle[];
   episodes: FoundTitle[];
   people: FoundPerson[];
   /** What is missing from the results, as `searchNote` says it, or "". */
@@ -150,14 +150,14 @@ function firstOfEach() {
   };
 }
 
-/** The titles `hits` lists, by kind, as the action bar lists them, and `note` on what's missing. */
+/** The titles `hits` lists, as the action bar lists them, and `note` on what's missing. */
 function foundOf(hits: readonly ServerHit[], note: string): Found {
   return {
-    movies: hits.flatMap(({ hit: { title, status }, server }) =>
-      title.case === "movie" ? [foundOn(movieFound(title.value, status), server)] : [],
-    ),
-    shows: hits.flatMap(({ hit: { title, status }, server }) =>
-      title.case === "show" ? [foundOn(showFound(title.value, status), server)] : [],
+    titles: hits.flatMap(({ hit: { title, status }, server }) =>
+      [
+        ...(title.case === "movie" ? [movieFound(title.value, status)] : []),
+        ...(title.case === "show" ? [showFound(title.value, status)] : []),
+      ].map((found) => foundOn(found, server)),
     ),
     episodes: hits.flatMap(({ hit: { title }, server }) =>
       title.case === "episode" ? [foundOn(episodeFound(title.value), server)] : [],

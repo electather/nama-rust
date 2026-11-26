@@ -9,6 +9,7 @@ import {
 } from "@/features/action-bar/lib/rows";
 import { shortcutGroups } from "@/features/action-bar/lib/shortcuts";
 import type { Found, FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
+import { moreToRequest, takingTurns, toRequestListed } from "@/features/action-bar/lib/to-request";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { modKey } from "@/shared/lib/mod-key";
@@ -28,7 +29,8 @@ export interface BarState {
 
 /** What picking a row can do. */
 export interface BarActions {
-  push: (frame: Frame) => void;
+  /** Opens `frame`, on `query` if given. */
+  push: (frame: Frame, query?: string) => void;
   go: (page: Page) => void;
   open: (title: FoundTitle) => void;
   openLibrary: (library: Library) => void;
@@ -77,11 +79,33 @@ function titleRows(
   }));
 }
 
+const inLibrary = (title: FoundTitle) => title.libraryId !== undefined;
+
+/**
+ * What the root list found, by status as `search.proto` says every client lists it: the titles in
+ * Libraries, Episodes, People, then Requested and To request, Movies and Shows taking turns.
+ */
+function rootResults(found: Found, query: string, actions: BarActions): Group[] {
+  const { open, openPerson, push } = actions;
+  const takingTurnsIn = (status: TitleStatus) =>
+    takingTurns(found.titles.filter((title) => title.status === status));
+  const requested = takingTurnsIn(TitleStatus.REQUESTED);
+  const toRequest = takingTurnsIn(TitleStatus.NOT_ON_THIS_SERVER);
+  const more = moreToRequest(toRequest.slice(toRequestListed), (kind) => {
+    push(kind, query);
+  });
+  return [
+    ...section("In your Libraries", titleRows(found.titles.filter(inLibrary), open)),
+    ...section("Episodes", titleRows(found.episodes, open)),
+    ...section("People", personRows(found.people, openPerson)),
+    ...section("Requested", titleRows(requested, open)),
+    ...section("To request", [...titleRows(toRequest.slice(0, toRequestListed), open), ...more]),
+  ];
+}
+
 /** What the search found, of the kinds `frame` searches, or the way to try a failed search again. */
-function results(
-  { frame, found, failed }: BarState,
-  { open, openPerson, retry }: BarActions,
-): Group[] {
+function results({ frame, query, found, failed }: BarState, actions: BarActions): Group[] {
+  const { open, retry } = actions;
   if (failed) {
     const hint = "Couldn’t reach the Server. Check your connection and try again.";
     return [
@@ -94,18 +118,14 @@ function results(
   if (found === undefined) {
     return [];
   }
-  const movies = titleRows(found.movies, open);
-  const shows = titleRows(found.shows, open);
+  if (frame === "root") {
+    return rootResults(found, query, actions);
+  }
+  const ofKind = (kind: Frame) => found.titles.filter((title) => title.kind === kind);
   const episodes = section("Episodes", titleRows(found.episodes, open));
   return {
-    root: [
-      ...section("Movies", movies),
-      ...section("Shows", shows),
-      ...episodes,
-      ...section("People", personRows(found.people, openPerson)),
-    ],
-    movie: section("Movie results", movies),
-    show: [...section("Show results", shows), ...episodes],
+    movie: section("Movie results", titleRows(ofKind("movie"), open)),
+    show: [...section("Show results", titleRows(ofKind("show"), open)), ...episodes],
     shortcuts: [],
   }[frame];
 }

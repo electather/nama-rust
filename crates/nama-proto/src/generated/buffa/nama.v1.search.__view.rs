@@ -702,9 +702,17 @@ impl ::serde::Serialize for SearchResponseOwnedView {
 /// starting with the query, then one holding each of its words whole (in both, the year it ends
 /// with aside), then one of that year, then the better fit, then the shorter title. People go by
 /// those same bands of their names, then the most Roles first. The title source's batch holds
-/// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
-/// A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
-/// order. A client lists every batch's results stably sorted by `status`.
+/// none the Libraries' sent: by `status`, then in the source's order, which puts its best known
+/// titles first. A Search source's batch holds none an earlier batch sent: by `status`, then in
+/// the source's order. A client lists every batch's results stably sorted by `status`.
+///
+/// A search of every kind lists them in sections, each in the order the stream gives it, an empty
+/// one left out: the Movies and Shows a Library has (`library_id` set), then Episodes, then People,
+/// then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, Movies
+/// and Shows take turns by position (the first Movie, the first Show, the second Movie, and on,
+/// the other kind's rest once one runs out), so the title source's many Movies don't bury its best
+/// Show. The last section lists its first 6, and, for each kind it left out titles of, a way to
+/// search that kind alone, which lists them all.
 #[derive(Clone, Debug, Default)]
 pub struct HitsView<'a> {
     /// Field 1: `hits`
