@@ -1,26 +1,28 @@
 import type { Transport } from "@connectrpc/connect";
 
-import type { PreviewFrames } from "@/gen/nama/v1/playback_pb";
+import type { PlaybackPlan, PreviewFrames } from "@/gen/nama/v1/playback_pb";
 import { onServer } from "@/shared/lib/server";
 
 /** Where a Version's Preview frames are: their layout, and the path its sheets are numbered under. */
 export interface FrameSheets {
   frames: PreviewFrames;
-  /** Such as `/media/versions/7/preview-frames` on the Server, which `/<n>.jpg` follows. */
+  /** Such as `/media/signed/<grant>/<signature>/versions/7/preview-frames` on the Server, which `/<n>.jpg` follows. */
   path: string;
 }
 
 /**
- * The Preview frames of Version `versionId` on the Server `transport` talks to, as its plan lays
- * them out, if it has any.
+ * The Preview frames of Version `versionId` on the Server `transport` talks to, as `plan` lays
+ * them out, if it has any. They load under what precedes `/versions/` or `/plans/` in the plan's URL, which
+ * is its signed prefix when signed (an `<img>` can't send a bearer token, ADR 0105), else `/media`.
  */
-export function frameSheets(
-  frames: PreviewFrames | undefined,
-  versionId: bigint,
-  transport: Transport,
-) {
+export function frameSheets(plan: PlaybackPlan, versionId: bigint, transport: Transport) {
+  const { previewFrames: frames } = plan;
+  const prefix = /^(?<prefix>.*?)\/(?:versions|plans)\//u.exec(plan.url)?.groups?.["prefix"];
   return frames && frames.count > 0
-    ? { frames, path: onServer(transport, `/media/versions/${versionId}/preview-frames`) }
+    ? {
+        frames,
+        path: onServer(transport, `${prefix ?? "/media"}/versions/${versionId}/preview-frames`),
+      }
     : undefined;
 }
 
