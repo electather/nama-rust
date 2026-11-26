@@ -249,8 +249,8 @@ impl Settings {
         }
     }
 
-    /// Wakes once the Server URL was saved since it last woke, so the Plugin that links the Server
-    /// hears of it at once.
+    /// Wakes once the Server URL was saved since it last woke, so the Hub the Server is Linked
+    /// with hears of it at once.
     pub(crate) fn url_saves(&self) -> watch::Receiver<()> {
         self.url_saved.subscribe()
     }

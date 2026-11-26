@@ -6,7 +6,7 @@
 //! Server's own TLS (`tls.rs`) answers the client through it.
 //!
 //! The Relay runs as a process of its own (`nama-server relay`), with no Kernel and no Plugins, so
-//! it fetches the Hub's keys itself; the Server asks for its token through the Plugin that links it
+//! it fetches the Hub's keys itself; the Server asks the Hub it is Linked with for its token
 //! (ADR 0094).
 //!
 //! A Server's dial is the token, framed as its length in two big-endian bytes and then itself, and

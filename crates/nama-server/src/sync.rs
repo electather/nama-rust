@@ -19,8 +19,8 @@
 //! before its pull, and the minute's send takes the rest, such as what waited while the Hub was
 //! unreachable. A Watchlist is synced whole, so one whose sync failed is synced again each minute
 //! until it goes; a restart forgets which, as the first look at each Link syncs it anyway. A
-//! Server with no Plugin that links its Users does no sync work at all but that minute's send,
-//! which forgets what waits, as none of its Users can be Linked.
+//! Server whose config names no Hub does no sync work at all but that minute's send, which forgets
+//! what waits, as none of its Users can be Linked.
 
 use std::{
     collections::HashSet,

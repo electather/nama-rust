@@ -467,7 +467,7 @@ pub const __GET_SERVER_LINK_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct GetServerLinkResponse {
-    /// Unset without an enabled Plugin that links the Server.
+    /// Unset when the Server's config names no Hub.
     ///
     /// Field 1: `link`
     #[serde(

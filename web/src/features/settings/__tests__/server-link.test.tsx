@@ -31,7 +31,7 @@ interface Shown {
 
 const waiting = { code: "BDFH-JKLM", url: "https://hub.example" };
 
-test("without the Hub Plugin, the Server pane has no Hub section", async () => {
+test("when the config names no Hub, the Server pane has no Hub section", async () => {
   openServer({});
 
   await screen.findByLabelText("Server URL");

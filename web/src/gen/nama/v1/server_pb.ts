@@ -36,7 +36,7 @@ export const GetServerLinkRequestSchema: GenMessage<GetServerLinkRequest> = /*@_
  */
 export type GetServerLinkResponse = Message<"nama.v1.GetServerLinkResponse"> & {
   /**
-   * Unset without an enabled Plugin that links the Server.
+   * Unset when the Server's config names no Hub.
    *
    * @generated from field: nama.v1.ServerLink link = 1;
    */
@@ -1702,9 +1702,9 @@ export const ServerService: GenService<{
   /**
    * Returns whether the Server is Linked, and to which Account, or the code it shows while it
    * waits for someone to enter it on the Hub (ADR 0011). Needs `PERMISSION_MANAGE_SETTINGS`. While
-   * it waits, this is also what has the Plugin ask the Hub whether the code was entered. Without an
-   * enabled Plugin that links the Server, such as the Hub Plugin, `link` is unset. Fails with
-   * `unavailable` if the Plugin failed.
+   * it waits, this is also what has the Server ask the Hub whether the code was entered. When the
+   * Server's config names no Hub (`hub_url`), `link` is unset. Fails with `unavailable` if the Hub
+   * couldn't be asked, such as while it's unreachable.
    *
    * @generated from rpc nama.v1.ServerService.GetServerLink
    */
@@ -1719,8 +1719,8 @@ export const ServerService: GenService<{
    * the Admin to `url`, where they approve on the Hub, which sends them back to `return_url`.
    * Fails with `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` or
    * `REFUSAL_REASON_NOT_A_SERVER_ADDRESS` for a `return_url` `StartAccountSignIn` would refuse so,
-   * with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
-   * with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+   * with `REFUSAL_REASON_NO_SERVER_LINKER` when the Server's config names no Hub, and with
+   * `unavailable` if the Hub couldn't start it, such as while it's unreachable.
    *
    * @generated from rpc nama.v1.ServerService.StartServerLink
    */

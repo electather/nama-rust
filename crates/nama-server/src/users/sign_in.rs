@@ -113,7 +113,7 @@ pub(crate) enum Error {
         /// How many more wrong ones would sign the User out, 0 once they were.
         tries_left: u32,
     },
-    /// The Plugin that links the Server couldn't finish a sign-in with an Account.
+    /// The Hub couldn't finish a sign-in with an Account, or the Server's config names none.
     #[error(transparent)]
     Link(#[from] link::Error),
 }
