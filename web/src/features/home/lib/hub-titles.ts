@@ -52,19 +52,38 @@ function isMissing({ case: kind }: RowTitle) {
 }
 
 /**
+ * A title on Continue Watching at the Hub: its card from the Server it was last watched on, and
+ * its card on every Server that lists it, `copies`, which its menu acts on.
+ */
+export type MergedCard = CardOn & { copies: CardOn[] };
+
+/**
  * Each Server's Continue Watching as one, most recent first, each Movie or Show once, from the
  * Server it was last watched on. Watch State syncs, so a title is often on several (ADR 0013).
  */
-export function mergeContinueWatching(lists: CardOn[][]) {
-  const latest = new Map<string, { on: CardOn; when: number }>();
-  for (const watched of lists.flatMap((list) => whenWatched(list))) {
-    const key = watched.on.card.titleId;
-    if (watched.when > (latest.get(key)?.when ?? -1)) {
-      latest.set(key, watched);
+export function mergeContinueWatching(lists: CardOn[][]): MergedCard[] {
+  const latest = new Map<string, { on: CardOn; when: number; copies: CardOn[] }>();
+  for (const { on, when } of lists.flatMap((list) => whenWatched(list))) {
+    const key = on.card.titleId;
+    const kept = latest.get(key);
+    if (kept === undefined) {
+      latest.set(key, { on, when, copies: [on] });
+    } else {
+      kept.copies.push(on);
+      if (when > kept.when) {
+        Object.assign(kept, { on, when });
+      }
     }
   }
+  const merged = [...latest.values()];
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts a copy, and the lib target has no toSorted
-  return [...latest.values()].sort((a, b) => b.when - a.when).map(({ on }) => on);
+  merged.sort((a, b) => b.when - a.when);
+  return merged.map(({ on: { server, transport, card }, copies }) => ({
+    server,
+    transport,
+    card,
+    copies,
+  }));
 }
 
 /**

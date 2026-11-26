@@ -6,7 +6,7 @@ import {
   type ServiceImpl,
   createRouterTransport,
 } from "@connectrpc/connect";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
@@ -14,6 +14,7 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import { openApp } from "@/test-app";
 import { continueWatchingRow, pluginRow, recentlyAddedRow } from "@/test-home-rows";
 import { accountHub } from "@/test-hub";
@@ -43,7 +44,10 @@ const alien = { namespace: "tmdb", value: "348" };
 const heat = { namespace: "tmdb", value: "949" };
 
 /** A fake Server with one Movies Library, 1, that signs the Hub's Account in as Ada. */
-function fakeServer(browse: Partial<ServiceImpl<typeof BrowseService>>) {
+function fakeServer(
+  browse: Partial<ServiceImpl<typeof BrowseService>>,
+  watchState: Partial<ServiceImpl<typeof WatchStateService>> = {},
+) {
   return (interceptors: Interceptor[]) =>
     createRouterTransport(
       (router) => {
@@ -62,6 +66,7 @@ function fakeServer(browse: Partial<ServiceImpl<typeof BrowseService>>) {
           listContinueWatching: () => ({}),
           ...browse,
         });
+        router.service(WatchStateService, watchState);
       },
       { transport: { interceptors } },
     );
@@ -178,4 +183,44 @@ test("an unreachable Server's rows are left out, and the others' still show", as
   const section = within(await screen.findByRole("region", { name: "Continue Watching" }));
 
   await expect(section.findByRole("link", { name: /^Resume Heat/u })).resolves.toBeDefined();
+});
+
+/** A fake Server listing Alien on Continue Watching till it's hidden, as `hidden` records. */
+function serverHidingAlien(updatedAt: bigint, hidden: Set<string>, origin: string) {
+  return fakeServer(
+    {
+      listContinueWatching: () => ({
+        entries: hidden.has(origin) ? [] : [startedMovie(alien, "Alien", updatedAt)],
+      }),
+    },
+    {
+      setHiddenFromContinueWatching: () => {
+        hidden.add(origin);
+        return {};
+      },
+    },
+  );
+}
+
+test("removing a title at the Hub hides it on every Server that lists it", async () => {
+  const hidden = new Set<string>();
+  const basementAt = "https://basement.example";
+  const cabinAt = "https://cabin.example";
+  openHub({
+    [basementAt]: serverHidingAlien(100n, hidden, basementAt),
+    [cabinAt]: serverHidingAlien(300n, hidden, cabinAt),
+  });
+  await waitFor(async () => {
+    await expect(linksIn("Continue Watching")).resolves.toHaveLength(1);
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "More for Alien" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Remove from recently watched" }));
+
+  await waitFor(() => {
+    expect(hidden).toStrictEqual(new Set([basementAt, cabinAt]));
+  });
+  await waitFor(() => {
+    expect(screen.queryByRole("link", { name: /Alien/u })).toBeNull();
+  });
 });
