@@ -17,3 +17,10 @@ test("a path is on the Server its transport goes to, or on the page's own when i
     ),
   ).toBe("/custom-images/movie/1");
 });
+
+test("a URL that isn't a path on the Server stays as it is", () => {
+  const friend = serverTransport("https://friend.example", []);
+  for (const url of ["", "https://cdn.example/x.jpg", "//cdn.example/x.jpg", "data:,x"]) {
+    expect(onServer(friend, url)).toBe(url);
+  }
+});

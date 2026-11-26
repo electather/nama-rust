@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import type { Transport } from "@connectrpc/connect";
 import { TransportProvider, createConnectQueryKey } from "@connectrpc/connect-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, Suspense } from "react";
@@ -32,4 +33,9 @@ export function onServerAt(origin = "https://friend.example") {
       </TransportProvider>
     );
   };
+}
+
+/** The fake Server behind `transport` at `origin`, as a Server's pages at the Hub talk to it. */
+export function atOrigin(transport: Transport, origin = "https://friend.example") {
+  return { ...transport, origin };
 }

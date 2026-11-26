@@ -6,6 +6,7 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackMethod, PlaybackService, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
+import { atOrigin } from "@/test-server-at";
 
 /** The playlist each hls.js player loaded. */
 const hlsJs = vi.hoisted((): { played: string[] } => ({ played: [] }));
@@ -36,6 +37,7 @@ const ENGLISH = "/media/versions/7/subtitles/2";
 const FRENCH = "/media/versions/7/subtitles/3";
 const FILE = "/media/versions/7";
 const PLAYLIST = "/media/plans/0/index.m3u8";
+const FRIEND = "https://friend.example";
 
 interface Plan {
   method: PlaybackMethod;
@@ -46,21 +48,30 @@ const remux: Plan = { method: PlaybackMethod.REMUX, url: PLAYLIST };
 
 /**
  * The ways a Version plays: its plan, what the browser says to `canPlayType` for HLS ("" for no
- * HLS of its own), and what the `<video>` plays, as `playing` gives it.
+ * HLS of its own), and what the `<video>` plays, as `playing` gives it, from the Server or, at the
+ * Hub, from a friend's.
  */
 const ways = [
-  { how: "Direct Play", plan: directPlay, canPlayHls: "", plays: { src: FILE, hlsJs: [] } },
+  {
+    how: "Direct Play",
+    plan: directPlay,
+    canPlayHls: "",
+    plays: { src: FILE, hlsJs: [] },
+    atHub: { src: `${FRIEND}${FILE}`, hlsJs: [] },
+  },
   {
     how: "a Remux through hls.js",
     plan: remux,
     canPlayHls: "",
     plays: { src: null, hlsJs: [PLAYLIST] },
+    atHub: { src: null, hlsJs: [`${FRIEND}${PLAYLIST}`] },
   },
   {
     how: "a Remux played natively",
     plan: remux,
     canPlayHls: "maybe",
     plays: { src: PLAYLIST, hlsJs: [] },
+    atHub: { src: `${FRIEND}${PLAYLIST}`, hlsJs: [] },
   },
 ] as const;
 
@@ -238,4 +249,14 @@ test("space in the subtitle menu picks a subtitle without playing or pausing", a
   });
   expect(play).not.toHaveBeenCalled();
   expect(pause).not.toHaveBeenCalled();
+});
+
+test.each(ways)("at the Hub, $how loads the video and subtitles from the Server", async (way) => {
+  vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue(way.canPlayHls);
+  openApp(PLAYER, atOrigin(server(way.plan).transport, FRIEND));
+  const { video, modes } = await player();
+
+  expect(playing(video)).toStrictEqual(way.atHub);
+  expect([...modes.keys()]).toStrictEqual([`${FRIEND}${ENGLISH}`, `${FRIEND}${FRENCH}`]);
+  expect(video.crossOrigin).toBe("anonymous");
 });

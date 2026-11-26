@@ -11,6 +11,7 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { openTracks, rowIn, rowsOf } from "@/test-player";
+import { atOrigin } from "@/test-server-at";
 import { tickWorker } from "@/test-worker";
 
 /** The options of each ASS renderer made, each renderer, and whether the next one fails to start. */
@@ -116,18 +117,19 @@ function server(asked: PlanPlaybackRequest[]) {
 }
 
 /**
- * Opens the player, a fetch of each URL in `answers` answered by what it gives, as `asked` records
- * its plans, and opens the subtitle menu.
+ * Opens the player on the Server at `origin`, a fetch of each URL in `answers` answered by what it
+ * gives, as `asked` records its plans, and opens the subtitle menu.
  */
 async function playingWith(
   asked: PlanPlaybackRequest[],
   answers: Record<string, () => Promise<Response>>,
+  origin = "",
 ) {
   vi.spyOn(globalThis, "fetch").mockImplementation(
     async (url) =>
       (typeof url === "string" ? await answers[url]?.() : undefined) ?? Response.error(),
   );
-  openApp("/libraries/1/movies/tmdb-348/play", server(asked));
+  openApp("/libraries/1/movies/tmdb-348/play", atOrigin(server(asked), origin));
   const video = await screen.findByLabelText<HTMLVideoElement>("Alien");
   Object.defineProperty(video, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
   openTracks();
@@ -228,6 +230,19 @@ test.each([
 });
 
 // Last: once the renderer fails, this page never lists ASS again, as after it a reload would.
+test("at the Hub, an ASS Track and its fonts are fetched from the Server", async () => {
+  const friend = "https://friend.example";
+  const served = { [`${friend}${STYLED}`]: answer("ASS"), [`${friend}${FONT}`]: answer("FONT") };
+  await playingWith([], served, friend);
+
+  fireEvent.click(rowIn("Subtitles", /Signs/u));
+
+  await waitFor(() => {
+    expect(libass.made.map(({ subContent }) => subContent)).toStrictEqual(["ASS"]);
+  });
+  expect(libass.made[0]?.fonts).toHaveLength(1);
+});
+
 test("a renderer that won't start has the ASS Track burned in by a plan that doesn't list ASS", async () => {
   const asked: PlanPlaybackRequest[] = [];
   libass.failsToStart = true;
