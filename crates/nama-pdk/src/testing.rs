@@ -1,8 +1,8 @@
 //! An in-process Kernel for a Plugin's native tests (ADR 0065): [`with`] installs one for a call
 //! to the Plugin, which then reads its settings from it and has its HTTP requests answered by the
-//! test, which reads back what the Plugin sent and logged. It answers each Kernel function the test granted
-//! from what the test gave it, and refuses the others as the Server does. Unstable while the
-//! 0.x versions last. The crate's README shows a test in its section 14.
+//! test, which reads back what the Plugin sent and logged. It answers each Kernel function the
+//! test granted from what the test gave it, and refuses the others as the Server does. Unstable
+//! while the 0.x versions last. The crate's README shows a test in its section 14.
 
 use std::{cell::RefCell, collections::HashMap, fmt};
 
@@ -756,7 +756,7 @@ mod tests {
         assert_eq!(picked, values);
     }
 
-    fn logged(level: Level, line: &str) -> Logged {
+    fn entry(level: Level, line: &str) -> Logged {
         Logged {
             level,
             line: line.to_owned(),
@@ -777,10 +777,10 @@ mod tests {
         assert_eq!(
             kernel.logged(),
             [
-                logged(Level::Debug, "one 1"),
-                logged(Level::Info, "two"),
-                logged(Level::Warn, "a three"),
-                logged(Level::Error, "four \"x\""),
+                entry(Level::Debug, "one 1"),
+                entry(Level::Info, "two"),
+                entry(Level::Warn, "a three"),
+                entry(Level::Error, "four \"x\""),
             ]
         );
     }
@@ -807,9 +807,9 @@ mod tests {
 
         assert_eq!(
             outer.logged(),
-            [logged(Level::Info, "before"), logged(Level::Info, "after")]
+            [entry(Level::Info, "before"), entry(Level::Info, "after")]
         );
-        assert_eq!(inner.logged(), [logged(Level::Info, "inside")]);
+        assert_eq!(inner.logged(), [entry(Level::Info, "inside")]);
     }
 
     #[test]
