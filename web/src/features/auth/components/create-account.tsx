@@ -9,9 +9,12 @@ import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout"
 import { formText } from "@/shared/lib/forms";
 import { textLink } from "@/shared/lib/text-link-classes";
 
-/** Creating an Account at the Hub with an email and a password, which signs it in. */
-export function CreateAccount() {
-  const create = useCreateAccount(useFinishSignIn("/"));
+/**
+ * Creating an Account at the Hub with an email and a password, which signs it in and goes on to
+ * `redirect`.
+ */
+export function CreateAccount({ redirect }: { redirect: string | undefined }) {
+  const create = useCreateAccount(useFinishSignIn(redirect));
   const errors = create.error ? hubErrors(create.error) : {};
   return (
     <SignInLayout
@@ -25,7 +28,7 @@ export function CreateAccount() {
       footer={
         <p className="text-center text-sm text-muted-foreground">
           Have an Account?{" "}
-          <Link to="/sign-in" className={textLink}>
+          <Link to="/sign-in" search={{ redirect }} className={textLink}>
             Sign in
           </Link>
         </p>

@@ -132,6 +132,28 @@ test("creating an Account at the Hub signs it in", async () => {
   await expect(screen.findByText("bea@example.com")).resolves.toBeDefined();
 });
 
+test("creating an Account goes on to where signing in was going", async () => {
+  const router = openApp("/sign-in?redirect=%2Fcode", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Create an Account" }));
+  await screen.findByRole("heading", { name: "Create an Account" });
+  fill("Email", "bea@example.com");
+  fill("Password", "a long password");
+  fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
+
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+  expect(router.state.location.pathname).toBe("/code");
+});
+
+test("signing in instead of creating an Account keeps where signing in was going", async () => {
+  const router = openApp("/create-account?redirect=%2Fcode", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Sign in" }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  expect(router.state.location.href).toBe("/sign-in?redirect=%2Fcode");
+});
+
 test("an email that has an Account already is refused under the email", async () => {
   openApp("/create-account", fakeHub().transport);
 
