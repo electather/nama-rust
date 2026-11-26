@@ -16,6 +16,10 @@ vi.mock(import("@/features/settings/components/plugin-crumbs"), () => ({
   },
 }));
 
+vi.mock(import("@/features/settings/components/user-crumbs"), () => ({
+  UserCrumbs: () => <span>Opened User</span>,
+}));
+
 afterEach(() => {
   cleanup();
   crumb.rendered = 0;
@@ -50,4 +54,15 @@ test("an opened crumb whose read throws falls back to the plain title", () => {
 
   expect(screen.getByText("Plugins")).toBeDefined();
   expect(screen.queryByText("Opened Plugin")).toBeNull();
+});
+
+test("a failed crumb doesn't carry over to the next Section opened", () => {
+  vi.spyOn(console, "error").mockReturnValue();
+  crumb.fails = true;
+  const { rerender } = render(
+    <SettingsHeader titleId="t" section="plugins" served onClose={noop} />,
+  );
+  rerender(<SettingsHeader titleId="t" section="users" served onClose={noop} />);
+
+  expect(screen.getByText("Opened User")).toBeDefined();
 });

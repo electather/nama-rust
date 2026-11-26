@@ -50,7 +50,7 @@ export function SettingsHeader({
   const Opened = served ? openedCrumbs[section] : undefined;
   const Action = served ? sectionActions[section] : undefined;
   const crumbs = Opened ? (
-    <ErrorBoundary failed={plain}>
+    <ErrorBoundary key={section} failed={plain}>
       <Suspense fallback={plain}>
         <Opened />
       </Suspense>
