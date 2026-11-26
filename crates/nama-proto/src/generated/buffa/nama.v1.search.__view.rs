@@ -702,13 +702,26 @@ impl ::serde::Serialize for SearchResponseOwnedView {
 /// starting with the query, then one holding each of its words whole (in both, the year it ends
 /// with aside), then one of that year, then the better fit, then the shorter title. People go by
 /// those same bands of their names, then the most Roles first. The title source's batch holds
-/// none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
-/// A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
-/// order. A client lists every batch's results stably sorted by `status`.
+/// none the Libraries' sent: by `status`, then in the source's order, which puts its best known
+/// titles first. A Search source's batch holds none an earlier batch sent: by `status`, then in
+/// the source's order. A client lists every batch's results stably sorted by `status`.
+///
+/// A search of every kind lists them in sections, each in the order the stream gives it, an empty
+/// one left out: the Movies and Shows a Library has (`library_id` set), then Episodes, then People,
+/// then `TITLE_STATUS_REQUESTED`, then `TITLE_STATUS_NOT_ON_THIS_SERVER`. In the last two, the
+/// title source's Movies and Shows take turns by position (the first Movie, the first Show, the
+/// second Movie, and on, the other kind's rest once one runs out), so its many Movies don't bury
+/// its best Show; the Search sources' titles follow, batch by batch. The last section lists its
+/// first 6, and, for each kind it left out titles of, a way to search that kind alone, which lists
+/// them all.
 #[derive(Clone, Debug, Default)]
 pub struct HitsView<'a> {
     /// Field 1: `hits`
     pub hits: ::buffa::RepeatedView<'a, super::super::__buffa::view::HitView<'a>>,
+    /// Whether this is the title source's batch, whose Movies and Shows a client lists taking turns.
+    ///
+    /// Field 2: `title_source`
+    pub title_source: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for HitsView<'a> {
@@ -741,6 +754,13 @@ impl<'a> ::buffa::MessageView<'a> for HitsView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.title_source = ::buffa::types::decode_bool(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -786,6 +806,7 @@ impl<'a> ::buffa::MessageView<'a> for HitsView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            title_source: self.title_source,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -805,6 +826,9 @@ impl<'a> ::buffa::ViewEncode<'a> for HitsView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.title_source {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -823,6 +847,9 @@ impl<'a> ::buffa::ViewEncode<'a> for HitsView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.title_source {
+            ::buffa::types::put_bool_field(2u32, self.title_source, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -847,6 +874,9 @@ impl<'__a> ::serde::Serialize for HitsView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.hits.is_empty() {
             __map.serialize_entry("hits", &*self.hits)?;
+        }
+        if self.title_source {
+            __map.serialize_entry("titleSource", &self.title_source)?;
         }
         __map.end()
     }
@@ -941,6 +971,13 @@ impl HitsOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::HitView<'_>> {
         &self.0.reborrow().hits
+    }
+    /// Whether this is the title source's batch, whose Movies and Shows a client lists taking turns.
+    ///
+    /// Field 2: `title_source`
+    #[must_use]
+    pub fn title_source(&self) -> bool {
+        self.0.reborrow().title_source
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<HitsView<'static>>> for HitsOwnedView {

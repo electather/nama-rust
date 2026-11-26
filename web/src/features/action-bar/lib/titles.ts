@@ -1,6 +1,6 @@
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
-import type { EpisodeHit, Hit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
-import { hitsIn, searchNote } from "@/shared/lib/search-hits";
+import type { EpisodeHit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
+import { hitsIn, searchNote, type StreamedHit } from "@/shared/lib/search-hits";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -26,6 +26,8 @@ export interface FoundTitle {
   request?: Request | undefined;
   /** How close a search found it to being on the Server. Recent doesn't keep it. */
   status?: TitleStatus;
+  /** Whether the title source's batch held it, not a Search source's. Recent doesn't keep it. */
+  titleSource?: boolean;
   /** The Movie's or Show's id as a URL writes it. An Episode's is its Show's. */
   titleId: string;
   /** The Season an Episode's Show opens at. */
@@ -48,10 +50,10 @@ export interface FoundPerson {
   headshot: string | undefined;
 }
 
-/** What a search found, by kind, each in the order to list it. */
+/** What a search found, each kind in the order to list it. */
 export interface Found {
-  movies: FoundTitle[];
-  shows: FoundTitle[];
+  /** The Movies and Shows in one list, as the root list mixes them in the Server's order. */
+  titles: FoundTitle[];
   episodes: FoundTitle[];
   people: FoundPerson[];
   /** What is missing from the results, as `searchNote` says it, or "". */
@@ -109,8 +111,7 @@ function episodeFound(episode: EpisodeHit): FoundTitle {
 }
 
 /** A title one Server's `Search` found, and at the Hub, which Linked Server that is. */
-interface ServerHit {
-  hit: Hit;
+interface ServerHit extends StreamedHit {
   server?: string | undefined;
 }
 
@@ -128,7 +129,9 @@ export interface SearchAnswer {
 export function foundIn(answers: readonly SearchAnswer[]): Found {
   const isNew = firstOfEach();
   const hits = answers
-    .flatMap(({ server, responses }) => hitsIn(responses).map((hit) => ({ hit, server })))
+    .flatMap(({ server, responses }) =>
+      hitsIn(responses).map(({ hit, titleSource }) => ({ hit, titleSource, server })),
+    )
     // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array just built, and the lib target has no toSorted; it's stable, so Servers keep their order within a status
     .sort((a, b) => a.hit.status - b.hit.status)
     // On a Server's own web app, a title in two Libraries is listed in both.
@@ -150,14 +153,14 @@ function firstOfEach() {
   };
 }
 
-/** The titles `hits` lists, by kind, as the action bar lists them, and `note` on what's missing. */
+/** The titles `hits` lists, as the action bar lists them, and `note` on what's missing. */
 function foundOf(hits: readonly ServerHit[], note: string): Found {
   return {
-    movies: hits.flatMap(({ hit: { title, status }, server }) =>
-      title.case === "movie" ? [foundOn(movieFound(title.value, status), server)] : [],
-    ),
-    shows: hits.flatMap(({ hit: { title, status }, server }) =>
-      title.case === "show" ? [foundOn(showFound(title.value, status), server)] : [],
+    titles: hits.flatMap(({ hit: { title, status }, server, titleSource }) =>
+      [
+        ...(title.case === "movie" ? [movieFound(title.value, status)] : []),
+        ...(title.case === "show" ? [showFound(title.value, status)] : []),
+      ].map((found) => foundOn({ ...found, titleSource }, server)),
     ),
     episodes: hits.flatMap(({ hit: { title }, server }) =>
       title.case === "episode" ? [foundOn(episodeFound(title.value), server)] : [],

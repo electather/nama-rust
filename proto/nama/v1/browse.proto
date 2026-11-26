@@ -684,6 +684,8 @@ message ShowInLibrary {
   optional string poster_url = 4;
   // As `Movie.poster_thumbhash`.
   optional bytes poster_thumbhash = 5;
+  // When it first aired, as `YYYY-MM-DD`.
+  optional string first_air_date = 6;
 }
 
 message ListUnmatchedRequest {
@@ -770,6 +772,8 @@ message PluginHomeRow {
   string key = 2;
   // Plain text of at most 40 characters.
   string heading = 3;
+  // The Library its heading opens, one the caller sees; unset in a Home layout.
+  optional int64 library_id = 4;
 }
 
 message ListHomeRowTitlesRequest {

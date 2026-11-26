@@ -41,7 +41,7 @@ use crate::{
         Asked, BACKDROP_WIDTHS, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR,
         POSTER_WIDTHS, Resize, SVG, TITLE_LOGO_WIDTHS, clean_svg, file_name, percent_decode,
     },
-    library::contents::{Contents, ImageRef},
+    library::contents::{Contents, ImageRef, StoredTitleImage},
     library::custom_images::CustomImages,
     library::local_images::LocalImages,
     library::shown_images::InPlaceOfDownloaded,
@@ -116,8 +116,8 @@ pub struct Artwork {
 #[derive(Debug, Clone)]
 struct ResizingAhead {
     images: ImageSettings,
-    /// With `local_images`, what titles show in place of their downloaded Posters, which so
-    /// get no copy.
+    /// With `local_images`, what titles show in place of their downloaded Posters and
+    /// Backdrops, which so get no copy.
     custom_images: CustomImages,
     local_images: LocalImages,
 }
@@ -185,7 +185,8 @@ impl Artwork {
 
     /// This, resizing each Poster, Backdrop and Title Logo of a Library it downloads images for to
     /// the widths the web app offers as `images` says, so a first visit to the Library finds them
-    /// made, unless a title shows one of `custom_images` or `local_images` in a Poster's place.
+    /// made, unless a title shows one of `custom_images` or `local_images` in a Poster's or
+    /// Backdrop's place.
     #[must_use]
     pub(crate) fn resizing_ahead(
         self,
@@ -313,10 +314,11 @@ impl Artwork {
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
-    /// Poster a title of it shows, downloaded before or just now or beside its media, each
-    /// Backdrop beside its media it shows, each downloaded Backdrop and Title Logo, and each Custom
-    /// Image of it and its titles, is resized to the widths the web app offers it at too, where
-    /// resizing is on now and those copies aren't there.
+    /// Poster and Backdrop a title of it shows, downloaded before or just now or beside its media,
+    /// and each downloaded titled Backdrop and Title Logo, and each Custom Image of it and its
+    /// titles, is resized to the widths the web app offers it at too, where resizing is on now and
+    /// those copies aren't there. A downloaded Poster or Backdrop that a Custom Image or image
+    /// beside the media stands in for gets none.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
@@ -335,13 +337,13 @@ impl Artwork {
         self.tasks.spawn(async move {
             let listed = tokio::try_join!(
                 contents.images(Some(library)),
-                artwork.shown_posters(&contents, library),
-                contents.backdrops_and_title_logos(library)
+                artwork.shown_downloaded(&contents, library),
+                contents.titled_backdrops_and_title_logos(library)
             );
             match listed {
-                Ok((images, posters, (backdrops, title_logos))) => {
+                Ok((images, (posters, backdrops), (titled_backdrops, title_logos))) => {
                     // A Poster that is also a Backdrop is rare enough to get only a Poster's.
-                    let ahead = (backdrops.into_iter())
+                    let ahead = (backdrops.into_iter().chain(titled_backdrops))
                         .map(|image| (image, &*copies.backdrops))
                         .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
                         .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
@@ -355,25 +357,30 @@ impl Artwork {
         });
     }
 
-    /// Each Poster, as its Plugin and path, that some title of the Library `library` shows, not
-    /// having a Custom Image or image beside its media in its place. None without
-    /// [`Self::resizing_ahead`].
-    async fn shown_posters(
+    /// Each Poster, then each Backdrop but titled ones, as its Plugin and path, that some title
+    /// of the Library `library` shows, not having a Custom Image or image beside its media in its
+    /// place. None without [`Self::resizing_ahead`]. A Library's Custom Backdrop hides none, since
+    /// the title's own page still shows its Backdrop.
+    async fn shown_downloaded(
         &self,
         contents: &Contents,
         library: i64,
-    ) -> sqlx::Result<HashSet<(String, String)>> {
+    ) -> sqlx::Result<(HashSet<(String, String)>, HashSet<(String, String)>)> {
         let Some(ahead) = &self.ahead else {
-            return Ok(HashSet::new());
+            return Ok(Default::default());
         };
-        let (posters, in_place) = tokio::try_join!(
+        let (posters, backdrops, in_place) = tokio::try_join!(
             contents.posters(library),
+            contents.backdrops(library),
             InPlaceOfDownloaded::read(&ahead.custom_images, &ahead.local_images)
         )?;
-        Ok((posters.into_iter())
-            .filter(|poster| in_place.shows_downloaded(&poster.ids, poster.image))
-            .map(|poster| (poster.plugin, poster.path))
-            .collect())
+        let shown = |images: Vec<StoredTitleImage>| {
+            (images.into_iter())
+                .filter(|stored| in_place.shows_downloaded(&stored.ids, stored.image))
+                .map(|stored| (stored.plugin, stored.path))
+                .collect()
+        };
+        Ok((shown(posters), shown(backdrops)))
     }
 
     /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes the

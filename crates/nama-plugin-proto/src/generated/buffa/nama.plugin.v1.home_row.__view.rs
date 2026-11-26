@@ -1930,6 +1930,11 @@ pub struct HomeRowView<'a> {
         'a,
         super::super::__buffa::view::HomeRowTitleView<'a>,
     >,
+    /// The Library its heading opens (1.6.0), such as the one whose titles it lists, by the id
+    /// `list_libraries` gives. Home links the heading only for a User who sees that Library.
+    ///
+    /// Field 5: `library_id`
+    pub library_id: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for HomeRowView<'a> {
@@ -1983,6 +1988,13 @@ impl<'a> ::buffa::MessageView<'a> for HomeRowView<'a> {
                 )?;
                 view.ttl_seconds = ::buffa::types::decode_uint32(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2033,6 +2045,7 @@ impl<'a> ::buffa::MessageView<'a> for HomeRowView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            library_id: self.library_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2061,6 +2074,9 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeRowView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2088,6 +2104,9 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeRowView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2125,6 +2144,9 @@ impl<'__a> ::serde::Serialize for HomeRowView<'__a> {
         }
         if !self.titles.is_empty() {
             __map.serialize_entry("titles", &*self.titles)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.library_id {
+            __map.serialize_entry("libraryId", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -2246,6 +2268,14 @@ impl HomeRowOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::HomeRowTitleView<'_>> {
         &self.0.reborrow().titles
+    }
+    /// The Library its heading opens (1.6.0), such as the one whose titles it lists, by the id
+    /// `list_libraries` gives. Home links the heading only for a User who sees that Library.
+    ///
+    /// Field 5: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().library_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<HomeRowView<'static>>>

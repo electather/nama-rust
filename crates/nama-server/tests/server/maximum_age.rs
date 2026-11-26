@@ -1,29 +1,31 @@
 //! A User's Maximum Age: a title whose Content Rating calls for an older age, or one without a
 //! Content Rating unless unrated titles are allowed, reaches them nowhere the Server hands out
-//! titles, over a real socket with the fake TMDB, which rates Alien R and Dark TV-MA and gives
-//! Heat and Dune no US rating.
+//! titles nor in an Event, over a real socket with the fake TMDB, which rates Alien R and Dark
+//! TV-MA and gives Heat and Dune no US rating.
 
-use crate::support::{http, maximum_age::set_maximum_age, refused, server};
+use crate::support::{browsing, http, maximum_age::set_maximum_age, refused, server};
 
 use std::time::{Duration, Instant};
 
+use browsing::{report_a_minute, send_back_a_minute};
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
 use http::fetch;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, ExternalId, GetMovieRequest,
-    GetShowRequest, GetUnmatchedVersionRequest, HomeRowTitle, LibraryKind, LibraryServiceClient,
-    ListContinueWatchingRequest, ListEpisodesRequest, ListHomeRowTitlesRequest, ListMoviesRequest,
-    ListShowsRequest, ListUnmatchedRequest, ListUsersRequest, LookUpMovieRequest, Permission,
-    PlanPlaybackRequest, PlaybackServiceClient, RefusalReason, ReportProgressRequest,
-    RequestServiceClient, UserServiceClient, WatchStateServiceClient,
-    continue_watching_entry::MovieOrEpisode, home_row_title::MovieOrShow,
+    BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, EventType, ExternalId,
+    GetMovieRequest, GetShowRequest, GetUnmatchedVersionRequest, HomeRowTitle, LibraryKind,
+    LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
+    ListHomeRowTitlesRequest, ListMoviesRequest, ListShowsRequest, ListUnmatchedRequest,
+    ListUsersRequest, LookUpMovieRequest, Permission, PlanPlaybackRequest, PlaybackServiceClient,
+    RefusalReason, ReportProgressRequest, RequestServiceClient, UserServiceClient,
+    WatchStateServiceClient, continue_watching_entry::MovieOrEpisode, event,
+    home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
 use server::{
-    Library, SignedIn, TestServer, WAIT, search,
+    Library, SignedIn, TestServer, WAIT, search, subscribe,
     tmdb::{ALIEN, DARK, DUNE, HEAT},
 };
 
@@ -114,6 +116,26 @@ impl Fixture {
         let admin = self.server.client_config();
         let movie = self.movie(&admin, tmdb).await.unwrap().movie.into_option();
         movie.unwrap().versions.first().unwrap().id
+    }
+
+    /// How far into the Movie with the TMDB id `tmdb` `who`'s Watch State has them, if they've
+    /// started it.
+    async fn position(&self, who: &SignedIn, tmdb: i64) -> Option<u64> {
+        let movie = self.movie(&who.client_config(), tmdb).await.unwrap();
+        let state = movie.movie.into_option().unwrap().watch_state;
+        state.into_option().map(|state| state.position_ms)
+    }
+
+    /// Dark's one Episode, as `who` lists it.
+    async fn dark_episode(&self, who: &ClientConfig) -> nama_proto::nama::v1::Episode {
+        let client = browse(who);
+        let listed = client.list_episodes(ListEpisodesRequest {
+            library_id: self.shows.id,
+            show_id: tmdb_id(DARK).into(),
+            ..Default::default()
+        });
+        let episodes = listed.await.unwrap().into_owned().episodes;
+        episodes.into_iter().next().unwrap()
     }
 }
 
@@ -484,4 +506,86 @@ async fn the_users_list_reads_each_maximum_age_back() {
     };
     assert_eq!(max_of(fx.newt.id), Some((12, true)));
     assert_eq!(max_of(fx.hicks.id), None);
+}
+
+#[tokio::test]
+async fn a_match_over_a_subscribers_maximum_age_never_reaches_them() {
+    let fx = Fixture::start().await;
+    fx.cap_newt(13, true).await;
+    let item_matched = [EventType::EVENT_TYPE_ITEM_MATCHED];
+    let mut newts = subscribe(&fx.newt.client_config(), &item_matched).await;
+    let mut hicks = subscribe(&fx.hicks.client_config(), &item_matched).await;
+
+    let title_of = |event| {
+        let event::Event::ItemMatched(matched) = event else {
+            panic!("not an Item Matched: {event:?}");
+        };
+        matched.title
+    };
+    // One scan at a time, as two in flight publish their Matches in either order.
+    fx.movies.add(&["Alien (1979)/Alien (1979) - 1080p.mkv"]);
+    fx.server.scan(fx.movies.id).await;
+    assert_eq!(title_of(hicks.next().await), "Alien");
+    fx.movies.add(&["Dune (2021)/Dune (2021).mkv"]);
+    fx.server.scan(fx.movies.id).await;
+
+    // Alien was Matched first, so Newt hearing Dune first means she never heard of Alien.
+    assert_eq!(title_of(newts.next().await), "Dune");
+    assert_eq!(title_of(hicks.next().await), "Dune");
+}
+
+#[tokio::test]
+async fn setting_a_users_maximum_age_ends_their_open_subscriptions() {
+    let fx = Fixture::start().await;
+    let mut newts = subscribe(&fx.newt.client_config(), &[]).await;
+
+    fx.cap_newt(13, false).await;
+
+    assert!(newts.message().await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn progress_on_a_version_over_the_age_or_unrated_is_refused_as_no_such_version_and_not_stored()
+ {
+    let fx = Fixture::start().await;
+    fx.cap_newt(16, false).await;
+    let (newt, hicks) = (fx.newt.client_config(), fx.hicks.client_config());
+    let admin = fx.server.client_config();
+    let dark = fx.dark_episode(&admin).await.versions.first().unwrap().id;
+
+    for version in [fx.version(ALIEN).await, fx.version(HEAT).await, dark] {
+        assert_refused(
+            report_a_minute(&newt, version).await,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+        );
+        report_a_minute(&hicks, version).await.unwrap();
+    }
+
+    set_maximum_age(&admin, fx.newt.id, None).await.unwrap();
+    assert_eq!(fx.position(&fx.newt, ALIEN).await, None);
+    assert_eq!(fx.position(&fx.newt, HEAT).await, None);
+    assert!(
+        fx.dark_episode(&newt)
+            .await
+            .watch_state
+            .into_option()
+            .is_none()
+    );
+    assert_eq!(fx.position(&fx.hicks, ALIEN).await, Some(60_000));
+}
+
+#[tokio::test]
+async fn offline_changes_to_titles_over_the_age_are_left_out_and_the_rest_taken() {
+    let fx = Fixture::start().await;
+    fx.cap_newt(13, true).await;
+
+    send_back_a_minute(&fx.newt.client_config(), &[ALIEN, HEAT])
+        .await
+        .unwrap();
+
+    let admin = fx.server.client_config();
+    set_maximum_age(&admin, fx.newt.id, None).await.unwrap();
+    assert_eq!(fx.position(&fx.newt, ALIEN).await, None);
+    assert_eq!(fx.position(&fx.newt, HEAT).await, Some(60_000));
 }

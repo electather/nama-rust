@@ -587,6 +587,7 @@ fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLi
         poster_thumbhash: poster.thumbhash,
         id: external_id_to_proto(&show.id).into(),
         title: show.title,
+        first_air_date: show.first_air_date,
         ..Default::default()
     }
 }

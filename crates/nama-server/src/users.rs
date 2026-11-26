@@ -57,6 +57,7 @@ pub(crate) use invites::Invite;
 pub(crate) use library_access::{LibraryAccess, library_access};
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 pub(crate) use managing::{every_user, remote_cap};
+use maximum_age::MAXIMUM_AGE_CHANGES_BUFFERED;
 pub(crate) use maximum_age::maximum_age;
 use names::checked_name;
 pub(crate) use names::name_key;
@@ -123,6 +124,7 @@ pub struct Users {
     sign_outs: broadcast::Sender<i64>,
     permission_changes: broadcast::Sender<i64>,
     library_access_changes: broadcast::Sender<i64>,
+    maximum_age_changes: broadcast::Sender<i64>,
 }
 
 /// A User as clients see it.
@@ -343,8 +345,8 @@ impl Users {
     /// The Users kept in `db`, whose passwords the Authenticator enabled in `plugins` checks.
     ///
     /// A Server builds one and clones it: a second has its own channels, so it neither hears nor
-    /// tells the first about sign-outs, Permission changes and Library access changes
-    /// (`users/AGENTS.md`).
+    /// tells the first about sign-outs, Permission changes, Library access changes and Maximum Age
+    /// changes (`users/AGENTS.md`).
     #[must_use]
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
@@ -354,6 +356,7 @@ impl Users {
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
             library_access_changes: broadcast::channel(LIBRARY_ACCESS_CHANGES_BUFFERED).0,
+            maximum_age_changes: broadcast::channel(MAXIMUM_AGE_CHANGES_BUFFERED).0,
         }
     }
 

@@ -26,7 +26,7 @@ test("a search whose title source failed too says both", () => {
   const done = { titleSourceUnavailable: true, failedSearchSources: ["dreams"] };
 
   expect(searchNote(endingWith(done))).toBe(
-    "Titles to request couldn’t be searched, so only this Server’s are listed. " +
+    "Titles to request couldn’t be searched, so some may be missing. " +
       "The Search source dreams didn’t answer, so some titles may be missing.",
   );
 });

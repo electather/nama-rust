@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouteContext } from "@tanstack/react-router";
 
 import { hubRefusalReason } from "@/features/auth/lib/hub-errors";
-import { forgetServerSessions } from "@/features/servers/lib/server-sessions";
+import { useForgetServerSessions } from "@/features/servers/data/use-forget-server-sessions";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 
@@ -15,13 +15,15 @@ import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 export function useSignOutAccount(redirect?: string) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const forgetServerSessions = useForgetServerSessions();
   // The Hub's, even from a Server's pages at the Hub, which run against that Server.
   const hub = useRouteContext({ from: "__root__", select: ({ transport }) => transport });
+  // Only once its pages are gone, so none signs in to a Server again.
   const goToSignIn = async () => {
-    queryClient.clear();
-    await navigate({ to: "/sign-in", search: { redirect } });
-    // Only once its pages are gone, so none signs in to a Server again.
-    forgetServerSessions();
+    await forgetServerSessions(async () => {
+      queryClient.clear();
+      await navigate({ to: "/sign-in", search: { redirect } });
+    });
   };
   return useMutation(AccountService.method.signOut, {
     transport: hub,

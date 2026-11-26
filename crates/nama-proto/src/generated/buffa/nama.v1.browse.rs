@@ -11126,6 +11126,15 @@ pub struct ShowInLibrary {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// When it first aired, as `YYYY-MM-DD`.
+    ///
+    /// Field 6: `first_air_date`
+    #[serde(
+        rename = "firstAirDate",
+        alias = "first_air_date",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub first_air_date: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -11138,6 +11147,7 @@ impl ::core::fmt::Debug for ShowInLibrary {
             .field("title", &self.title)
             .field("poster_url", &self.poster_url)
             .field("poster_thumbhash", &self.poster_thumbhash)
+            .field("first_air_date", &self.first_air_date)
             .finish()
     }
 }
@@ -11167,6 +11177,16 @@ impl ShowInLibrary {
         value: impl Into<::buffa::alloc::vec::Vec<u8>>,
     ) -> Self {
         self.poster_thumbhash = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::first_air_date`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_first_air_date(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.first_air_date = Some(value.into());
         self
     }
 }
@@ -11210,6 +11230,9 @@ impl ::buffa::Message for ShowInLibrary {
         if let Some(ref v) = self.poster_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.first_air_date {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -11239,6 +11262,9 @@ impl ::buffa::Message for ShowInLibrary {
         }
         if let Some(ref v) = self.poster_thumbhash {
             ::buffa::types::put_shared_bytes_field(5u32, v, buf);
+        }
+        if let Some(ref v) = self.first_air_date {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11302,6 +11328,18 @@ impl ::buffa::Message for ShowInLibrary {
                     buf,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .first_air_date
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -11315,6 +11353,7 @@ impl ::buffa::Message for ShowInLibrary {
         self.title.clear();
         self.poster_url = ::core::option::Option::None;
         self.poster_thumbhash = ::core::option::Option::None;
+        self.first_air_date = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -13117,6 +13156,16 @@ pub struct PluginHomeRow {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub heading: ::buffa::alloc::string::String,
+    /// The Library its heading opens, one the caller sees; unset in a Home layout.
+    ///
+    /// Field 4: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub library_id: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -13127,6 +13176,7 @@ impl ::core::fmt::Debug for PluginHomeRow {
             .field("plugin_id", &self.plugin_id)
             .field("key", &self.key)
             .field("heading", &self.heading)
+            .field("library_id", &self.library_id)
             .finish()
     }
 }
@@ -13136,6 +13186,15 @@ impl PluginHomeRow {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PluginHomeRow";
+}
+impl PluginHomeRow {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::library_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_library_id(mut self, value: i64) -> Self {
+        self.library_id = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(PluginHomeRow);
 impl ::buffa::MessageName for PluginHomeRow {
@@ -13166,6 +13225,9 @@ impl ::buffa::Message for PluginHomeRow {
         if !self.heading.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.heading) as u64;
         }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -13184,6 +13246,9 @@ impl ::buffa::Message for PluginHomeRow {
         }
         if !self.heading.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.heading, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -13219,6 +13284,15 @@ impl ::buffa::Message for PluginHomeRow {
                 )?;
                 ::buffa::types::merge_string(&mut self.heading, buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -13230,6 +13304,7 @@ impl ::buffa::Message for PluginHomeRow {
         self.plugin_id.clear();
         self.key.clear();
         self.heading.clear();
+        self.library_id = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -295,6 +295,32 @@ async fn a_search_by_one_who_may_request_streams_the_movies_no_library_sent_afte
 }
 
 #[tokio::test]
+async fn the_title_sources_movies_keep_its_order_though_a_later_title_fits_better() {
+    let fx = Fixture::alien().await;
+    let user = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+
+    // TMDB answers Alien, Alien: Romulus, then Aliens, the exact title.
+    let parts = search(
+        &user.client_config(),
+        "Aliens",
+        TitleKind::TITLE_KIND_UNSPECIFIED,
+    )
+    .await
+    .unwrap();
+
+    let [Part::Hits(_), Part::Hits(to_request), Part::Done(_)] = &parts[..] else {
+        panic!("the Libraries' batch, the title source's, then Done: {parts:?}");
+    };
+    assert_eq!(
+        movies_and_statuses(to_request),
+        [
+            ("Alien: Romulus", NOT_ON_THIS_SERVER.into()),
+            ("Aliens", NOT_ON_THIS_SERVER.into())
+        ]
+    );
+}
+
+#[tokio::test]
 async fn a_movie_with_an_open_request_the_caller_can_see_is_requested_and_carries_it() {
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
     let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;

@@ -1,5 +1,5 @@
+import { PluginRowFrame } from "@/features/home/components/plugin-row-frame";
 import { PosterShelf } from "@/features/home/components/poster-shelf";
-import { RowFrame } from "@/features/home/components/row-frame";
 import { useHomeRowTitles } from "@/features/home/data/use-home-row-titles";
 import type { PluginHomeRow } from "@/gen/nama/v1/browse_pb";
 import { rowTitles } from "@/shared/lib/row-titles";
@@ -12,12 +12,12 @@ export function RowShelf({ row, headingId }: { row: PluginHomeRow; headingId: st
     return null;
   }
   return (
-    <RowFrame heading={row.heading} headingId={headingId}>
+    <PluginRowFrame row={row} headingId={headingId}>
       <PosterShelf
         titles={titles}
         setSize={totalSize}
         next={{ has: hasNextPage, load: fetchNextPage }}
       />
-    </RowFrame>
+    </PluginRowFrame>
   );
 }

@@ -431,7 +431,7 @@ fn found_show(row: SearchRow) -> Option<FoundShow> {
 
 /// How well `title`, of `year`, fits a search for `query`, in the bands [`Contents::search`]
 /// orders by after the kind of title: lower is better. All alike for a query without words.
-pub(crate) fn match_bands(query: &str, title: &str, year: Option<&str>) -> impl Ord + use<> {
+pub(super) fn match_bands(query: &str, title: &str, year: Option<&str>) -> impl Ord + use<> {
     SearchWords::of(query).map(|words| words.bands(title, year))
 }
 

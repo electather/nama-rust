@@ -20,7 +20,7 @@ use crate::{
     content_ratings::MaximumAge,
     library::{
         Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
-        Unanswered, library_with_movie, library_with_show, match_bands, matched_episodes,
+        Unanswered, library_with_movie, library_with_show, matched_episodes,
     },
     users::{LibraryAccess, User, library_access, maximum_age},
 };
@@ -138,7 +138,7 @@ impl Requests {
             return Ok(None);
         }
         let found = self.search(viewer, query.to_owned()).await?;
-        Ok(Some(ranked(found, in_libraries, query, movie_standing)))
+        Ok(Some(ranked(found, in_libraries, movie_standing)))
     }
 
     /// The Shows the title source finds for a search for `query`, as `viewer` sees them, less any
@@ -167,7 +167,7 @@ impl Requests {
                 found.push(show);
             }
         }
-        Ok(Some(ranked(found, in_libraries, query, show_standing)))
+        Ok(Some(ranked(found, in_libraries, show_standing)))
     }
 
     /// The Shows the title source finds titled like `title`, best fit first.
@@ -528,13 +528,12 @@ fn show_standing(found: &ShowToRequest) -> Standing<'_> {
     )
 }
 
-/// `found`, in the title source's order, less any with an id in `in_libraries`: those a Library
-/// has first, then those Requested, as `standing` tells, then the rest, each by how well the
-/// title fits `query`, as the Libraries' search bands it, then in the source's order.
+/// `found`, less any with an id in `in_libraries`: those a Library has first, then those
+/// Requested, as `standing` tells, then the rest, each in the title source's order, which puts
+/// its best known titles first.
 fn ranked<T>(
     found: Vec<T>,
     in_libraries: &HashSet<ExternalId>,
-    query: &str,
     standing: impl Fn(&T) -> Standing<'_>,
 ) -> Vec<T> {
     let mut found: Vec<_> = (found.into_iter())
@@ -544,11 +543,9 @@ fn ranked<T>(
                 && !title.ids.iter().any(|id| in_libraries.contains(&id))
         })
         .collect();
-    found.sort_by_cached_key(|found| {
-        let (title, available, requested) = standing(found);
-        let year = title.year.map(|year| year.to_string());
-        let bands = match_bands(query, &title.title, year.as_deref());
-        (!available, !requested, bands)
+    found.sort_by_key(|found| {
+        let (_, available, requested) = standing(found);
+        (!available, !requested)
     });
     found
 }

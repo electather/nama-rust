@@ -28,11 +28,15 @@ const alienBoxSet: MessageInitShape<typeof BoxSetSchema> = {
 
 /**
  * A fake Server with a Movies Library (1) holding Alien, whose Box Set is `boxSet` on its page and
- * by `GetBoxSet`, which finds no other. Alien³ is there to Request.
+ * by `GetBoxSet`, which finds no other. Alien³ is there to Request. It makes Posters ahead at fewer
+ * widths than it resizes to.
  */
 function server(boxSet?: MessageInitShape<typeof BoxSetSchema>) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+  const serverService = {
+    getServerInfo: () => ({ imageWidths: [320, 480, 640], posterWidths: [320, 480] }),
+  };
+  return fakeServer({ signedIn: newUser, libraries, serverService }, {}, {}, (router) => {
     router.service(BrowseService, {
       getMovie: () => ({ movie: { ...alien, versions: [{ id: 1n }] }, boxSet }),
       getBoxSet: (request) => {
@@ -65,7 +69,7 @@ test("a Movie's page shows its Box Set's Movies under its name, the Movie marked
   expect(named(posters)).toStrictEqual([
     ["Alien", "/libraries/1/movies/tmdb-348"],
     ["Aliens", "/libraries/1/movies/tmdb-679"],
-    ["Alien³", "/movies/tmdb-8077"],
+    ["Alien³, 1992", "/movies/tmdb-8077"],
   ]);
   expect(posters.map((poster) => poster.getAttribute("aria-current"))).toStrictEqual([
     "page",
@@ -95,18 +99,29 @@ test("a Box Set's page shows its name, overview and Movies in order", async () =
   expect(named(within(movies).getAllByRole("link"))).toStrictEqual([
     ["Alien", "/libraries/1/movies/tmdb-348"],
     ["Aliens", "/libraries/1/movies/tmdb-679"],
-    ["Alien³", "/movies/tmdb-8077"],
+    ["Alien³, 1992", "/movies/tmdb-8077"],
   ]);
   expect(
-    within(movies).getByRole("link", { name: "Alien³", description: "Not on this Server" }),
+    within(movies).getByRole("link", { name: "Alien³, 1992", description: "Not on this Server" }),
   ).toBeDefined();
   expect(within(movies).getByText("Not here")).toBeDefined();
+});
+
+test("a Box Set's Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
+  const poster = "/media/artwork/tmdb/%2Falien-collection.jpg";
+  openApp("/box-sets/tmdb-8091", server({ ...alienBoxSet, posterUrl: poster }));
+
+  await screen.findByRole("heading", { level: 1, name: "Alien Collection" });
+
+  expect(document.querySelector(`img[src="${poster}"]`)?.getAttribute("srcset")).toBe(
+    `${poster}?width=320 320w, ${poster}?width=480 480w`,
+  );
 });
 
 test("a Box Set's missing Movie opens its page to Request", async () => {
   openApp("/box-sets/tmdb-8091", server(alienBoxSet));
 
-  fireEvent.click(await screen.findByRole("link", { name: "Alien³" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Alien³, 1992" }));
 
   await expect(screen.findByRole("heading", { level: 1, name: "Alien³" })).resolves.toBeDefined();
   expect(globalThis.location.pathname).toBe("/movies/tmdb-8077");

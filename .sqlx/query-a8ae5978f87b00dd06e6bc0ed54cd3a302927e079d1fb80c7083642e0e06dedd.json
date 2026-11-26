@@ -1,0 +1,45 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH matched AS (\n                   SELECT item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,\n                          item_matches.logo, item_matches.logo_plugin\n                   FROM item_matches\n                   JOIN library_items ON library_items.id = item_matches.item_id\n                   JOIN library_files ON library_files.id = library_items.file_id\n                   WHERE item_matches.state = 'matched' AND library_files.library_id = ?)\n               SELECT titled_backdrop_plugin AS \"plugin!\", titled_backdrop AS \"path!\",\n                      FALSE AS \"title_logo!: bool\"\n               FROM matched WHERE titled_backdrop IS NOT NULL\n               UNION\n               SELECT logo_plugin, logo, TRUE FROM matched WHERE logo IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "titled_backdrop_plugin"
+          }
+        }
+      },
+      {
+        "name": "path!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "titled_backdrop"
+          }
+        }
+      },
+      {
+        "name": "title_logo!: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a8ae5978f87b00dd06e6bc0ed54cd3a302927e079d1fb80c7083642e0e06dedd"
+}

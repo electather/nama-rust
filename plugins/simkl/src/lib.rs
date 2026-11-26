@@ -251,8 +251,8 @@ impl Account {
     }
 
     /// Every Movie and Episode watched that changed after `since`, Simkl's own time as
-    /// `/sync/activities` gave it, or ever when it's empty, skipping those with no TMDB or TVDB
-    /// id.
+    /// `/sync/activities` gave it, or ever when it's empty, skipping a Movie with no TMDB or TVDB
+    /// id and an Episode with neither its own TVDB id nor its Show's TMDB or TVDB id.
     fn watched_since(&self, since: &str) -> Result<Vec<SyncedWatchState>, Error> {
         let date_from = if since.is_empty() {
             String::new()
@@ -269,7 +269,7 @@ impl Account {
 
     /// POSTs `history` to `path`, unless it is empty.
     fn post_history(&self, path: &str, history: &History) -> Result<(), Error> {
-        if history.movies.is_empty() && history.episodes.is_empty() {
+        if history.is_empty() {
             return Ok(());
         }
         self.send("POST", path, Some(&json::to_string(history)?))
@@ -339,43 +339,74 @@ fn play_key(change: &SyncedWatchState) -> String {
 #[derive(Default, Serialize)]
 struct History {
     movies: Vec<Watched>,
+    shows: Vec<WatchedInShow>,
     episodes: Vec<Watched>,
 }
 
 impl History {
-    /// Adds `change`'s title, unless it is neither a Movie nor an Episode or has no id Simkl can
-    /// find it by: a Movie's TMDB or TVDB id, or an Episode's TVDB id, the only Episode id Simkl
-    /// takes.
+    /// Adds `change`'s title, unless it is neither a Movie nor an Episode or has no ids Simkl can
+    /// find it by: a Movie's TMDB or TVDB id; an Episode's Show's TMDB or TVDB id with its season
+    /// and number, which Simkl prefers, or else its own TVDB id, the only Episode id Simkl takes.
     fn add(&mut self, change: &SyncedWatchState, watched_at: Option<String>) {
-        let number = |namespace| title_id(&change.ids, namespace).and_then(|id| id.parse().ok());
-        let (titles, ids) = match change.kind.as_known() {
-            Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => (
-                &mut self.movies,
-                SimklIds {
-                    tmdb: number("tmdb"),
-                    tvdb: number("tvdb"),
-                },
-            ),
-            Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => (
-                &mut self.episodes,
-                SimklIds {
-                    tmdb: None,
-                    tvdb: number("tvdb"),
-                },
-            ),
-            _ => return,
-        };
-        if ids.tmdb.is_some() || ids.tvdb.is_some() {
-            titles.push(Watched { ids, watched_at });
+        match change.kind.as_known() {
+            Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => {
+                let ids = SimklIds::of(&change.ids);
+                self.movies
+                    .extend(ids.map(|ids| Watched { ids, watched_at }));
+            }
+            Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
+                let show = SimklIds::of(&change.show_ids);
+                if let (Some(ids), Some(season), Some(number)) =
+                    (show, change.season_number, change.episode_number)
+                {
+                    self.shows.push(WatchedInShow {
+                        ids,
+                        seasons: [NumberedSeason {
+                            number: season,
+                            episodes: [NumberedEpisode { number, watched_at }],
+                        }],
+                    });
+                } else if let Some(tvdb) = simkl_id(&change.ids, "tvdb") {
+                    let ids = SimklIds {
+                        tmdb: None,
+                        tvdb: Some(tvdb),
+                    };
+                    self.episodes.push(Watched { ids, watched_at });
+                }
+            }
+            _ => {}
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.movies.is_empty() && self.shows.is_empty() && self.episodes.is_empty()
     }
 }
 
-/// A Movie or Episode in [`History`]: an Episode by its own TVDB id, which Simkl matches it by
-/// ahead of its Show and number.
+/// A Movie, or an Episode by its own TVDB id, in [`History`].
 #[derive(Serialize)]
 struct Watched {
     ids: SimklIds,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    watched_at: Option<String>,
+}
+
+/// An Episode in [`History`] by its Show's ids, its season and its number.
+#[derive(Serialize)]
+struct WatchedInShow {
+    ids: SimklIds,
+    seasons: [NumberedSeason; 1],
+}
+
+#[derive(Serialize)]
+struct NumberedSeason {
+    number: u32,
+    episodes: [NumberedEpisode; 1],
+}
+
+#[derive(Serialize)]
+struct NumberedEpisode {
+    number: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     watched_at: Option<String>,
 }
@@ -387,6 +418,22 @@ struct SimklIds {
     tmdb: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tvdb: Option<u64>,
+}
+
+impl SimklIds {
+    /// The TMDB and TVDB ids among `ids`, or `None` when it has neither.
+    fn of(ids: &[TitleId]) -> Option<Self> {
+        let found = Self {
+            tmdb: simkl_id(ids, "tmdb"),
+            tvdb: simkl_id(ids, "tvdb"),
+        };
+        (found.tmdb.is_some() || found.tvdb.is_some()).then_some(found)
+    }
+}
+
+/// The id under `namespace` among `ids`, as the number Simkl takes it as.
+fn simkl_id(ids: &[TitleId], namespace: &str) -> Option<u64> {
+    title_id(ids, namespace).and_then(|id| id.parse().ok())
 }
 
 /// What `/sync/activities` answers, of what the Plugin reads.
@@ -406,44 +453,51 @@ struct AllItems {
 }
 
 impl AllItems {
-    /// Each completed Movie and each watched Episode as a played change.
+    /// Each completed Movie and each watched Episode as a played change, an Episode with its
+    /// Show's ids, season and number.
     fn watched(&self) -> Vec<SyncedWatchState> {
         let movies = (self.movies.iter())
             .filter(|listed| listed.status == "completed")
             .filter_map(|listed| {
-                let ids = &listed.movie.ids;
-                let ids = [
-                    ("tmdb", numeric_id(ids, "tmdb")),
-                    ("tvdb", numeric_id(ids, "tvdb")),
-                ];
-                played(
+                let ids = kept_ids(&listed.movie.ids);
+                let watched = played(
                     TitleRefKind::TITLE_REF_KIND_MOVIE,
-                    &ids,
                     listed.last_watched_at.as_deref(),
-                )
+                )?;
+                (!ids.is_empty()).then_some(SyncedWatchState { ids, ..watched })
             });
         let episodes = (self.shows.iter().chain(&self.anime))
-            .flat_map(|show| &show.seasons)
-            .flat_map(|season| &season.episodes)
-            .filter_map(|episode| {
-                let ids = [("tvdb", numeric_id(&episode.ids, "tvdb_id"))];
-                played(
-                    TitleRefKind::TITLE_REF_KIND_EPISODE,
-                    &ids,
-                    episode.watched_at.as_deref(),
-                )
-            });
+            .flat_map(|show| (show.seasons.iter()).map(move |season| (show, season)))
+            .flat_map(|(show, season)| {
+                (season.episodes.iter()).map(move |episode| (show, season, episode))
+            })
+            .filter_map(|(show, season, episode)| episode.watched(&show.show, season));
         movies.chain(episodes).collect()
     }
 }
 
-/// A title of `kind` with `ids` played at `watched_at`, or `None` without an id or a time.
-fn played(
-    kind: TitleRefKind,
-    ids: &[(&str, Option<String>)],
-    watched_at: Option<&str>,
-) -> Option<SyncedWatchState> {
-    let ids: Vec<TitleId> = (ids.iter())
+/// A title of `kind` played at `watched_at`, or `None` without a time.
+fn played(kind: TitleRefKind, watched_at: Option<&str>) -> Option<SyncedWatchState> {
+    let watched_at: Timestamp = watched_at?.parse().ok()?;
+    Some(SyncedWatchState {
+        kind: kind.into(),
+        played: true,
+        changed_at_ms: watched_at.as_millisecond(),
+        ..SyncedWatchState::default()
+    })
+}
+
+/// The TMDB and TVDB ids among a Movie's or Show's `ids`, those the Kernel keeps Watch State under.
+fn kept_ids(ids: &HashMap<String, Value>) -> Vec<TitleId> {
+    title_ids(&[
+        ("tmdb", numeric_id(ids, "tmdb")),
+        ("tvdb", numeric_id(ids, "tvdb")),
+    ])
+}
+
+/// Each of `ids` that has a value.
+fn title_ids(ids: &[(&str, Option<String>)]) -> Vec<TitleId> {
+    (ids.iter())
         .filter_map(|(namespace, value)| {
             Some(TitleId {
                 namespace: (*namespace).to_owned(),
@@ -451,15 +505,7 @@ fn played(
                 ..TitleId::default()
             })
         })
-        .collect();
-    let watched_at: Timestamp = watched_at?.parse().ok()?;
-    (!ids.is_empty()).then(|| SyncedWatchState {
-        kind: kind.into(),
-        ids,
-        played: true,
-        changed_at_ms: watched_at.as_millisecond(),
-        ..SyncedWatchState::default()
-    })
+        .collect()
 }
 
 /// The id `key` of `ids` when it is a number, which Simkl writes as a string or a number.
@@ -476,7 +522,7 @@ struct ListedMovie {
     movie: Listed,
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 struct Listed {
     ids: HashMap<String, Value>,
 }
@@ -484,20 +530,44 @@ struct Listed {
 #[derive(Deserialize)]
 struct ListedShow {
     #[serde(default)]
+    show: Listed,
+    #[serde(default)]
     seasons: Vec<ListedSeason>,
 }
 
 #[derive(Deserialize)]
 struct ListedSeason {
+    number: Option<u32>,
     #[serde(default)]
     episodes: Vec<ListedEpisode>,
 }
 
 #[derive(Deserialize)]
 struct ListedEpisode {
+    number: Option<u32>,
     watched_at: Option<String>,
     #[serde(default)]
     ids: HashMap<String, Value>,
+}
+
+impl ListedEpisode {
+    /// The Episode, of the Show `show` and Season `season`, as a played change, or `None` without
+    /// a time or with neither its own TVDB id nor its Show's TMDB or TVDB id.
+    fn watched(&self, show: &Listed, season: &ListedSeason) -> Option<SyncedWatchState> {
+        let ids = title_ids(&[("tvdb", numeric_id(&self.ids, "tvdb_id"))]);
+        let show_ids = kept_ids(&show.ids);
+        let watched = played(
+            TitleRefKind::TITLE_REF_KIND_EPISODE,
+            self.watched_at.as_deref(),
+        )?;
+        (!ids.is_empty() || !show_ids.is_empty()).then_some(SyncedWatchState {
+            ids,
+            show_ids,
+            season_number: season.number,
+            episode_number: self.number,
+            ..watched
+        })
+    }
 }
 
 /// What `/oauth/pin` answers.

@@ -89,6 +89,21 @@ impl FakeTrakt {
         self.last_activity = watched_at.to_owned();
     }
 
+    /// Adds a play of Episode `number` of Season `season` of the Show `show` (its ids), with `ids`
+    /// of its own, at `watched_at` to the history.
+    pub(super) fn watch_episode(
+        &mut self,
+        show: &Value,
+        (season, number): (u32, u32),
+        ids: &Value,
+        watched_at: &str,
+    ) {
+        self.watch("episode", ids, watched_at);
+        self.history[0]["episode"]["season"] = season.into();
+        self.history[0]["episode"]["number"] = number.into();
+        self.history[0]["show"] = json!({ "ids": show.clone() });
+    }
+
     /// Trakt's answer to `request` with `body`.
     pub(super) fn answer(&mut self, request: &HttpRequest, body: &[u8]) -> Response {
         if self.limiting {

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO home_rows\n                 (plugin_id, user_id, position, key, heading, library_id, titles, missing)\n                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "da14413a335ba5d36e082da22d0fa42613aa4ab39a95d47da19a956c269ec44b"
+}

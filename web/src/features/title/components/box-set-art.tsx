@@ -6,7 +6,11 @@ const radius = "rounded-3xl";
 export function BoxSetArt({ url }: { url: string }) {
   return (
     <div className={`relative isolate aspect-2/3 w-32 overflow-hidden bg-muted sm:w-40 ${radius}`}>
-      <TileArt url={url} thumbhash={undefined} look={{ sizes: "160px", radius }} />
+      <TileArt
+        url={url}
+        thumbhash={undefined}
+        look={{ sizes: "160px", radius, widths: "posterWidths" }}
+      />
     </div>
   );
 }

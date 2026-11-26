@@ -513,6 +513,28 @@ async fn a_search_sources_batch_leaves_out_what_the_title_sources_batch_sent() {
 }
 
 #[tokio::test]
+async fn only_the_title_sources_batch_is_marked_as_the_title_sources() {
+    let dreams = FakeSource::new(
+        "dreams",
+        Answer::Titles(vec![movie(&[("tmdb", &DUNE.to_string())], "Dune")]),
+    );
+    let fx = start(&[&dreams]).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+
+    let parts = search(&ada.client_config(), "Alien", TitleKind::TITLE_KIND_MOVIE)
+        .await
+        .unwrap();
+
+    let marked: Vec<_> = (parts.iter())
+        .filter_map(|part| match part {
+            Part::Hits(hits) => Some(hits.title_source),
+            Part::Done(_) => None,
+        })
+        .collect();
+    assert_eq!(marked, [false, true, false], "{parts:?}");
+}
+
+#[tokio::test]
 async fn a_slow_search_source_doesnt_hold_back_the_title_sources_batch() {
     let slow = FakeSource::new("slow", Answer::Hangs);
     let fx = start(&[&slow]).await;

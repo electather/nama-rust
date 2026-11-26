@@ -39,7 +39,7 @@ fn titles(found: &[Found<Candidate>]) -> Vec<&str> {
 }
 
 #[test]
-fn the_title_sources_movies_rank_available_then_requested_then_by_fit_then_in_its_order() {
+fn the_title_sources_movies_rank_available_then_requested_then_in_its_order() {
     let in_library = Found {
         library: Some(1),
         ..found(4, "Planet of Aliens")
@@ -56,15 +56,15 @@ fn the_title_sources_movies_rank_available_then_requested_then_by_fit_then_in_it
         in_library,
     ];
 
-    let listed = ranked(source_order, &HashSet::new(), "alien", movie_standing);
+    let listed = ranked(source_order, &HashSet::new(), movie_standing);
 
     assert_eq!(
         titles(&listed),
         [
             "Planet of Aliens",
             "The Alien Saga",
-            "Alien",
             "Aliens",
+            "Alien",
             "Alien: Romulus"
         ]
     );
@@ -80,7 +80,6 @@ fn a_movie_the_librarys_batch_sent_under_any_of_its_ids_is_left_out() {
     let listed = ranked(
         vec![found(1, "Aliens"), also_imdb, found(3, "Alien: Romulus")],
         &sent,
-        "alien",
         movie_standing,
     );
 

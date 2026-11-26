@@ -8,6 +8,7 @@ export function useFinishSignIn(redirect: string | undefined) {
   return async () => {
     // Forget the signed-out visitor, and anything cached for whoever was signed in before.
     queryClient.clear();
-    await navigate({ href: redirect ?? "/" });
+    // In the sign-in page's place: going back to it would only send Back on to `redirect` again.
+    await navigate({ href: redirect ?? "/", replace: true });
   };
 }

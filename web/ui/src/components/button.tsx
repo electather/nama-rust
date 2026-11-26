@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 
 // DESIGN.md, "Buttons": a pill, 14px medium text, 32px tall. Disabled is Muted with Quiet ink, never faded.
-const buttonVariants = cva(
+const variants = cva(
   "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground",
   {
     variants: {
@@ -60,6 +60,14 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * A button's classes, merged so a variant's or size's border and corners beat the base's: a link
+ * styled as a button takes the string as it is, with no `cn` after it.
+ */
+function buttonVariants(props?: Parameters<typeof variants>[0]) {
+  return cn(variants(props));
+}
+
 function Button({
   className,
   variant = "default",
@@ -69,7 +77,7 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={buttonVariants({ variant, size, className })}
       {...props}
     />
   );
