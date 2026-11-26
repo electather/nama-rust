@@ -18,10 +18,10 @@ let sdk: Sdk | undefined;
 // The origin of the Server the current route shows. On the Hub's own pages it's the Hub's, which
 // exports nothing, so their spans are dropped.
 // oxlint-disable-next-line vitest/require-hook -- module state, not test setup
-let routeServer = "";
+let routeOrigin = "";
 
 /** The recorder for the Server at `origin`, made the first time, while that Server exports. */
-function active(origin: string) {
+function recorderFor(origin: string) {
   const headers = exporting.get(origin);
   if (sdk && headers && !recorders.has(origin)) {
     // Asked at each post, so it posts with the session the page signed in with last.
@@ -58,9 +58,9 @@ export async function recordDiagnosticsIfExported(
 
 async function load() {
   const loaded = await import("@/shared/lib/diagnostics-recorder");
-  addEventListener("error", (event) => active(routeServer)?.recordError(kindOf(event.error)));
+  addEventListener("error", (event) => recorderFor(routeOrigin)?.recordError(kindOf(event.error)));
   addEventListener("unhandledrejection", (event) =>
-    active(routeServer)?.recordError(kindOf(event.reason)),
+    recorderFor(routeOrigin)?.recordError(kindOf(event.reason)),
   );
   return loaded;
 }
@@ -75,7 +75,7 @@ function kindOf(error: unknown) {
  */
 export function traceCallsTo(origin: string): Interceptor {
   return (next) => async (request) => {
-    const response = await (active(origin)?.traceCall(next)(request) ?? next(request));
+    const response = await (recorderFor(origin)?.traceCall(next)(request) ?? next(request));
     return response;
   };
 }
@@ -92,10 +92,10 @@ export function traceRouteChanges(router: AnyRouter) {
   router.subscribe("onResolved", () => {
     const page = router.state.matches.at(-1);
     // At the Hub a Server's pages put the transport to it in their context (ADR 0105).
-    routeServer = page ? originOf(page.context.transport) : "";
+    routeOrigin = page ? originOf(page.context.transport) : "";
     // The route's id, such as `/_member/libraries/$libraryId`, names the page without its ids.
     const route = page?.routeId ?? "unknown";
-    active(routeServer)?.recordSpan("route change", navigatedAt, { "app.route": route });
+    recorderFor(routeOrigin)?.recordSpan("route change", navigatedAt, { "app.route": route });
   });
 }
 
@@ -119,7 +119,7 @@ export function firstFramePlayed() {
   if (playPressedAt === undefined) {
     return;
   }
-  active(routeServer)?.recordSpan("playback start", playPressedAt);
+  recorderFor(routeOrigin)?.recordSpan("playback start", playPressedAt);
   playPressedAt = undefined;
 }
 
@@ -141,7 +141,7 @@ export function stallEnded() {
   if (stalledAt === undefined) {
     return;
   }
-  active(routeServer)?.recordSpan("playback stall", stalledAt);
+  recorderFor(routeOrigin)?.recordSpan("playback stall", stalledAt);
   stalledAt = undefined;
 }
 
@@ -160,5 +160,5 @@ export function videoFailed(error: MediaError | null) {
 
 /** Records a playback error of `kind`, such as hls.js's `bufferStalledError`, never its message. */
 export function playbackFailed(kind: string) {
-  active(routeServer)?.recordError(kind, "playback error");
+  recorderFor(routeOrigin)?.recordError(kind, "playback error");
 }
