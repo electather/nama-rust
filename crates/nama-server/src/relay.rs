@@ -404,6 +404,8 @@ impl HubKeys {
 
 /// The own name `token` names, if one of `keys` signed it for a Relay and it is unexpired at
 /// `now`, in seconds since the Unix epoch.
+// Checks the signature as `link/token.rs`'s `verify` does, then a Relay's claims: a fix to the
+// signature check in one belongs in both.
 fn verify(keys: &[Key], token: &str, now: i64) -> Result<String, Rejected> {
     let (signed, signature) = token.rsplit_once('.').ok_or(Rejected::Invalid)?;
     let (header, claims) = signed.split_once('.').ok_or(Rejected::Invalid)?;
