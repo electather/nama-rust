@@ -24,7 +24,7 @@ pub(crate) struct Removed {
 }
 
 /// Where a subscriber reads the Content Rating of a Request's or Followed Show's title: its row,
-/// or once that is gone, what [`EventBus::removing`] kept of it.
+/// or once that is gone, what [`super::EventBus::removing`] kept of it.
 #[derive(Debug)]
 pub(super) struct Ratings {
     pub(super) db: Arc<Database>,
@@ -33,7 +33,7 @@ pub(super) struct Ratings {
 
 impl Ratings {
     /// The Content Rating stored for `row`, `None` if neither its row nor
-    /// [`EventBus::removing`] has it any more.
+    /// [`super::EventBus::removing`] has it any more.
     pub(super) async fn of(&self, row: Rated) -> Result<Option<Option<String>>, sqlx::Error> {
         // The Request and Followed Show protos carry no Content Rating, so it's read from the row.
         let stored = match row {
