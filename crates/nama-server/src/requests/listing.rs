@@ -9,14 +9,14 @@ use nama_proto::nama::v1::{
 };
 use sqlx::SqliteConnection;
 
-use super::asked::{self, Asked};
+use super::asked::{self, Asked, title_seen};
 use super::followed::load_followed;
 use super::quality::stored_quality;
 use super::state::{open_request, open_requests, open_season_requests, read_state, stored};
 use super::{Error, Requests};
 use crate::content_ratings::MaximumAge;
 use crate::page::Page;
-use crate::users::{User, is_requester, maximum_age, may_see};
+use crate::users::{User, maximum_age, may_see};
 
 /// The client API's id `value` in `namespace`.
 pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
@@ -246,34 +246,21 @@ impl Requests {
     ) -> Result<Vec<Request>, sqlx::Error> {
         let mut visible = Vec::new();
         for request in load(conn, id, viewer.whose_requests()).await? {
-            if title_seen(conn, viewer, max_age, &request).await? {
+            if title_seen(
+                conn,
+                viewer,
+                max_age,
+                Asked::Request,
+                request.id,
+                &request.requesters,
+            )
+            .await?
+            {
                 visible.push(self.progress.attach(request));
             }
         }
         Ok(visible)
     }
-}
-
-/// Whether `viewer`, whose Maximum Age is `max_age`, sees the title of `request`: theirs whatever
-/// its stored Content Rating, as they asked while it let them, another's only if that rating
-/// passes (#1414), as [`listed_sql!`] asks it.
-async fn title_seen(
-    conn: &mut SqliteConnection,
-    viewer: &User,
-    max_age: MaximumAge,
-    request: &Request,
-) -> Result<bool, sqlx::Error> {
-    if max_age.lets_every_title() || is_requester(viewer.id, &request.requesters) {
-        return Ok(true);
-    }
-    let rating = sqlx::query_scalar!(
-        "SELECT content_rating FROM requests WHERE id = ?",
-        request.id
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
-    // Gone since it was loaded, so not there to see.
-    Ok(rating.is_some_and(|rating| max_age.allows(rating.as_deref())))
 }
 
 /// A row of [`Requests::list`], before it is read in full.

@@ -13,7 +13,6 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{Permission, Request};
 
 use super::Requests;
-use super::lookup::sees_followed_show;
 use crate::{library::TitleKind, plugins::Answer, users::User};
 
 /// How long a search waits for each Search source, so a slow one can't hold up its results
@@ -133,7 +132,8 @@ impl Requests {
             TitleKind::Show => (self.visible_open_season_request(&mut conn, viewer, ids)).await?,
         };
         if request.is_some()
-            || (title.kind == TitleKind::Show && sees_followed_show(&mut conn, viewer, ids).await?)
+            || (title.kind == TitleKind::Show
+                && self.sees_followed_show(&mut conn, viewer, ids).await?)
         {
             let request = request.map(Box::new);
             return Ok(Some(Unavailable::Requested { id, request }));
@@ -183,3 +183,7 @@ const fn wire_kind(kind: TitleKind) -> contract::TitleKind {
         TitleKind::Show => contract::TitleKind::TITLE_KIND_SHOW,
     }
 }
+
+#[cfg(test)]
+#[path = "search_sources_tests.rs"]
+mod tests;
