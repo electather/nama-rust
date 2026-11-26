@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO forgotten_watch_states (user_id, kind, title_id, forgotten_at)\n         SELECT ?1, ?2, value, ?4 FROM json_each(?3) WHERE true\n         ON CONFLICT (user_id, kind, title_id) DO UPDATE\n         SET forgotten_at = max(forgotten_at, excluded.forgotten_at)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "ef17b8e4b47de7ba48b58ca5d1ccf0d363ad15541e9dae54fd56db76cd6354f3"
+}

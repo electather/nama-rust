@@ -95,7 +95,10 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         "src/playback/sidecars",
         &["sidecar_subtitles", "downloaded_subtitles"],
     ),
-    ("src/library/watch_states", &["watch_states"]),
+    (
+        "src/library/watch_states",
+        &["watch_states", "forgotten_watch_states"],
+    ),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/users/inbox", &["inbox"]),
     ("src/web_push/subscriptions", &["push_subscriptions"]),

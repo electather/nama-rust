@@ -761,3 +761,40 @@ async fn a_newer_offline_change_shows_a_hidden_movie_again_in_continue_watching(
 
     assert_eq!(hidden(&watch_states, user).await, [false]);
 }
+
+#[tokio::test]
+async fn marking_unplayed_outlasts_a_restart_skips_older_pulls_and_goes_with_its_user() {
+    let data = tempfile::tempdir().unwrap();
+    let (before, user) = watch_states(&data).await;
+    let under_imdb = MovieOrEpisode::movie(&alien_imdb());
+    before.mark(user, vec![under_imdb], false).await.unwrap();
+    drop(before);
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let watch_states = WatchStates::new(Arc::clone(&db), ExtensionPoints::default());
+
+    // Played before it was marked unplayed, played after, then marked unplayed before that play.
+    for (secs_ago, pulled_played, played) in [
+        (60, true, None),
+        (-60, true, Some(true)),
+        (-30, false, Some(true)),
+    ] {
+        let pulled = made_elsewhere(0, pulled_played, secs_ago);
+        (watch_states.take_pulled(user, vec![(alien_by_both_ids(), pulled)]))
+            .await
+            .unwrap();
+        let state = movie_state(&watch_states, user, alien_id()).await;
+        assert_eq!(state.map(|state| state.played), played);
+    }
+
+    let delete_user = sqlx::query("DELETE FROM users WHERE id = ?").bind(user);
+    db.write(|tx| Box::pin(async move { delete_user.execute(&mut **tx).await.map(drop) }))
+        .await
+        .unwrap();
+    let forgotten = "SELECT COUNT(*) FROM forgotten_watch_states WHERE user_id = ?";
+    let left: i64 = sqlx::query_scalar(forgotten)
+        .bind(user)
+        .fetch_one(db.reader())
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+}
