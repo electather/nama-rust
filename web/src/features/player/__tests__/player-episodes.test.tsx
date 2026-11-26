@@ -153,3 +153,40 @@ test("next Episode links to the one after, with autoplay off too", async () => {
   const next = await screen.findByRole("link", { name: "Next Episode: Past and Present" });
   expect(next.getAttribute("href")).toBe(`${SHOW}/seasons/1/episodes/3/play`);
 });
+
+test("back from a player opened on the Show's page, after another Episode, leaves history as before", async () => {
+  const { transport } = server();
+  const router = openApp(SHOW, transport);
+  fireEvent.click(await screen.findByRole("link", { name: /^Play/u }));
+  fireEvent.click(await screen.findByRole("link", { name: /^Next Episode/u }));
+  await screen.findByLabelText("Lies");
+
+  fireEvent.click(screen.getByRole("link", { name: "Back" }));
+
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(router.state.location.pathname).toBe(SHOW);
+  expect(router.history.canGoBack()).toBe(false);
+});
+
+test("back from a player opened by its link opens the Show's page in its place", async () => {
+  const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, server().transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Back" }));
+
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(router.state.location.href).toBe(`${SHOW}?season=1`);
+  expect(router.history.canGoBack()).toBe(false);
+});
+
+test("a Ctrl-click on Back leaves the player playing, for the browser to open the Show's page elsewhere", async () => {
+  const { transport } = server();
+  const router = openApp(SHOW, transport);
+  fireEvent.click(await screen.findByRole("link", { name: /^Play/u }));
+  const back = await screen.findByRole("link", { name: "Back" });
+  const playing = router.state.location.pathname;
+
+  fireEvent.click(back, { ctrlKey: true });
+
+  expect(router.state.location.pathname).toBe(playing);
+  expect(playing).toMatch(/\/play$/u);
+});

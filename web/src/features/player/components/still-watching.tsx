@@ -1,6 +1,9 @@
-import { Link, type LinkOptions, useNavigate } from "@tanstack/react-router";
-import { Button, buttonVariants } from "nama-ui/components/button";
+import type { LinkOptions } from "@tanstack/react-router";
+import { Button } from "nama-ui/components/button";
 import { useEffect, useId, useRef } from "react";
+
+import { BackLink } from "@/features/player/components/back-link";
+import { useGoBack } from "@/features/player/hooks/use-go-back";
 
 /** "Are you still watching?", which keeps the player paused until it's answered. */
 export function StillWatching({
@@ -10,7 +13,7 @@ export function StillWatching({
   back: LinkOptions;
   onKeepWatching: () => void;
 }) {
-  const navigate = useNavigate();
+  const goBack = useGoBack(back);
   const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -26,7 +29,7 @@ export function StillWatching({
       // Esc goes Back, as the player's shortcut does, and doesn't just close it.
       onCancel={(event) => {
         event.preventDefault();
-        void navigate(back);
+        goBack();
       }}
       // Floats above the player, so it gets a shadow (DESIGN.md, "Elevation").
       className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
@@ -36,9 +39,9 @@ export function StillWatching({
       </h2>
       <div className="mt-6 flex gap-2">
         <Button onClick={onKeepWatching}>Keep watching</Button>
-        <Link {...back} className={buttonVariants({ variant: "ghost" })}>
+        <BackLink back={back} variant="ghost">
           Back
-        </Link>
+        </BackLink>
       </div>
     </dialog>
   );

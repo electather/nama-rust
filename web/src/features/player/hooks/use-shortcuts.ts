@@ -1,12 +1,13 @@
 import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect } from "react";
 
+import { useGoBack } from "@/features/player/hooks/use-go-back";
 import type { SeekSection } from "@/features/player/lib/seek-sections";
 import { shortcutFor } from "@/features/player/lib/shortcuts";
 
 /** What the player's keys need besides the video: where they go and what they show. */
 export interface ShortcutParts {
-  /** The title page Esc goes back to. */
+  /** The title page Esc goes back to, when the player was opened by its link. */
   back: LinkOptions;
   /** The next Episode Shift+N plays, when there is one. */
   next: LinkOptions | undefined;
@@ -33,6 +34,7 @@ export function useShortcuts(
   { back, next, previous, wake, captions, frame, sections }: ShortcutParts,
 ) {
   const navigate = useNavigate();
+  const goBack = useGoBack(back);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       wake();
@@ -45,9 +47,7 @@ export function useShortcuts(
       shortcut({
         video,
         player: playerRef.current,
-        back: () => {
-          void navigate(back);
-        },
+        back: goBack,
         next: opener(navigate, next),
         previous: opener(navigate, previous),
         captions: () => {
@@ -61,7 +61,7 @@ export function useShortcuts(
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [videoRef, playerRef, back, next, previous, wake, captions, frame, sections, navigate]);
+  }, [videoRef, playerRef, goBack, next, previous, wake, captions, frame, sections, navigate]);
 }
 
 /** What opens `link`, when there is one. */
