@@ -3,12 +3,15 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use connectrpc::client::ClientConfig;
-use connectrpc::{ConnectError, client::HttpClient};
+use connectrpc::{
+    ConnectError,
+    client::{ClientConfig, HttpClient},
+};
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ExternalId, GetMovieRequest, LibraryKind, ListMoviesRequest,
-    MatchServiceClient, Movie, OfflineWatchStateChange, ReportOfflineWatchStateRequest,
-    ReportProgressRequest, WatchStateServiceClient, offline_watch_state_change::Title,
+    BrowseServiceClient, ExternalId, GetMovieRequest, LibraryAccess, LibraryKind,
+    ListMoviesRequest, MatchServiceClient, Movie, OfflineWatchStateChange,
+    ReportOfflineWatchStateRequest, ReportProgressRequest, SetLibraryAccessRequest,
+    UserServiceClient, WatchStateServiceClient, offline_watch_state_change::Title,
 };
 use nama_server::ffmpeg::Ffmpeg;
 
@@ -194,4 +197,19 @@ pub(crate) async fn send_back_a_minute(
         ..Default::default()
     };
     client.report_offline_watch_state(request).await.map(drop)
+}
+
+/// Has `admin` let the User `user` see no Library.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub(crate) async fn hide_every_library(admin: &ClientConfig, user: i64) {
+    let users = UserServiceClient::new(HttpClient::plaintext(), admin.clone());
+    let request = SetLibraryAccessRequest {
+        user_id: user,
+        library_access: LibraryAccess::default().into(),
+        ..Default::default()
+    };
+    users.set_library_access(request).await.unwrap();
 }
