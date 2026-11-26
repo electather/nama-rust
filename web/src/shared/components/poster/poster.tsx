@@ -1,5 +1,5 @@
 import { Link, type LinkOptions } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { TileArt } from "@/shared/components/tile-art";
 
@@ -11,7 +11,7 @@ const radius = "rounded-3xl";
 /**
  * A Movie's, Show's or Box Set's poster alone, opening `link`: its name, `title`, and `detail`,
  * such as its year, are its label for assistive technology, and its name shows in place of art it
- * lacks. `children`, such as a badge, sit over it, and `describedBy` names the element that
+ * lacks or that fails to load. `children`, such as a badge, sit over it, and `describedBy` names the element that
  * describes the link, since its label hides them. `current` marks the title whose page it is on.
  * `sizes` is how wide it shows, a shelf's tile unless a grid says otherwise.
  */
@@ -34,6 +34,10 @@ export function Poster({
   describedBy?: string | undefined;
   children?: ReactNode;
 }) {
+  // Kept by URL, so a new image in its place gets its own try.
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const failed = art.url !== undefined && art.url === failedUrl;
+  const shown = failed ? { url: undefined, thumbhash: undefined } : art;
   return (
     <Link
       {...link}
@@ -42,15 +46,18 @@ export function Poster({
       aria-describedby={describedBy}
       className={`relative isolate flex aspect-2/3 items-center justify-center overflow-hidden bg-muted p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${radius}`}
     >
-      {art.url === undefined && (
+      {shown.url === undefined && (
         <span className="text-center text-sm font-medium text-balance text-muted-foreground">
           {title}
         </span>
       )}
       <TileArt
-        url={art.url}
-        thumbhash={art.thumbhash}
+        url={shown.url}
+        thumbhash={shown.thumbhash}
         look={{ sizes, radius, widths: "posterWidths" }}
+        onError={() => {
+          setFailedUrl(art.url);
+        }}
       />
       {children}
     </Link>
