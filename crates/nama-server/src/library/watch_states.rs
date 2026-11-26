@@ -277,9 +277,9 @@ impl WatchStates {
     }
 
     /// Runs `write` of the User `user`'s Watch State, queuing the changes it returns for the Hub in
-    /// the same write, then tells Watch sync Plugins of them, in a task
-    /// of its own, so they're queued and told even if the caller stops waiting once the write
-    /// is sent (ADR 0029).
+    /// the same write, then tells Watch sync Plugins of them, in a task of
+    /// its own, so they're queued and told even if the caller stops waiting once the write is sent
+    /// (ADR 0029).
     async fn write_and_tell<F>(
         &self,
         user: i64,

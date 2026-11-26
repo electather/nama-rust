@@ -39,7 +39,7 @@ impl ObservePoint for Events {
     type Event = ObservedEvents;
 }
 
-/// What Watch sync Plugins are told: one write's changes to one User's Watch State.
+/// One write's changes to one User's Watch State.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WatchStateChanges {
     /// The User's id.

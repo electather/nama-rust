@@ -321,10 +321,10 @@ impl TrackPreferences {
     }
 
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
-    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, and returns
-    /// the change. `None` for the User's own audio forgets it, as audio is never off. It's kept in
-    /// a task of its own, so it's kept and queued even if the caller stops waiting once the write
-    /// is sent (ADR 0029).
+    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, and
+    /// returns the change. `None` for the User's own audio forgets it, as audio is never off. It's
+    /// kept in a task of its own, so it's kept and queued even if the caller stops waiting once the
+    /// write is sent (ADR 0029).
     #[expect(
         clippy::too_many_arguments,
         reason = "the row's key and columns, each set by a different public `keep_*`"
