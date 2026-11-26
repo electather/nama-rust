@@ -77,7 +77,7 @@ export default defineConfig({
   },
   test: {
     // Tests live in `__tests__` folders.
-    include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
+    include: ["src/**/__tests__/**/*.test.{ts,tsx}", "ui/src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
     // Compiles only nama-ui's stylesheet, for tests that check its page-wide rules; other CSS stays empty.
     css: { include: [/ui\/src\/styles\.css/u] },
