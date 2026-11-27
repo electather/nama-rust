@@ -14,6 +14,7 @@ pub(crate) mod installed_test_plugin;
 pub(crate) mod kept_artwork;
 pub(crate) mod log;
 pub(crate) mod maximum_age;
+pub(crate) mod permissions;
 pub(crate) mod refused;
 pub(crate) mod server;
 pub(crate) mod test_plugin;

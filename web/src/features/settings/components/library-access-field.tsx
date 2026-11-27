@@ -1,7 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 
 import { SwitchRow } from "@/features/settings/components/switch-row";
-import { type LibraryAccess, LibraryAccessSchema } from "@/gen/nama/v1/sign_in_pb";
+import { needsEveryLibrary } from "@/features/settings/lib/needs-every-library";
+import { type LibraryAccess, LibraryAccessSchema, type Permission } from "@/gen/nama/v1/sign_in_pb";
 import { FormSelect } from "@/shared/components/form-field/form-select";
 import { useLibraries } from "@/shared/hooks/use-libraries";
 
@@ -9,19 +10,23 @@ const ALL = "all";
 const CHOSEN = "chosen";
 
 /**
- * The Libraries a User sees, `libraryAccess`, unset for every one, as a row and, for a chosen list,
- * a switch for each Library, each change going to `onChange`, to save at once.
+ * The Libraries a User holding `permissions` sees, `libraryAccess`, unset for every one, as a row
+ * and, for a chosen list, a switch for each Library, each change going to `onChange`, to save at
+ * once. Chosen Libraries isn't offered to a User who must see every Library.
  */
 export function LibraryAccessField({
   libraryAccess,
+  permissions,
   onChange,
 }: {
   libraryAccess: LibraryAccess | undefined;
+  permissions: Permission[];
   onChange: (changes: { libraryAccess: LibraryAccess | undefined }) => void;
 }) {
-  // ponytail: lists only the Libraries the editor sees, which is every one for an Admin or a
-  // User with Manage Libraries; upgrade when the Server lists them all for Manage Users (#2323).
+  // Every Library: whoever may edit a User holds Manage Users, which the Server gives only to a User
+  // who sees every Library.
   const libraries = useLibraries();
+  const everyOne = needsEveryLibrary(permissions);
   const choose = (libraryIds: bigint[]) => {
     onChange({ libraryAccess: create(LibraryAccessSchema, { libraryIds }) });
   };
@@ -30,7 +35,11 @@ export function LibraryAccessField({
       <FormSelect
         row
         label="Libraries"
-        hint="All Libraries takes in those added later. A User with Manage Libraries sees every one."
+        hint={
+          everyOne
+            ? "A User with Manage Users sees every Library."
+            : "All Libraries takes in those added later. A User with Manage Libraries sees every one."
+        }
         name="libraryAccess"
         value={libraryAccess ? CHOSEN : ALL}
         onValueChange={(value) => {
@@ -43,7 +52,7 @@ export function LibraryAccessField({
         }}
         options={[
           { value: ALL, label: "All Libraries" },
-          { value: CHOSEN, label: "Chosen Libraries" },
+          { value: CHOSEN, label: "Chosen Libraries", disabled: everyOne },
         ]}
       />
       {libraryAccess && (

@@ -1,46 +1,30 @@
 import { useId } from "react";
 
-import { ContinueWatchingCard } from "@/features/home/components/continue-watching-card";
 import { ContinueWatchingFrame } from "@/features/home/components/continue-watching-frame";
-import { OnServer } from "@/features/home/components/on-server";
-import { VirtualShelf } from "@/features/home/components/virtual-shelf";
+import { HubContinueWatchingShelf } from "@/features/home/components/hub-continue-watching-shelf";
 import { useHubCardActions } from "@/features/home/data/use-hub-card-actions";
 import { useHubContinueWatching } from "@/features/home/data/use-hub-continue-watching";
-import { backdropTile } from "@/features/home/lib/shelf-tiles";
 
 /**
- * Continue Watching at the Hub, from every Server that has answered, or nothing till one has. A
- * card's menu acts on every Server that lists its title.
+ * Continue Watching at the Hub, from every Server that has answered, its skeleton till one has,
+ * naming each Server that failed. A card's menu acts on every Server that lists its title.
  */
 export function HubContinueWatching() {
   const headingId = useId();
-  const { leaving, markWatched, remove } = useHubCardActions();
-  const cards = useHubContinueWatching().filter(({ card }) => !leaving(card));
-  if (cards.length === 0) {
+  const { leaving } = useHubCardActions();
+  const { cards: all, failed, ...shelf } = useHubContinueWatching();
+  const cards = all.filter(({ card }) => !leaving(card));
+  if (cards.length === 0 && failed.length === 0 && !shelf.waiting) {
     return null;
   }
-  const tiles = cards.map((merged) => ({
-    key: `${merged.server.id}/${merged.card.key}`,
-    tile: (
-      <OnServer transport={merged.transport}>
-        <ContinueWatchingCard
-          card={merged.card}
-          actions={{
-            page: merged.card.page,
-            onMarkWatched: () => {
-              markWatched(merged);
-            },
-            onRemove: () => {
-              remove(merged);
-            },
-          }}
-        />
-      </OnServer>
-    ),
-  }));
   return (
     <ContinueWatchingFrame headingId={headingId}>
-      <VirtualShelf tiles={tiles} tile={backdropTile} setSize={tiles.length} />
+      {failed.map((server) => (
+        <p key={server.id} className="mb-4 text-muted-foreground">
+          Couldn’t load Continue Watching from {server.name}.
+        </p>
+      ))}
+      <HubContinueWatchingShelf cards={cards} {...shelf} />
     </ContinueWatchingFrame>
   );
 }
