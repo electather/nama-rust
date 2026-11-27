@@ -2,6 +2,8 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
 
 import { useServerDefined } from "@/features/settings/data/use-server-defined";
+import { openingSection } from "@/features/settings/lib/history-state";
+import { phoneWidth } from "@/features/settings/lib/phone-width";
 import { type SectionGroup, sectionSearch } from "@/features/settings/lib/sections";
 import {
   type Findable,
@@ -39,12 +41,13 @@ export function useSettingsSearch(groups: SectionGroup[], user: User | undefined
   }
 
   async function landOn({ section, key }: Findable) {
-    // Sections share one history entry, as their links do, so Back closes Settings.
+    // As the sections' own links open them.
+    const opening = openingSection(opened.settings, phoneWidth());
     const go = async (setting?: string) => {
       await navigate({
         to: ".",
         search: (rest) => ({ ...rest, ...sectionSearch(section, setting) }),
-        replace: true,
+        ...opening,
       });
     };
     // Asked for again, the setting open would leave the address as it is and land nowhere.

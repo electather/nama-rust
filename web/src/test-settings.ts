@@ -1,10 +1,10 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 
-import type { Section } from "@/features/settings/lib/sections";
+import type { SettingsPage } from "@/features/settings/lib/sections";
 import { type fakeServer, openApp } from "@/test-app";
 
 /** Opens the app with Settings open on `section`, over a page that asks the Server for nothing. */
-export function openSettings(section: Section, transport: ReturnType<typeof fakeServer>) {
+export function openSettings(section: SettingsPage, transport: ReturnType<typeof fakeServer>) {
   return openApp(`/code?settings=${section}`, transport);
 }
 

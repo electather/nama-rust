@@ -1,30 +1,16 @@
-import type { Ref } from "react";
-
 import { SectionLink } from "@/features/settings/components/section-link";
 import type { Section, SectionGroup } from "@/features/settings/lib/sections";
 
 /**
- * The sections of Settings as links, the one open marked: under their groups' headings down the
- * side, or on a phone in one row that scrolls sideways.
+ * The sections of Settings as links under their groups' headings: down the side, the one open
+ * marked, or on a phone the rows of the first page, each opening its section's page.
  */
-export function SectionNav({
-  ref,
-  groups,
-  section,
-}: {
-  ref: Ref<HTMLElement>;
-  groups: SectionGroup[];
-  section: Section;
-}) {
+export function SectionNav({ groups, section }: { groups: SectionGroup[]; section: Section }) {
   return (
-    <nav
-      ref={ref}
-      aria-label="Settings"
-      className="flex min-w-0 flex-1 scrollbar-none gap-0.5 overflow-x-auto scroll-smooth motion-reduce:scroll-auto md:flex-none md:flex-col md:overflow-visible"
-    >
+    <nav aria-label="Settings" className="flex min-w-0 flex-col gap-0.5">
       {groups.map((group) => (
-        <div key={group.label} className="contents md:flex md:flex-col md:gap-0.5">
-          <h3 className="px-2 pt-2.5 pb-1 text-xs text-muted-foreground max-md:hidden">
+        <div key={group.label} className="flex flex-col gap-0.5">
+          <h3 className="px-2 pt-2.5 pb-1 text-xs text-muted-foreground max-md:pt-4">
             {group.label}
           </h3>
           {group.items.map((item) => (

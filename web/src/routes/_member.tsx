@@ -3,7 +3,12 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { HubMemberLayout } from "@/app/hub-member-layout";
 import { MemberLayout } from "@/app/member-layout";
-import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
+import {
+  type SettingsPage,
+  idParam,
+  sectionParam,
+  userParam,
+} from "@/features/settings/lib/sections";
 import { WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import {
   accountOrSignIn,
@@ -21,7 +26,7 @@ import { wordsParam } from "@/shared/lib/words-param";
 // the Linked Server whose Settings show.
 interface MemberSearch {
   search?: string | undefined;
-  settings?: Section | undefined;
+  settings?: SettingsPage | undefined;
   manage?: string | undefined;
   plugin?: string | undefined;
   user?: number | undefined;

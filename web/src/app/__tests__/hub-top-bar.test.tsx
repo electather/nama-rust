@@ -138,7 +138,7 @@ test("the Hub's menu has the Watchlist, the Account's Settings and signing out, 
 
   fireEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
   await vi.waitFor(() => {
-    expect(router.state.location.search).toMatchObject({ settings: "account" });
+    expect(router.state.location.search).toMatchObject({ settings: "all" });
   });
 });
 

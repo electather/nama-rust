@@ -1,7 +1,7 @@
 import type { UseNavigateResult } from "@tanstack/react-router";
 
 import type { IconName } from "@/features/action-bar/lib/rows";
-import { type Section, sectionSearch } from "@/features/settings/lib/sections";
+import { type SettingsPage, sectionSearch } from "@/features/settings/lib/sections";
 
 /** A page the action bar jumps to, with the key that, after G, goes there from anywhere. */
 export type Page = {
@@ -10,7 +10,7 @@ export type Page = {
   key: string;
   icon: IconName;
   // Settings is a modal over the page it's opened on (`goTo`), not a page of its own.
-} & ({ to: "/" } | { settings: Section });
+} & ({ to: "/" } | { settings: SettingsPage });
 
 /** The pages "Jump to" lists. */
 export const pages: readonly Page[] = [
@@ -22,7 +22,7 @@ export const pages: readonly Page[] = [
     icon: "home",
   },
   {
-    settings: "playback",
+    settings: "all",
     label: "Settings",
     hint: "Your password, Devices and playback",
     key: "S",

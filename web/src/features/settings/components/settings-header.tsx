@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { Button } from "nama-ui/components/button";
 import { type ComponentType, Suspense } from "react";
 
+import { BackToSections } from "@/features/settings/components/back-to-sections";
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { JobCrumbs } from "@/features/settings/components/job-crumbs";
 import { JobRunNow } from "@/features/settings/components/job-run-now";
@@ -33,22 +34,27 @@ const sectionActions: Partial<Record<Section, ComponentType>> = {
  * the default Home, adding a Library or running the open Job, and the button that closes it. Unless
  * `served`, as for a Section the Server in use doesn't serve, nothing acts on the pane and the
  * crumbs name only the Section: both may call what the Server lacks. A crumb whose read fails also
- * falls back to the Section's name, since this sits outside the pane's own error boundary.
+ * falls back to the Section's name, since this sits outside the pane's own error boundary. On a
+ * phone, over the list of sections (`phone` "list") it says Settings alone, and over a section
+ * ("section") it starts with the way back to that list.
  */
 export function SettingsHeader({
   titleId,
   section,
   served,
+  phone,
   onClose,
 }: {
   titleId: string;
   section: Section;
   served: boolean;
+  phone?: "list" | "section" | undefined;
   onClose: () => void;
 }) {
-  const plain = <Crumbs current={sectionTitles[section]} />;
-  const Opened = served ? openedCrumbs[section] : undefined;
-  const Action = served ? sectionActions[section] : undefined;
+  const plain = <Crumbs current={phone === "list" ? "Settings" : sectionTitles[section]} />;
+  const onSection = served && phone !== "list";
+  const Opened = onSection ? openedCrumbs[section] : undefined;
+  const Action = onSection ? sectionActions[section] : undefined;
   const crumbs = Opened ? (
     <ErrorBoundary key={section} failed={plain}>
       <Suspense fallback={plain}>
@@ -59,12 +65,12 @@ export function SettingsHeader({
     plain
   );
   return (
-    // First on a phone, over the strip of sections that comes before it in the page.
-    <header className="flex h-11 shrink-0 items-center gap-1 ps-4 pe-1.5 max-md:order-first md:ps-5">
+    <header className="flex h-11 shrink-0 items-center gap-1 ps-4 pe-1.5 md:ps-5">
       {/* The dialog is named by this alone, whichever section is open. */}
       <h2 id={titleId} className="sr-only">
         Settings
       </h2>
+      {phone === "section" && <BackToSections />}
       <nav aria-label="Breadcrumbs" className="me-auto min-w-0 pe-1">
         {crumbs}
       </nav>

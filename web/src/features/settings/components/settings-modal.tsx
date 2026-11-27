@@ -4,7 +4,7 @@ import { HubSettings } from "@/features/settings/components/hub-settings";
 import { SettingsBody } from "@/features/settings/components/settings-body";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
 import { phoneWidth } from "@/features/settings/lib/phone-width";
-import { type Section, groupsFor } from "@/features/settings/lib/sections";
+import { type SettingsPage, groupsFor } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
 /** A field of another kind, such as a checkbox, loses nothing to Escape. */
@@ -47,7 +47,7 @@ export function SettingsModal({
   user,
   atHub,
 }: {
-  section: Section;
+  section: SettingsPage;
   user: User | undefined;
   atHub: boolean;
 }) {

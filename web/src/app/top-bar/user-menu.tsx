@@ -11,7 +11,7 @@ import {
 import { useSignOut } from "@/app/data/use-sign-out";
 import { SignOutToast } from "@/app/top-bar/sign-out-toast";
 import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
-import { sectionSearch } from "@/features/settings/lib/sections";
+import { allSections, sectionSearch } from "@/features/settings/lib/sections";
 
 const watchlistLink = <Link to="/watchlist" />;
 
@@ -57,7 +57,7 @@ export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean
             // A history entry of its own, so Back closes Settings.
             void navigate({
               to: ".",
-              search: (rest) => ({ ...rest, ...sectionSearch(atHub ? "account" : "playback") }),
+              search: (rest) => ({ ...rest, ...sectionSearch(allSections) }),
             });
           }}
         >
