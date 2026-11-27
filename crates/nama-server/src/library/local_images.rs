@@ -250,7 +250,7 @@ impl LocalImages {
     /// Makes, in the background, `posters` of each Poster and `backdrops` of each Backdrop beside
     /// the Library `library`'s media that a title shows, having none of `custom_images` in its
     /// place, then of each of `custom_images` of the Library and its titles, where they aren't
-    /// there. Each one, not only those a scan just copied in or an admin just uploaded, so a
+    /// there, every Poster before any Backdrop. Each one, not only those a scan just copied in or an admin just uploaded, so a
     /// Library recorded before they were resized ahead gets its copies too (#2152, #2244, #2372).
     pub(super) fn resize_shown(
         &self,
@@ -262,21 +262,36 @@ impl LocalImages {
         let local_images = self.clone();
         tokio::spawn(async move {
             let _resizing = local_images.resizing.lock().await;
-            let beside_media = (local_images)
-                .copy_ahead(library, &custom_images, &posters, &backdrops)
+            // Posters first, as Artwork's, so a cache near its limit holds those a first visit
+            // needs (#2253).
+            (local_images)
+                .copy_all_ahead(library, &custom_images, &posters, &[])
                 .await;
-            if let Err(err) = beside_media {
-                tracing::error!(library, "could not list the images to resize: {err}");
-            }
-            // Here, under the same lock, so a scan's Custom Images wait their turn on the resize
-            // thread too.
-            let custom = custom_images
-                .copy_ahead(library, &posters, &backdrops)
+            (local_images)
+                .copy_all_ahead(library, &custom_images, &[], &backdrops)
                 .await;
-            if let Err(err) = custom {
-                tracing::error!(library, "could not list the Custom Images to resize: {err}");
-            }
         });
+    }
+
+    /// Makes `posters` and `backdrops` of the images beside the media and then of `custom_images`
+    /// for [`Self::resize_shown`], logging a failure to list them.
+    async fn copy_all_ahead(
+        &self,
+        library: i64,
+        custom_images: &CustomImages,
+        posters: &[Resize],
+        backdrops: &[Resize],
+    ) {
+        let beside_media = (self.copy_ahead(library, custom_images, posters, backdrops)).await;
+        if let Err(err) = beside_media {
+            tracing::error!(library, "could not list the images to resize: {err}");
+        }
+        // Here, under the same lock, so a scan's Custom Images wait their turn on the resize
+        // thread too.
+        let custom = custom_images.copy_ahead(library, posters, backdrops).await;
+        if let Err(err) = custom {
+            tracing::error!(library, "could not list the Custom Images to resize: {err}");
+        }
     }
 
     /// The copies [`Self::resize_shown`] makes of the images beside the media.
@@ -288,14 +303,7 @@ impl LocalImages {
         backdrops: &[Resize],
     ) -> sqlx::Result<()> {
         let folder = library.to_string();
-        let mut shown: Vec<_> = self
-            .shown(library, custom_images)
-            .await?
-            .into_iter()
-            .collect();
-        // Posters first, as Artwork's, so a cache near its limit holds those a first visit needs.
-        shown.sort_by_key(|(_, role)| *role == LocalRole::Title(Role::Backdrop));
-        for (stored, role) in shown {
+        for (stored, role) in self.shown(library, custom_images).await? {
             let copies = match role {
                 LocalRole::Title(Role::Backdrop) => backdrops,
                 LocalRole::Title(Role::Poster) | LocalRole::SeasonPoster => posters,

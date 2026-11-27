@@ -298,10 +298,7 @@ impl CustomImages {
         posters: &[Resize],
         backdrops: &[Resize],
     ) -> sqlx::Result<()> {
-        let mut images = self.of_library(library).await?;
-        // Posters first, as Artwork's, so a cache near its limit holds those a first visit needs.
-        images.sort_by_key(|(slot, _)| !slot.is_poster());
-        for (slot, version) in images {
+        for (slot, version) in self.of_library(library).await? {
             let copies = if slot.is_poster() { posters } else { backdrops };
             let mut key = slot.key();
             key.push(&version);

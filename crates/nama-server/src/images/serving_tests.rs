@@ -494,3 +494,30 @@ async fn a_copy_is_made_ahead_while_the_cache_holds_under_80_percent() {
 
     assert!(store.copies_path(KEY).join("320.jpg").exists());
 }
+
+#[tokio::test]
+async fn copies_ahead_resume_once_deleting_an_image_frees_the_cache() {
+    let data = tempfile::tempdir().unwrap();
+    let store = on_disk(&data).await;
+    let other: &[&str] = &["artwork", "tmdb", "/other.jpg"];
+    for key in [KEY, other] {
+        let wide = png(RgbImage::new(1000, 1500));
+        store.write(key, &wide).await.unwrap();
+    }
+    store.copy_ahead(other, &[AT_320]).await;
+    let files = walkdir::WalkDir::new(store.copies_path(other)).into_iter();
+    let taken: u64 = (files.map(Result::unwrap))
+        .map(|file| file.metadata().unwrap().len())
+        .sum();
+    let full = Resize {
+        width: 320,
+        cache_limit: taken,
+    };
+    store.copy_ahead(KEY, &[full]).await;
+    assert!(!store.copies_path(KEY).exists(), "skipped while full");
+
+    store.delete(other).await.unwrap();
+    store.copy_ahead(KEY, &[full]).await;
+
+    assert!(store.copies_path(KEY).join("320.jpg").exists());
+}

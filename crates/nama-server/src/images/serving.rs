@@ -4,7 +4,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, atomic::Ordering},
 };
 
 use axum::{
@@ -192,14 +192,17 @@ impl ImageStore {
         if mark_sent(&unresized).await {
             return None;
         }
-        let mut cached = self.resizing.lock().await;
+        let mut cache_size = self.resizing.lock().await;
         if mark_sent(&copy).await {
             return Some(asked);
         }
         if mark_sent(&unresized).await {
             return None;
         }
-        if made_for == MadeFor::Ahead && self.is_nearly_full(&mut cached, resize.cache_limit).await
+        if made_for == MadeFor::Ahead
+            && self
+                .is_nearly_full(&mut cache_size, resize.cache_limit)
+                .await
         {
             return None;
         }
@@ -223,26 +226,22 @@ impl ImageStore {
             .run(move || {
                 let copied = resized::on_disk(original, &cache)
                     .map_err(Into::into)
-                    .and_then(|original| {
-                        resized::make_copy(original, &folder, resize.width, asked)
-                    });
+                    .and_then(|original| resized::make_copy(original, &folder, resize.width, asked))
+                    .map_err(|err| format!("could not resize {named}: {err}"));
                 let left = match &copied {
                     Ok(Copied::Made { format, .. }) => {
                         let made = folder.join(format.file_name(resize.width));
-                        evicted(&cache, resize.cache_limit, &made)
+                        size_after_evicting(&cache, resize.cache_limit, &made)
                     }
                     _ => None,
                 };
-                (
-                    copied.map_err(|err| format!("could not resize {named}: {err}")),
-                    left,
-                )
+                (copied, left)
             })
             .instrument(span.clone())
             .await;
         // The thread having stopped, or a resize having panicked, is one more failed resize.
         let (copied, left) = resized.unwrap_or_else(|err| (Err(err.to_string()), None));
-        *cached = left.or(*cached);
+        *cache_size = left.or(*cache_size);
         match copied {
             Ok(Copied::Found(format)) => Some(format),
             Ok(Copied::Made { format, thumbhash }) => {
@@ -269,26 +268,27 @@ impl ImageStore {
         }
     }
 
-    /// Whether the resized copies take [`AHEAD_UP_TO_PERCENT`] of `limit` or more, `cached` being
-    /// their bytes as measured last, which it measures first where unknown.
-    async fn is_nearly_full(&self, cached: &mut Option<u64>, limit: u64) -> bool {
-        if cached.is_none() {
+    /// Whether the resized copies take [`AHEAD_UP_TO_PERCENT`] of `limit` or more, `cache_size`
+    /// being their bytes as measured last, which it measures first where unknown or copies were
+    /// deleted since.
+    async fn is_nearly_full(&self, cache_size: &mut Option<u64>, limit: u64) -> bool {
+        if self.copies_deleted.swap(false, Ordering::AcqRel) || cache_size.is_none() {
             let cache = self.dir.join(RESIZED_DIR);
             match self.resizer.run(move || resized::size(&cache)).await {
-                Ok(Ok(size)) => *cached = Some(size),
+                Ok(Ok(size)) => *cache_size = Some(size),
                 // The copy is made, and its eviction measures the cache.
                 Ok(Err(err)) | Err(err) => {
                     tracing::warn!("could not measure the resized images: {err}");
                 }
             }
         }
-        cached.is_some_and(|size| size >= limit / 100 * AHEAD_UP_TO_PERCENT)
+        cache_size.is_some_and(|size| size >= limit / 100 * AHEAD_UP_TO_PERCENT)
     }
 }
 
 /// The bytes the copies in `cache` take once [`resized::evict`] has fit them in `limit`, keeping
 /// `made`, or `None` where it failed, which is logged.
-fn evicted(cache: &Path, limit: u64, made: &Path) -> Option<u64> {
+fn size_after_evicting(cache: &Path, limit: u64, made: &Path) -> Option<u64> {
     (resized::evict(cache, limit, made))
         .inspect_err(|err| {
             tracing::error!("could not keep the resized images within their limit: {err}");
