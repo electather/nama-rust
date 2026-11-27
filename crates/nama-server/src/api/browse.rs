@@ -19,8 +19,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::{
-        Browse, Browsing, Episode, Featured, ListedShow, Movie, Show, Started, TitlePages, Version,
-        season_count,
+        Browse, Browsing, Episode, Featured, HomeLayouts, ListedShow, Movie, Show, Started,
+        TitlePages, Version, season_count,
     },
     db::Database,
     home_rows::HomeRows,
@@ -29,8 +29,6 @@ use crate::{
         ShownImage, ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
-    server_settings::Settings,
-    users::UserHomeLayout,
     watchlist,
 };
 
@@ -47,9 +45,10 @@ mod refusals;
 mod titles;
 
 use box_sets::box_set_to_proto;
-pub(super) use home_rows::{home_rows_of, recently_added_rows};
+pub(super) use home_rows::home_layout_to_proto;
+use home_rows::home_row_to_proto;
 pub(super) use people::headshot_url;
-pub(super) use refusals::{Fields, home_rows_refused, not_found, refused};
+pub(super) use refusals::{Fields, home_layout_refused, home_rows_refused, not_found, refused};
 use titles::{episode_beside_to_proto, featured_to_proto, started_to_proto};
 pub(super) use titles::{roles_to_proto, row_title_to_proto, trailers_to_proto};
 
@@ -59,12 +58,12 @@ pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browsing,
     /// Reads a Movie's or Show's page.
     pub(super) pages: TitlePages,
+    /// Lists a Plugin's Home row's titles.
     pub(super) home_rows: HomeRows,
-    /// Holds the default Home layout, which orders and hides the Home rows and Featured.
-    pub(super) settings: Settings,
+    /// Composes the caller's Home rows and Featured.
+    pub(super) home_layouts: HomeLayouts,
     pub(super) images: ImageSources,
-    /// Holds the Watchlists that say whether a Movie or Show is on the caller's, and each User's
-    /// Home layout.
+    /// Holds the Watchlists that say whether a Movie or Show is on the caller's.
     pub(super) db: Arc<Database>,
 }
 
@@ -363,17 +362,9 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListFeaturedRequest>,
     ) -> ServiceResult<ListFeaturedResponse> {
-        let user = caller(&ctx)?.user.id;
-        let own = UserHomeLayout::of(&self.db, user).await;
-        let own = own.map_err(database_failed)?;
-        if !own.shows_featured(&self.settings.now().default_home_layout) {
-            return Response::ok(ListFeaturedResponse::default());
-        }
-        let suggested = self.home_rows.featured(user).await;
-        let suggested = suggested.map_err(home_rows_refused)?;
-        let browse = seen_by(&self.browse, user).await?;
-        let featured = browse.featured(user, &suggested).await;
-        let featured = featured.map_err(refused(Fields::NONE))?;
+        let caller = &caller(&ctx)?.user;
+        let featured = self.home_layouts.featured(caller).await;
+        let featured = featured.map_err(home_layout_refused)?;
         let images = shown_images(&self.images, &ctx).await?;
         let mut titles = Vec::with_capacity(featured.len());
         // ponytail: one query per title, as Continue Watching asks; Featured lists a handful.
@@ -382,7 +373,7 @@ impl BrowseService for BrowseServiceHandler {
                 Featured::Movie { movie, .. } => (TitleKind::Movie, &movie.ids),
                 Featured::Show { show, .. } => (TitleKind::Show, &show.ids),
             };
-            let on_watchlist = self.on_watchlist(user, kind, ids).await?;
+            let on_watchlist = self.on_watchlist(caller.id, kind, ids).await?;
             titles.push(featured_to_proto(title, on_watchlist, &images));
         }
         Response::ok(ListFeaturedResponse {
@@ -396,15 +387,11 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
-        let reader = &caller(&ctx)?.user;
-        let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
-        let own = UserHomeLayout::of(&self.db, reader.id).await;
-        let own = own.map_err(database_failed)?;
-        let rows = own.arrange(&self.settings.now().default_home_layout, rows);
+        let rows = self.home_layouts.home_rows(&caller(&ctx)?.user).await;
         Response::ok(ListHomeRowsResponse {
-            rows: (rows.into_iter())
-                .filter(|&(_, shown)| shown)
-                .map(|((_, row), _)| proto::HomeRow {
+            rows: (rows.map_err(home_layout_refused)?.into_iter())
+                .filter_map(home_row_to_proto)
+                .map(|row| proto::HomeRow {
                     kernel_or_plugin: Some(row),
                     ..Default::default()
                 })

@@ -1,64 +1,21 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
-use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    contract::{
-        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, SharedRowsAsked,
-        TitleId, TitleKind, UserFeaturedAsked, UserRowsAsked,
-    },
-    home_row::{HomeRowMethod, HomeRowSource},
-    metadata::ExternalId,
-};
+use nama_plugin_api::{PluginId, home_row::HomeRowMethod, metadata::ExternalId};
 use tempfile::TempDir;
 
-use super::{HomeRows as Kept, Kind, OnServer, Row, Title, forget_unvisited, rows::Rows, shown};
+pub(super) use super::scripted::{Calls, given, movie, row, titled};
+use super::{
+    HomeRows as Kept, Kind, OnServer, Row, ScriptedRows, Title, forget_unvisited, rows::Rows, shown,
+};
 use crate::{
     db::{self, Database},
-    events::EventBus,
     library::{FoundMovie, Whereabouts},
-    plugins::Registry,
-    requests::Requests,
-    server_settings::ServerUrl,
     users::{Permissions, User, replace_personal_settings, testing::insert_user},
 };
-
-pub(super) fn movie(value: &str) -> HomeRowTitle {
-    titled(TitleKind::TITLE_KIND_MOVIE, "tmdb", value)
-}
-
-pub(super) fn titled(kind: TitleKind, namespace: &str, value: &str) -> HomeRowTitle {
-    HomeRowTitle {
-        kind: kind.into(),
-        id: TitleId {
-            namespace: namespace.to_owned(),
-            value: value.to_owned(),
-            ..TitleId::default()
-        }
-        .into(),
-        ..HomeRowTitle::default()
-    }
-}
-
-pub(super) fn row(key: &str, ttl_seconds: u32, titles: Vec<HomeRowTitle>) -> HomeRow {
-    HomeRow {
-        key: key.to_owned(),
-        heading: key.to_owned(),
-        ttl_seconds,
-        titles,
-        ..HomeRow::default()
-    }
-}
-
-pub(super) fn given(rows: Vec<HomeRow>) -> HomeRows {
-    HomeRows {
-        rows,
-        ..HomeRows::default()
-    }
-}
 
 #[test]
 fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
@@ -98,106 +55,6 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
     assert_eq!(places, [0]);
 }
 
-/// What a [`Recorded`] source was asked, and a hold on its answers to Users.
-#[derive(Default)]
-pub(super) struct Calls {
-    /// In order: `None` for the shared rows, or the Personal settings a User's call carried.
-    pub(super) asked: Mutex<Vec<Option<BTreeMap<String, String>>>>,
-    /// In order, the Personal settings each `user_featured` call carried.
-    pub(super) featured_asked: Mutex<Vec<BTreeMap<String, String>>>,
-    /// In order, the User id each `user_rows` and `user_featured` call carried.
-    pub(super) user_ids: Mutex<Vec<i64>>,
-    /// It answers only once it holds this, so a test keeps a call in flight.
-    pub(super) held: tokio::sync::Mutex<()>,
-}
-
-impl Calls {
-    pub(super) fn asked(&self) -> Vec<Option<BTreeMap<String, String>>> {
-        self.asked.lock().unwrap().clone()
-    }
-}
-
-/// A Built-in Home row source, `rows`, that records what it is asked, and gives the row `shared`
-/// to every User, the row `theirs` to each, and suggests to each User who set a `handle` the
-/// Movie of that TMDB id at 0.5, of those `gives` names.
-struct Recorded {
-    calls: Arc<Calls>,
-    gives: &'static [HomeRowMethod],
-}
-
-impl Plugin for Recorded {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            version: "1.0.0".to_owned(),
-            extension_points: vec![PointKey::provide::<dyn HomeRowSource>()],
-            ..Manifest::new(PluginId::from_static("rows"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        let source: Arc<dyn HomeRowSource> = Arc::new(Self {
-            calls: Arc::clone(&self.calls),
-            gives: self.gives,
-        });
-        registrar.provide(Priority::DEFAULT, source);
-        Ok(())
-    }
-}
-
-impl HomeRowSource for Recorded {
-    fn shared_rows<'a>(
-        &'a self,
-        _asked: &'a SharedRowsAsked,
-    ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
-        self.calls.asked.lock().unwrap().push(None);
-        Box::pin(async {
-            let _held = self.calls.held.lock().await;
-            Ok(given(vec![row("shared", 3600, vec![movie("1")])]))
-        })
-    }
-
-    fn user_rows<'a>(
-        &'a self,
-        asked: &'a UserRowsAsked,
-    ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
-        let settings = asked.personal_settings.clone().into_iter().collect();
-        self.calls.asked.lock().unwrap().push(Some(settings));
-        self.calls.user_ids.lock().unwrap().push(asked.user_id);
-        Box::pin(async {
-            let _held = self.calls.held.lock().await;
-            Ok(given(vec![row("theirs", 3600, vec![movie("2")])]))
-        })
-    }
-
-    fn user_featured<'a>(
-        &'a self,
-        asked: &'a UserFeaturedAsked,
-    ) -> BoxFuture<'a, Result<FeaturedSuggestions, PluginError>> {
-        let settings = asked.personal_settings.clone().into_iter().collect();
-        self.calls.featured_asked.lock().unwrap().push(settings);
-        self.calls.user_ids.lock().unwrap().push(asked.user_id);
-        let handle = asked.personal_settings.get("handle").cloned();
-        Box::pin(async move {
-            let _held = self.calls.held.lock().await;
-            let suggestion = |tmdb: String| FeaturedSuggestion {
-                kind: TitleKind::TITLE_KIND_MOVIE.into(),
-                id: movie(&tmdb).id,
-                weight: 0.5,
-                ..FeaturedSuggestion::default()
-            };
-            Ok(FeaturedSuggestions {
-                suggestions: handle.into_iter().map(suggestion).collect(),
-                ttl_seconds: 3600,
-                ..FeaturedSuggestions::default()
-            })
-        })
-    }
-
-    fn gives(&self, method: HomeRowMethod) -> bool {
-        self.gives.contains(&method)
-    }
-}
-
 pub(super) const SHARED: &[HomeRowMethod] = &[HomeRowMethod::Shared];
 const BOTH: &[HomeRowMethod] = &[HomeRowMethod::Shared, HomeRowMethod::User];
 const EVERY: &[HomeRowMethod] = &[
@@ -206,7 +63,8 @@ const EVERY: &[HomeRowMethod] = &[
     HomeRowMethod::Featured,
 ];
 
-/// Home rows over a fresh database, with [`Recorded`] enabled, giving the rows `gives` names.
+/// Home rows over a fresh database, with the [`ScriptedRows`] of [`scripted`] enabled, giving
+/// the answers `gives` names.
 pub(super) async fn recorded(
     gives: &'static [HomeRowMethod],
 ) -> (TempDir, Arc<Database>, Kept, Arc<Calls>) {
@@ -216,20 +74,20 @@ pub(super) async fn recorded(
     (data_dir, db, home, calls)
 }
 
-/// Home rows over `db`, with [`Recorded`] enabled, giving the rows `gives` names, as a Server
-/// starts with that version of it.
+/// Home rows over `db`, with the [`ScriptedRows`] of [`scripted`] enabled, giving the answers
+/// `gives` names, as a Server starts with that version of it.
 pub(super) fn started(db: &Arc<Database>, gives: &'static [HomeRowMethod]) -> (Kept, Arc<Calls>) {
-    let calls = Arc::new(Calls::default());
-    let plugins = Registry::new();
-    let source = Recorded {
-        calls: Arc::clone(&calls),
-        gives,
-    };
-    plugins.enable(Arc::new(source)).unwrap();
-    let points = plugins.extension_points();
-    let events = EventBus::new(Arc::clone(db), points.clone(), ServerUrl::default());
-    let requests = Requests::new(Arc::clone(db), events, points.clone());
-    (Kept::new(Arc::clone(db), points, requests), calls)
+    let source = scripted(gives);
+    let calls = source.calls();
+    (source.home_rows(db), calls)
+}
+
+/// The source these tests script: it shares the row `shared` of TMDB Movie 1 and gives each User
+/// the row `theirs` of TMDB Movie 2, neither of which is on the Server.
+fn scripted(gives: &'static [HomeRowMethod]) -> ScriptedRows {
+    ScriptedRows::new(gives)
+        .sharing("shared", None, &[1])
+        .giving_each("theirs", &[2])
 }
 
 pub(super) async fn set_handle(db: &Database, user: i64, handle: &str) {

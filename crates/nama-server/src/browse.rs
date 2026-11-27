@@ -1,5 +1,5 @@
-//! Browse: the Movies and Shows a Library holds, and the pages of those and of Found ones, as a
-//! User sees them.
+//! Browse: the Movies and Shows a Library holds, the pages of those and of Found ones, and a User's
+//! Home, as a User sees them.
 //!
 //! [`Browse`] finds titles through [`Contents`], never in the content tables itself (see
 //! `src/library/AGENTS.md`), and attaches the User's [`WatchState`]s and, only to the Movies and
@@ -30,6 +30,7 @@ use crate::{
 
 mod box_sets;
 mod featured;
+mod home_layouts;
 mod people;
 mod search;
 mod title_pages;
@@ -37,6 +38,7 @@ mod watching;
 
 pub(crate) use box_sets::SeenBoxSet;
 pub(crate) use featured::Featured;
+pub(crate) use home_layouts::{HomeLayoutError, HomeLayouts, HomeRow, SeenHomeLayout, ShownRow};
 pub(crate) use people::{PersonPage, PersonTitle};
 pub(crate) use title_pages::{FoundPageError, TitlePages};
 pub(crate) use watching::Started;
