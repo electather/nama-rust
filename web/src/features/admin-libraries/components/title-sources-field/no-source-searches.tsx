@@ -4,7 +4,7 @@ import { whyNoSourceSearches } from "@/features/admin-libraries/lib/title-source
 import type { TitleSource } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { useMay } from "@/shared/hooks/use-may";
-import { settingsDetailParams } from "@/shared/lib/settings-detail-params";
+import { sectionSearch } from "@/shared/lib/settings-address";
 import { textLink } from "@/shared/lib/text-link-classes";
 
 /**
@@ -19,11 +19,7 @@ export function NoSourceSearches({ order, listed }: { order: string[]; listed: T
     return null;
   }
   const plugins = managesSettings ? (
-    <Link
-      to="."
-      search={(rest) => ({ ...rest, ...settingsDetailParams, settings: "plugins" })}
-      className={textLink}
-    >
+    <Link to="." search={(rest) => ({ ...rest, ...sectionSearch("plugins") })} className={textLink}>
       Plugins
     </Link>
   ) : (

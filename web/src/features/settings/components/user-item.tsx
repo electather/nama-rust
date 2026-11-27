@@ -5,6 +5,7 @@ import { ItemRow } from "@/features/settings/components/item-row";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { IconTile } from "@/shared/components/icon-tile";
 import { labelsOf } from "@/shared/lib/permissions";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /**
  * One User on the list: their name over their Permissions, after whether they can't sign in. All
@@ -22,7 +23,7 @@ export function UserItem({
   const name = (
     <Link
       to="."
-      search={(rest) => ({ ...rest, user: Number(user.id) })}
+      search={(rest) => ({ ...rest, ...detailSearch({ kind: "user", id: Number(user.id) }) })}
       className="outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
     >
       {user.name}

@@ -1,5 +1,6 @@
 import { SectionLink } from "@/features/settings/components/section-link";
-import type { Section, SectionGroup } from "@/features/settings/lib/sections";
+import type { SectionGroup } from "@/features/settings/lib/sections";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * The sections of Settings as links under their groups' headings: down the side, the one open

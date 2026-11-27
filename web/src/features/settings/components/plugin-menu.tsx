@@ -13,6 +13,7 @@ import { enabledFromItsView, switchable } from "@/features/settings/lib/plugin-l
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { useModalContainer } from "@/shared/hooks/use-modal-container";
 import { pluginName } from "@/shared/lib/plugins";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /**
  * The "…" at the end of a Plugin's row: opening it, and enabling or disabling it. Where a setting
@@ -34,7 +35,12 @@ export function PluginMenu({
       aria-label={`More for ${pluginName(plugin)}`}
     />
   );
-  const open = <Link to="." search={(rest) => ({ ...rest, plugin: plugin.id })} />;
+  const open = (
+    <Link
+      to="."
+      search={(rest) => ({ ...rest, ...detailSearch({ kind: "plugin", id: plugin.id }) })}
+    />
+  );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={more}>

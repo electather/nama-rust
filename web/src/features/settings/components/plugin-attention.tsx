@@ -6,6 +6,7 @@ import { needsAttention } from "@/features/settings/lib/plugin-list";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { StateLabel } from "@/shared/components/state-label";
 import { pluginName } from "@/shared/lib/plugins";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /**
  * What the row of a Plugin waiting on an admin says: why it waits, and for one that runs without a
@@ -22,7 +23,7 @@ export function PluginAttention({ plugin }: { plugin: PluginSummary }) {
         <StateLabel label="Missing a setting" Icon={TriangleAlert} />
         <Link
           to="."
-          search={(rest) => ({ ...rest, plugin: plugin.id })}
+          search={(rest) => ({ ...rest, ...detailSearch({ kind: "plugin", id: plugin.id }) })}
           aria-label={`Set up ${pluginName(plugin)}`}
           className={buttonVariants({ variant: "secondary" })}
         >

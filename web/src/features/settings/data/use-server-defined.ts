@@ -1,6 +1,6 @@
 import { useQuery } from "@connectrpc/connect-query";
 
-import type { Section, SectionGroup } from "@/features/settings/lib/sections";
+import type { SectionGroup } from "@/features/settings/lib/sections";
 import {
   homeRowFindables,
   personalFindables,
@@ -10,6 +10,7 @@ import type { Findable } from "@/features/settings/lib/setting-search";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * The settings the Server defines in the Sections of `groups`, for Settings' search: none until

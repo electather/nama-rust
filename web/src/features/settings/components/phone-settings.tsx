@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { SettingsHeader } from "@/features/settings/components/settings-header";
-import type { Section } from "@/features/settings/lib/sections";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * Settings on a phone, as two pages, as a phone's own settings are: with `listing`, the list of

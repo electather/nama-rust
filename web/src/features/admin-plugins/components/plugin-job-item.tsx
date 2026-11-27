@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 
 import type { PluginJob } from "@/gen/nama/v1/plugin_pb";
-import { jobSearch } from "@/shared/lib/job-key";
 import { scheduleWords } from "@/shared/lib/schedule-words";
+import { detailSearch } from "@/shared/lib/settings-address";
 import { textLink } from "@/shared/lib/text-link-classes";
 
 /**
@@ -17,7 +17,10 @@ export function PluginJobItem({ job, pluginId }: { job: PluginJob; pluginId: str
       ) : (
         <Link
           to="."
-          search={(rest) => ({ ...rest, ...jobSearch(pluginId, job.id) })}
+          search={(rest) => ({
+            ...rest,
+            ...detailSearch({ kind: "job", pluginId, jobId: job.id }),
+          })}
           className={textLink}
         >
           {job.name}

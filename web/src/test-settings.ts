@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 
-import type { SettingsPage } from "@/features/settings/lib/sections";
+import type { SettingsPage } from "@/shared/lib/settings-address";
 import { type fakeServer, openApp } from "@/test-app";
 
 /** Opens the app with Settings open on `section`, over a page that asks the Server for nothing. */

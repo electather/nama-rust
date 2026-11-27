@@ -3,7 +3,7 @@ import { TriangleAlert } from "lucide-react";
 
 import { TimeAgo } from "@/features/admin-jobs/components/time-ago";
 import { type Job, JobRunOutcome } from "@/gen/nama/v1/job_pb";
-import { jobKey } from "@/shared/lib/job-key";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /** Over the list, each Job whose last Run failed, linking to it, or nothing while none did. */
 export function FailedJobs({ jobs }: { jobs: Job[] }) {
@@ -17,7 +17,10 @@ export function FailedJobs({ jobs }: { jobs: Job[] }) {
       <TimeAgo ms={job.lastRun?.startedAtMs ?? 0n} />.{" "}
       <Link
         to="."
-        search={(rest) => ({ ...rest, job: jobKey(job.pluginId, job.id) })}
+        search={(rest) => ({
+          ...rest,
+          ...detailSearch({ kind: "job", pluginId: job.pluginId, jobId: job.id }),
+        })}
         className="underline underline-offset-3"
       >
         See what happened

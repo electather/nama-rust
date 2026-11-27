@@ -1,7 +1,7 @@
 import type { UseNavigateResult } from "@tanstack/react-router";
 
 import type { IconName } from "@/features/action-bar/lib/rows";
-import { type SettingsPage, sectionSearch } from "@/features/settings/lib/sections";
+import { type SettingsPage, sectionSearch } from "@/shared/lib/settings-address";
 
 /** A page the action bar jumps to, with the key that, after G, goes there from anywhere. */
 export type Page = {

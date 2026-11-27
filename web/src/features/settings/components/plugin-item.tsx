@@ -8,6 +8,7 @@ import { pluginMeta } from "@/features/settings/lib/plugin-list";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { PluginLogo } from "@/shared/components/plugin-logo";
 import { pluginName } from "@/shared/lib/plugins";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /**
  * One Plugin on the list: its logo, its name and what it is, and at the end what there is to do
@@ -29,7 +30,7 @@ export function PluginItem({
       onPointerEnter={warm}
       onFocus={warm}
       to="."
-      search={(rest) => ({ ...rest, plugin: plugin.id })}
+      search={(rest) => ({ ...rest, ...detailSearch({ kind: "plugin", id: plugin.id }) })}
       className="outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
     >
       {pluginName(plugin)}

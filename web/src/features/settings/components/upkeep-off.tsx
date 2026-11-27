@@ -4,13 +4,14 @@ import { buttonVariants } from "nama-ui/components/button";
 
 import { UPKEEP } from "@/features/admin-backups/lib/back-up-job";
 import { StatusCard } from "@/features/settings/components/status-card";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /** Says the Server writes no Backups while Upkeep, whose Job writes them, is disabled. */
 export function UpkeepOff() {
   const enable = (
     <Link
       to="."
-      search={(rest) => ({ ...rest, settings: "plugins", plugin: UPKEEP })}
+      search={(rest) => ({ ...rest, ...detailSearch({ kind: "plugin", id: UPKEEP }) })}
       className={buttonVariants({ variant: "secondary" })}
     >
       Enable Upkeep

@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { librariesKey } from "@/features/admin-libraries/data/use-library";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
+import { sectionSearch } from "@/shared/lib/settings-address";
 
 /** Deletes a Library, then goes back to the list of Libraries and refetches them. */
 export function useDeleteLibrary() {
@@ -13,7 +14,7 @@ export function useDeleteLibrary() {
   return useMutation(LibraryService.method.deleteLibrary, {
     // Away from the deleted Library first, so the refetch doesn't ask for it.
     onSuccess: async () => {
-      await navigate({ to: ".", search: (rest) => ({ ...rest, library: undefined }) });
+      await navigate({ to: ".", search: (rest) => ({ ...rest, ...sectionSearch("libraries") }) });
       await queryClient.invalidateQueries({ queryKey: librariesKey(transport) });
     },
   });

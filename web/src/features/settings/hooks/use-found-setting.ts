@@ -1,8 +1,8 @@
-import { useSearch } from "@tanstack/react-router";
 import { type RefObject, useEffect } from "react";
 
-import type { Section } from "@/features/settings/lib/sections";
 import { builtInText } from "@/features/settings/lib/setting-search";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import type { Section } from "@/shared/lib/settings-address";
 
 // About as long as it takes to see where the pane landed.
 const MARKED_MS = 1500;
@@ -14,7 +14,7 @@ const MARKED_MS = 1500;
  * its top.
  */
 export function useFoundSetting(pane: RefObject<HTMLElement | null>, section: Section) {
-  const setting = useSearch({ strict: false, select: (search) => search.setting });
+  const { setting } = useSettingsAddress();
   useEffect(() => {
     const root = pane.current;
     let unmark: (() => void) | undefined;
