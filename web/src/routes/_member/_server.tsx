@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_member/_server")({
       return { here: undefined, elsewhere: noOtherServers };
     }
     if (search.server === undefined) {
-      // A Library's id means something only on one Server, so the Hub guesses only when there's one.
+      // A page's ids mean something only on one Server, so the Hub guesses only when there's one.
       const only = await onlyReachedServer({ ...context, account });
       if (!only) {
         throw redirect({ to: "/", replace: true });

@@ -37,7 +37,7 @@ export async function serverToBrowse(
 }
 
 /**
- * The Account's only Server the page reaches signed in, or `undefined` when it reaches none or
+ * The Account's only Linked Server the page reaches signed in, or `undefined` when it reaches none or
  * more than one.
  */
 export async function onlyReachedServer(
