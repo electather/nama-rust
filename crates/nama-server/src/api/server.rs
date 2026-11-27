@@ -13,34 +13,34 @@ use nama_proto::nama::v1::{
     GetImageSettingsRequest, GetImageSettingsResponse, GetPlaybackSettingsRequest,
     GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
     GetServerInfoRequest, GetServerInfoResponse, GetServerLinkRequest, GetServerLinkResponse,
-    GetServerSettingsRequest, GetServerSettingsResponse,
-    HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
+    GetServerSettingsRequest, GetServerSettingsResponse, HomeLayoutRow, ImageStoreSwitch,
     ListPlaysRequest, ListPlaysResponse, ListServerFoldersRequest, ListServerFoldersResponse,
     RefusalReason, ServerService, ServerSettings, SetDefaultHomeLayoutRequest,
     SetDefaultHomeLayoutResponse, StartServerLinkRequest, StartServerLinkResponse, StopPlayRequest,
-    StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping,
-    UnlinkServerRequest, UnlinkServerResponse, UpdateBackupSettingsRequest,
-    UpdateBackupSettingsResponse, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
-    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
+    StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse, UnlinkServerRequest,
+    UnlinkServerResponse, UpdateBackupSettingsRequest, UpdateBackupSettingsResponse,
+    UpdateImageSettingsRequest, UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
+    home_layout_row::Row as LayoutRow,
 };
 
 use crate::{
     backup::Backups,
     browse::HomeLayouts,
     diagnostics::Sharing,
-    ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
+    ffmpeg::{self, Abilities, Ffmpeg},
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     link::Linking,
-    playback::{MessageTooLong, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto},
+    playback::{MessageTooLong, RunningPlans, STOP_MESSAGE_LENGTH, SubtitleCache, accel_to_proto},
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
-        self, BackupValues, HardwareChoice, HomeLayout, HomeRowId, ImageValues, Invalid, PickedGpu,
-        PlacedRow, PlaybackChange, PlaybackValues,
+        self, BackupValues, HomeLayout, HomeRowId, ImageValues, Invalid, PlacedRow, PlaybackChange,
     },
     users::Users,
 };
 
+pub(super) use self::playback_settings::gpu_to_proto;
+use self::playback_settings::{hardware_choice, playback_settings_to_proto, tone_mapping_to_proto};
 use super::{
     BrowserSpans,
     browse::{home_layout_refused, home_layout_to_proto},
@@ -48,6 +48,8 @@ use super::{
     playback::{limit_from_proto, play_to_proto},
     refuse, server_link, unknown_enum_value,
 };
+
+mod playback_settings;
 
 /// The Settings Sections this Server serves, by their `?settings=` words, as
 /// `GetServerInfoResponse.settings_sections` lists them.
@@ -74,6 +76,8 @@ pub(super) struct ServerServiceHandler {
     /// Says whether the web app's Diagnostics go anywhere, so it records its own.
     pub(super) browser_spans: BrowserSpans,
     pub(super) running: RunningPlans,
+    /// Measured for the Playback settings.
+    pub(super) subtitles: SubtitleCache,
     pub(super) listening: std::net::SocketAddr,
 }
 
@@ -204,17 +208,20 @@ impl ServerService for ServerServiceHandler {
         })
     }
 
-    fn get_playback_settings<'a>(
-        &'a self,
+    async fn get_playback_settings(
+        &self,
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetPlaybackSettingsRequest>,
-    ) -> impl Future<
-        Output = ServiceResult<impl Encodable<GetPlaybackSettingsResponse> + Send + use<'a>>,
-    > + Send {
-        future::ready(Response::ok(GetPlaybackSettingsResponse {
+    ) -> ServiceResult<GetPlaybackSettingsResponse> {
+        let subtitle_cache_bytes = self.subtitles.size().await.map_err(|err| {
+            tracing::error!("measuring the subtitle cache failed: {err}");
+            ConnectError::internal("the Server couldn't measure its subtitle cache")
+        })?;
+        Response::ok(GetPlaybackSettingsResponse {
             settings: playback_settings_to_proto(self.settings.now().playback).into(),
+            subtitle_cache_bytes,
             ..Default::default()
-        }))
+        })
     }
 
     async fn update_playback_settings(
@@ -242,6 +249,7 @@ impl ServerService for ServerServiceHandler {
             keep_behind_minutes: settings.keep_behind_minutes,
             hardware,
             remote_limit: limit_from_proto(settings.remote_playback_limit),
+            subtitle_cache_mib: settings.subtitle_cache_mib,
         };
         let passed = self.abilities.can_do().await.hardware;
         let stored = (self.settings.change_playback(change, &passed).await)
@@ -555,21 +563,6 @@ fn server_settings_to_proto(values: server_settings::Values) -> ServerSettings {
     }
 }
 
-/// The Playback settings as the API has them.
-fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettings {
-    proto::PlaybackSettings {
-        segment_folder: settings.segment_folder,
-        max_transcodes: settings.max_transcodes.map(NonZeroU32::get),
-        keep_behind_minutes: settings.keep_behind_minutes.map(NonZeroU32::get),
-        remote_playback_limit: limit_to_proto(settings.remote_limit).into(),
-        hardware_acceleration: hardware_choice_to_proto(&settings.hardware).into(),
-        gpu: (settings.hardware.gpu())
-            .map(|gpu| gpu_to_proto(gpu.id.clone(), gpu.name.clone()))
-            .into(),
-        ..Default::default()
-    }
-}
-
 /// The Backup settings as the API has them.
 fn backup_settings_to_proto(settings: BackupValues) -> BackupSettings {
     BackupSettings {
@@ -631,6 +624,12 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
         )
         .field("settings.keep_behind_minutes")
         .param("minMinutes", &1),
+        Refused(Invalid::NoSubtitleCache) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the subtitle cache must be allowed at least 1 MiB",
+        )
+        .field("settings.subtitle_cache_mib")
+        .param("minMib", &1),
         Refused(Invalid::NoResizedCache) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the resized copies must be allowed at least 1 MiB",
@@ -664,75 +663,4 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
         .param("minKeep", &1),
     }
     .into()
-}
-
-/// The choice of what Transcodes run on that `choice` names, on the GPU at the PCI address `gpu`
-/// if given, which [`Settings`] names.
-///
-/// # Errors
-///
-/// `UNKNOWN_ENUM_VALUE` for a `choice` this Server doesn't know, checked first, and
-/// `GPU_NOT_OFFERED` for a GPU with Automatic or Off.
-///
-/// [`Settings`]: server_settings::Settings
-fn hardware_choice(
-    choice: EnumValue<HardwareAccelerationProto>,
-    gpu: Option<&str>,
-) -> Result<HardwareChoice, ConnectError> {
-    use HardwareAccelerationProto as P;
-    let accel = match choice {
-        EnumValue::Unknown(_) => {
-            return Err(unknown_enum_value(
-                "settings.hardware_acceleration",
-                "the hardware acceleration must be Automatic, Off, VAAPI, QSV, NVENC or \
-                 VideoToolbox",
-            ));
-        }
-        EnumValue::Known(P::HARDWARE_ACCELERATION_VAAPI) => Accel::Vaapi,
-        EnumValue::Known(P::HARDWARE_ACCELERATION_QSV) => Accel::Qsv,
-        EnumValue::Known(P::HARDWARE_ACCELERATION_NVENC) => Accel::Nvenc,
-        EnumValue::Known(P::HARDWARE_ACCELERATION_VIDEOTOOLBOX) => Accel::VideoToolbox,
-        _ if let Some(id) = gpu => {
-            let invalid = Invalid::GpuNotOffered { id: id.to_owned() };
-            return Err(settings_change_failed(invalid.into()));
-        }
-        EnumValue::Known(P::HARDWARE_ACCELERATION_OFF) => return Ok(HardwareChoice::Off),
-        EnumValue::Known(P::HARDWARE_ACCELERATION_UNSPECIFIED) => {
-            return Ok(HardwareChoice::Automatic);
-        }
-    };
-    let gpu = gpu.map(|id| PickedGpu {
-        id: id.to_owned(),
-        name: String::new(),
-    });
-    Ok(HardwareChoice::Api(accel, gpu))
-}
-
-/// `choice`'s API as the API names it.
-const fn hardware_choice_to_proto(choice: &HardwareChoice) -> HardwareAccelerationProto {
-    match choice {
-        HardwareChoice::Automatic => HardwareAccelerationProto::HARDWARE_ACCELERATION_UNSPECIFIED,
-        HardwareChoice::Off => HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
-        HardwareChoice::Api(accel, _) => accel_to_proto(*accel),
-    }
-}
-
-/// The GPU with the PCI address `id`, called `name`, as the API has it.
-pub(super) fn gpu_to_proto(id: String, name: String) -> proto::Gpu {
-    proto::Gpu {
-        id,
-        name,
-        ..Default::default()
-    }
-}
-
-/// What tone-maps HDR as the API names it.
-const fn tone_mapping_to_proto(tone_mapper: Option<ToneMapper>) -> ToneMapping {
-    match tone_mapper {
-        None => ToneMapping::TONE_MAPPING_NONE,
-        Some(ToneMapper::Hardware) => ToneMapping::TONE_MAPPING_GPU,
-        Some(
-            ToneMapper::Software | ToneMapper::Tonemapx { .. } | ToneMapper::DolbyVisionToHdr10,
-        ) => ToneMapping::TONE_MAPPING_SOFTWARE,
-    }
 }

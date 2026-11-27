@@ -580,6 +580,7 @@ async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longe
                 keep_behind_minutes: Some(1),
                 hardware: HardwareChoice::Automatic,
                 remote_limit: None,
+                subtitle_cache_mib: None,
             },
             &[],
         )
@@ -625,6 +626,7 @@ async fn a_new_plan_writes_to_the_segment_folder_set_since_the_last() {
                 keep_behind_minutes: None,
                 hardware: HardwareChoice::Automatic,
                 remote_limit: None,
+                subtitle_cache_mib: None,
             },
             &[],
         )
@@ -661,6 +663,7 @@ async fn the_sweep_deletes_plan_folders_in_the_set_and_default_folders_and_nothi
                 keep_behind_minutes: None,
                 hardware: HardwareChoice::Automatic,
                 remote_limit: None,
+                subtitle_cache_mib: None,
             },
             &[],
         )

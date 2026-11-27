@@ -126,13 +126,19 @@ pub(crate) fn router(
         preferences.clone(),
         Arc::clone(&db),
     );
-    let media = crate::playback::router(&db, Arc::clone(&ffmpeg), subtitles, reads)
-        .merge(running_router())
-        .merge(preview_frames_router(preview_frames))
-        .merge(transcode_downloads_router(
-            plans.clone(),
-            transcode_downloads,
-        ));
+    let media = crate::playback::router(
+        &db,
+        Arc::clone(&ffmpeg),
+        subtitles.clone(),
+        reads,
+        settings.playback(),
+    )
+    .merge(running_router())
+    .merge(preview_frames_router(preview_frames))
+    .merge(transcode_downloads_router(
+        plans.clone(),
+        transcode_downloads,
+    ));
     let playback_access = PlaybackAccess::new(running.clone(), Arc::clone(&db));
     let images = ImageSources {
         custom_images: custom_images.clone(),
@@ -170,6 +176,7 @@ pub(crate) fn router(
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
             browser_spans: browser_spans.clone(),
             running: running.clone(),
+            subtitles,
             listening,
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {

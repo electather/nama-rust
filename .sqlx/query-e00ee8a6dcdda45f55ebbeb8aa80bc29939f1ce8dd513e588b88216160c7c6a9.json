@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings\n                             (id, url, segment_folder, max_transcodes, keep_behind_minutes,\n                              hardware_acceleration, hardware_gpu, hardware_gpu_name,\n                              remote_playback_limit, subtitle_cache_mib)\n                         VALUES (1, '', ?, ?, ?, ?, ?, ?, ?, ?)\n                         ON CONFLICT (id) DO UPDATE SET\n                             segment_folder = excluded.segment_folder,\n                             max_transcodes = excluded.max_transcodes,\n                             keep_behind_minutes = excluded.keep_behind_minutes,\n                             hardware_acceleration = excluded.hardware_acceleration,\n                             hardware_gpu = excluded.hardware_gpu,\n                             hardware_gpu_name = excluded.hardware_gpu_name,\n                             remote_playback_limit = excluded.remote_playback_limit,\n                             subtitle_cache_mib = excluded.subtitle_cache_mib",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "e00ee8a6dcdda45f55ebbeb8aa80bc29939f1ce8dd513e588b88216160c7c6a9"
+}
