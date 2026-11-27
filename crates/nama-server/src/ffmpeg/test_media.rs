@@ -147,8 +147,25 @@ pub fn write_black_with_pgs(path: &Path) -> io::Result<()> {
     // ffmpeg can't encode PGS, so it muxes one written by hand.
     let sup = path.with_extension("sup");
     std::fs::write(&sup, white_square_pgs(0, 19))?;
-    let written = write_black(path, Some(&sup));
+    let written = write_black(path, &[&sup]);
     std::fs::remove_file(&sup)?;
+    written
+}
+
+/// Writes [`write_black_with_pgs`]'s video and subtitle Track to `path`, then a [`FRENCH_SRT`]
+/// subtitle Track, for a test to read both out of.
+///
+/// # Errors
+///
+/// If the subtitles can't be written beside `path`, or ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_black_with_pgs_and_srt(path: &Path) -> io::Result<()> {
+    let (sup, srt) = (path.with_extension("sup"), path.with_extension("srt"));
+    std::fs::write(&sup, white_square_pgs(0, 19))?;
+    std::fs::write(&srt, FRENCH_SRT)?;
+    let written = write_black(path, &[&sup, &srt]);
+    std::fs::remove_file(&sup)?;
+    std::fs::remove_file(&srt)?;
     written
 }
 
@@ -161,7 +178,7 @@ pub fn write_black_with_pgs(path: &Path) -> io::Result<()> {
 #[cfg(any(test, feature = "testing"))]
 pub fn write_black_with_pgs_sidecar(path: &Path) -> io::Result<()> {
     std::fs::write(path.with_extension("en.sup"), white_square_pgs(5, 15))?;
-    write_black(path, None)
+    write_black(path, &[])
 }
 
 /// Writes 2 seconds of a 320×240 10-bit ramp, its luma from 64 at the left to 940 at the right,
@@ -194,14 +211,18 @@ pub fn write_hdr_ramp_with_pgs(path: &Path, transfer: &str) -> io::Result<()> {
     written
 }
 
-/// Writes 20 seconds of black 320×240 H.264 video, with the PGS file `pgs` as its subtitle Track
-/// if given, as Matroska, to `path`.
+/// Writes 20 seconds of black 320×240 H.264 video, with each subtitle file of `subtitles` as a
+/// subtitle Track in turn, as Matroska, to `path`.
 #[cfg(any(test, feature = "testing"))]
-fn write_black(path: &Path, pgs: Option<&Path>) -> io::Result<()> {
+fn write_black(path: &Path, subtitles: &[&Path]) -> io::Result<()> {
     write_test_media(path, |ffmpeg| {
         ffmpeg.args(["-f", "lavfi", "-i", "color=black:size=320x240:rate=24"]);
-        if let Some(pgs) = pgs {
-            ffmpeg.arg("-i").arg(pgs).args(["-map", "0", "-map", "1"]);
+        for subtitle in subtitles {
+            ffmpeg.arg("-i").arg(subtitle);
+        }
+        // An output option, so after every input.
+        for input in 0..=subtitles.len() {
+            ffmpeg.args(["-map", &input.to_string()]);
         }
         ffmpeg
             .args(["-t", "20"])

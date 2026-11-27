@@ -1,9 +1,9 @@
 import type { Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { useQuery } from "@tanstack/react-query";
-import { useRouteContext } from "@tanstack/react-router";
 
 import { useReachedServers } from "@/features/servers/data/use-reached-servers";
+import { useHubAccount } from "@/shared/hooks/use-hub-account";
 import { linkedServersQuery } from "@/shared/hooks/use-linked-servers";
 
 /** A Server a search asks, and at the Hub, its Linked Server id. */
@@ -18,7 +18,7 @@ export interface ServerToSearch {
  */
 export function useServersToSearch(): { servers: ServerToSearch[]; reaching: boolean } {
   const transport = useTransport();
-  const atHub = useRouteContext({ from: "/_member", select: ({ account }) => account !== null });
+  const atHub = useHubAccount() !== null;
   // fallow-ignore-next-line policy-violation:feature-layout/suspense -- a Server's own web app has no Hub to ask, so it mustn't suspend there
   const linked = useQuery({
     ...linkedServersQuery(transport),

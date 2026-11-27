@@ -15,7 +15,7 @@ use std::{
 
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
-    points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
+    points::{WatchStateChange, WatchStateChanges},
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 
@@ -225,7 +225,7 @@ impl WatchStates {
     /// holding `titles`, in order, `None` for an Item that isn't Matched. The file plays as one, so
     /// its progress is split across them (ADR 0013), and one it hasn't reached is left alone, so
     /// rewinding keeps progress stored on a later one. One once played, under any of its ids, stays
-    /// played. Returns each change it made, which Observers are told of.
+    /// played. Returns each change it made.
     pub(crate) async fn report(
         &self,
         user: i64,
@@ -244,7 +244,7 @@ impl WatchStates {
 
     /// Marks, as of now, each of `titles` played or unplayed for the User `user`, in one write.
     /// Played keeps the position; unplayed forgets the Watch State under every id, so it starts
-    /// from the beginning. Returns each change it made, which Observers are told of.
+    /// from the beginning. Returns each change it made.
     pub(crate) async fn mark(
         &self,
         user: i64,
@@ -261,7 +261,7 @@ impl WatchStates {
     /// Marks, as of now, each of `titles` unplayed for the User `user`, as [`WatchStates::mark`]
     /// does, and where that forgot any Watch State shows each of `entry` again in their
     /// Continue Watching, in one write. Forgetting writes no Watch State that would show it again,
-    /// as playing it does. Returns each change it made, which Observers are told of.
+    /// as playing it does. Returns each change it made.
     pub(crate) async fn mark_unplayed(
         &self,
         user: i64,
@@ -277,9 +277,8 @@ impl WatchStates {
     }
 
     /// Runs `write` of the User `user`'s Watch State, queuing the changes it returns for the Hub in
-    /// the same write, then tells `WatchStatesChanged` Observers and Watch sync Plugins of them, in a
-    /// task of its own, so they're queued and told even if the caller stops waiting once the write
-    /// is sent (ADR 0029).
+    /// the same write, then tells Watch sync Plugins of them, in a task of its own, so they're queued
+    /// and told even if the caller stops waiting once the write is sent (ADR 0029).
     async fn write_and_tell<F>(
         &self,
         user: i64,
@@ -301,7 +300,6 @@ impl WatchStates {
                     changes: changes.clone(),
                 };
                 scrobble(&db, &points, &told);
-                points.notify::<WatchStatesChanged>(told);
             }
             Ok(changes)
         })
@@ -312,8 +310,8 @@ impl WatchStates {
     /// each Movie or Episode here, made after any this Server has of it and after it was last
     /// marked unplayed here, under any of its ids, in one write: as of when it was made, it forgets
     /// one marked unplayed and stores any other, under the preferred id. One once played here stays
-    /// played. Queues nothing for the Hub and tells neither Observers nor Watch sync Plugins: the
-    /// change is the service's own news, so it never echoes back.
+    /// played. Queues nothing for the Hub and tells no Watch sync Plugin: the change
+    /// is the service's own news, so it never echoes back.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,

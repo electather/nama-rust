@@ -1,5 +1,7 @@
 # The Hub's areas call down fixed rows, and proto types stop at `api`
 
+_Amended in #2005: `links` owns every way a client reaches a Linked Server, and `discovery` leaves row 2 until something needs it._
+
 The Hub has no Plugins, so the only way it grows is through its own code: a new feature is a new area, or a function on an existing one. It takes the Server's structure rules as they are (ADR 0051 and the "Structure" rules in `crates/nama-server/AGENTS.md`):
 
 - one crate of areas, one folder each
@@ -10,16 +12,16 @@ The Hub has no Plugins, so the only way it grows is through its own code: a new 
 The rows, highest first:
 
 1. `api`
-2. `recommendations`, `diagnostics`, `discovery`
+2. `recommendations`, `diagnostics`
 3. `sync`, `viewing`
 4. `links`
 5. `accounts`, `titles`
-6. `signing`, `mail`, `web`, `db`, `config`
+6. `signing`, `probe`, `mail`, `web`, `db`, `config`
 
 Where a request came from, through trusted proxies only (ADR 0018), is the `nama-forwarded` crate, which the Server shares. `lib` and `main` start the Hub, run its subcommands and schedule its periodic work, and may call any row. Each area arrives with the first ticket that needs it.
 
 - `links` owns every Link, whether a Server's or a User's: the device flow, a Linked Server's credential, Unlinking, and the sign-in tokens signed for Servers.
-- `discovery` owns how clients reach a Linked Server: its names, its Server Addresses, reachability, the certificates' DNS records and Relays.
+- `links` also owns every way a client reaches a Linked Server: its names, its Server Addresses, reachability, the certificates' DNS records and Relays. A sign-in returns only to its Server URL or a LAN address, the check that guards its one-time code (#1934), so they sit in the area that owns the sign-in, which may call only down.
 
 Unlike the Server's areas, the Hub's never use proto types. They take and return their own types, and `api` converts in both directions. The Hub API has to keep serving every Hub Plugin already deployed, and an area whose types are the wire contract can't change without changing the contract.
 
@@ -27,7 +29,8 @@ Unlike the Server's areas, the Hub's never use proto types. They take and return
 
 - **Areas that use proto types, as the Server's do**: rejected for the reason above. The cost is conversion code in `api`.
 - **A `servers` area owning both registration and discovery, with `links` for Users only**: rejected. A Server's Link and a User's Link share the device flow and an Account's ownership, and discovery shares neither.
-- **Interfaces inside the Hub "for later", in place of Plugins**: rejected. A trait exists only where there are two implementations: a true external, such as mail, the DNS provider or the Diagnostics backend, with its production adapter and a test fake.
+- **Interfaces inside the Hub "for later", in place of Plugins**: rejected. A trait exists only where there are two implementations: a true external, such as mail, the DNS provider, the Diagnostics backend or the probe of a Server's public port, with its production adapter and a test fake.
+- **A `discovery` area in row 2 for how clients reach a Linked Server**, as this ADR first said: dropped in #2005. `links` must read the Server Addresses to check a sign-in's return address, and can't call up. A `discovery` with its own copy of them would cost a migration, and every caller starting a sign-in would have to remember to check there first. A `discovery` below `links` can't name a Linked Server by the id `links` defines.
 
 ## Consequences
 

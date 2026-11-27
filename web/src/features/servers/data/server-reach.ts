@@ -10,6 +10,7 @@ import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService, type WhoAmIResponse } from "@/gen/nama/v1/sign_in_pb";
 import { serverKey } from "@/shared/hooks/server-key";
 import { isCode } from "@/shared/lib/connect-errors";
+import { recordDiagnosticsIfExported, traceCallsTo } from "@/shared/lib/diagnostics";
 import type { ServerAt } from "@/shared/lib/server";
 
 /** What the page at the Hub can do with one of the Account's Servers. */
@@ -72,8 +73,12 @@ async function reachServer(reach: ServerToReach): Promise<ServerReach> {
   }
   const storageKey = serverSessionKey(reach.accountId, reach.server.id);
   const signInWith = async (token: string) => {
-    const at = reach.serverAt(origin, [bearer(token)]);
+    const at = reach.serverAt(origin, [bearer(token), traceCallsTo(origin)]);
     const signedIn = await whoIsSignedInAt(at, info.settingsSections);
+    if (signedIn) {
+      // Awaited, so the page's calls to it are traced too.
+      await recordDiagnosticsIfExported(info.exportsDiagnostics, origin, token);
+    }
     return signedIn;
   };
   // A Device revoked on the Server, or a session it forgot, is traded for a new one.

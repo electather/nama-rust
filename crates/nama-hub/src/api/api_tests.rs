@@ -13,7 +13,7 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::postgres::PgPoolOptions;
 
 use super::{Serves, admit, router, serves, service_and_method, services};
-use crate::{accounts::Accounts, links::Links, signing::Keys};
+use crate::{accounts::Accounts, links::Links, probe::Tcp, signing::Keys};
 
 /// A signing key, made with `openssl genpkey -algorithm ed25519`.
 const SIGNING_KEY: &str = "-----BEGIN PRIVATE KEY-----
@@ -49,9 +49,15 @@ async fn every_method_refuses_an_anonymous_caller_its_service_doesnt_serve() {
         .unwrap();
     let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
     let accounts = Accounts::new(db.clone(), None, None);
-    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys), None);
+    let links = Links::new(
+        db.clone(),
+        accounts.clone(),
+        Arc::clone(&keys),
+        None,
+        Arc::new(Tcp),
+    );
     let rpcs = services(db.clone(), &accounts, &links);
-    let hub = ServiceTransport::new(router(db, keys, &[], None, None, None, None));
+    let hub = ServiceTransport::new(router(db, keys, &[], None, None, None, None, Arc::new(Tcp)));
     let config = ClientConfig::new("http://hub".parse().unwrap());
 
     for procedure in rpcs.methods() {

@@ -1,19 +1,13 @@
 use std::{
-    future,
     sync::Arc,
     task::{Context, Waker},
     time::Duration,
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar,
     metadata::{ExternalId, ExternalIds},
-    points::{
-        TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
-        TrackPreferenceFor,
-    },
+    points::{TrackDescription, TrackPreference, TrackPreferenceFor},
 };
-use tokio::sync::mpsc;
 
 use super::{
     Description, Preferred, SubtitlePreference, TrackPreferences, is_language, same_language,
@@ -24,20 +18,12 @@ use crate::{
         Contents, Decided, Metadata,
         fixture::{MatchedMovie, tmdb_movie},
     },
-    plugins::{ExtensionPoints, Registry},
+    plugins::Registry,
     users::{Permissions, User, Users},
 };
 
 /// Track Preferences on a database in a temp folder, and a User to keep them for.
 async fn track_preferences(data: &tempfile::TempDir) -> (TrackPreferences, i64) {
-    track_preferences_telling(data, ExtensionPoints::default()).await
-}
-
-/// [`track_preferences`], telling the Observers of `points`.
-async fn track_preferences_telling(
-    data: &tempfile::TempDir,
-    points: ExtensionPoints,
-) -> (TrackPreferences, i64) {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let root = User {
         id: 0,
@@ -53,37 +39,7 @@ async fn track_preferences_telling(
         .create(&root, "Ada", "correct horse battery staple")
         .await
         .unwrap();
-    (TrackPreferences::new(db, points), user)
-}
-
-/// A Plugin that hands each Track Preference change it's told of to the test.
-#[derive(Clone)]
-struct Hears(mpsc::UnboundedSender<TrackPreferenceChange>);
-
-impl Plugin for Hears {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            extension_points: vec![PointKey::observe::<TrackPreferenceChanged>()],
-            ..Manifest::new(PluginId::from_static("hears"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.observe::<TrackPreferenceChanged>(self.clone());
-        Ok(())
-    }
-}
-
-impl Observer<TrackPreferenceChanged> for Hears {
-    fn observe<'a>(
-        &'a self,
-        event: &'a TrackPreferenceChange,
-    ) -> BoxFuture<'a, Result<(), PluginError>> {
-        let sent = self.0.send(event.clone());
-        Box::pin(future::ready(
-            sent.map_err(|_unsent| "the test stopped listening".into()),
-        ))
-    }
+    (TrackPreferences::new(db), user)
 }
 
 /// Each `track_preferences` row, as `(scope, title_id, kind, off, language, forced, sdh,
@@ -514,12 +470,9 @@ fn different_languages_and_a_missing_one_dont_match() {
 }
 
 #[tokio::test]
-async fn a_preference_whose_caller_stops_waiting_is_still_kept_and_told() {
+async fn a_preference_whose_caller_stops_waiting_is_still_kept() {
     let data = tempfile::tempdir().unwrap();
-    let (heard, mut hearing) = mpsc::unbounded_channel();
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(Hears(heard))).unwrap();
-    let (preferences, user) = track_preferences_telling(&data, plugins.extension_points()).await;
+    let (preferences, user) = track_preferences(&data).await;
 
     // Polled once, which sends the write on its way, then dropped, as when a client hangs up
     // (ADR 0029).
@@ -529,11 +482,15 @@ async fn a_preference_whose_caller_stops_waiting_is_still_kept_and_told() {
         .poll(&mut Context::from_waker(Waker::noop()));
     assert!(polled.is_pending(), "the keep finished at once");
     drop(keeping);
-    let told = tokio::time::timeout(Duration::from_secs(5), hearing.recv()).await;
 
-    let told = told.expect("no Observer was told").unwrap();
-    let language = told.preference.like.and_then(|like| like.language);
-    assert_eq!((told.user_id, language.as_deref()), (user, Some("de")));
-    let kept = preferences.users_audio(user).await.unwrap();
-    assert_eq!(kept.as_deref(), Some("de"));
+    let kept = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match preferences.users_audio(user).await.unwrap() {
+                Some(kept) => return kept,
+                None => tokio::task::yield_now().await,
+            }
+        }
+    })
+    .await;
+    assert_eq!(kept.expect("it was never kept"), "de");
 }
