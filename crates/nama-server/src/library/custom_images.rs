@@ -418,11 +418,14 @@ pub(super) async fn keep_without_bytes(db: &Database, slots: &[Slot]) -> sqlx::R
         let slot = slot.0.clone();
         db.write(move |tx| {
             Box::pin(async move {
-                sqlx::query(
-                    "INSERT INTO custom_images (slot, version, content_type)
-                     VALUES (?, 'v', 'image/png')",
+                sqlx::query!(
+                    "INSERT INTO custom_images (slot, version, content_type) VALUES (?, ?, ?)
+         ON CONFLICT (slot) DO UPDATE
+         SET version = excluded.version, content_type = excluded.content_type",
+                    slot,
+                    "v",
+                    "image/png",
                 )
-                .bind(slot)
                 .execute(&mut **tx)
                 .await
             })
