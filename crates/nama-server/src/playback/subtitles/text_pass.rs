@@ -18,7 +18,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use super::{
     ASS, Error, Subtitles, WEBVTT, ass, cached, cached_name, encoding, font_name, probed, proto,
-    served_as,
+    served_as, served_with_styling,
 };
 use crate::{
     db::Database,
@@ -281,11 +281,7 @@ impl TextPass {
                     track,
                     // `None` for a sidecar, which isn't in the file.
                     subtitle: probe.ffmpeg_index(track)?,
-                    read_as: if found.is_ass_subtitle() {
-                        ASS
-                    } else {
-                        served_as(found)?
-                    },
+                    read_as: served_with_styling(found).or_else(|| served_as(found))?,
                 })
             })
             .collect();
