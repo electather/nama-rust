@@ -1,7 +1,8 @@
-import type { Choice, Setting, SettingValue } from "@/gen/nama/v1/plugin_pb";
+import type { Choice, Setting } from "@/gen/nama/v1/plugin_pb";
 import { FieldSearchSelect } from "@/shared/components/form-field/field-search-select";
 import { FormSelect } from "@/shared/components/form-field/form-select";
 import { RowField } from "@/shared/components/form-field/row-field";
+import { valueText } from "@/shared/lib/setting-values";
 
 /** Past this many choices, a dropdown gets a search: a long list is slow to scroll through. */
 const SEARCHED_PAST = 10;
@@ -22,7 +23,7 @@ export function ChoiceInput({
   error: string | undefined;
   required: boolean;
 }) {
-  const stored = textOf(setting.value);
+  const stored = valueText(setting.value);
   if (choices === undefined) {
     return (
       <FormSelect
@@ -42,7 +43,7 @@ export function ChoiceInput({
     );
   }
   // Unset, it starts on the default the Plugin runs with, as a Choices setting does.
-  const held = textOf(setting.value ?? setting.defaultValue);
+  const held = valueText(setting.value ?? setting.defaultValue);
   const listed = choices.map(({ value, label }) => ({ value, label }));
   // A held value no longer listed stays an option, so saving another setting never drops it
   // unseen: the Server refuses it instead, saying why.
@@ -72,9 +73,4 @@ export function ChoiceInput({
       options={[{ value: "", label: "Pick one" }, ...options]}
     />
   );
-}
-
-/** The text `value` holds, or none. */
-function textOf(value: SettingValue | undefined) {
-  return value?.value.case === "textValue" ? value.value.value : "";
 }
