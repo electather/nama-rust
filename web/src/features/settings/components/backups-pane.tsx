@@ -4,6 +4,7 @@ import { useBackUpJob } from "@/features/admin-backups/data/use-back-up-job";
 import { useBackups } from "@/features/admin-backups/data/use-backups";
 import { useUpdateBackupSettings } from "@/features/admin-backups/data/use-update-backup-settings";
 import {
+  type BackupField,
   backupLabels,
   backupRefusalFields,
   backupSettings,
@@ -31,7 +32,7 @@ export function BackupsPane() {
       await mutateAsync({ settings: backupSettings(wanted) });
     },
   );
-  const words = refusedWords(
+  const words = refusedWords<BackupField>(
     refused,
     backupLabels,
     refused && backupRefusalFields(refused.failure),

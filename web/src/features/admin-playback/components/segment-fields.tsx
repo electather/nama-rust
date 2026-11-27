@@ -1,5 +1,8 @@
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
-import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
+import type {
+  PlaybackField,
+  PlaybackValues,
+} from "@/features/admin-playback/lib/playback-settings-form";
 import { saveOnLeave } from "@/features/admin-playback/lib/save-on-leave";
 import { FolderPicker } from "@/shared/components/folder-picker";
 import { FormField } from "@/shared/components/form-field/form-field";
@@ -17,7 +20,7 @@ export function SegmentFields({
   onEdit,
 }: {
   values: PlaybackValues;
-  errors: FormErrors;
+  errors: FormErrors<PlaybackField>;
   onEdit: (changes: Partial<PlaybackValues>) => void;
 }) {
   return (

@@ -3,7 +3,7 @@ import { Code } from "@connectrpc/connect";
 import { type FormErrors, refusal, refusedFieldErrors, serverMessage } from "@/shared/lib/forms";
 
 /** The refusals of signing in with a password, as errors under its fields. */
-export function signInErrors(error: unknown): FormErrors {
+export function signInErrors(error: unknown): FormErrors<"password"> {
   return refusal(error, "sign in", {
     // The Server doesn’t say whether it was the username or the password, so neither do we.
     [Code.Unauthenticated]: { password: "That username and password don’t match." },
@@ -14,7 +14,7 @@ export function signInErrors(error: unknown): FormErrors {
 }
 
 /** The refusals of setting up the Server, as errors under its fields. */
-export function setupErrors(error: unknown): FormErrors {
+export function setupErrors(error: unknown): FormErrors<"setupCode" | "name" | "password"> {
   return refusal(error, "set up this Server", {
     [Code.PermissionDenied]: {
       setupCode: "That isn’t the Setup Code. Check the Server’s log for it.",
@@ -24,7 +24,7 @@ export function setupErrors(error: unknown): FormErrors {
 }
 
 /** The refusals of asking for a Sign-in Code, as errors under its fields. */
-export function startErrors(error: unknown): FormErrors {
+export function startErrors(error: unknown): FormErrors<"deviceName"> {
   return refusal(error, "get a code", {
     [Code.InvalidArgument]: { deviceName: serverMessage(error) },
     // The Server caps how many sign-ins wait at once; each code expires within 10 minutes.
@@ -35,7 +35,7 @@ export function startErrors(error: unknown): FormErrors {
 }
 
 /** The refusals of looking up or approving a Sign-in Code, as errors under its field. */
-export function codeErrors(error: unknown): FormErrors {
+export function codeErrors(error: unknown): FormErrors<"signInCode"> {
   return refusal(error, "check that code", {
     [Code.NotFound]: {
       signInCode:

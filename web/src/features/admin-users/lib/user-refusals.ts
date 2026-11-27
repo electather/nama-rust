@@ -31,7 +31,7 @@ export function manageUsersOnChosenLibraries(name: string) {
 }
 
 /** Why creating a User was refused, next to the field it's about. */
-export function createUserErrors(error: unknown): FormErrors {
+export function createUserErrors(error: unknown): FormErrors<"name" | "password"> {
   return refusal(error, "create the User", {
     [Code.AlreadyExists]: { name: "Another User already has that name." },
     [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "password"]),
@@ -39,7 +39,7 @@ export function createUserErrors(error: unknown): FormErrors {
 }
 
 /** Why creating a User from an Account was refused, next to the field it's about. */
-export function createFromAccountErrors(error: unknown): FormErrors {
+export function createFromAccountErrors(error: unknown): FormErrors<"name"> {
   return refusal(
     error,
     "create the User",

@@ -51,8 +51,17 @@ export function playbackSettings(values: PlaybackValues) {
   };
 }
 
+/** The Playback settings a refusal can be said under. */
+export type PlaybackField =
+  | "segmentFolder"
+  | "keepBehindMinutes"
+  | "hardwareAcceleration"
+  | "maxTranscodes";
+
 /** Why the Server refused a Playback setting `error` is about, said under its field. */
-export function playbackRefusals(error: unknown): Partial<Record<RefusalReason, FormErrors>> {
+export function playbackRefusals(
+  error: unknown,
+): Partial<Record<RefusalReason, FormErrors<PlaybackField>>> {
   return {
     [RefusalReason.FOLDER_NOT_ABSOLUTE]: { segmentFolder: serverMessage(error) },
     [RefusalReason.FOLDER_NOT_WRITABLE]: { segmentFolder: serverMessage(error) },

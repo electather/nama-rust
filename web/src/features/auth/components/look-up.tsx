@@ -21,7 +21,7 @@ export function LookUp({
   pending: boolean;
   error: ConnectError | null;
   /** Why the Server refused to approve `code`, until it's looked up again. */
-  refused?: FormErrors | undefined;
+  refused?: FormErrors<"signInCode"> | undefined;
 }) {
   const errors = error === null ? (refused ?? {}) : codeErrors(error);
   return (

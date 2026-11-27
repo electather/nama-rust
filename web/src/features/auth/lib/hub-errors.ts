@@ -20,7 +20,7 @@ export function hubRefusalReason(error: unknown) {
  * Why the Hub refused to sign an Account in, create one or email a Sign-in Link: under the field
  * it's about, or for the whole form.
  */
-export function hubErrors(error: unknown): FormErrors {
+export function hubErrors(error: unknown): FormErrors<"email" | "password"> {
   return sayHubRefusal(error, wording, "The Hub couldn’t do that just now. Try again.");
 }
 
@@ -34,19 +34,24 @@ export function serverSignInErrors(error: unknown): FormErrors {
 }
 
 /** What a form says for each reason it words, given the Refusal's params by key. */
-export type HubWording = Partial<
-  Record<RefusalReason, (param: (key: string) => string) => FormErrors>
+export type HubWording<Field extends string = never> = Partial<
+  Record<RefusalReason, (param: (key: string) => string) => FormErrors<Field>>
 >;
 
 /** What `wording` says about the Hub's Refusal on `error`, or `fallback` for the whole form. */
-export function sayHubRefusal(error: unknown, wording: HubWording, fallback: string): FormErrors {
+export function sayHubRefusal<Field extends string = never>(
+  error: unknown,
+  wording: HubWording<NoInfer<Field>>,
+  fallback: string,
+): FormErrors<Field> {
   const refusal = hubRefusalOf(error);
   const say = refusal && wording[refusal.reason];
   return say ? say((key) => refusal.params[key] ?? "") : { form: fallback };
 }
 
 // web/AGENTS.md, "Read refusals by reason": `invalid_argument` is the email's or the password's.
-const wording: HubWording = {
+// Every form that sends the Hub an Account's email or password shares it, so it names both.
+const wording: HubWording<"email" | "password"> = {
   // The Hub doesn’t say which of the two is wrong, so neither do we.
   [RefusalReason.WRONG_EMAIL_OR_PASSWORD]: () => ({
     password: "That email and password don’t match an Account.",

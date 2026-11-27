@@ -2,7 +2,10 @@ import { HardwareSection } from "@/features/admin-playback/components/hardware-s
 import { PlaybackSettingsFields } from "@/features/admin-playback/components/playback-settings-fields";
 import { Programs } from "@/features/admin-playback/components/programs";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
-import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
+import type {
+  PlaybackField,
+  PlaybackValues,
+} from "@/features/admin-playback/lib/playback-settings-form";
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import { SubtitleSpaceRow } from "@/features/settings/components/subtitle-space-row";
 import type { GetPlaybackStatusResponse } from "@/gen/nama/v1/server_pb";
@@ -17,7 +20,7 @@ export function ServerPlaybackRows({
 }: {
   status: GetPlaybackStatusResponse;
   values: PlaybackValues;
-  errors: FormErrors;
+  errors: FormErrors<PlaybackField>;
   onEdit: (changes: Partial<PlaybackValues>) => void;
 }) {
   return (
