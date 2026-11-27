@@ -135,7 +135,9 @@ const collisionPadding = {
 
 /**
  * The panel, in `container` so it shows in full screen, on `side` of `anchor`'s end edge,
- * `sideOffset` pixels off it.
+ * `sideOffset` pixels off it. With `flip`, for a page rather than the player, it keeps 8px from
+ * the window's edges and moves to the other side of its button when that has more room, so a
+ * short window doesn't squeeze it.
  */
 function PopoverContent({
   container,
@@ -143,11 +145,13 @@ function PopoverContent({
   side = "top",
   sideOffset = 4,
   width,
+  flip = false,
   ...props
 }: PopoverPrimitive.Popup.Props &
   VariantProps<typeof popoverContentVariants> &
   Pick<PopoverPrimitive.Positioner.Props, "anchor" | "sideOffset"> & {
     side?: "top" | "bottom";
+    flip?: boolean;
   } & Pick<PopoverPrimitive.Portal.Props, "container">) {
   return (
     <PopoverPrimitive.Portal container={container}>
@@ -158,9 +162,9 @@ function PopoverContent({
         align="end"
         anchor={anchor}
         sideOffset={sideOffset}
-        collisionPadding={collisionPadding[side]}
-        // A tall list shrinks to fit rather than moving beside its button.
-        collisionAvoidance={{ side: "none" }}
+        collisionPadding={flip ? 8 : collisionPadding[side]}
+        // In the player, a tall list shrinks to fit rather than moving beside its button.
+        collisionAvoidance={{ side: flip ? "flip" : "none" }}
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"

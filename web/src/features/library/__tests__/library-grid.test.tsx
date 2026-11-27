@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -23,12 +23,12 @@ const LIBRARY_SIZE = 1000;
  * A fake Server whose Movies Library (1) holds 1,000 Movies, listed 100 a page with the index of
  * the first Movie of each page as its token. Each `ListMovies` it gets goes in `asked`.
  */
-function thousandMovies(asked: ListMoviesRequest[]) {
+function thousandMovies(asked: ListMoviesRequest[], genres = ["Crime", "Horror"]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
       listUnmatched: () => ({}),
-      listGenres: () => ({ genres: ["Crime", "Horror"] }),
+      listGenres: () => ({ genres }),
       listMovies: (request) => {
         asked.push(request);
         const token = Number(request.page?.token ?? "");
@@ -144,6 +144,30 @@ test("choosing two genres asks for the titles with either, and each shows as a c
   });
   expect(asked.at(-1)?.page?.token).toBe("");
   expect(screen.getByRole("button", { name: "Remove Crime" })).toBeDefined();
+});
+
+test("the Filter panel shows 5 genres, Show more the rest, and always one that's on", async () => {
+  const genres = ["Action", "Comedy", "Crime", "Drama", "Horror", "Romance", "War"];
+  openApp("/libraries/1?genres=%5B%22War%22%5D", thousandMovies([], genres));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Filter, 1 on" }));
+  const group = await screen.findByRole("group", { name: "Genre" });
+  const chips = () =>
+    within(group)
+      .getAllByRole("button")
+      .map((chip) => chip.textContent);
+  expect(chips()).toStrictEqual([
+    "Action",
+    "Comedy",
+    "Crime",
+    "Drama",
+    "Horror",
+    "War",
+    "Show more",
+  ]);
+  fireEvent.click(within(group).getByRole("button", { name: "Show more" }));
+
+  expect(chips()).toStrictEqual(genres);
 });
 
 test("a filter's chip turns it off, and Clear all turns them all off", async () => {
