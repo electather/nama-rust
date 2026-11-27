@@ -34,6 +34,8 @@ const cabin = create(LinkedServerSchema, {
 export const alien = { namespace: "tmdb", value: "348" };
 /** The Movie Heat's id. */
 export const heat = { namespace: "tmdb", value: "949" };
+/** The Movie Arrival's id. */
+export const arrival = { namespace: "tmdb", value: "329865" };
 
 /** A fake Server with one Movies Library, 1, that signs the Hub's Account in as Ada. */
 export function fakeLinkedServer(
@@ -102,8 +104,11 @@ export function linksIn(name: string) {
   const section = within(screen.getByRole("region", { name }));
   return section.getAllByRole("link").map((link) => ({
     name: link.getAttribute("aria-label"),
-    server: new URL(link.getAttribute("href") ?? "", "https://hub.example").searchParams.get(
-      "server",
-    ),
+    server: serverOf(link),
   }));
+}
+
+/** The Server `link` opens on at the Hub. */
+export function serverOf(link: HTMLElement) {
+  return new URL(link.getAttribute("href") ?? "", "https://hub.example").searchParams.get("server");
 }
