@@ -4,7 +4,7 @@ import type { BarProps } from "@/features/library/lib/listing-bar";
 /** The From and To years that keep titles released, or first aired, between them. */
 export function YearRange({ listing, change }: BarProps) {
   return (
-    <div className="flex items-center gap-2 text-muted-foreground">
+    <div className="flex items-center gap-2.5 text-muted-foreground">
       <YearInput
         label="From year"
         placeholder="From"

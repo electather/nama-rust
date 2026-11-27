@@ -6,8 +6,8 @@ import type { BarProps } from "@/features/library/lib/listing-bar";
 export function GenreChips({ listing, change, genres }: BarProps & { genres: string[] }) {
   const chosen = listing.genres ?? [];
   return (
-    <fieldset className="flex flex-wrap gap-1.5">
-      <legend className="mb-2 text-xs text-muted-foreground">Genre</legend>
+    <fieldset className="flex flex-wrap gap-2">
+      <legend className="mb-2.5 text-sm font-medium">Genre</legend>
       {genres.map((genre) => {
         const on = chosen.includes(genre);
         const changed = on ? chosen.filter((named) => named !== genre) : [...chosen, genre];

@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 export function RailLayout({ rail, children }: { rail?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5">
-      {/* Below the top bar, 72px (`h-18`), and 16px more. It hangs into the page's gutter. */}
-      <div className="sticky top-22 -ms-3 mt-8 w-8 flex-none sm:-ms-2.5 sm:w-10">{rail}</div>
+      {/* Below the top bar, 72px (`h-18`), and 24px more. It hangs into the page's gutter. */}
+      <div className="sticky top-24 -ms-3 w-8 flex-none sm:-ms-2.5 sm:w-10">{rail}</div>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

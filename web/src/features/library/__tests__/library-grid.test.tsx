@@ -157,11 +157,13 @@ test("a filter's chip turns it off, and Clear all turns them all off", async () 
   expect(screen.getByRole("button", { name: "Remove From 1990" })).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
 
+  // The header's count already asked for every title, so clearing shows that page again.
   await waitFor(() => {
-    expect(asked.at(-1)?.filter?.watched).toBe(WatchedFilter.UNSPECIFIED);
+    expect(screen.queryByRole("button", { name: /^Remove/u })).toBeNull();
   });
-  expect(asked.at(-1)?.filter?.minYear).toBeUndefined();
-  expect(screen.queryByRole("button", { name: /^Remove/u })).toBeNull();
+  const everyTitle = asked.find(({ filter }) => filter?.watched === WatchedFilter.UNSPECIFIED);
+  expect(everyTitle?.filter?.minYear).toBeUndefined();
+  expect(everyTitle?.filter?.genres).toStrictEqual([]);
 });
 
 test("a Library's posters are images alone, labelled with title and year, naming a title without art", async () => {

@@ -1,4 +1,4 @@
-import { NumberInput } from "nama-ui/components/number-field";
+import { Input } from "nama-ui/components/input";
 import { useState } from "react";
 
 /**
@@ -24,11 +24,12 @@ export function YearInput({
   }
   return (
     <div className="min-w-0 flex-1">
-      <NumberInput
+      <Input
         aria-label={label}
         placeholder={placeholder}
+        inputMode="numeric"
         value={typed}
-        onValueChange={(text) => {
+        onChange={({ target: { value: text } }) => {
           setTyped(text);
           if (text === "") {
             change();

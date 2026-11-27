@@ -199,7 +199,7 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   listed.push({ id: { namespace: "tmdb", value: "348" }, title: "Alien" });
   match?.();
 
-  await expect(screen.findByText("Alien")).resolves.toBeDefined();
+  await expect(screen.findByRole("link", { name: "Alien" })).resolves.toBeDefined();
 });
 
 test("a Movie's menu chooses its Version, each by its Edition, picture, sound and size, the largest first", async () => {

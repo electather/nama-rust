@@ -11,8 +11,8 @@ import { ShowMore } from "@/shared/components/show-more";
 export function TitleGrid({ titles, paged, posters, clear, jump }: GridProps & { jump?: Jump }) {
   if (posters.length === 0) {
     return (
-      <div className="mt-8 flex flex-col items-start gap-3">
-        <p className="text-muted-foreground">No {titles.many} match these filters.</p>
+      <div className="flex flex-col items-start gap-2.5 py-12">
+        <p className="font-medium">No {titles.many} match these filters</p>
         {clear && (
           <Button variant="secondary" onClick={clear}>
             Clear filters

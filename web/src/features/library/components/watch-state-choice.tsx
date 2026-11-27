@@ -1,4 +1,4 @@
-import { RadioGroup, RadioRow } from "nama-ui/components/radio-group";
+import { RadioSegment, RadioSegments } from "nama-ui/components/radio-group";
 
 import { ANY, type BarProps } from "@/features/library/lib/listing-bar";
 import { type Watched, watchedStates } from "@/features/library/lib/title-listing";
@@ -8,7 +8,7 @@ const choices: Record<string, string> = { [ANY]: "All", ...watchedStates };
 /** Which Watch State the grid keeps titles in, or all of them. */
 export function WatchStateChoice({ listing, change }: BarProps) {
   return (
-    <RadioGroup
+    <RadioSegments
       aria-label="Watch State"
       value={listing.watched ?? ANY}
       onValueChange={(value) => {
@@ -19,10 +19,10 @@ export function WatchStateChoice({ listing, change }: BarProps) {
       }}
     >
       {Object.entries(choices).map(([value, name]) => (
-        <RadioRow key={value} value={value}>
+        <RadioSegment key={value} value={value}>
           {name}
-        </RadioRow>
+        </RadioSegment>
       ))}
-    </RadioGroup>
+    </RadioSegments>
   );
 }

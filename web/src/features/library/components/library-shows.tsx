@@ -1,10 +1,10 @@
+import { PosterTile } from "@/features/library/components/poster-tile";
 import { Titles } from "@/features/library/components/titles";
+import { showWatchState } from "@/features/library/lib/show-watch-state";
 import { firstPageOf } from "@/features/library/lib/title-listing";
 import type { TitlesProps } from "@/features/library/lib/titles-props";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { Poster } from "@/shared/components/poster/poster";
 import { usePaged } from "@/shared/hooks/use-paged";
-import { posterGridSizes } from "@/shared/lib/poster-classes";
 import { yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -19,7 +19,7 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
     .map((show) => ({
       key: titleParam(show.id),
       poster: (
-        <Poster
+        <PosterTile
           link={{
             to: "/libraries/$libraryId/shows/$showId",
             params: { libraryId: String(libraryId), showId: titleParam(show.id) },
@@ -27,7 +27,7 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
           title={show.title}
           detail={yearOf(show.firstAirDate)}
           art={{ url: show.posterUrl, thumbhash: show.posterThumbhash }}
-          sizes={posterGridSizes}
+          state={showWatchState({ episodes: show.episodeCount, played: show.playedEpisodeCount })}
         />
       ),
     }));
@@ -35,7 +35,7 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
     <Titles
       titles={{ one: "Show", many: "Shows" }}
       index={paged.data.pages[0]?.index ?? []}
-      {...{ libraryId, listing, change, paged, posters }}
+      {...{ listing, change, paged, posters }}
     />
   );
 }

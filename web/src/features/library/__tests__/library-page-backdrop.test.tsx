@@ -56,7 +56,7 @@ test("a Library with a Backdrop shows it behind its name, under its ThumbHash un
 
   const backdrop = image(NEWEST);
   expect(backdrop).not.toBeNull();
-  expect(heading.parentElement?.contains(backdrop)).toBe(true);
+  expect(heading.closest("header")?.contains(backdrop)).toBe(true);
   expect(image(thumbHashToDataURL(thumbhash))).not.toBeNull();
 });
 
@@ -68,7 +68,7 @@ test("a Library without a Backdrop shows its name as a plain heading", async () 
 
   const heading = await screen.findByRole("heading", { level: 1, name: "Films" });
 
-  expect(heading.parentElement?.querySelector("img")).toBeNull();
+  expect(heading.closest("header")?.querySelector("img")).toBeNull();
 });
 
 /** A Library's Backdrop fields when it shows `url`. */
@@ -110,7 +110,7 @@ test.each([
     // Settings' preview draws it too, and its dialog hides the page from the accessibility tree.
     const heading = screen.getByRole("heading", { level: 1, name: "Films", hidden: true });
     await waitFor(() => {
-      expect(heading.parentElement?.querySelector(`img[src="${after}"]`)).not.toBeNull();
+      expect(heading.closest("header")?.querySelector(`img[src="${after}"]`)).not.toBeNull();
     });
   },
 );

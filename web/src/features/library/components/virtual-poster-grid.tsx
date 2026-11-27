@@ -1,11 +1,10 @@
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { type ReactNode, useEffect, useRef } from "react";
 
-import { usePosterColumns } from "@/features/library/hooks/use-poster-columns";
+import { useGridColumns } from "@/features/library/hooks/use-grid-columns";
 import { useTopOf } from "@/features/library/hooks/use-top-of";
 import type { Jump } from "@/features/library/lib/titles-props";
 import { paddingFor } from "@/shared/lib/padding-for";
-import { posterGrid } from "@/shared/lib/poster-classes";
 
 declare module "react" {
   interface CSSProperties {
@@ -13,15 +12,17 @@ declare module "react" {
     "--rows-above"?: string;
     /** As `--rows-above`, for the rows below. */
     "--rows-below"?: string;
+    /** `VirtualPosterGrid`'s columns, as many as `useGridColumns` fits. */
+    "--columns"?: string;
   }
 }
 
-/** A poster's row's height at `lg`, 2:3 of its 183px column, before it is measured. */
-const ROW_ESTIMATE = 275;
-/** `posterGrid`'s `gap-y-8`, between rows. */
-const ROW_GAP = 32;
-/** Where a row scrolled to rests: under the top bar, 72px (`h-18`), and 16px more. */
-const UNDER_TOP_BAR = 88;
+/** A caption's two lines and the gap over them (`gap-2.5`), under each poster. */
+const CAPTION = 50;
+/** The grid's `gap-y-7.5`, between rows. */
+const ROW_GAP = 30;
+/** Where a row scrolled to rests: under the top bar, 72px (`h-18`), and 24px more, as the rail. */
+const UNDER_TOP_BAR = 96;
 
 /**
  * A grid of `posters` that keeps only the rows near the screen in the page, however many there
@@ -38,13 +39,14 @@ export function VirtualPosterGrid({
   setSize: number | undefined;
   jump?: Jump | undefined;
 }) {
-  const columns = usePosterColumns();
   const list = useRef<HTMLUListElement>(null);
+  const { columns, columnWidth } = useGridColumns(list);
   const top = useTopOf(list);
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders this component itself whenever the window scrolls
   const virtualizer = useWindowVirtualizer({
     count: Math.ceil(posters.length / columns),
-    estimateSize: () => ROW_ESTIMATE,
+    // A 2:3 poster over its caption, until the row is measured.
+    estimateSize: () => columnWidth * 1.5 + CAPTION,
     gap: ROW_GAP,
     overscan: 2,
     scrollMargin: top,
@@ -75,8 +77,12 @@ export function VirtualPosterGrid({
   return (
     <ul
       ref={list}
-      className={`${posterGrid} pt-(--rows-above) pb-(--rows-below)`}
-      style={{ "--rows-above": padding.above, "--rows-below": padding.below }}
+      className="grid grid-cols-(--columns) gap-x-5 gap-y-7.5 pt-(--rows-above) pb-(--rows-below)"
+      style={{
+        "--columns": `repeat(${String(columns)}, minmax(0, 1fr))`,
+        "--rows-above": padding.above,
+        "--rows-below": padding.below,
+      }}
     >
       {rows.flatMap((row) =>
         posters

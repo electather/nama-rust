@@ -1,11 +1,9 @@
+import { PosterTile } from "@/features/library/components/poster-tile";
 import { RailLayout } from "@/features/library/components/rail-layout";
-import { TitleCount } from "@/features/library/components/title-count";
 import { TitleGrid } from "@/features/library/components/title-grid";
 import { firstBoxSetPage } from "@/features/library/lib/library-view";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { Poster } from "@/shared/components/poster/poster";
 import { usePaged } from "@/shared/hooks/use-paged";
-import { posterGridSizes } from "@/shared/lib/poster-classes";
 import { titleParam } from "@/shared/lib/title-param";
 
 const titles = { one: "Box Set", many: "Box Sets" };
@@ -18,23 +16,26 @@ export function LibraryBoxSets({ libraryId }: { libraryId: bigint }) {
     .map((boxSet) => ({
       key: titleParam(boxSet.id),
       poster: (
-        <Poster
+        <PosterTile
           link={{ to: "/box-sets/$boxSetId", params: { boxSetId: titleParam(boxSet.id) } }}
           title={boxSet.name}
           art={{ url: boxSet.posterUrl, thumbhash: undefined }}
-          sizes={posterGridSizes}
         />
       ),
     }));
   if (posters.length === 0) {
-    return <p className="mt-8 text-muted-foreground">No Box Sets in this Library yet.</p>;
+    return (
+      <div className="flex flex-col gap-1 py-12">
+        <p className="font-medium">No Box Sets yet</p>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          A Box Set shows up here once this Library holds two or more Movies of the same collection.
+        </p>
+      </div>
+    );
   }
   return (
-    <>
-      <TitleCount count={paged.totalSize} titles={titles} />
-      <RailLayout>
-        <TitleGrid titles={titles} paged={paged} posters={posters} />
-      </RailLayout>
-    </>
+    <RailLayout>
+      <TitleGrid titles={titles} paged={paged} posters={posters} />
+    </RailLayout>
   );
 }
