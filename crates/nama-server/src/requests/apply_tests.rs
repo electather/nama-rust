@@ -18,7 +18,7 @@ use crate::requests::testing::{
 use crate::{
     events::Filter,
     images::ImageStore,
-    library::{Artwork, Change, Item, Libraries, LibraryKind, ScanLocks},
+    library::{Change, CopiesAhead, Item, Libraries, LibraryKind, ScanLocks},
     matching::Matcher,
     plugins::Registry,
     users::Permissions,
@@ -179,7 +179,7 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
     let pinning = Matcher::new(
         Arc::clone(&requests.db),
         requests.plugins.clone(),
-        Artwork::new(images, requests.plugins.clone()),
+        CopiesAhead::for_tests(&requests.db, images, requests.plugins.clone()),
         requests.events.clone(),
         ScanLocks::for_tests(),
     );

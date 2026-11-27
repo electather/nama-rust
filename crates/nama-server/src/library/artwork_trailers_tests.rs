@@ -15,7 +15,7 @@ use crate::{
     db::Database,
     images::ImageStore,
     library::{
-        Metadata, Trailer,
+        CopiesAhead, Metadata, Trailer,
         contents::Contents,
         fixture::{MatchedMovie, tmdb_movie},
         scripted::{ScriptedSource, SourcesAsked},
@@ -30,7 +30,7 @@ const THUMBNAIL: &str = "https://i.ytimg.com/vi/LjLamj-b0I8/maxresdefault.jpg";
 /// thumbnail [`THUMBNAIL`], and the artwork route over it.
 struct Fixture {
     artwork: Artwork,
-    contents: Contents,
+    copies_ahead: CopiesAhead,
     library: i64,
     route: Router,
     asked: SourcesAsked,
@@ -59,13 +59,14 @@ impl Fixture {
         };
         let library = MatchedMovie::new(&db, media.path(), alien).await.library;
         let store = ImageStore::new(data.path(), Arc::clone(&db));
-        let artwork = Artwork::new(store, plugins.extension_points());
+        let artwork = Artwork::new(store.clone(), plugins.extension_points());
         let contents = Contents::new(Arc::clone(&db));
-        let images = ServerSettings::new(db, data.path().to_owned()).images();
-        let route = router(artwork.clone(), contents.clone(), images);
+        let images = ServerSettings::new(Arc::clone(&db), data.path().to_owned()).images();
+        let route = router(artwork.clone(), contents, images.clone());
+        let copies_ahead = CopiesAhead::new(db, store, artwork.clone(), images);
         Self {
             artwork,
-            contents,
+            copies_ahead,
             library,
             route,
             asked,
@@ -75,7 +76,7 @@ impl Fixture {
 
     /// Starts what the Library's Match refresh downloads, and waits until `landed` says it has.
     async fn download_missing(&self, landed: impl AsyncFn(&Self) -> bool) {
-        (self.artwork).download_missing(self.contents.clone(), self.library);
+        self.copies_ahead.matches_changed(self.library);
         // Not `Artwork::settled`: every lib test shares its tracker, and one test reopening it
         // between another's close and wait leaves that one waiting for good.
         let polled = async {

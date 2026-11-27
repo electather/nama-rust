@@ -357,9 +357,17 @@ _Avoid_: image list, artwork set, gallery
 An image an admin uploaded, or picked from a title source's artwork list, to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Library's Backdrop. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
 _Avoid_: override, variant, replacement
 
+**Image beside the media**:
+A Poster or Backdrop left beside a Movie's file or in a Show's or Season's folder, shown in place of the downloaded one unless the title has a Custom Image.
+_Avoid_: local artwork, fanart
+
 **Resized cache**:
 The local cache of copies of stored images at the listed widths, with their markers and thumbhashes, which may be deleted at any time and drops the least recently sent past its limit (ADR 0039, ADR 0052).
 _Avoid_: image cache, thumbnail cache
+
+**Copy ahead**:
+A resized copy of an image a Library shows, made at a width the web app offers it at before any client asks (ADR 0039).
+_Avoid_: prefetch, warm-up, pre-render
 
 **Match**:
 The link between an Item in a Library and a title in a title source. An Item without one is Unmatched.

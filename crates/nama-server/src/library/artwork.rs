@@ -35,17 +35,14 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
-use tokio_util::task::{TaskTracker, task_tracker::TaskTrackerToken};
+use tokio_util::task::TaskTracker;
 
 use crate::{
     images::{
-        Asked, BACKDROP_WIDTHS, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR,
-        POSTER_WIDTHS, Resize, SVG, TITLE_LOGO_WIDTHS, clean_svg, file_name, percent_decode,
+        Asked, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR, Resize, SVG,
+        clean_svg, file_name, percent_decode,
     },
-    library::contents::{Contents, ImageRef, StoredTitleImage},
-    library::custom_images::CustomImages,
-    library::local_images::LocalImages,
-    library::shown_images::InPlaceOfDownloaded,
+    library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
@@ -101,26 +98,12 @@ pub struct Artwork {
     offered: Arc<Mutex<HashSet<(String, String)>>>,
     /// Taken by each background download, across every clone.
     downloads: Arc<Semaphore>,
-    /// The background work of [`Self::download_missing`], and what [`Self::working`] marks as
-    /// leading up to it, so a test can wait it out (`Artwork::settled`).
+    /// Each background download, and the copies ahead the Library area runs beside them
+    /// (`CopiesAhead`), so a test can wait them out (`Artwork::settled`).
     tasks: TaskTracker,
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
-    /// What Posters, Backdrops and Title Logos are resized by once kept, so a first visit finds
-    /// them made. `None` until startup hands it over (`Artwork::resizing_ahead`), so tests that
-    /// build their own `Artwork` make copies on request only.
-    ahead: Option<ResizingAhead>,
-}
-
-/// What [`Artwork`] resizes images ahead by.
-#[derive(Debug, Clone)]
-struct ResizingAhead {
-    images: ImageSettings,
-    /// With `local_images`, what titles show in place of their downloaded Posters and
-    /// Backdrops, which so get no copy.
-    custom_images: CustomImages,
-    local_images: LocalImages,
 }
 
 /// What [`Artwork`] tracks its background work in: one tracker per Server, or under the `testing`
@@ -161,21 +144,18 @@ impl Artwork {
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
             tasks: background_tasks(),
             sweeping: Arc::default(),
-            ahead: None,
         }
     }
 
-    /// Marks the caller's sweep and [`Self::download_missing`] after it as under way until the
-    /// token is dropped, so `Artwork::settled` waits for work that hasn't spawned yet. Taken
-    /// before the event that tells clients the change is done, which a test waits on.
-    pub(crate) fn working(&self) -> TaskTrackerToken {
-        self.tasks.token()
+    /// What its background work is tracked in.
+    pub(super) const fn tasks(&self) -> &TaskTracker {
+        &self.tasks
     }
 
-    /// Waits until no artwork work a scan, Matching or a correction began, through
-    /// [`Self::working`] or [`Self::download_missing`], is left, including each download it
-    /// started. Testing only. Process-wide, as every [`Artwork`] shares one tracker under the
-    /// `testing` feature: integration tests run one per process under nextest.
+    /// Waits until no artwork work is left: no download, and no copy ahead a scan, Matching, a
+    /// correction or a Custom Image's change began (`CopiesAhead`). Testing only. Process-wide,
+    /// as every [`Artwork`] shares one tracker under the `testing` feature: integration tests run
+    /// one per process under nextest.
     #[cfg(feature = "testing")]
     pub async fn settled() {
         // `TaskTracker::wait` never finishes if another caller reopens between `close` and `wait`.
@@ -185,27 +165,6 @@ impl Artwork {
         tasks.close();
         tasks.wait().await;
         tasks.reopen();
-    }
-
-    /// This, resizing each Poster, Backdrop and Title Logo of a Library it downloads images for to
-    /// the widths the web app offers as `images` says, so a first visit to the Library finds them
-    /// made, unless a title shows one of `custom_images` or `local_images` in a Poster's or
-    /// Backdrop's place.
-    #[must_use]
-    pub(crate) fn resizing_ahead(
-        self,
-        images: ImageSettings,
-        custom_images: CustomImages,
-        local_images: LocalImages,
-    ) -> Self {
-        Self {
-            ahead: Some(ResizingAhead {
-                images,
-                custom_images,
-                local_images,
-            }),
-            ..self
-        }
     }
 
     /// Where clients fetch the image at `path` from the Plugin `plugin`'s title source, which
@@ -316,114 +275,17 @@ impl Artwork {
         self.store_in(KEPT_DIR, plugin, path).await.map(drop)
     }
 
-    /// Downloads, in the background, each image a Match in the Library `library` stores that
-    /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
-    /// Poster and Backdrop a title of it shows, downloaded before or just now or beside its media,
-    /// and each downloaded titled Backdrop, Title Logo and Trailer thumbnail (at a Backdrop's
-    /// widths), and each Custom Image of it and its titles, is resized to the widths the web app
-    /// offers it at too, Posters first, where resizing is on now, those copies aren't there and
-    /// the resized cache has room for them. A downloaded
-    /// Poster or Backdrop that a Custom Image or image beside the media stands in for gets none.
-    pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
-        let artwork = self.clone();
-        // Read before any download lands, so a change of settings after the scan has no part in it.
-        let copies = (self.ahead.as_ref()).map_or_else(CopiesAhead::default, CopiesAhead::of);
-        self.tasks.spawn(async move {
-            let listed = tokio::try_join!(
-                contents.images(Some(library)),
-                artwork.shown_downloaded(&contents, library),
-                contents.titled_backdrops_and_title_logos(library),
-                contents.trailer_thumbnails(library)
-            );
-            // The images beside the media and Custom Images are still resized without the list.
-            let (images, (posters, backdrops), (titled_backdrops, title_logos), thumbnails) =
-                listed.unwrap_or_else(|err| {
-                    tracing::error!(library, "could not list the images to download: {err}");
-                    Default::default()
-                });
-            let (poster_images, others): (Vec<_>, Vec<_>) = images
-                .into_iter()
-                .partition(|image| posters.contains(image));
-            // A Poster that is also a Backdrop is rare enough to get only a Poster's.
-            let ahead = (backdrops.into_iter().chain(titled_backdrops))
-                .chain(thumbnails)
-                .map(|image| (image, &*copies.backdrops))
-                .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
-                .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
-                .collect();
-            // Every source's Posters before any Backdrop or Title Logo, so a cache near its limit
-            // holds those a first visit needs (#2253).
-            tokio::join!(
-                artwork.resize_beside_media_and_custom(library, &copies.posters, &[]),
-                artwork.download(poster_images, &ahead)
-            );
-            tokio::join!(
-                artwork.resize_beside_media_and_custom(library, &[], &copies.backdrops),
-                artwork.download(others, &ahead)
-            );
-        });
-    }
-
-    /// Makes `posters` and `backdrops` of the images beside the Library `library`'s media and of
-    /// its Custom Images, as [`LocalImages::resize_shown`] picks them. None while resizing is off.
-    async fn resize_beside_media_and_custom(
-        &self,
-        library: i64,
-        posters: &[Resize],
-        backdrops: &[Resize],
-    ) {
-        if let Some(ahead) = &self.ahead
-            && !(posters.is_empty() && backdrops.is_empty())
-        {
-            (ahead.local_images)
-                .resize_shown(library, &ahead.custom_images, posters, backdrops)
-                .await;
-        }
-    }
-
-    /// Each Poster, then each Backdrop but titled ones, as its Plugin and path, that some title
-    /// of the Library `library` shows, not having a Custom Image or image beside its media in its
-    /// place. None without [`Self::resizing_ahead`]. A Library's Custom Backdrop hides none, since
-    /// the title's own page still shows its Backdrop.
-    async fn shown_downloaded(
-        &self,
-        contents: &Contents,
-        library: i64,
-    ) -> sqlx::Result<(HashSet<(String, String)>, HashSet<(String, String)>)> {
-        let Some(ahead) = &self.ahead else {
-            return Ok(Default::default());
-        };
-        let (posters, backdrops, in_place) = tokio::try_join!(
-            contents.posters(library),
-            contents.backdrops(library),
-            InPlaceOfDownloaded::read(&ahead.custom_images, &ahead.local_images)
-        )?;
-        let shown = |images: Vec<StoredTitleImage>| {
-            (images.into_iter())
-                .filter(|stored| in_place.shows_downloaded(&stored.ids, stored.image))
-                .map(|stored| (stored.plugin, stored.path))
-                .collect()
-        };
-        Ok((shown(posters), shown(backdrops)))
-    }
-
     /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes the
-    /// copies `ahead` lists of each, kept already or not, at most [`DOWNLOADS`] at a time across
-    /// the Server. Returns once the last has finished.
-    async fn download(
-        &self,
-        images: Vec<(String, String)>,
-        ahead: &HashMap<(String, String), &[Resize]>,
-    ) {
+    /// copies listed beside it, kept already or not, at most [`DOWNLOADS`] at a time across the
+    /// Server, logging those that fail, which the Library's next scan tries again. Returns once the
+    /// last has finished.
+    pub(super) async fn download(&self, images: Vec<((String, String), Vec<Resize>)>) {
         let finished = TaskTracker::new();
-        for image in images {
+        for (image, copies) in images {
             // The semaphore is never closed.
             let Ok(permit) = Arc::clone(&self.downloads).acquire_owned().await else {
                 return;
             };
-            let copies = ahead
-                .get(&image)
-                .map_or_else(Vec::new, |copies| copies.to_vec());
             let one = self.clone().download_one(image, copies, permit);
             self.tasks.spawn(finished.track_future(one));
         }
@@ -450,7 +312,7 @@ impl Artwork {
                 // to that.
                 drop(sweeping);
                 (self.store)
-                    .copy_ahead(&key(KEPT_DIR, &plugin, &path), &copies)
+                    .copy_ahead(&kept_key(&plugin, &path), &copies)
                     .await;
             }
         }
@@ -570,26 +432,6 @@ impl Artwork {
     }
 }
 
-/// The copies [`Artwork::download_missing`] makes of each kind of image ahead of the web app
-/// asking for them.
-#[derive(Debug, Default)]
-struct CopiesAhead {
-    posters: Vec<Resize>,
-    backdrops: Vec<Resize>,
-    title_logos: Vec<Resize>,
-}
-
-impl CopiesAhead {
-    /// Those `ahead` makes as its settings are now: none while resizing is off.
-    fn of(ahead: &ResizingAhead) -> Self {
-        Self {
-            posters: Resize::each(&POSTER_WIDTHS, &ahead.images),
-            backdrops: Resize::each(&BACKDROP_WIDTHS, &ahead.images),
-            title_logos: Resize::each(&TITLE_LOGO_WIDTHS, &ahead.images),
-        }
-    }
-}
-
 /// An image of an artwork list, with its source and that source's place in the order.
 type Ranked<'a> = (usize, &'a Source, &'a title_source::Artwork);
 
@@ -664,6 +506,11 @@ fn same_language(lang: &str, language: &str) -> bool {
 /// were kept before the store existed, so changing it downloads every image again.
 fn key<'a>(dir: &'a str, plugin: &'a str, path: &'a str) -> [&'a str; 3] {
     [dir, plugin, path]
+}
+
+/// Where the store keeps `plugin`'s image at `path` while some Match stores it.
+pub(super) fn kept_key<'a>(plugin: &'a str, path: &'a str) -> [&'a str; 3] {
+    key(KEPT_DIR, plugin, path)
 }
 
 /// Where clients fetch the image the store keeps at `key`, in either folder.

@@ -22,8 +22,8 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, ShownImages,
-        SimilarSources, TitleKind, TitleSources, artwork_router, custom_images_router,
+        Artwork, Contents, CopiesAhead, CustomImages, ImageSources, Libraries, LocalImages,
+        ShownImages, SimilarSources, TitleKind, TitleSources, artwork_router, custom_images_router,
         local_images_router,
     },
     playback::{
@@ -90,6 +90,7 @@ pub(crate) fn router(
     plugin_logos: PluginLogos,
     image_store: ImageStore,
     artwork: Artwork,
+    copies_ahead: CopiesAhead,
     probing: Probing,
     subtitles: SubtitleCache,
     reads: WholeFileReads,
@@ -269,6 +270,7 @@ pub(crate) fn router(
         .merge(custom_images_router(
             custom_images,
             artwork,
+            copies_ahead,
             image_settings.clone(),
         ))
         .merge(local_images_router(local_images, image_settings))

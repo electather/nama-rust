@@ -182,9 +182,10 @@ pub struct Resize {
 }
 
 impl Resize {
-    /// A copy at each of `widths`, all on [`WIDTHS`], or none while `images` has resizing off.
-    pub(crate) fn each(widths: &[u32], images: &ImageSettings) -> Vec<Self> {
-        let Some(cache_limit) = images.resizing() else {
+    /// A copy at each of `widths`, all on [`WIDTHS`], in a cache of `cache_limit` bytes, or none
+    /// while resizing is off, as `ImageSettings::resizing` says.
+    pub(crate) fn each(widths: &[u32], cache_limit: Option<u64>) -> Vec<Self> {
+        let Some(cache_limit) = cache_limit else {
             return Vec::new();
         };
         (widths.iter())

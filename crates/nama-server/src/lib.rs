@@ -56,7 +56,7 @@ use crate::{
     ffmpeg::{Abilities, Ffmpeg},
     home_rows::HomeRows,
     images::{CUSTOM_IMAGES_DIR, ImageStore, PluginLogos},
-    library::{Contents, CustomImages, LocalImages},
+    library::{Contents, CopiesAhead, CustomImages, LocalImages},
     playback::{
         Leftovers, PreviewFrames, ProbePasses, Probing, RunningPlans, Segments, SubtitleCache,
         TextPasses, TranscodeDownloads, WholeFileReads,
@@ -196,16 +196,18 @@ pub fn serve(
     );
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
     let local_images = LocalImages::new(Arc::clone(&db), images.clone());
-    let artwork = Artwork::new(images.clone(), points).resizing_ahead(
+    let artwork = Artwork::new(images.clone(), points);
+    let copies_ahead = CopiesAhead::new(
+        Arc::clone(&db),
+        images.clone(),
+        artwork.clone(),
         settings.images(),
-        custom_images.clone(),
-        local_images.clone(),
     );
     let plugin_logos = PluginLogos::new(images.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
         plugins.clone(),
-        artwork.clone(),
+        copies_ahead.clone(),
         custom_images.clone(),
         local_images,
         events.clone(),
@@ -257,6 +259,7 @@ pub fn serve(
         plugin_logos,
         images,
         artwork,
+        copies_ahead,
         probing.clone(),
         subtitles,
         reads.clone(),

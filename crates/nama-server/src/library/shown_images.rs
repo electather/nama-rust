@@ -263,7 +263,8 @@ impl InPlaceOfDownloaded {
 }
 
 impl TitleImage {
-    fn slot(self, id: &ExternalId) -> Slot {
+    /// The Custom Image slot that stands in for it, of the title `id`.
+    pub(super) fn slot(self, id: &ExternalId) -> Slot {
         match self {
             Self::Movie(role) => Slot::movie(id, role),
             Self::Show(role) => Slot::show(id, role),

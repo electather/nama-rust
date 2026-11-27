@@ -19,7 +19,7 @@ use crate::{
     events::EventBus,
     images::ImageStore,
     library::{
-        self, Artwork, Change, Contents, CustomImages, Decided, Item, Libraries, LocalImages,
+        self, Change, Contents, CopiesAhead, CustomImages, Decided, Item, Libraries, LocalImages,
         Metadata,
         fixture::{self, MatchedMovie, tmdb_movie},
     },
@@ -43,7 +43,7 @@ pub(super) fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
     let scanner = Scanner::new(
         Arc::clone(db),
         plugins.clone(),
-        Artwork::new(images.clone(), points.clone()),
+        CopiesAhead::for_tests(db, images.clone(), points.clone()),
         CustomImages::new(Arc::clone(db), images.clone()),
         LocalImages::new(Arc::clone(db), images.clone()),
         events.clone(),
