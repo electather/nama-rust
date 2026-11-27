@@ -1,6 +1,6 @@
 //! Registering a Server, Linking its Users, and Unlinking either: `nama.hub.v1.ServerLinkService`,
-//! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
-//! asks of the Hub's titles.
+//! `LinkService` and `LinkedServerService`, one for each kind of caller. `LinkedServerService` is
+//! one impl here: its RPCs that aren't about Links call the part of their concept.
 
 use std::net::SocketAddr;
 
@@ -32,9 +32,7 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 
 use super::{
-    accounts::session,
-    hub_failed, recent_authentication_required, refuse,
-    titles::{recommended_to_proto, similar_to_proto, trending_to_proto},
+    accounts::session, hub_failed, recent_authentication_required, refuse, titles,
     track_preferences, viewing, watch_states, watchlists,
 };
 use crate::{
@@ -45,7 +43,6 @@ use crate::{
     },
     recommendations::Recommendations,
     sync::{TrackPreferences, WatchStates, Watchlists},
-    titles::{self, ExternalId, TitleKind},
     viewing::Viewing,
 };
 
@@ -312,28 +309,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ListSimilarTitlesRequest>,
     ) -> ServiceResult<ListSimilarTitlesResponse> {
-        let kind = match request.kind.as_known() {
-            Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
-            Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
-            Some(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
-                return Response::ok(ListSimilarTitlesResponse::default());
-            }
-        };
-        let ids: Vec<ExternalId> = request
-            .ids
-            .iter()
-            .map(|id| ExternalId {
-                namespace: id.namespace.to_owned(),
-                value: id.value.to_owned(),
-            })
-            .collect();
-        let similar = titles::similar(&self.db, kind, &ids)
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(ListSimilarTitlesResponse {
-            titles: similar.into_iter().map(similar_to_proto).collect(),
-            ..Default::default()
-        })
+        titles::list_similar_titles(self, request.to_owned_message()).await
     }
 
     async fn list_recommended_titles(
@@ -341,22 +317,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ListRecommendedTitlesRequest>,
     ) -> ServiceResult<ListRecommendedTitlesResponse> {
-        let namespaces: Vec<String> = (request.namespaces.iter())
-            .map(|&namespace| namespace.to_owned())
-            .collect();
-        let recommended = (self.recommendations)
-            .for_user(
-                &self.links,
-                linked_server(&ctx)?,
-                request.user_id,
-                &namespaces,
-            )
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(ListRecommendedTitlesResponse {
-            titles: recommended.into_iter().map(recommended_to_proto).collect(),
-            ..Default::default()
-        })
+        titles::list_recommended_titles(self, &ctx, request.to_owned_message()).await
     }
 
     async fn start_user_link(
@@ -409,13 +370,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PushWatchStatesRequest>,
     ) -> ServiceResult<PushWatchStatesResponse> {
-        let server = linked_server(&ctx)?;
-        let changes = watch_states::changes_from_proto(request.to_owned_message().changes)?;
-        self.watch_states
-            .push(&self.links, server, changes)
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(PushWatchStatesResponse::default())
+        watch_states::push_watch_states(self, &ctx, request.to_owned_message()).await
     }
 
     async fn pull_watch_states(
@@ -423,18 +378,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PullWatchStatesRequest>,
     ) -> ServiceResult<PullWatchStatesResponse> {
-        let pulled = self
-            .watch_states
-            .pull(&self.links, linked_server(&ctx)?, request.user_id)
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(PullWatchStatesResponse {
-            watch_states: pulled
-                .into_iter()
-                .map(watch_states::change_to_proto)
-                .collect(),
-            ..Default::default()
-        })
+        watch_states::pull_watch_states(self, &ctx, request.to_owned_message()).await
     }
 
     async fn push_track_preferences(
@@ -442,13 +386,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PushTrackPreferencesRequest>,
     ) -> ServiceResult<PushTrackPreferencesResponse> {
-        let server = linked_server(&ctx)?;
-        let changes = track_preferences::changes_from_proto(request.to_owned_message().changes)?;
-        self.track_preferences
-            .push(&self.links, server, changes)
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(PushTrackPreferencesResponse::default())
+        track_preferences::push_track_preferences(self, &ctx, request.to_owned_message()).await
     }
 
     async fn pull_track_preferences(
@@ -456,17 +394,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PullTrackPreferencesRequest>,
     ) -> ServiceResult<PullTrackPreferencesResponse> {
-        let pulled = self
-            .track_preferences
-            .pull(&self.links, linked_server(&ctx)?, request.user_id)
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(PullTrackPreferencesResponse {
-            preferences: (pulled.into_iter())
-                .map(track_preferences::change_to_proto)
-                .collect(),
-            ..Default::default()
-        })
+        track_preferences::pull_track_preferences(self, &ctx, request.to_owned_message()).await
     }
 
     async fn sync_watchlist(
@@ -474,23 +402,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SyncWatchlistRequest>,
     ) -> ServiceResult<SyncWatchlistResponse> {
-        let server = linked_server(&ctx)?;
-        let SyncWatchlistRequest {
-            user_id, entries, ..
-        } = request.to_owned_message();
-        let entries = watchlists::watchlist_from_proto(entries)?;
-        let merged = self
-            .watchlists
-            .sync(&self.links, server, user_id, entries)
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(SyncWatchlistResponse {
-            entries: merged
-                .into_iter()
-                .map(watchlists::watchlist_entry_to_proto)
-                .collect(),
-            ..Default::default()
-        })
+        watchlists::sync_watchlist(self, &ctx, request.to_owned_message()).await
     }
 
     async fn invite_user(
@@ -609,12 +521,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, RecordViewingEventsRequest>,
     ) -> ServiceResult<RecordViewingEventsResponse> {
-        let server = linked_server(&ctx)?;
-        let events = viewing::recorded_from_proto(request.to_owned_message().events)?;
-        (self.viewing.record(&self.links, server, events))
-            .await
-            .map_err(|err| viewing::refused(&err))?;
-        Response::ok(RecordViewingEventsResponse::default())
+        viewing::record_viewing_events(self, &ctx, request.to_owned_message()).await
     }
 
     async fn list_trending_titles(
@@ -622,13 +529,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
     ) -> ServiceResult<ListTrendingTitlesResponse> {
-        let trending = (self.viewing.trending())
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(ListTrendingTitlesResponse {
-            titles: trending.iter().filter_map(trending_to_proto).collect(),
-            ..Default::default()
-        })
+        viewing::list_trending_titles(self).await
     }
 
     async fn list_most_watchlisted_titles(
@@ -636,15 +537,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListMostWatchlistedTitlesRequest>,
     ) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
-        let watchlisted = (self.watchlists.most_watchlisted())
-            .await
-            .map_err(|err| hub_failed(&err))?;
-        Response::ok(ListMostWatchlistedTitlesResponse {
-            titles: (watchlisted.iter())
-                .filter_map(watchlists::watchlisted_to_proto)
-                .collect(),
-            ..Default::default()
-        })
+        watchlists::list_most_watchlisted_titles(self).await
     }
 }
 
@@ -693,7 +586,7 @@ fn sign_in_id(id: &str) -> Result<SignInId, ConnectError> {
 
 /// The Linked Server that sent the request `ctx` is for. The auth layer refuses every
 /// `LinkedServerService` call without one, so its absence is a Hub bug and never a Refusal.
-fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
+pub(super) fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
     ctx.extensions()
         .get::<LinkedServer>()
         .ok_or_else(|| hub_failed(&"a LinkedServerService call came without its Linked Server"))
