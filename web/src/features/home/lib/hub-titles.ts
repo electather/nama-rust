@@ -1,26 +1,20 @@
-import type { LinkOptions } from "@tanstack/react-router";
-
 import type { Card } from "@/features/home/lib/continue-watching-cards";
 import type { Panel, PanelOn } from "@/features/home/lib/featured-panels";
-import type { ReachedServer } from "@/features/home/lib/hub-rows";
+import type { LinkedServer } from "@/gen/nama/hub/v1/link_pb";
 import type { RowTitle } from "@/shared/lib/row-titles";
 import { titleParam } from "@/shared/lib/title-param";
+import { type TitleServer, linkOn } from "@/shared/lib/title-server";
 
 /** A row's title on the Server `server`, which `transport` reaches. */
-export type TitleOn = ReachedServer & { title: RowTitle };
+export type TitleOn = TitleServer<LinkedServer> & { title: RowTitle };
 
 /** A Continue Watching card on the Server `server`, which `transport` reaches. */
-export type CardOn = ReachedServer & { card: Card };
-
-/** `link`, opening on the Linked Server `server`, as the Hub opens a Server's pages (ADR 0105). */
-export function onLinkedServer(link: LinkOptions, server: ReachedServer["server"]): LinkOptions {
-  return { ...link, search: { server: server.id } };
-}
+export type CardOn = TitleServer<LinkedServer> & { card: Card };
 
 /** `card`, from the Server `server` that `transport` reaches, opening there. */
-export function cardOn({ server, transport }: ReachedServer, card: Card): CardOn {
-  const page = { ...card.page, link: onLinkedServer(card.page.link, server) };
-  return { server, transport, card: { ...card, link: onLinkedServer(card.link, server), page } };
+export function cardOn(on: TitleServer<LinkedServer>, card: Card): CardOn {
+  const page = { ...card.page, link: linkOn(card.page.link, on) };
+  return { ...on, card: { ...card, link: linkOn(card.link, on), page } };
 }
 
 /**
@@ -43,10 +37,10 @@ export function mergeTitles(lists: TitleOn[][]) {
 const featuredCount = 5;
 
 /** `panel`, from the Server `server` that `transport` reaches, opening there. */
-export function panelOn({ server, transport }: ReachedServer, panel: Panel): PanelOn {
-  const action = { ...panel.action, link: onLinkedServer(panel.action.link, server) };
-  const page = onLinkedServer(panel.page, server);
-  return { transport, panel: { ...panel, key: `${server.id}/${panel.key}`, action, page } };
+export function panelOn(on: TitleServer<LinkedServer>, panel: Panel): PanelOn {
+  const action = { ...panel.action, link: linkOn(panel.action.link, on) };
+  const page = linkOn(panel.page, on);
+  return { ...on, panel: { ...panel, key: `${on.server.id}/${panel.key}`, action, page } };
 }
 
 /**

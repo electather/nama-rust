@@ -2,8 +2,8 @@ import { useState } from "react";
 
 import { FeaturedFrame } from "@/features/home/components/featured-frame";
 import { FeaturedPanel } from "@/features/home/components/featured-panel";
-import { OnServer } from "@/features/home/components/on-server";
 import type { PanelOn } from "@/features/home/lib/featured-panels";
+import { OnServer } from "@/shared/components/on-server";
 
 /**
  * Featured's `panels` as a row, one open at a time: hovering, focusing or pressing a closed one
@@ -16,8 +16,8 @@ export function FeaturedAccordion({ panels }: { panels: PanelOn[] }) {
   }
   return (
     <FeaturedFrame label="Featured">
-      {panels.map(({ transport, panel }, index) => (
-        <OnServer key={panel.key} transport={transport}>
+      {panels.map(({ panel, ...on }, index) => (
+        <OnServer key={panel.key} on={on}>
           <FeaturedPanel
             panel={panel}
             place={{ index, open, count: panels.length }}

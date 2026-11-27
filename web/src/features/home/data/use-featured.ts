@@ -23,5 +23,5 @@ export function useFeatured(): PanelOn[] {
       staleTime: loaderStaleTime,
     },
   ).data;
-  return featuredPanels(titles).map((panel) => ({ transport, panel }));
+  return featuredPanels(titles).map((panel) => ({ server: undefined, transport, panel }));
 }
