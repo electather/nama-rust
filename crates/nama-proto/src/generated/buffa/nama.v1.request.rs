@@ -10268,9 +10268,7 @@ impl ::buffa::Message for Trailer {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 ::buffa::types::merge_bytes(
-                    self
-                        .thumbhash
-                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    self.thumbhash.get_or_insert_with(::buffa::alloc::vec::Vec::new),
                     buf,
                 )?;
             }

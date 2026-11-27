@@ -16755,11 +16755,7 @@ impl<'__a> ::serde::Serialize for TrailerView<'__a> {
             __map.serialize_entry("thumbnailUrl", __v)?;
         }
         if let ::core::option::Option::Some(__v) = self.thumbhash {
-            __map
-                .serialize_entry(
-                    "thumbhash",
-                    &::buffa::json_helpers::BytesJson(__v),
-                )?;
+            __map.serialize_entry("thumbhash", &::buffa::json_helpers::BytesJson(__v))?;
         }
         __map.end()
     }
