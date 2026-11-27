@@ -5,13 +5,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "nama-ui/components/tool
 
 import { useModalContainer } from "@/shared/hooks/use-modal-container";
 import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
-import { detailSearch } from "@/shared/lib/settings-address";
+import { openedId, detailSearch } from "@/shared/lib/settings-address";
 
 const LABEL = "New Library";
 
 /** New Library, as a plus beside Settings' close, while the Libraries are listed. */
 export function NewLibraryLink() {
-  const opened = useSettingsAddress().detail !== undefined;
+  const opened = openedId(useSettingsAddress().detail, "library") !== undefined;
   const [trigger, container] = useModalContainer();
   if (opened) {
     return null;

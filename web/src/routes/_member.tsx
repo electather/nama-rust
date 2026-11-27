@@ -12,7 +12,7 @@ import {
   whoIsSignedIn,
 } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
-import { type SettingsSearch, settingsSearch } from "@/shared/lib/settings-address";
+import { type SettingsSearch, validateSettingsSearch } from "@/shared/lib/settings-address";
 import { wordsParam } from "@/shared/lib/words-param";
 
 // On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), and
@@ -23,7 +23,7 @@ type MemberSearch = { search?: string | undefined } & SettingsSearch;
 export const Route = createFileRoute("/_member")({
   validateSearch: (search): MemberSearch => ({
     search: wordsParam(search["search"]),
-    ...settingsSearch(search),
+    ...validateSettingsSearch(search),
   }),
   beforeLoad: async ({ context, location }) => {
     // Asked together, so the page's own calls wait on one round trip, not two; at the Hub the

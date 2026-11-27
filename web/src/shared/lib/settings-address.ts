@@ -1,5 +1,6 @@
-// The only code that knows Settings' words in the address. It's in the first page's code, as the
-// signed-in route parses them, so it stays light: no generated code, no Permissions, no React.
+// The rule this module keeps is in `web/src/AGENTS.md` ("One module knows Settings' address"). The
+// signed-in route parses with it, so it's in the first page's code: no generated code, no
+// Permissions, no React.
 
 /** Each Section of Settings, by the word `?settings=` opens it with. */
 export const sections = [
@@ -71,14 +72,14 @@ export interface SettingsSearch {
   setting?: string | undefined;
 }
 
-/** Each word of a detail, and a found setting, emptied. */
 const noDetail = {
   plugin: undefined,
   user: undefined,
   job: undefined,
   library: undefined,
   setting: undefined,
-};
+  // Every word but the page's and the picked Server's, so a builder clears a new detail too.
+} satisfies Record<Exclude<keyof SettingsSearch, "settings" | "manage">, undefined>;
 
 /** Settings closed: every word emptied, the picked Server's too. */
 export const closedSearch = { settings: undefined, manage: undefined, ...noDetail };
@@ -101,7 +102,7 @@ export function parseSettings(search: Readonly<Record<string, unknown>>): Settin
 }
 
 /** The signed-in route's search: Settings' words as `parseSettings` reads them. */
-export function settingsSearch(search: Readonly<Record<string, unknown>>): SettingsSearch {
+export function validateSettingsSearch(search: Readonly<Record<string, unknown>>): SettingsSearch {
   const { page, detail, setting, server } = parseSettings(search);
   const words = detail && detailWords(detail);
   return { ...closedSearch, ...words, settings: page, setting, manage: server };
@@ -164,7 +165,6 @@ const detailParams: Partial<Record<Section, (search: Search) => SettingsDetail |
     withId(idParam(search["library"]), (id) => ({ kind: "library-filter", id })),
 };
 
-/** The detail `open` makes of `id`, or none without one. */
 function withId<T>(id: T | undefined, open: (id: T) => SettingsDetail) {
   return id === undefined ? undefined : open(id);
 }

@@ -11,7 +11,7 @@ import {
   pickedServerSearch,
   sectionSearch,
   sections,
-  settingsSearch,
+  validateSettingsSearch,
 } from "@/shared/lib/settings-address";
 
 describe("the Settings address", () => {
@@ -90,7 +90,7 @@ describe("the Settings address", () => {
   });
 
   test("the route reads back only the words the address holds", () => {
-    expect(settingsSearch(everyWord)).toStrictEqual({
+    expect(validateSettingsSearch(everyWord)).toStrictEqual({
       settings: "jobs",
       manage: "cabin",
       plugin: undefined,
