@@ -1,6 +1,6 @@
 import { useSetPermissions } from "@/features/admin-users/data/use-set-permissions";
 import { useSetUserAccess } from "@/features/admin-users/data/use-set-user-access";
-import { onlyAdminRefusal } from "@/features/admin-users/lib/user-refusals";
+import { userChangeRefusal } from "@/features/admin-users/lib/user-refusals";
 import { useAutoSave } from "@/features/settings/hooks/use-auto-save";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
@@ -42,6 +42,6 @@ export function useUserSettings(user: User, you: User | undefined) {
     values,
     edit,
     dismiss,
-    says: refused && onlyAdminRefusal(refused.failure, user.name, attempt),
+    says: refused && userChangeRefusal(refused.failure, user.name, attempt),
   };
 }

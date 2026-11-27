@@ -6,9 +6,10 @@ import { noLongerHere } from "@/shared/lib/no-longer-here";
 
 /**
  * Why the Server refused to `attempt` (such as "delete this User") a change to the User called
- * `name`: one that would leave it with no Admin, or to a User deleted meanwhile.
+ * `name`: one that would leave it with no Admin, or them on Chosen Libraries with Manage Users, or
+ * to a User deleted meanwhile.
  */
-export function onlyAdminRefusal(error: unknown, name: string, attempt: string) {
+export function userChangeRefusal(error: unknown, name: string, attempt: string) {
   return refusal(
     error,
     attempt,
@@ -17,8 +18,16 @@ export function onlyAdminRefusal(error: unknown, name: string, attempt: string) 
       [RefusalReason.LAST_ADMIN]: {
         form: `${name} is the only Admin who can sign in with a password. Make another User with a password an Admin first.`,
       },
+      [RefusalReason.MANAGE_USERS_NEEDS_EVERY_LIBRARY]: {
+        form: manageUsersOnChosenLibraries(name),
+      },
     },
   ).form;
+}
+
+/** Why the User called `name` can't Manage Users while on Chosen Libraries. */
+export function manageUsersOnChosenLibraries(name: string) {
+  return `${name} can’t Manage Users while on Chosen Libraries, unless they Manage Libraries too.`;
 }
 
 /** Why creating a User was refused, next to the field it's about. */

@@ -155,6 +155,16 @@ test("at the Hub, a wrong password is refused under the password", async () => {
   await expectUnderField("Password", "That email and password don’t match an Account.");
 });
 
+test("at the Hub, a forgotten password points to a Sign-in Link", async () => {
+  openApp("/sign-in", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Forgot your password?" }));
+
+  expect(
+    screen.getByText("Ask for a Sign-in Link below: it signs you in without a password."),
+  ).toBeDefined();
+});
+
 test("signing the Account out goes back to sign-in", async () => {
   openApp("/", fakeHub({ signedIn: true }).transport);
 
@@ -253,6 +263,19 @@ test("a Sign-in Link is emailed, to continue where signing in was going", async 
 
   await screen.findByRole("heading", { name: "Check your email" });
   expect(hub.sent).toStrictEqual([{ email: ada.email, continueTo: "/history" }]);
+});
+
+test("after a Sign-in Link is emailed, signing in with a password keeps where it was going", async () => {
+  const router = openApp("/send-sign-in-link?redirect=%2Fhistory", fakeHub().transport);
+  await screen.findByRole("heading", { name: "Email a Sign-in Link" });
+  fill("Email", ada.email);
+  fireEvent.click(screen.getByRole("button", { name: "Email me a Sign-in Link" }));
+  await screen.findByRole("heading", { name: "Check your email" });
+
+  fireEvent.click(screen.getByRole("link", { name: "Sign in with a password" }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  expect(router.state.location.href).toBe("/sign-in?redirect=%2Fhistory");
 });
 
 test("a Sign-in Link signs its Account in", async () => {

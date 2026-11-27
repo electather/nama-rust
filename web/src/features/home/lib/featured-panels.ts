@@ -1,3 +1,4 @@
+import type { Transport } from "@connectrpc/connect";
 import type { LinkOptions } from "@tanstack/react-router";
 
 import type { Episode, FeaturedTitle, Movie, Show } from "@/gen/nama/v1/browse_pb";
@@ -29,6 +30,12 @@ export interface Panel {
   /** Its page, which the open panel opens when clicked. */
   page: LinkOptions;
   watchlist: { kind: TitleKind; id: ExternalId; on: boolean };
+}
+
+/** A Featured panel on the Server `transport` reaches. */
+export interface PanelOn {
+  transport: Transport;
+  panel: Panel;
 }
 
 /** The panels of your Featured, leaving out any title the Server left incomplete. */

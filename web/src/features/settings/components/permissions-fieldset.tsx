@@ -1,20 +1,22 @@
 import type { ReactNode } from "react";
 
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
+import type { CheckboxProps } from "@/shared/components/permissions-form/permission-checkbox";
 import { PermissionChoices } from "@/shared/components/permissions-form/permission-choices";
 import { permissionsToOffer, toggledPermissions } from "@/shared/lib/permissions";
 
 /**
  * The Permissions `you` may give as checkboxes, `held` checked, under what `children` say of them.
- * Each one toggled goes to `onChange` with the rest, to save at once.
+ * Each one toggled goes to `onChange` with the rest, to save at once, unless `refuses` fixes it.
  */
 export function PermissionsFieldset({
   legend,
   you,
   held,
   onChange,
+  refuses,
   children,
-}: {
+}: Pick<CheckboxProps, "refuses"> & {
   /** Said only to screen readers: the group it's in already shows its title. */
   legend: string;
   you: User | undefined;
@@ -29,6 +31,7 @@ export function PermissionsFieldset({
       <PermissionChoices
         offer={permissionsToOffer(you)}
         held={held}
+        refuses={refuses}
         onToggle={(permission, checked) => {
           onChange({ permissions: toggledPermissions(held, permission, checked) });
         }}

@@ -26,7 +26,7 @@ export function CreateAccount({ redirect }: { redirect: string | undefined }) {
         create.mutate({ email: formText(form, "email"), password: formText(form, "password") });
       }}
       footer={
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-xs text-balance text-muted-foreground">
           Have an Account?{" "}
           <Link to="/sign-in" search={{ redirect }} replace className={textLink}>
             Sign in

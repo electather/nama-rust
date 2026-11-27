@@ -398,7 +398,7 @@ A headed row of titles on a User's home page. The Kernel builds some, such as Co
 _Avoid_: shelf, section, rail, carousel
 
 **Featured**:
-The few Movies and Shows at the top of a User's home page, which the Kernel picks by weight from its own suggestions and those Plugins give. It isn't a Home row: it has no heading, and only titles on the Server can be in it.
+The few Movies and Shows at the top of a User's home page, which the Kernel picks by weight from its own suggestions and those Plugins give. It isn't a Home row: it has no heading, and only titles on the Server can be in it. At the Hub, an Account's home page shows its Servers' Featured together.
 _Avoid_: hero, spotlight, banner, billboard
 
 **Home layout**:
