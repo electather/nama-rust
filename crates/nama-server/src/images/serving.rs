@@ -4,7 +4,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, atomic::Ordering},
 };
 
 use axum::{
@@ -19,6 +19,20 @@ use tracing::Instrument as _;
 
 use super::{Copied, Format, ImageStore, RESIZED_DIR, Resize, SVG, resized, row_key, version_of};
 use crate::diagnostics;
+
+/// How full, in percent of its limit, the resized cache may get from copies made ahead. The rest
+/// is left to copies requests ask for, so a scan of a Library that outgrows the cache stops
+/// rather than evicting what the last one made, to be made again by the next (#2253).
+const AHEAD_UP_TO_PERCENT: u64 = 80;
+
+/// Who a copy is made for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MadeFor {
+    Request,
+    /// A scan, upload or startup, making it before it is asked for: none is made while the cache
+    /// holds [`AHEAD_UP_TO_PERCENT`] of its limit.
+    Ahead,
+}
 
 impl ImageStore {
     /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
@@ -52,7 +66,8 @@ impl ImageStore {
             return self.serve_original(key, content_type, &head).await;
         };
         let asked = format_asked(&head.headers);
-        let mut response = if let Some(format) = self.ensure_copy(key, resize, asked).await {
+        let made = self.ensure_copy(key, resize, asked, MadeFor::Request).await;
+        let mut response = if let Some(format) = made {
             // The copy can go between making it and sending it, deleted with the folder or by
             // another request's eviction, so the original stands in for it.
             let copy = self.copy_path(key, resize.width, format);
@@ -143,12 +158,12 @@ impl ImageStore {
     }
 
     /// Makes each copy `copies` asks for of the image at `key` in each format a client may ask
-    /// for, where it isn't there, so the first request for it is sent from the cache. Each waits
-    /// its turn on the one resize thread, as a request's does (ADR 0039).
+    /// for, where it isn't there and the cache has room, so the first request for it is sent from
+    /// the cache. Each waits its turn on the one resize thread, as a request's does (ADR 0039).
     pub(crate) async fn copy_ahead(&self, key: &[&str], copies: &[Resize]) {
         for &resize in copies {
             for format in [Format::Jpeg, Format::Jxl] {
-                self.ensure_copy(key, resize, format).await;
+                self.ensure_copy(key, resize, format, MadeFor::Ahead).await;
             }
         }
     }
@@ -156,10 +171,17 @@ impl ImageStore {
     /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
     /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
     /// as stored, which an image that can't be resized or isn't stored also is, after a warning
-    /// is logged for one that can't be resized. Where `make_copy` makes none, an empty marker
-    /// beside the copies says so, so the original isn't read for it again; a failed read or
-    /// resize leaves none, so the next ask tries again.
-    async fn ensure_copy(&self, key: &[&str], resize: Resize, asked: Format) -> Option<Format> {
+    /// is logged for one that can't be resized, as is one made [`MadeFor::Ahead`] while the cache
+    /// is nearly full. Where `make_copy` makes none, an empty marker beside the copies says so,
+    /// so the original isn't read for it again; a failed read or resize leaves none, so the next
+    /// ask tries again.
+    async fn ensure_copy(
+        &self,
+        key: &[&str],
+        resize: Resize,
+        asked: Format,
+        made_for: MadeFor,
+    ) -> Option<Format> {
         let copy = self.copy_path(key, resize.width, asked);
         // Whether it is sent as stored depends on the format asked too (alpha in a JPEG, the
         // JPEG XL pixel limit), so the marker is named after the copy it stands in for.
@@ -170,11 +192,18 @@ impl ImageStore {
         if mark_sent(&unresized).await {
             return None;
         }
-        let _resizing = self.resizing.lock().await;
+        let mut cache_size = self.resizing.lock().await;
         if mark_sent(&copy).await {
             return Some(asked);
         }
         if mark_sent(&unresized).await {
+            return None;
+        }
+        if made_for == MadeFor::Ahead
+            && self
+                .is_nearly_full(&mut cache_size, resize.cache_limit)
+                .await
+        {
             return None;
         }
         let _reading = self.whole_read().await.ok()?;
@@ -200,23 +229,22 @@ impl ImageStore {
             .run(move || {
                 let copied = resized::on_disk(original, &cache)
                     .map_err(Into::into)
-                    .and_then(|original| {
-                        resized::make_copy(original, &folder, resize.width, asked)
-                    });
-                if let Ok(Copied::Made { format, .. }) = copied
-                    && let made = folder.join(format.file_name(resize.width))
-                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &made)
-                {
-                    tracing::error!("could not keep the resized images within their limit: {err}");
-                }
-                copied.map_err(|err| format!("could not resize {named}: {err}"))
+                    .and_then(|original| resized::make_copy(original, &folder, resize.width, asked))
+                    .map_err(|err| format!("could not resize {named}: {err}"));
+                let left = match &copied {
+                    Ok(Copied::Made { format, .. }) => {
+                        let made = folder.join(format.file_name(resize.width));
+                        size_after_evicting(&cache, resize.cache_limit, &made)
+                    }
+                    _ => None,
+                };
+                (copied, left)
             })
             .instrument(span.clone())
             .await;
         // The thread having stopped, or a resize having panicked, is one more failed resize.
-        let copied = resized
-            .map_err(|err| err.to_string())
-            .and_then(|copied| copied);
+        let (copied, left) = resized.unwrap_or_else(|err| (Err(err.to_string()), None));
+        *cache_size = left.or(*cache_size);
         match copied {
             Ok(Copied::Found(format)) => Some(format),
             Ok(Copied::Made { format, thumbhash }) => {
@@ -240,6 +268,33 @@ impl ImageStore {
             }
         }
     }
+
+    /// Whether the resized copies take [`AHEAD_UP_TO_PERCENT`] of `limit` or more, `cache_size`
+    /// being their bytes as measured last, which it measures first where unknown or copies were
+    /// deleted since.
+    async fn is_nearly_full(&self, cache_size: &mut Option<u64>, limit: u64) -> bool {
+        if self.copies_deleted.swap(false, Ordering::AcqRel) || cache_size.is_none() {
+            let cache = self.dir.join(RESIZED_DIR);
+            match self.resizer.run(move || resized::size(&cache)).await {
+                Ok(Ok(size)) => *cache_size = Some(size),
+                // The copy is made, and its eviction measures the cache.
+                Ok(Err(err)) | Err(err) => {
+                    tracing::warn!("could not measure the resized images: {err}");
+                }
+            }
+        }
+        cache_size.is_some_and(|size| size >= limit / 100 * AHEAD_UP_TO_PERCENT)
+    }
+}
+
+/// The bytes the copies in `cache` take once [`resized::evict`] has fit them in `limit`, keeping
+/// `made`, or `None` where it failed, which is logged.
+fn size_after_evicting(cache: &Path, limit: u64, made: &Path) -> Option<u64> {
+    (resized::evict(cache, limit, made))
+        .inspect_err(|err| {
+            tracing::error!("could not keep the resized images within their limit: {err}");
+        })
+        .ok()
 }
 
 /// Whether the copy, or unresized marker, at `copy` is there, marking it as just sent if it is.

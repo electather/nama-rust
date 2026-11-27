@@ -496,3 +496,83 @@ async fn an_image_marked_unresized_is_sent_as_stored_with_the_same_headers() {
     assert_eq!(again.headers(), first.headers());
     assert_eq!(body(again).await, original);
 }
+
+/// A copy 320 px wide, in a cache of 1 MB holding a file of `filler` bytes already.
+fn at_320_beside(data: &TempDir, filler: u64) -> Resize {
+    let cache = data.path().join("resized");
+    std::fs::create_dir_all(&cache).unwrap();
+    let file = std::fs::File::create(cache.join("filler")).unwrap();
+    file.set_len(filler).unwrap();
+    Resize {
+        width: 320,
+        cache_limit: 1_000_000,
+    }
+}
+
+#[tokio::test]
+async fn no_copy_is_made_ahead_once_the_cache_holds_80_percent_but_a_request_still_gets_one() {
+    let data = tempfile::tempdir().unwrap();
+    let store = on_disk(&data).await;
+    store
+        .write(KEY, &png(RgbImage::new(1000, 1500)))
+        .await
+        .unwrap();
+    let resize = at_320_beside(&data, 800_000);
+
+    store.copy_ahead(KEY, &[resize]).await;
+
+    assert!(!store.copies_path(KEY).exists(), "no copy made ahead");
+    assert!(
+        data.path().join("resized/filler").exists(),
+        "nothing evicted"
+    );
+    let sent = store
+        .serve(KEY, "image/png", Some(resize), get())
+        .await
+        .unwrap();
+    assert_eq!(sent.headers()[header::CONTENT_TYPE], "image/jpeg");
+}
+
+#[tokio::test]
+async fn a_copy_is_made_ahead_while_the_cache_holds_under_80_percent() {
+    let data = tempfile::tempdir().unwrap();
+    let store = on_disk(&data).await;
+    store
+        .write(KEY, &png(RgbImage::new(1000, 1500)))
+        .await
+        .unwrap();
+    let resize = at_320_beside(&data, 799_999);
+
+    store.copy_ahead(KEY, &[resize]).await;
+
+    assert!(store.copies_path(KEY).join("320.jpg").exists());
+}
+
+#[tokio::test]
+async fn copies_ahead_resume_once_deleting_an_image_frees_the_cache() {
+    let data = tempfile::tempdir().unwrap();
+    let store = on_disk(&data).await;
+    let other: &[&str] = &["artwork", "tmdb", "/other.jpg"];
+    for key in [KEY, other] {
+        let wide = png(RgbImage::new(1000, 1500));
+        store.write(key, &wide).await.unwrap();
+    }
+    store.copy_ahead(other, &[AT_320]).await;
+    let files = walkdir::WalkDir::new(store.copies_path(other)).into_iter();
+    // Files only: a folder's own size (4 KiB on ext4) would leave the limit well above the copies.
+    let taken: u64 = (files.map(Result::unwrap))
+        .filter(|entry| entry.file_type().is_file())
+        .map(|file| file.metadata().unwrap().len())
+        .sum();
+    let full = Resize {
+        width: 320,
+        cache_limit: taken,
+    };
+    store.copy_ahead(KEY, &[full]).await;
+    assert!(!store.copies_path(KEY).exists(), "skipped while full");
+
+    store.delete(other).await.unwrap();
+    store.copy_ahead(KEY, &[full]).await;
+
+    assert!(store.copies_path(KEY).join("320.jpg").exists());
+}

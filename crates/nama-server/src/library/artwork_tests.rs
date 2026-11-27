@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     io::Cursor,
     path::Path,
     sync::{
@@ -676,4 +676,85 @@ async fn only_the_backdrops_titles_show_and_every_titled_backdrop_get_copies_mad
         listed("resized/artwork/tmdb"),
         ["%2Fdune.jpg", "%2Ftitled.jpg"]
     );
+}
+
+#[tokio::test]
+async fn posters_of_every_source_get_copies_ahead_first_until_the_cache_is_nearly_full_and_rescans_make_none()
+ {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let mut wide = Cursor::new(Vec::new());
+    (RgbImage::new(1000, 1500).write_to(&mut wide, ImageFormat::Png)).unwrap();
+    let wide = wide.into_inner();
+    // A Backdrop beside the media, which isn't waiting on a download, still waits for Posters.
+    let beside = media.path().join("fanart.png");
+    std::fs::write(&beside, &wide).unwrap();
+    let artwork = artwork_on(&data, Router::new().fallback(|| async { wide })).await;
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    // Named so the Library lists its Backdrops before its Posters.
+    let image = |path: String| {
+        Some(ImageRef {
+            plugin: PluginId::from_static("tmdb"),
+            path,
+        })
+    };
+    let with_artwork = |tmdb, title: &str| Metadata {
+        poster: image(format!("/z-{title}.jpg")),
+        backdrop: image(format!("/a-{title}.jpg")),
+        ..tmdb_movie(tmdb, title)
+    };
+    let alien = MatchedMovie::new(&db, media.path(), with_artwork(1, "alien")).await;
+    let contents = Contents::new(Arc::clone(&db));
+    let dune_path = media.path().canonicalize().unwrap().join("Dune.mkv");
+    let dune = with_artwork(2, "dune");
+    MatchedMovie::store(&contents, alien.library, dune_path.to_str().unwrap(), dune).await;
+    let settings = ServerSettings::new(Arc::clone(&db), data.path().to_owned());
+    settings.change_images(true, Some(1)).await.unwrap();
+    // One byte under 80% of 1 MiB, so the first copy made is the last made ahead.
+    let cache = data.path().join("resized");
+    std::fs::create_dir_all(&cache).unwrap();
+    let filler = std::fs::File::create(cache.join("filler")).unwrap();
+    filler.set_len(1024 * 1024 / 100 * 80 - 1).unwrap();
+    let custom_images = CustomImages::new(Arc::clone(&db), artwork.store.clone());
+    let local_images = LocalImages::new(Arc::clone(&db), artwork.store.clone());
+    let backdrop = LocalImageFile {
+        path: beside.to_str().unwrap().to_owned(),
+        size: 1,
+        modified_ns: 0,
+    };
+    let found = FoundImages::from([((alien.version, LocalRole::Title(Role::Backdrop)), backdrop)]);
+    (local_images
+        .keep(alien.library, &[alien.version], &found)
+        .await)
+        .unwrap();
+    let artwork = artwork.resizing_ahead(settings.images(), custom_images, local_images);
+
+    artwork.download_missing(contents.clone(), alien.library);
+    Artwork::settled().await;
+    let cached = || {
+        let files = walkdir::WalkDir::new(&cache)
+            .into_iter()
+            .map(Result::unwrap);
+        (files.filter(|file| file.file_type().is_file()))
+            .map(walkdir::DirEntry::into_path)
+            .collect::<BTreeSet<_>>()
+    };
+    let first = cached();
+    artwork.download_missing(contents, alien.library);
+    Artwork::settled().await;
+
+    let listed = |dir: &Path| -> Vec<_> {
+        (std::fs::read_dir(dir).unwrap())
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect()
+    };
+    let top = listed(&cache);
+    assert_eq!(top.len(), 2, "only the filler and artwork: {top:?}");
+    let copied = listed(&cache.join("artwork/tmdb"));
+    assert!(
+        matches!(copied.as_slice(), [poster] if poster.starts_with("%2Fz-")),
+        "{copied:?}"
+    );
+    assert!(first.contains(&cache.join("filler")));
+    assert_eq!(cached(), first, "the second scan made and evicted nothing");
 }

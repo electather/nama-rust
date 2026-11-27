@@ -316,45 +316,62 @@ impl Artwork {
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
     /// Poster and Backdrop a title of it shows, downloaded before or just now or beside its media,
     /// and each downloaded titled Backdrop and Title Logo, and each Custom Image of it and its
-    /// titles, is resized to the widths the web app offers it at too, where resizing is on now and
-    /// those copies aren't there. A downloaded Poster or Backdrop that a Custom Image or image
-    /// beside the media stands in for gets none.
+    /// titles, is resized to the widths the web app offers it at too, Posters first, where resizing
+    /// is on now, those copies aren't there and the resized cache has room for them. A downloaded
+    /// Poster or Backdrop that a Custom Image or image beside the media stands in for gets none.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
         let copies = (self.ahead.as_ref()).map_or_else(CopiesAhead::default, CopiesAhead::of);
-        // Resizing off leaves every kind's copies empty.
-        if let Some(ahead) = &self.ahead
-            && !copies.posters.is_empty()
-        {
-            (ahead.local_images).resize_shown(
-                library,
-                ahead.custom_images.clone(),
-                copies.posters.clone(),
-                copies.backdrops.clone(),
-            );
-        }
         self.tasks.spawn(async move {
             let listed = tokio::try_join!(
                 contents.images(Some(library)),
                 artwork.shown_downloaded(&contents, library),
                 contents.titled_backdrops_and_title_logos(library)
             );
-            match listed {
-                Ok((images, (posters, backdrops), (titled_backdrops, title_logos))) => {
-                    // A Poster that is also a Backdrop is rare enough to get only a Poster's.
-                    let ahead = (backdrops.into_iter().chain(titled_backdrops))
-                        .map(|image| (image, &*copies.backdrops))
-                        .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
-                        .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
-                        .collect();
-                    artwork.download(images, &ahead).await;
-                }
-                Err(err) => {
+            // The images beside the media and Custom Images are still resized without the list.
+            let (images, (posters, backdrops), (titled_backdrops, title_logos)) = listed
+                .unwrap_or_else(|err| {
                     tracing::error!(library, "could not list the images to download: {err}");
-                }
-            }
+                    Default::default()
+                });
+            let (poster_images, others): (Vec<_>, Vec<_>) = images
+                .into_iter()
+                .partition(|image| posters.contains(image));
+            // A Poster that is also a Backdrop is rare enough to get only a Poster's.
+            let ahead = (backdrops.into_iter().chain(titled_backdrops))
+                .map(|image| (image, &*copies.backdrops))
+                .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
+                .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
+                .collect();
+            // Every source's Posters before any Backdrop or Title Logo, so a cache near its limit
+            // holds those a first visit needs (#2253).
+            tokio::join!(
+                artwork.resize_beside_media_and_custom(library, &copies.posters, &[]),
+                artwork.download(poster_images, &ahead)
+            );
+            tokio::join!(
+                artwork.resize_beside_media_and_custom(library, &[], &copies.backdrops),
+                artwork.download(others, &ahead)
+            );
         });
+    }
+
+    /// Makes `posters` and `backdrops` of the images beside the Library `library`'s media and of
+    /// its Custom Images, as [`LocalImages::resize_shown`] picks them. None while resizing is off.
+    async fn resize_beside_media_and_custom(
+        &self,
+        library: i64,
+        posters: &[Resize],
+        backdrops: &[Resize],
+    ) {
+        if let Some(ahead) = &self.ahead
+            && !(posters.is_empty() && backdrops.is_empty())
+        {
+            (ahead.local_images)
+                .resize_shown(library, &ahead.custom_images, posters, backdrops)
+                .await;
+        }
     }
 
     /// Each Poster, then each Backdrop but titled ones, as its Plugin and path, that some title
@@ -385,12 +402,13 @@ impl Artwork {
 
     /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes the
     /// copies `ahead` lists of each, kept already or not, at most [`DOWNLOADS`] at a time across
-    /// the Server. Returns once the last has started.
+    /// the Server. Returns once the last has finished.
     async fn download(
         &self,
         images: Vec<(String, String)>,
         ahead: &HashMap<(String, String), &[Resize]>,
     ) {
+        let finished = TaskTracker::new();
         for image in images {
             // The semaphore is never closed.
             let Ok(permit) = Arc::clone(&self.downloads).acquire_owned().await else {
@@ -399,9 +417,11 @@ impl Artwork {
             let copies = ahead
                 .get(&image)
                 .map_or_else(Vec::new, |copies| copies.to_vec());
-            self.tasks
-                .spawn(self.clone().download_one(image, copies, permit));
+            let one = self.clone().download_one(image, copies, permit);
+            self.tasks.spawn(finished.track_future(one));
         }
+        finished.close();
+        finished.wait().await;
     }
 
     /// Keeps one image for [`Self::download`], logging a failure, and makes `copies` of it, then
