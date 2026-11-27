@@ -18,8 +18,8 @@ service MovieFulfillerService {
 }
 
 // The Extension Point for a Fulfiller of Season Requests, with the exports of
-// `MovieFulfillerService`, `follow` and `unfollow`. A Plugin serving both tells a Movie Request from a Season
-// one by which it holds.
+// `MovieFulfillerService`, `follow` and `unfollow`. A Plugin serving both tells a Movie Request
+// from a Season one by which it holds.
 service ShowFulfillerService {
   // The `fulfill` export, as for `MovieFulfillerService`, for a Season. Required.
   rpc Fulfill(Request) returns (Fulfilled);

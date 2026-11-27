@@ -53,8 +53,9 @@ pub(super) trait FulfillerKind {
     const FULFILL: &'static Method;
     const STOP_MONITORING: &'static Method;
     const PROGRESS: &'static Method;
-    /// `None` for a service without the method, as for `FOLLOW`.
+    /// `None` for a service without the method.
     const UNFOLLOW: Option<&'static Method>;
+    /// `None` for a service without the method.
     const FOLLOW: Option<&'static Method>;
 
     /// The id namespaces `manifest` says its Fulfiller of this kind needs, as written: one that

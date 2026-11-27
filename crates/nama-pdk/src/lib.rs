@@ -336,9 +336,9 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
-/// The error a [`Fulfiller`] returns from `fulfill`, `follow`, `unfollow` or `stop_monitoring`, or a
-/// [`SegmentSource`] from `search`, when the service can't act yet, such as Sonarr still adding a
-/// Show or a rate limit reached: the Server asks again with the same input after this long,
+/// The error a [`Fulfiller`] returns from `fulfill`, `follow`, `unfollow` or `stop_monitoring`, or
+/// a [`SegmentSource`] from `search`, when the service can't act yet, such as Sonarr still adding
+/// a Show or a rate limit reached: the Server asks again with the same input after this long,
 /// clamped to 1 to 300 seconds, while the Plugin stays enabled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TryAgainIn(pub Duration);

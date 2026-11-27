@@ -1,6 +1,6 @@
 //! What Requests does with a Fulfiller: the Hand-off of each Approved Request, and telling the
-//! Shows Fulfiller to follow a Show or stop following it. Asking how the Requests it took are progressing is
-//! [`super::progress`]'s.
+//! Shows Fulfiller to follow a Show or stop following it. Asking how the Requests it took are
+//! progressing is [`super::progress`]'s.
 //!
 //! It holds no SQL: it calls Requests' functions to read Requests, and settles a Hand-off through
 //! [`Requests::apply`]'s path, which calls it in turn.
@@ -295,10 +295,10 @@ impl HandOff {
     pub(super) async fn follow(&self, show: &FollowShow) {
         let namespaces = show.show_ids.iter().map(|id| id.namespace.as_str());
         let about = AskedAbout::new("Show", namespaces);
-        let named = (show.show_ids.first()).map(|id| format!("{}-{}", id.namespace, id.value));
+        let show_id = (show.show_ids.first()).map(|id| format!("{}-{}", id.namespace, id.value));
         let not_followed = move |_: &PluginId, reason: &str| {
             warn!(
-                show = named.as_deref(),
+                show = show_id.as_deref(),
                 reason, "the Shows Fulfiller didn't follow the Show"
             );
         };
