@@ -2502,7 +2502,8 @@ pub const __TEST_PLUGIN_SETTINGS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonA
 #[serde(default)]
 pub struct TestPluginSettingsResponse {
     /// The choices for each `SETTING_KIND_CHOICE` setting listing no `Setting.choices`, and each
-    /// choice setting listing some the check offers its own for, by key.
+    /// `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting listing some that the check offers its
+    /// own for, by key.
     ///
     /// Field 1: `choices`
     #[serde(

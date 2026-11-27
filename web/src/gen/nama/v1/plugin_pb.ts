@@ -208,7 +208,8 @@ export const TestPluginSettingsRequestSchema: GenMessage<TestPluginSettingsReque
 export type TestPluginSettingsResponse = Message<"nama.v1.TestPluginSettingsResponse"> & {
   /**
    * The choices for each `SETTING_KIND_CHOICE` setting listing no `Setting.choices`, and each
-   * choice setting listing some the check offers its own for, by key.
+   * `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting listing some that the check offers its
+   * own for, by key.
    *
    * @generated from field: map<string, nama.v1.SettingChoices> choices = 1;
    */
@@ -1439,17 +1440,17 @@ export const PluginService: GenService<{
    * `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. A required setting left out or
    * blank is refused with `REFUSAL_REASON_FIELD_REQUIRED` only while the Plugin is meant to be
    * enabled: a disabled Plugin's can be cleared, and `EnablePlugin` checks them. A repeated Library
-   * id is saved once, where it first appears. If a choice setting has a value, the Plugin's
-   * settings check runs on the new settings first, and a check that fails, or doesn't offer that
-   * value, is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or
-   * `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the setting, and nothing changes. A choice setting
-   * listing `Setting.choices` and a `SETTING_KIND_CHOICES` setting are checked the same way,
-   * against the choices the check offers for it or else its `Setting.choices`, the check running
-   * only if the Plugin has one, and a `SETTING_KIND_CHOICES` setting's values are each saved once,
-   * in the order its choices are listed. A Plugin that then refuses to start
-   * with them doesn't fail the call: the settings are saved and it comes back not running
-   * (`plugin.summary.enabled` false); `EnablePlugin` says why with
-   * `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
+   * id is saved once, where it first appears. If a `SETTING_KIND_CHOICE` setting listing no
+   * `Setting.choices` has a value, the Plugin's settings check runs on the new settings first, and
+   * a check that fails, or doesn't offer that value, is refused with
+   * `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the
+   * setting, and nothing changes. A `SETTING_KIND_CHOICE` setting listing `Setting.choices` and a
+   * `SETTING_KIND_CHOICES` setting are checked the same way, against the choices the check offers
+   * for it or else its `Setting.choices`, the check running only if the Plugin has one, and a
+   * `SETTING_KIND_CHOICES` setting's values are each saved once, in the order its choices are
+   * listed. A Plugin that then refuses to start with them doesn't fail the call: the settings are
+   * saved and it comes back not running (`plugin.summary.enabled` false); `EnablePlugin` says why
+   * with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
    *
    * @generated from rpc nama.v1.PluginService.UpdatePluginSettings
    */
@@ -1477,12 +1478,12 @@ export const PluginService: GenService<{
   /**
    * Runs a Plugin's settings check on `settings`, which may not be saved yet, and returns the
    * choices it offers for each `SETTING_KIND_CHOICE` setting listing no `Setting.choices`, and for
-   * each choice setting listing some it offers its own for, which replace them. It runs only when
-   * called, never to enable a Plugin. Settings that don't fit the Plugin's schema are refused as in
-   * `UpdatePluginSettings`, except that a choice setting may be left out. A check that fails, runs
-   * too long or crashes is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, its message saying
-   * why in plain words, as is a Plugin without a check (see `Plugin.checks_settings`). Fails with
-   * `not_found` for an unknown Plugin.
+   * each `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting listing some that it offers its
+   * own for, which replace them. It runs only when called, never to enable a Plugin. Settings that
+   * don't fit the Plugin's schema are refused as in `UpdatePluginSettings`, except that a choice
+   * setting may be left out. A check that fails, runs too long or crashes is refused with
+   * `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, its message saying why in plain words, as is a Plugin
+   * without a check (see `Plugin.checks_settings`). Fails with `not_found` for an unknown Plugin.
    *
    * Not NO_SIDE_EFFECTS, though it has none: that lets a client send it as a GET, which would put
    * a secret in the URL.
