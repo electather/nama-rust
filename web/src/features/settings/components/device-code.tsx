@@ -17,7 +17,7 @@ export function DeviceCode({
   onCancel,
 }: {
   code: string | undefined;
-  refused: FormErrors | undefined;
+  refused: FormErrors<"signInCode"> | undefined;
   onFound: (code: string, deviceName: string) => void;
   onCancel: () => void;
 }) {

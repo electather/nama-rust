@@ -13,7 +13,7 @@ export function NameThisDevice({
 }: {
   onSubmit: (deviceName: string) => void;
   pending: boolean;
-  errors: FormErrors;
+  errors: FormErrors<"deviceName">;
   footer: ReactNode;
 }) {
   return (

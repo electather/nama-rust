@@ -4,7 +4,7 @@ import { PasswordField } from "@/shared/components/form-field/password-field";
 import type { FormErrors } from "@/shared/lib/forms";
 
 /** The fields of the setup form: the Setup Code, then the first Admin. */
-export function SetupFields({ errors }: { errors: FormErrors }) {
+export function SetupFields({ errors }: { errors: FormErrors<"setupCode" | "name" | "password"> }) {
   return (
     <>
       <SetupCodeField error={errors.setupCode} />

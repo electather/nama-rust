@@ -3,7 +3,10 @@ import { RemoteLimitField } from "@/features/admin-playback/components/remote-li
 import { SegmentFields } from "@/features/admin-playback/components/segment-fields";
 import { usePlaybackSettings } from "@/features/admin-playback/data/use-playback-settings";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
-import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
+import type {
+  PlaybackField,
+  PlaybackValues,
+} from "@/features/admin-playback/lib/playback-settings-form";
 import { saveOnLeave } from "@/features/admin-playback/lib/save-on-leave";
 import { FormField } from "@/shared/components/form-field/form-field";
 import type { FormErrors } from "@/shared/lib/forms";
@@ -22,7 +25,7 @@ export function PlaybackSettingsFields({
 }: {
   values: PlaybackValues;
   /** Why the Server refused the last change, under its field. */
-  errors: FormErrors;
+  errors: FormErrors<PlaybackField>;
   onEdit: (changes: Partial<PlaybackValues>) => void;
 }) {
   const saved = usePlaybackSettings();
