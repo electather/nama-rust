@@ -191,6 +191,135 @@ test("an unreachable Server's rows are left out, and the others' still show", as
   });
 });
 
+/** Continue Watching's skeleton on Home, if it shows. */
+function continueWatchingSkeleton() {
+  return screen.getByRole("region", { name: "Continue Watching" }).querySelector(".animate-pulse");
+}
+
+test("continue Watching at the Hub shows its skeleton till the first Server answers", async () => {
+  let answerBasement: ((answer: ReturnType<typeof listing>) => void) | undefined;
+  const basementAnswers = new Promise<ReturnType<typeof listing>>((resolve) => {
+    answerBasement = resolve;
+  });
+  openHub({
+    "https://basement.example": fakeServer({
+      listContinueWatching: async () => {
+        const answer = await basementAnswers;
+        return answer;
+      },
+    }),
+    "https://cabin.example": fakeServer({
+      listContinueWatching: async () => {
+        // Cabin never answers.
+        await new Promise(() => {});
+        return {};
+      },
+    }),
+  });
+  await waitFor(() => {
+    expect(continueWatchingSkeleton()).not.toBeNull();
+  });
+
+  answerBasement?.(listing([startedMovie(heat, "Heat", 200n)]));
+
+  await waitFor(() => {
+    expect(linksIn("Continue Watching")).toStrictEqual([
+      { name: "Resume Heat, 1h 39m left", server: "basement" },
+    ]);
+  });
+  expect(continueWatchingSkeleton()).toBeNull();
+});
+
+test("a Server whose Continue Watching fails is named, and the others' cards still show", async () => {
+  openHub({
+    "https://basement.example": fakeServer({
+      listContinueWatching: () => {
+        throw new ConnectError("broken", Code.Internal);
+      },
+    }),
+    "https://cabin.example": fakeServer({
+      listContinueWatching: () => listing([startedMovie(heat, "Heat", 200n)]),
+    }),
+  });
+
+  const region = await screen.findByRole("region", { name: "Continue Watching" });
+  await within(region).findByText("Couldn’t load Continue Watching from Basement.");
+  await waitFor(() => {
+    expect(linksIn("Continue Watching")).toStrictEqual([
+      { name: "Resume Heat, 1h 39m left", server: "cabin" },
+    ]);
+  });
+});
+
+/** `entries` as one answer of Continue Watching, `nextToken` asking for the rest. */
+function listing(entries: ReturnType<typeof startedMovie>[], nextToken = "") {
+  return { entries, page: { nextToken } };
+}
+
+/** A fake Server listing `entries` on Continue Watching, 20 to a page. */
+function pagedServer(entries: ReturnType<typeof startedMovie>[]) {
+  return fakeServer({
+    listContinueWatching: ({ page }) => {
+      // `Number("")` is 0: the first page.
+      const from = Number(page?.token ?? "");
+      const to = from + 20;
+      return listing(entries.slice(from, to), to < entries.length ? String(to) : "");
+    },
+  });
+}
+
+test("continue Watching at the Hub pages each Server as it scrolls, merged in order, each title once", async () => {
+  // Wide enough that the first pages fit across the shelf at once, so it's at its end.
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(4000);
+  const movies = Array.from({ length: 25 }, (_, at) =>
+    startedMovie({ namespace: "tmdb", value: String(at) }, `M${at}`, BigInt(1000 - at * 10)),
+  );
+  openHub({
+    "https://basement.example": pagedServer(movies),
+    "https://cabin.example": fakeServer({
+      listContinueWatching: () =>
+        listing([
+          startedMovie({ namespace: "tmdb", value: "22" }, "M22", 905n),
+          startedMovie(heat, "Heat", 805n),
+        ]),
+    }),
+  });
+
+  const titles = [
+    "M0",
+    "M1",
+    "M2",
+    "M3",
+    "M4",
+    "M5",
+    "M6",
+    "M7",
+    "M8",
+    "M9",
+    "M22",
+    "M10",
+    "M11",
+    "M12",
+    "M13",
+    "M14",
+    "M15",
+    "M16",
+    "M17",
+    "M18",
+    "M19",
+    "Heat",
+    "M20",
+    "M21",
+    "M23",
+    "M24",
+  ];
+  await waitFor(() => {
+    expect(linksIn("Continue Watching").map(({ name }) => name)).toStrictEqual(
+      titles.map((title) => `Resume ${title}, 1h 39m left`),
+    );
+  });
+});
+
 /** A fake Server listing Alien on Continue Watching till it's hidden, as `hidden` records. */
 function serverHidingAlien(updatedAt: bigint, hidden: Set<string>, origin: string) {
   return fakeServer(
