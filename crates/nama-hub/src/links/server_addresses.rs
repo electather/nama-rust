@@ -99,7 +99,8 @@ impl Links {
 
     /// Replaces the Server Addresses `server` reported before with its Server URL, LAN addresses
     /// and Relay at once, then with its public address once the Hub has tried to connect there,
-    /// and names it after them all.
+    /// and names it after them all. Any part of the report that isn't valid is refused with
+    /// [`Error::AddressInvalid`] before anything is stored.
     pub(crate) async fn set_addresses(
         &self,
         server: &LinkedServer,
@@ -108,7 +109,7 @@ impl Links {
         let ReportedAddresses {
             url, lan_addresses, ..
         } = reported;
-        let (public, relay) = checked_endpoints(&reported)?;
+        let (public, relay) = checked_report(&reported)?;
         // Stored before the probe, which can take seconds, so a sign-in returning to the new
         // Server URL meanwhile isn't refused by `is_return_address`.
         sqlx::query!(
@@ -222,7 +223,7 @@ impl Links {
 
 /// The public address to probe and the Relay `reported` holds, or [`Error::AddressInvalid`] for
 /// any part of it that isn't valid, so nothing is stored from a bad report.
-fn checked_endpoints(
+fn checked_report(
     reported: &ReportedAddresses<'_>,
 ) -> Result<(Option<SocketAddr>, Option<SocketAddr>), Error> {
     let addresses_valid = reported.lan_addresses.len() <= MAX_LAN_ADDRESSES

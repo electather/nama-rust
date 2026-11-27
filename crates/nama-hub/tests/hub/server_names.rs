@@ -303,7 +303,7 @@ async fn a_servers_relay_gets_a_name_under_its_own_and_comes_after_the_direct_ad
 }
 
 #[sqlx::test(migrations = false)]
-async fn a_relay_that_isnt_an_ip_address_and_port_is_refused(db: PgPool) {
+async fn a_report_with_a_relay_no_client_could_reach_is_refused_and_stores_nothing(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let living_room = linked(&hub, &ada, "Living room").await;
