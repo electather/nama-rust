@@ -23,7 +23,6 @@ const kinds = {
   shortcuts: TitleKind.UNSPECIFIED,
 } satisfies Record<Frame, TitleKind>;
 
-/** The request page of a title to request. */
 function requestPage({ kind, titleId }: FoundTitle): LinkOptions {
   return kind === "movie"
     ? { to: "/movies/$movieId", params: { movieId: titleId } }
@@ -135,7 +134,7 @@ export function useActionBar({
     active,
     slow,
     note: search.note,
-    /** The Server among those searched that a row's art is drawn from: none for a Recent's not reached. */
+    /** The Server searched that a row's art is drawn from, or none for a Recent whose isn't reached. */
     serverOf: (id: string | undefined) => search.servers.find(({ server }) => server?.id === id),
     handleClose: dialog.close,
     handleBack: back,

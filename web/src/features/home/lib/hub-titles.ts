@@ -11,7 +11,7 @@ export type TitleOn = TitleServer<LinkedServer> & { title: RowTitle };
 /** A Continue Watching card on the Server `server`, which `transport` reaches. */
 export type CardOn = TitleServer<LinkedServer> & { card: Card };
 
-/** `card`, from the Server `server` that `transport` reaches, opening there. */
+/** `card`, from the Server `on`, opening there. */
 export function cardOn(on: TitleServer<LinkedServer>, card: Card): CardOn {
   const page = { ...card.page, link: linkOn(card.page.link, on) };
   return { ...on, card: { ...card, link: linkOn(card.link, on), page } };
@@ -36,7 +36,7 @@ export function mergeTitles(lists: TitleOn[][]) {
 /** As many Featured panels as one Server's Featured has at most (`ListFeatured`). */
 const featuredCount = 5;
 
-/** `panel`, from the Server `server` that `transport` reaches, opening there. */
+/** `panel`, from the Server `on`, opening there. */
 export function panelOn(on: TitleServer<LinkedServer>, panel: Panel): PanelOn {
   const action = { ...panel.action, link: linkOn(panel.action.link, on) };
   const page = linkOn(panel.page, on);
