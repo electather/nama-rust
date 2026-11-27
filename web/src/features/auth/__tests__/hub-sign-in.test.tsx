@@ -138,6 +138,16 @@ test("at the Hub, a wrong password is refused under the password", async () => {
   await expectUnderField("Password", "That email and password don’t match an Account.");
 });
 
+test("at the Hub, a forgotten password points to a Sign-in Link", async () => {
+  openApp("/sign-in", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Forgot your password?" }));
+
+  expect(
+    screen.getByText("Ask for a Sign-in Link below: it signs you in without a password."),
+  ).toBeDefined();
+});
+
 test("signing the Account out goes back to sign-in", async () => {
   openApp("/", fakeHub({ signedIn: true }).transport);
 
