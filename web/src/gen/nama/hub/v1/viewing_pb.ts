@@ -34,8 +34,9 @@ export type ViewingEvent = Message<"nama.hub.v1.ViewingEvent"> & {
   episode: boolean;
 
   /**
-   * The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
-   * `tmdb-603`: 1 to 100 characters.
+   * The Movie or Episode, by the External ID its Server keeps its Watch State under, written
+   * `namespace-value` (ADR 0042): a Namespace of lowercase `a-z` and `0-9`, a `-`, then a
+   * non-empty value, such as `tmdb-603`. 1 to 100 characters.
    *
    * @generated from field: string external_id = 3;
    */
@@ -84,7 +85,7 @@ export type ViewingEvent = Message<"nama.hub.v1.ViewingEvent"> & {
   deviceKind: DeviceKind;
 
   /**
-   * An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+   * An Episode's Show, by its External ID written as `external_id` is, such as `tmdb-1399`: 1 to
    * 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
    * took it.
    *
