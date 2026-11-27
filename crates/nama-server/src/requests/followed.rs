@@ -281,7 +281,7 @@ async fn open_or_join(
             ..Default::default()
         }));
         if state == RequestState::Approved {
-            follow = Some(to_follow(conn, &followed).await?);
+            follow = Some(show_to_follow(conn, &followed).await?);
         }
     } else if joined {
         happened.push(event(FollowedShowRequesterAdded {
@@ -447,7 +447,7 @@ pub(super) async fn decide_followed(
         .chain(seasons_changed)
         .collect();
     let (hand_off, follow) = if state == RequestState::Approved {
-        (requests, Some(to_follow(conn, &followed).await?))
+        (requests, Some(show_to_follow(conn, &followed).await?))
     } else {
         (Vec::new(), None)
     };
@@ -463,7 +463,7 @@ pub(super) async fn decide_followed(
 
 /// The Show of the Followed Show `followed`, with every id it stores, as the Shows Fulfiller is
 /// asked to follow it.
-async fn to_follow(
+async fn show_to_follow(
     conn: &mut SqliteConnection,
     followed: &FollowedShow,
 ) -> Result<FollowShow, sqlx::Error> {

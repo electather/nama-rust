@@ -266,10 +266,13 @@ mod exports {
             Ok(commands.iter().any(|command| command.refreshes(show_id)))
         }
 
-        /// Has Sonarr monitor the new Seasons of the Show it has as `show_id`, or stop to.
+        /// Has Sonarr monitor the Show it has as `show_id` and its new Seasons, or stop
+        /// monitoring its new Seasons, leaving the Show monitored for those still downloading.
         fn monitor_new_seasons(&self, show_id: i64, monitored: bool) -> Result<(), Error> {
             let editor = SeriesEditor {
                 series_ids: [show_id],
+                // Sonarr fetches nothing of a Show it doesn't monitor.
+                monitored: monitored.then_some(true),
                 monitor_new_items: new_items(monitored),
             };
             self.api.change("PUT", "series/editor", editor)
@@ -481,6 +484,9 @@ mod exports {
     #[serde(rename_all = "camelCase")]
     struct SeriesEditor {
         series_ids: [i64; 1],
+        /// Whether Sonarr monitors the Show. Left out, it stays as it is.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        monitored: Option<bool>,
         monitor_new_items: &'static str,
     }
 

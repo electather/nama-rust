@@ -322,7 +322,7 @@ fn a_whole_show_sonarr_has_gets_its_new_seasons_monitored() {
     );
     assert_eq!(
         body_of(&kernel, "PUT series/editor"),
-        json!({"seriesIds": [DARK_SONARR_ID], "monitorNewItems": "all"})
+        json!({"seriesIds": [DARK_SONARR_ID], "monitored": true, "monitorNewItems": "all"})
     );
     assert_eq!(
         body_of(&kernel, "POST seasonpass"),
@@ -512,7 +512,7 @@ fn following_a_show_sonarr_lacks_adds_it_monitoring_only_its_new_seasons_without
 }
 
 #[test]
-fn following_a_show_sonarr_has_turns_on_its_new_season_monitoring_without_a_search() {
+fn following_a_show_sonarr_has_monitors_it_and_its_new_seasons_without_a_search() {
     let mut kernel = sonarr_answering(vec![dark_found(), no_commands(), accepted()]);
 
     with(&mut kernel, || SonarrFulfiller::follow(dark_to_follow())).unwrap();
@@ -527,7 +527,7 @@ fn following_a_show_sonarr_has_turns_on_its_new_season_monitoring_without_a_sear
     );
     assert_eq!(
         body_of(&kernel, "PUT series/editor"),
-        json!({"seriesIds": [DARK_SONARR_ID], "monitorNewItems": "all"})
+        json!({"seriesIds": [DARK_SONARR_ID], "monitored": true, "monitorNewItems": "all"})
     );
 }
 

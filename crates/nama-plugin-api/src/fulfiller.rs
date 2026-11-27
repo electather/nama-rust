@@ -61,9 +61,9 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     -> BoxFuture<'a, Result<Fulfilled, PluginError>>;
 
     /// Follows `show`, whose Followed Show became Approved: has the service fetch the Seasons that
-    /// come out from now on, at `show`'s quality profile, but none already out. A hand-off naming
-    /// the Followed Show asks to follow too, so following must be idempotent. A Fulfiller that
-    /// never follows, such as one for Movies, leaves it be.
+    /// come out from now on, but none already out, adding the Show at `show`'s quality profile if
+    /// the service lacks it. A hand-off naming the Followed Show asks to follow too, so following
+    /// must be idempotent. A Fulfiller that never follows, such as one for Movies, leaves it be.
     ///
     /// # Errors
     ///
