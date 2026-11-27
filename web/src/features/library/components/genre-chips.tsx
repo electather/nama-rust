@@ -15,8 +15,8 @@ export function GenreChips({ listing, change, genres }: BarProps & { genres: str
   const [more, setMore] = useState(false);
   const shown = genres.filter((genre, at) => more || at < FIRST || chosen.includes(genre));
   return (
-    <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2.5 text-sm font-medium">Genre</legend>
+    <fieldset className="flex flex-wrap gap-1.5">
+      <legend className="mb-2 text-sm font-medium">Genre</legend>
       {shown.map((genre) => {
         const on = chosen.includes(genre);
         const changed = on ? chosen.filter((named) => named !== genre) : [...chosen, genre];

@@ -10,7 +10,7 @@ const heading = "text-sm font-medium";
 /** What the Filter button opens: genres, then Watch State, and Clear filters. */
 export function FilterPanel({ genres, ...bar }: BarProps & { genres: string[] }) {
   const clear = isFiltered(bar.listing) && (
-    <div className="-mt-1 flex justify-end">
+    <div className="-mt-2 flex justify-end">
       <Button
         variant="ghost"
         onClick={() => {
@@ -22,10 +22,11 @@ export function FilterPanel({ genres, ...bar }: BarProps & { genres: string[] })
     </div>
   );
   return (
-    // The popover keeps to the room under its button, so a short window scrolls the panel.
-    <div className="flex min-h-0 scrollbar-quiet scrollbar-stable flex-col gap-5 overflow-y-auto p-4">
+    // A short window scrolls the panel. While the popover eases to a new size it clips instead,
+    // or a scrollbar coming and going narrows the chips, rewraps them and resizes it again.
+    <div className="flex min-h-0 scrollbar-quiet flex-col gap-4 overflow-y-auto p-3 in-data-resizing:overflow-hidden">
       {genres.length > 0 && <GenreChips genres={genres} {...bar} />}
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2">
         <p className={heading}>Watch State</p>
         <WatchStateChoice {...bar} />
       </div>
