@@ -35,7 +35,8 @@ pub(crate) const MAX_TITLE_LENGTH: usize = 1000;
 /// 0058).
 const MAX_WATCHLISTED: i64 = 200;
 
-/// Why a Linked Server's push or Watchlist was refused whole.
+/// Why `sync` took none of a Linked Server's push or Watchlist: a limit it broke, refused whole,
+/// or the database.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     #[error("a push holds up to {MAX_CHANGES} changes")]
@@ -380,15 +381,10 @@ impl TrackPreferenceChange {
             PreferenceFor::User => true,
             PreferenceFor::Movie(id) | PreferenceFor::Show(id) => id_fits(id),
         };
-        let (language, title) = (self.like.as_ref()).map_or(("", ""), |like| {
-            (like.language.as_str(), like.title.as_str())
-        });
         if !title_id_fits {
             Some(Part::TitleId)
-        } else if language.chars().count() > MAX_LANGUAGE_LENGTH {
-            Some(Part::Language)
-        } else if title.chars().count() > MAX_TITLE_LENGTH {
-            Some(Part::Title)
+        } else if let Some(part) = self.like.as_ref().and_then(Like::broken) {
+            Some(part)
         } else if !dated_in_range(self.changed_at_ms) {
             Some(Part::ChangedAt)
         } else {
@@ -438,6 +434,19 @@ pub(crate) struct Like {
     pub(crate) sdh: bool,
     /// Empty for none.
     pub(crate) title: String,
+}
+
+impl Like {
+    /// The first part of it that breaks a limit, if one does.
+    pub(crate) fn broken(&self) -> Option<Part> {
+        if self.language.chars().count() > MAX_LANGUAGE_LENGTH {
+            Some(Part::Language)
+        } else if self.title.chars().count() > MAX_TITLE_LENGTH {
+            Some(Part::Title)
+        } else {
+            None
+        }
+    }
 }
 
 /// The Accounts' merged Track Preferences.

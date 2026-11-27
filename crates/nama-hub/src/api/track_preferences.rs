@@ -48,7 +48,7 @@ pub(super) async fn pull_track_preferences(
 }
 
 /// `changes` as `sync` takes them, or the refusal of the first whose kind doesn't fit its title
-/// id. `sync` checks the rest.
+/// id or that is turned off with a language or title `sync` wouldn't take. `sync` checks the rest.
 pub(super) fn changes_from_proto(
     changes: Vec<proto::TrackPreferenceChange>,
 ) -> Result<Vec<TrackPreferenceChange>, ConnectError> {
@@ -70,24 +70,24 @@ fn change_from_proto(
         Some(TitleKind::TITLE_KIND_SHOW) => PreferenceFor::Show(title_id),
         Some(TitleKind::TITLE_KIND_UNSPECIFIED) | None => return Err(broken(Part::TitleId)),
     };
+    let like = Like {
+        language: change.language,
+        forced: change.forced,
+        sdh: change.sdh,
+        title: change.title,
+    };
     // A change turned off reaches `sync` without its language and title, which a Linked Server
     // still gets refused for when over-long, as it always has.
-    if change.off && change.language.chars().count() > MAX_LANGUAGE_LENGTH {
-        return Err(broken(Part::Language));
-    }
-    if change.off && change.title.chars().count() > MAX_TITLE_LENGTH {
-        return Err(broken(Part::Title));
+    if change.off
+        && let Some(part) = like.broken()
+    {
+        return Err(broken(part));
     }
     Ok(TrackPreferenceChange {
         user_id: change.user_id,
         audio: change.audio,
         kept_for,
-        like: (!change.off).then_some(Like {
-            language: change.language,
-            forced: change.forced,
-            sdh: change.sdh,
-            title: change.title,
-        }),
+        like: (!change.off).then_some(like),
         foreign_audio_only: change.foreign_audio_only,
         changed_at_ms: change.changed_at_ms,
     })
