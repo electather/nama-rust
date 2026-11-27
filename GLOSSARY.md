@@ -357,6 +357,10 @@ _Avoid_: image list, artwork set, gallery
 An image an admin uploaded, or picked from a title source's artwork list, to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Library's Backdrop. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
 _Avoid_: override, variant, replacement
 
+**Resized cache**:
+The local cache of copies of stored images at the listed widths, with their markers and thumbhashes, which may be deleted at any time and drops the least recently sent past its limit (ADR 0039, ADR 0052).
+_Avoid_: image cache, thumbnail cache
+
 **Match**:
 The link between an Item in a Library and a title in a title source. An Item without one is Unmatched.
 _Avoid_: identification, lookup

@@ -9,7 +9,7 @@ use std::{
 
 use tempfile::NamedTempFile;
 
-use super::{Blobs, RESIZED_DIR, synced_beside, unless_gone};
+use super::{Blobs, resized_cache::RESIZED_DIR, synced_beside, unless_gone};
 use crate::db::BoxFuture;
 
 /// Objects as files in the data directory.

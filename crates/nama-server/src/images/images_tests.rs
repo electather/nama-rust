@@ -7,7 +7,7 @@ use tempfile::TempDir;
 use axum::http::{HeaderMap, HeaderValue, header};
 
 use super::{
-    Format, ImageStore, MAX_BYTES, UPLOADS_DIR, file_name, serving::format_asked, unescape,
+    ImageStore, MAX_BYTES, UPLOADS_DIR, file_name, resized::Format, serving::format_asked, unescape,
 };
 use crate::db::Database;
 
