@@ -16,11 +16,11 @@ use std::{
 use axum::body::Bytes;
 use connectrpc::client::ClientConfig;
 use nama_hub::{
-    db,
+    Handles, db,
     diagnostics::{Backend, Forwarding, Signal},
     dns::{DnsError, Record, Records, ServerNames, Writing},
     mail::Mail,
-    probe::{Probe, Probing, Tcp},
+    probe::{Probe, Probing},
     signing::Keys,
 };
 use sqlx::PgPool;
@@ -133,12 +133,12 @@ impl TestHub {
     /// [`PUBLIC_URL`], sending mail through `mail`, if any, and trusting this machine as its
     /// reverse proxy, so a test can say in `X-Forwarded-For` which client a request is from.
     pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
-        Self::start_at(db, mail, Some(PUBLIC_URL), Arc::new(Tcp)).await
+        Self::start_at(db, |handles| handles.mail = mail).await
     }
 
     /// As [`TestHub::start`], but with no public address, as without `NAMA_HUB_PUBLIC_URL`.
     pub(crate) async fn start_without_public_address(db: PgPool) -> Self {
-        Self::start_at(db, None, None, Arc::new(Tcp)).await
+        Self::start_at(db, |handles| handles.public_url = None).await
     }
 
     /// As [`TestHub::start`], but each probe of a public port arrives on the receiver, pending
@@ -150,17 +150,17 @@ impl TestHub {
         let (held, probes) = mpsc::unbounded_channel();
         let probe = Arc::new(HeldProbes(held));
         (
-            Self::start_at(db, mail, Some(PUBLIC_URL), probe).await,
+            Self::start_at(db, |handles| {
+                handles.mail = mail;
+                handles.probe = probe;
+            })
+            .await,
             probes,
         )
     }
 
-    async fn start_at(
-        db: PgPool,
-        mail: Option<Mail>,
-        public_url: Option<&str>,
-        probe: Arc<dyn Probe>,
-    ) -> Self {
+    /// Starts with every fake and the public address set, then `change`s the handles.
+    async fn start_at(db: PgPool, change: impl FnOnce(&mut Handles)) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -173,21 +173,17 @@ impl TestHub {
             zone: ZONE.to_owned(),
             records: Arc::<FakeZone>::clone(&zone),
         };
-        let public_url = public_url.map(|url| url.parse().unwrap());
-        tokio::spawn(nama_hub::serve(
-            listener,
-            db.clone(),
-            keys,
-            &["127.0.0.1".parse().unwrap()],
-            mail,
-            Some(names),
-            Some(backend),
-            public_url.as_ref(),
-            probe,
-            async {
-                let _: Result<(), oneshot::error::RecvError> = stopped.await;
-            },
-        ));
+        let mut handles = Handles {
+            trusted_proxies: vec!["127.0.0.1".parse().unwrap()],
+            names: Some(names),
+            diagnostics: Some(backend),
+            public_url: Some(PUBLIC_URL.parse().unwrap()),
+            ..Handles::new(keys)
+        };
+        change(&mut handles);
+        tokio::spawn(nama_hub::serve(listener, db.clone(), handles, async {
+            let _: Result<(), oneshot::error::RecvError> = stopped.await;
+        }));
         Self {
             addr,
             db,
