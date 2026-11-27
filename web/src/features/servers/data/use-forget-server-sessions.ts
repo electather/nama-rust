@@ -1,5 +1,6 @@
+import type { Transport } from "@connectrpc/connect";
 import { callUnaryMethod, createConnectQueryKey } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
 
 import { bearer, forgetServerSessions } from "@/features/servers/lib/server-sessions";
@@ -8,26 +9,30 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import type { ServerAt } from "@/shared/lib/server";
 
 /**
+ * The Account's Servers the cache lists, for `useForgetServerSessions` to find them once the cache
+ * is cleared: signed out, the Hub lists none.
+ */
+export function cachedLinkedServers(queryClient: QueryClient, hub: Transport) {
+  return queryClient.getQueryData(
+    createConnectQueryKey({
+      schema: LinkService.method.listLinkedServers,
+      input: {},
+      transport: hub,
+      cardinality: "finite",
+    }),
+  );
+}
+
+/**
  * Forgets the session this browser keeps on each of the Account's Servers, as Hub sign-in and
- * sign-out do, after running `leave`, such as leaving the pages that use them. Signs each Device
- * out on its Server too, without waiting, so a Server that never answers holds up nothing.
+ * sign-out do, finding them in `listed`, else asking the Hub. Signs each Device out on its Server
+ * too, without waiting, so a Server that never answers holds up nothing.
  */
 export function useForgetServerSessions() {
-  const queryClient = useQueryClient();
   const { transport: hub, serverAt } = useRouteContext({ from: "__root__" });
-  return async (leave?: () => Promise<void> | void) => {
-    // Read before `leave` may clear the cache: once signed out, the Hub lists no Servers.
-    // ponytail: a Server neither cached nor on the signed-in Account's list keeps its Device until
-    // it expires; keep each Server's address with its session if that matters.
-    const listed = queryClient.getQueryData(
-      createConnectQueryKey({
-        schema: LinkService.method.listLinkedServers,
-        input: {},
-        transport: hub,
-        cardinality: "finite",
-      }),
-    );
-    await leave?.();
+  // ponytail: a Server neither cached nor on the signed-in Account's list keeps its Device until
+  // it expires; keep each Server's address with its session if that matters.
+  return (listed: ListLinkedServersResponse | undefined) => {
     const kept = forgetServerSessions();
     if (kept.length > 0) {
       const listServers = async (signal: AbortSignal) =>

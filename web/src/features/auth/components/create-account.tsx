@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 
 import { EmailField } from "@/features/auth/components/email-field";
 import { useCreateAccount } from "@/features/auth/data/use-create-account";
-import { useFinishHubSignIn } from "@/features/auth/data/use-finish-hub-sign-in";
 import { hubErrors } from "@/features/auth/lib/hub-errors";
 import { PasswordField } from "@/shared/components/form-field/password-field";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
@@ -14,7 +13,7 @@ import { textLink } from "@/shared/lib/text-link-classes";
  * `redirect`.
  */
 export function CreateAccount({ redirect }: { redirect: string | undefined }) {
-  const create = useCreateAccount(useFinishHubSignIn(redirect));
+  const create = useCreateAccount(redirect);
   const errors = create.error ? hubErrors(create.error) : {};
   return (
     <SignInLayout

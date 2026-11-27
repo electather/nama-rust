@@ -1,9 +1,12 @@
 import { Code, ConnectError } from "@connectrpc/connect";
+import { QueryClient } from "@tanstack/react-query";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { askAgainWhoIsSignedIn, signedInAccount } from "@/shared/hooks/access";
 import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { accountHub } from "@/test-hub";
 import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -79,6 +82,7 @@ test("setting up creates the first Admin and lands on the home page", async () =
   await submitSetup("ABCD-EFGH");
   await expect(screen.findByRole("button", { name: /’s menu$/u })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
+  expect(router.history.canGoBack()).toBe(false);
 });
 
 test("a wrong Setup Code is shown next to its field", async () => {
@@ -287,4 +291,36 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
   await signOut();
   await screen.findByRole("heading", { name: "Sign in a Device" });
   expect(router.state.location.pathname).toBe("/code");
+});
+
+test("asking the Hub again reruns the access checks once its session ended", async () => {
+  const { hub, transport } = accountHub();
+  const context = { queryClient: new QueryClient(), transport };
+  await signedInAccount(context);
+  hub.signedIn = false;
+  const rerun = vi.fn<() => Promise<void>>();
+
+  await askAgainWhoIsSignedIn(context, "account", rerun);
+
+  expect(rerun.mock.calls).toStrictEqual([[]]);
+});
+
+test("asking the Hub again reruns the access checks when an idle page's cache lost the Account", async () => {
+  const { hub, transport } = accountHub();
+  hub.signedIn = false;
+  const rerun = vi.fn<() => Promise<void>>();
+
+  await askAgainWhoIsSignedIn({ queryClient: new QueryClient(), transport }, "account", rerun);
+
+  expect(rerun.mock.calls).toStrictEqual([[]]);
+});
+
+test("asking the Hub again leaves the access checks alone while the same Account is signed in", async () => {
+  const context = { queryClient: new QueryClient(), transport: accountHub().transport };
+  await signedInAccount(context);
+  const rerun = vi.fn<() => Promise<void>>();
+
+  await askAgainWhoIsSignedIn(context, "account", rerun);
+
+  expect(rerun).not.toHaveBeenCalled();
 });

@@ -5,7 +5,7 @@ import { createRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { RouteError } from "@/app/route-error/route-error";
-import { isAtHub, signedInQuery, whoIsSignedIn } from "@/shared/hooks/access";
+import { askAgainWhoIsSignedIn, isAtHub } from "@/shared/hooks/access";
 import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";
 import { traceCallsTo, traceRouteChanges } from "@/shared/lib/diagnostics";
 import { type ServerAt, serverTransport } from "@/shared/lib/server";
@@ -57,16 +57,9 @@ export function getRouter(transport: Transport = sameOrigin, serverAt: ServerAt 
     if (await isAtHub({ queryClient, transport })) {
       return;
     }
-    const { queryKey } = signedInQuery(transport);
-    const before = queryClient.getQueryData(queryKey)?.user;
-    queryClient.removeQueries({ queryKey });
-    const now = (await whoIsSignedIn({ queryClient, transport }))?.user;
-    // The Server lists Permissions in one order, so the same set joins the same.
-    const changed =
-      now?.id !== before?.id || now?.permissions.join(",") !== before?.permissions.join(",");
-    if (changed) {
+    await askAgainWhoIsSignedIn({ queryClient, transport }, "user", async () => {
       await router.invalidate();
-    }
+    });
   }
 
   return router;

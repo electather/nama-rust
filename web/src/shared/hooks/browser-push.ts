@@ -4,7 +4,7 @@ import { callUnaryMethod } from "@connectrpc/connect-query";
 import { WebPushService } from "@/gen/nama/v1/web_push_pb";
 import { browserSubscription, encryptionKey } from "@/shared/lib/web-push";
 
-// `web/src/AGENTS.md`, "Web Push follows the signed-in User".
+// `web/src/AGENTS.md`, "One module changes who is signed in".
 
 /**
  * Sends the Server this browser's `subscription` for the User signed in. If the Server refuses,

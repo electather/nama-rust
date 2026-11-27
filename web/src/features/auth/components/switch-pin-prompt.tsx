@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 
-import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 import { useSwitchUser } from "@/features/auth/data/use-switch-user";
 import { switchErrors } from "@/features/auth/lib/switch-errors";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
@@ -11,7 +10,7 @@ import { textLink } from "@/shared/lib/text-link-classes";
 
 /** Asking for `user`'s Switch PIN before switching this Device to them, then going on to `redirect`. */
 export function SwitchPinPrompt({ user, redirect }: { user: User; redirect: string | undefined }) {
-  const switchUser = useSwitchUser(useFinishSignIn(redirect));
+  const switchUser = useSwitchUser(redirect);
   const errors = switchUser.error ? switchErrors(switchUser.error, user.name) : {};
   return (
     <SignInLayout

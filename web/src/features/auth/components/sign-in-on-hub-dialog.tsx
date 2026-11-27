@@ -36,7 +36,7 @@ export function SignInOnHubDialog({
       title="Confirm it’s you"
       description={`Sign in to the Hub again to ${confirming ?? "go on"}. This keeps anyone else using this browser from doing it.`}
       onConfirm={async () => {
-        await signOut.mutateAsync({});
+        await signOut.mutateAsync();
       }}
       refusal={() => "The Hub couldn’t sign you out just now. Try again."}
     />

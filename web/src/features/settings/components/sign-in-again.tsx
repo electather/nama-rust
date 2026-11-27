@@ -19,7 +19,7 @@ export function SignInAgain({ error, toDo }: { error: unknown; toDo: string }) {
         size="link"
         disabled={signOut.isPending}
         onClick={() => {
-          signOut.mutate({});
+          signOut.mutate();
         }}
       >
         Sign in again

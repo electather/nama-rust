@@ -11,16 +11,16 @@ import { formText } from "@/shared/lib/forms";
 
 /** Signing this browser in with a username and password. */
 export function PasswordSignIn({
-  onSignedIn,
+  redirect,
   footer,
 }: {
-  /** Called once this browser holds its session. */
-  onSignedIn: () => Promise<void>;
+  /** Where signing in goes. */
+  redirect: string | undefined;
   /** Another way to sign in instead. */
   footer: ReactNode;
 }) {
   const serverName = useServerName();
-  const signIn = useSignIn(onSignedIn);
+  const signIn = useSignIn(redirect);
   const errors = signIn.error ? signInErrors(signIn.error) : {};
 
   return (

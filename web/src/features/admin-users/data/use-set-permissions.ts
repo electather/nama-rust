@@ -4,7 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { signedInQuery } from "@/shared/hooks/access";
+import { askAgainWhoIsSignedIn } from "@/shared/hooks/access";
 import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
 import { usersKey } from "@/shared/hooks/use-users";
 
@@ -19,10 +19,9 @@ export function useSetPermissions(user: User, you: User | undefined) {
       await queryClient.invalidateQueries({ queryKey: usersKey(transport) });
       // Your own Permissions decide which pages and links you see, so ask again who is signed in.
       if (user.id === you?.id) {
-        // Fetched, not removed: removing would cancel the router's own recheck when the list is
-        // refused, and this joins it instead.
-        await queryClient.query({ ...signedInQuery(transport), staleTime: 0 });
-        await router.invalidate();
+        await askAgainWhoIsSignedIn({ queryClient, transport }, "user", async () => {
+          await router.invalidate();
+        });
       }
     },
   });
