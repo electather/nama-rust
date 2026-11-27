@@ -11,8 +11,9 @@ use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     GetUserLinkRequest, LinkServiceClient, LinkedServerServiceClient, ListLinkedServersRequest,
     ListLinkedUsersRequest, PollServerLinkRequest, PollServerLinkResponse, SendSignInLinkRequest,
-    ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest, UnlinkUserRequest,
+    ServerLinkServiceClient, SetServerAddressesRequest, SignInWithLinkRequest,
+    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest,
+    UnlinkUserRequest,
 };
 use ring::signature::{ED25519, UnparsedPublicKey};
 use serde_json::Value;
@@ -110,6 +111,29 @@ pub(crate) fn linked_server(
         .client_config()
         .with_default_header("authorization", format!("Bearer {credential}"));
     LinkedServerServiceClient::new(HttpClient::plaintext(), config)
+}
+
+/// Reports `lan_addresses`, `public_port` and `relay` as the Server Addresses of the Server
+/// presenting `credential`, and answers the names the Hub gave it.
+pub(crate) async fn names_after_reporting_relay(
+    hub: &TestHub,
+    credential: &str,
+    lan_addresses: &[&str],
+    public_port: u16,
+    relay: &str,
+) -> Result<Vec<String>, connectrpc::ConnectError> {
+    let set = linked_server(hub, credential)
+        .set_server_addresses(SetServerAddressesRequest {
+            lan_addresses: lan_addresses
+                .iter()
+                .map(|&address| address.to_owned())
+                .collect(),
+            public_port: public_port.into(),
+            relay: relay.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(set.into_owned().names)
 }
 
 #[expect(

@@ -54,9 +54,11 @@ pub(super) struct SignInServiceHandler {
     pub(super) syncing: Syncing,
     /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
     pub(super) server_url: ServerUrl,
-    /// Where the Server listens, whose LAN address is the other Server Address a sign-in with an
-    /// Account may return to.
+    /// Where the Server listens, whose LAN address, and the LAN names on its port, a sign-in with
+    /// an Account may return to.
     pub(super) listening: SocketAddr,
+    /// The Relay the Server dials out to, if any, through which a sign-in may return too.
+    pub(super) relay: Option<SocketAddr>,
 }
 
 #[expect(
@@ -350,6 +352,7 @@ impl SignInService for SignInServiceHandler {
             request.return_url,
             &self.server_url,
             self.listening,
+            self.relay,
         )
         .await
     }

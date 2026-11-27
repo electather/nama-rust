@@ -40,7 +40,7 @@ use bytes::Bytes;
 pub(crate) use nama_plugin_api::server_link::Link;
 use nama_plugin_api::{
     points::{TrackPreference, WatchStateChange},
-    server_link::{AccountSignIn, ServerAddresses, WatchlistEntry},
+    server_link::{AccountSignIn, Reachability, ServerAddresses, WatchlistEntry},
 };
 use tokio::sync::{broadcast, watch};
 use tracing::{Instrument as _, instrument::WithSubscriber as _, subscriber::NoSubscriber};
@@ -171,6 +171,18 @@ impl Linking {
     /// answer came.
     pub(crate) async fn is_server_linked(&self) -> bool {
         matches!(self.server_link().await, Ok(Link::Linked { .. }))
+    }
+
+    /// What the service found of how clients reach the Server, while it has the Server Linked and
+    /// named. `None`, too, before the service answers the first report since the Server started.
+    pub(crate) async fn named(&self) -> Option<Reachability> {
+        match self.server_link().await {
+            Ok(Link::Linked {
+                reachability: Some(found),
+                ..
+            }) if !found.names.is_empty() => Some(found),
+            _ => None,
+        }
     }
 
     /// The User `user_id`'s Link, or `None` while they can't Link, before the Server is Linked.
