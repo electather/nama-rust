@@ -33,10 +33,22 @@ export type Section = (typeof sections)[number];
 /** The section Settings opens on when asked for one it doesn't have. */
 const firstSection: Section = "playback";
 
-/** The section `?settings=` asks for: none without it, and the first for a word no section has. */
-export function sectionParam(value: unknown): Section | undefined {
+/** What `?settings=all` opens: on a phone the list of sections, wider the first one beside it. */
+export const allSections = "all";
+
+/** What `?settings=` opens: one section, or all of them. */
+export type SettingsPage = Section | typeof allSections;
+
+/**
+ * What `?settings=` asks for: nothing without it, all the sections for `all`, and the first section
+ * for a word no section has.
+ */
+export function sectionParam(value: unknown): SettingsPage | undefined {
   if (value === undefined) {
     return undefined;
+  }
+  if (value === allSections) {
+    return allSections;
   }
   return sections.find((each) => each === value) ?? firstSection;
 }
@@ -57,7 +69,7 @@ export const closedSearch = { settings: undefined, manage: undefined, ...setting
  * The address of `section` in Settings, at its `setting` if one is asked for. A detail open in
  * another Section closes; the Server picked at the Hub stays.
  */
-export function sectionSearch(section: Section, setting?: string) {
+export function sectionSearch(section: SettingsPage, setting?: string) {
   return { ...settingsDetailParams, settings: section, setting };
 }
 
@@ -91,31 +103,6 @@ export const sectionTitles: Record<Section, string> = {
   "account-sessions": "Sessions",
   "account-servers": "Servers",
   "account-history": "Viewing History",
-};
-
-/** What a pane that didn't load says it couldn't load. */
-export const loadNouns: Record<Section, string> = {
-  signin: "your sign-in details",
-  devices: "your Devices",
-  playback: "your Playback settings",
-  home: "your Home layout",
-  requests: "your Requests",
-  connections: "your Connections",
-  libraries: "the Libraries",
-  "needs-a-match": "what needs a Match",
-  "now-playing": "what’s playing",
-  jobs: "the Jobs",
-  server: "the Server settings",
-  users: "the Users",
-  backups: "the Backups",
-  "default-home": "the default Home layout",
-  "server-playback": "the Server’s Playback settings",
-  plugins: "the Plugins",
-  account: "your Account",
-  "account-signin": "your sign-in details",
-  "account-sessions": "where you’re signed in",
-  "account-servers": "your Servers and Users",
-  "account-history": "your viewing history",
 };
 
 /** What else search finds a section by, past its name, for the sections that have such words. */
@@ -194,7 +181,8 @@ function shownGroups(keep: (section: Section) => boolean): SectionGroup[] {
  * `asked` if `from` lists it, else the first section, or at the Hub, which lists no Playback, the
  * first `from` lists: a section `user` may not open isn't shown.
  */
-export function openSection(from: SectionGroup[], asked: Section): Section {
+export function openSection(from: SectionGroup[], asked: SettingsPage): Section {
   const listed = from.flatMap((group) => group.items);
-  return [asked, firstSection].find((section) => listed.includes(section)) ?? listed[0] ?? asked;
+  const wanted = asked === allSections ? firstSection : asked;
+  return [wanted, firstSection].find((section) => listed.includes(section)) ?? listed[0] ?? wanted;
 }

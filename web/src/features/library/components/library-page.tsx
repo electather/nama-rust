@@ -1,16 +1,17 @@
-import { LibraryMovieTabs } from "@/features/library/components/library-movie-tabs";
-import { LibraryShows } from "@/features/library/components/library-shows";
+import { LibraryBrowse } from "@/features/library/components/library-browse";
+import { LibraryCountLine } from "@/features/library/components/library-count-line";
+import { LibraryHeader } from "@/features/library/components/library-header";
 import { NotMatched } from "@/features/library/components/not-matched";
 import type { LibraryView } from "@/features/library/lib/library-view";
 import type { TitleListing } from "@/features/library/lib/title-listing";
 import { LibraryKind, type Library } from "@/gen/nama/v1/library_pb";
 import { MayDownloadAgain } from "@/shared/components/delete-media/may-download-again";
-import { Page } from "@/shared/components/page";
 import { useLibraries } from "@/shared/hooks/use-libraries";
 
 /**
- * A Library: its name, on its Backdrop if it has one, then its titles, their sort and filter bar, a
- * Movies Library's Box Sets in a tab beside its Movies, its Unmatched Items and a delete's notice.
+ * A Library: its name and how many titles it lists, on its Backdrop if it has one, then the bar to
+ * sort and filter them, a Movies Library's Box Sets in a tab beside its Movies, their grid, its
+ * Unmatched Items and a delete's notice.
  */
 export function LibraryPage({
   library,
@@ -33,21 +34,22 @@ export function LibraryPage({
   const live = useLibraries().find(({ id }) => id === library.id) ?? library;
   const titles = { libraryId: library.id, listing, change };
   return (
-    <Page
-      heading={live.name}
-      backdrop={{ url: live.backdropUrl, thumbhash: live.backdropThumbhash }}
-    >
-      {deleted !== undefined && (
-        <div className="mt-2">
-          <MayDownloadAgain title={deleted} fulfillers={notTold} />
-        </div>
-      )}
-      {library.kind === LibraryKind.SHOWS ? (
-        <LibraryShows {...titles} />
-      ) : (
-        <LibraryMovieTabs view={view} switchView={switchView} titles={titles} />
-      )}
-      <NotMatched libraryId={library.id} />
-    </Page>
+    <>
+      <LibraryHeader
+        name={live.name}
+        backdrop={{ url: live.backdropUrl, thumbhash: live.backdropThumbhash }}
+        count={<LibraryCountLine library={library} listing={listing} view={view} />}
+      />
+      <main className="mx-auto flex w-full max-w-350 flex-col gap-7.5 px-5 pt-7.5 pb-16">
+        {deleted !== undefined && <MayDownloadAgain title={deleted} fulfillers={notTold} />}
+        <LibraryBrowse
+          shows={library.kind === LibraryKind.SHOWS}
+          view={view}
+          switchView={switchView}
+          titles={titles}
+        />
+        <NotMatched libraryId={library.id} />
+      </main>
+    </>
   );
 }

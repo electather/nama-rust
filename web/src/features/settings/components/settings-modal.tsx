@@ -2,32 +2,12 @@ import { type KeyboardEvent, useId, useLayoutEffect, useRef } from "react";
 
 import { HubSettings } from "@/features/settings/components/hub-settings";
 import { SettingsBody } from "@/features/settings/components/settings-body";
+import { useCloseOnScrim } from "@/features/settings/hooks/use-close-on-scrim";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
+import { holdsText } from "@/features/settings/lib/holds-text";
 import { phoneWidth } from "@/features/settings/lib/phone-width";
-import { type Section, groupsFor } from "@/features/settings/lib/sections";
+import { type SettingsPage, groupsFor } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
-
-/** A field of another kind, such as a checkbox, loses nothing to Escape. */
-const textFieldSelector =
-  "textarea, input:is(:not([type]), [type=text], [type=search], [type=email], [type=url], [type=tel], [type=password], [type=number])";
-
-function textField(target: EventTarget) {
-  const isField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
-  return isField && target.matches(textFieldSelector) ? target : undefined;
-}
-
-/**
- * Whether closing from the text field `target` would throw typed text away. Its whole form counts:
- * Escape at the autofill list of an empty Starting password would lose the Username typed above it.
- */
-function holdsText(target: EventTarget) {
-  const field = textField(target);
-  if (field === undefined) {
-    return false;
-  }
-  const fields = field.form === null ? [field] : [...field.form.elements];
-  return fields.some((each) => (textField(each)?.value ?? "") !== "");
-}
 
 /** Keeps Settings open on Escape in a text field while it or its form holds text. */
 function keepTypedText(event: KeyboardEvent<HTMLDialogElement>) {
@@ -47,7 +27,7 @@ export function SettingsModal({
   user,
   atHub,
 }: {
-  section: Section;
+  section: SettingsPage;
   user: User | undefined;
   atHub: boolean;
 }) {
@@ -55,6 +35,7 @@ export function SettingsModal({
   const titleId = useId();
   const close = useCloseSettings();
   const header = { titleId, onClose: close };
+  useCloseOnScrim(dialog, close);
   // A layout effect, so its cleanup closes the dialog while it's still in the page: only then does
   // the browser hand focus back to what opened Settings.
   useLayoutEffect(() => {
@@ -76,6 +57,10 @@ export function SettingsModal({
   return (
     // ponytail: the native modal <dialog> traps focus, makes the page inert and returns focus
     // itself. Its backdrop and it contain scrolling, so the page behind stays put.
+    // On a phone it's a sheet 11/12 of the window tall that slides up from the bottom, so the page
+    // it was opened on shows above it.
+    // Wider than a phone it fills the window 16px in from its edges (`md:inset-4`), up to 760px
+    // tall, then sits centred.
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
@@ -93,7 +78,7 @@ export function SettingsModal({
           close();
         }
       }}
-      className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none text-sm-dense backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200 xl:max-h-9/10 xl:max-w-5xl"
+      className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none text-sm-dense backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex motion-reduce:transition-none max-md:mb-0 max-md:h-11/12 max-md:w-full max-md:rounded-t-2xl max-md:border-t max-md:transition-transform max-md:duration-300 max-md:ease-out-expo md:inset-4 md:max-h-190 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200 xl:max-w-5xl max-md:motion-safe:starting:open:translate-y-full"
     >
       {atHub ? (
         <HubSettings section={section} header={header} />

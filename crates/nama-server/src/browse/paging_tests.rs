@@ -33,7 +33,7 @@ async fn a_page_token_is_refused_under_another_sort_or_filter_or_library() {
         .await
         .unwrap();
     let next = PageRequest {
-        token: paged.next_token,
+        token: paged.page.next_token,
         ..first
     };
     let newest_first = Listing {

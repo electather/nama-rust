@@ -24,7 +24,7 @@ export function SearchResults({ search, listId }: { search: SearchState; listId:
       onMouseDown={(event) => {
         event.preventDefault();
       }}
-      className="flex min-h-0 flex-col gap-0.5 overflow-y-auto overscroll-contain max-md:flex-1 max-md:px-2 max-md:pb-2"
+      className="flex min-h-0 scrollbar-quiet flex-col gap-0.5 overflow-y-auto overscroll-contain max-md:flex-1 max-md:px-2 max-md:pb-2"
     >
       {results.map((result, index) => (
         <SearchResult

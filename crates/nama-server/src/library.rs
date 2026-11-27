@@ -23,12 +23,12 @@ pub use artwork::{Artwork, Error as ArtworkError};
 pub(crate) use artwork::{Picked, router as artwork_router};
 pub(crate) use contents::{
     Change, Contents, DEFAULT_ORDER, Decided, Decisions, Episode as LibraryEpisode, Found,
-    FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, Listing, LocalImageFile,
-    LocalRole, MatchedTo, Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, NfoFile,
-    NfoHints, NfoItem, PersonRole, Pin, Season as LibrarySeason, Show as LibraryShow, Stored,
-    StoredBoxSet, TiedTitle, TitleSort, TitlesIn, Unmatched, UnmatchedReason,
-    Version as LibraryVersion, Watched, library_with_movie, library_with_show, matched_episodes,
-    matched_ids, primary_id,
+    FoundEpisode, FoundMovie, FoundShow, ImageRef, IndexKey, Item, ItemKind, Listed, Listing,
+    LocalImageFile, LocalRole, MatchedTo, Metadata, Movie as LibraryMovie, Name, Named,
+    NewestBackdrop, NfoFile, NfoHints, NfoItem, PersonRole, Pin, Season as LibrarySeason,
+    Show as LibraryShow, Stored, StoredBoxSet, TiedTitle, TitleSort, TitlesIn, Unmatched,
+    UnmatchedReason, Version as LibraryVersion, Watched, library_with_movie, library_with_show,
+    matched_episodes, matched_ids, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};

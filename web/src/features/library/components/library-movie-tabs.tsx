@@ -1,12 +1,15 @@
-import { Tabs, TabsPanel } from "nama-ui/components/tabs";
+import { Tabs } from "nama-ui/components/tabs";
 
-import { LibraryBoxSets } from "@/features/library/components/library-box-sets";
-import { LibraryMovies } from "@/features/library/components/library-movies";
 import { LibraryTabList } from "@/features/library/components/library-tab-list";
+import { LibraryTabPanels } from "@/features/library/components/library-tab-panels";
+import { TitleBar } from "@/features/library/components/title-bar";
 import { type LibraryView, viewFromSearch } from "@/features/library/lib/library-view";
 import type { TitlesProps } from "@/features/library/lib/titles-props";
 
-/** A Movies Library's Movies and its Box Sets, a tab each, `view` the one shown. */
+/**
+ * A Movies Library's Movies and its Box Sets, a tab each, `view` the one shown, the tabs in the
+ * row with the Movies' sort and Filter.
+ */
 export function LibraryMovieTabs({
   view,
   switchView,
@@ -23,13 +26,11 @@ export function LibraryMovieTabs({
         switchView(viewFromSearch({ view: value }).view ?? "movies");
       }}
     >
-      <LibraryTabList />
-      <TabsPanel value="movies">
-        <LibraryMovies {...titles} />
-      </TabsPanel>
-      <TabsPanel value="box-sets">
-        <LibraryBoxSets libraryId={titles.libraryId} />
-      </TabsPanel>
+      <TitleBar
+        start={<LibraryTabList />}
+        titles={view === "movies" ? { ...titles, kind: "movies" } : undefined}
+      />
+      <LibraryTabPanels titles={titles} />
     </Tabs>
   );
 }
