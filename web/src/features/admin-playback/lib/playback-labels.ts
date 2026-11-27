@@ -31,4 +31,9 @@ export const serverPlaybackLabels: Record<keyof PlaybackValues | "programs", Set
     hint: "The most a Device outside the local network is sent until its User picks a Playback Limit in the player. Original sends each Version as it is. A User’s cap for remote playback, on their page in Users, holds whatever they pick.",
     words: "bitrate quality",
   },
+  subtitleCacheMib: {
+    label: "Space for subtitles",
+    hint: "The most disk the subtitles read out of Versions’ files take. Past it, those shown least recently are removed and read out again when needed, which can take minutes for picture-based ones. Reading ahead stops once they fill most of it.",
+    words: "cache storage pgs vobsub fonts",
+  },
 };

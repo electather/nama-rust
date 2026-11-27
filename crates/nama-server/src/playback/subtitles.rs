@@ -6,7 +6,9 @@
 //! Track inside a Version's file, or a sidecar, a subtitle file beside it. [`Cache`] serves any
 //! source's subtitle: it has the source make it the first time it's asked for, keeps it under
 //! `subtitles/` in the data directory, and answers from there after. The fonts are cached beside
-//! the subtitles, and go with them; a sidecar carries none (ADR 0033).
+//! the subtitles, and go with them; a sidecar carries none (ADR 0033). A fetch that adds to the
+//! cache past its limit, a Playback setting, deletes the subtitles of the Versions served least
+//! recently (#2495).
 //!
 //! As WebVTT, ASS and SSA are plain cues ([`ass`]); drawing or burning them in is what keeps
 //! their styling.
@@ -17,9 +19,11 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    fs::{File, FileTimes},
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::{Duration, SystemTime},
 };
 
 use axum::{
@@ -35,6 +39,7 @@ use proto::SubtitleFormat::{
     SUBTITLE_FORMAT_UNSPECIFIED as UNSPECIFIED, SUBTITLE_FORMAT_VOBSUB as VOBSUB,
     SUBTITLE_FORMAT_WEBVTT as WEBVTT,
 };
+use walkdir::WalkDir;
 
 mod ass;
 mod text_pass;
@@ -46,10 +51,11 @@ use super::{
     tracks::{PROBE_VERSION, Probe, Track, TrackKind},
 };
 use crate::{
-    db::Database,
+    db::{self, Database},
     ffmpeg::{BurnIn, Ffmpeg, RunError, TextSubtitle, Transcode},
     images::write_atomically,
     library::{Contents, Stored},
+    server_settings::PlaybackSettings,
 };
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
@@ -106,16 +112,19 @@ pub(super) struct Subtitles {
     pub(super) cache: Cache,
     /// Runs text passes, which read whole files, in the background.
     pub(super) reads: WholeFileReads,
+    /// Holds the cache's limit.
+    pub(super) settings: PlaybackSettings,
 }
 
 impl Subtitles {
     /// Finds sources in `db`, reads them with `ffmpeg`, text passes on `reads`, and caches them
-    /// in `cache`.
+    /// in `cache`, within the limit `settings` holds.
     pub(super) fn new(
         db: &Arc<Database>,
         ffmpeg: Arc<Ffmpeg>,
         cache: Cache,
         reads: WholeFileReads,
+        settings: PlaybackSettings,
     ) -> Self {
         Self {
             contents: Contents::new(Arc::clone(db)),
@@ -123,7 +132,45 @@ impl Subtitles {
             ffmpeg,
             cache,
             reads,
+            settings,
         }
+    }
+
+    /// What `read` reads from the cache at `key`, marked as just served. If it wasn't cached
+    /// before, deletes the subtitles served least recently until the cache fits its limit, as
+    /// only a fetch does (`AGENTS.md`).
+    async fn serve_cached(
+        &self,
+        key: &Path,
+        read: impl Future<Output = Result<Vec<u8>, Error>>,
+    ) -> Result<Vec<u8>, Error> {
+        let path = self.cache.dir.join(key);
+        let was_cached = tokio::fs::try_exists(&path).await?;
+        let served = read.await?;
+        mark_served(&path).await;
+        if !was_cached {
+            let limit = self.settings.subtitle_cache_bytes();
+            if let Err(err) = self.cache.evict(limit, &path).await {
+                tracing::error!("could not keep the subtitle cache within its limit: {err}");
+            }
+        }
+        Ok(served)
+    }
+
+    /// What a text pass reads out to `key` for the Version `probed` is of, as
+    /// [`Self::serve_cached`] serves it, in a task of its own: a fetch given up on, as by a reverse
+    /// proxy, leaves the pass it started reading into the cache, so it still evicts once that's done.
+    async fn serve_by_text_pass(
+        &self,
+        key: PathBuf,
+        probed: (String, Stored, Probe),
+    ) -> Result<Vec<u8>, Error> {
+        let subtitles = self.clone();
+        let serving = tokio::spawn(async move {
+            let read = subtitles.read_by_text_pass(&key, &probed);
+            subtitles.serve_cached(&key, read).await
+        });
+        serving.await.map_err(io::Error::from)?
     }
 }
 
@@ -165,10 +212,12 @@ async fn serve(
     let served = match source.reading {
         // Already what's served for PGS, so neither ffmpeg nor the cache needs to copy it.
         Reading::Sup => tokio::fs::read(&source.path).await.map_err(Error::from),
-        Reading::TextPass => subtitles.read_by_text_pass(&key, &probed).await,
+        Reading::TextPass => subtitles.serve_by_text_pass(key, probed).await,
         Reading::Ffmpeg => {
-            let read = source.read(&subtitles.ffmpeg);
-            subtitles.cache.get_or_make(&key, read).await
+            let read = subtitles
+                .cache
+                .get_or_make(&key, source.read(&subtitles.ffmpeg));
+            subtitles.serve_cached(&key, read).await
         }
     };
     match served {
@@ -199,7 +248,7 @@ async fn serve_font(
         return StatusCode::NOT_FOUND.into_response();
     }
     let key = cache_key(*file, &font_name(font));
-    match subtitles.read_by_text_pass(&key, &probed).await {
+    match subtitles.serve_by_text_pass(key, probed).await {
         // The renderer reads a font's bytes whatever its type, and nothing should guess one.
         Ok(bytes) => (
             [
@@ -395,11 +444,10 @@ fn cache_folder(file: Stored) -> String {
 }
 
 /// Subtitles on disk, each made by its source the first time it's asked for, and a Version's
-/// subtitles in its file and fonts all at once. It has no size limit.
-// ponytail: every Version's subtitles and fonts are cached ahead of time, wanted or not, image
-// ones tens of MB a Blu-ray rip, and ASS fonts, 10–50 MB a Version, aren't shared between
-// Versions; if that fills disks, share fonts by their content's hash, then throw away the least
-// recently served.
+/// subtitles in its file and fonts all at once. What's cached for a Version is kept or deleted
+/// as one, by when any of it was last served.
+// ponytail: ASS fonts, 10–50 MB a Version, aren't shared between Versions; share them by their
+// content's hash if they crowd image Tracks out of the limit.
 #[derive(Debug, Clone)]
 pub(crate) struct Cache {
     dir: PathBuf,
@@ -492,6 +540,10 @@ impl Cache {
         if !all_cached {
             return None;
         }
+        // A burn-in serves them too, so eviction keeps them while it may start again.
+        if let Err(err) = touch(&ass) {
+            tracing::warn!("could not mark {} as served: {err}", ass.display());
+        }
         // A data directory that isn't UTF-8 can't go in a filtergraph.
         Some(TextSubtitle::Cached {
             ass: ass.into_os_string().into_string().ok()?,
@@ -541,11 +593,154 @@ impl Cache {
         Ok(())
     }
 
+    /// The bytes the cache takes.
+    ///
+    /// # Errors
+    ///
+    /// If the cache can't be read.
+    pub(crate) async fn size(&self) -> io::Result<u64> {
+        let versions = self.dir.join("versions");
+        let folders = tokio::task::spawn_blocking(move || version_folders(&versions)).await??;
+        Ok(folders.iter().map(|(_, size, _)| size).sum())
+    }
+
+    /// Deletes the subtitles of the Versions served least recently until the cache takes at most
+    /// `limit` bytes, never those of `served`'s Version, nor of one being made, whose making would
+    /// fail, nor of one whose pass failed, which would then be read again.
+    // ponytail: lists the whole cache after each fetch that made something, about a stat per
+    // cached file; keep a running total if a cache of tens of thousands of files makes that slow.
+    async fn evict(&self, limit: u64, served: &Path) -> io::Result<()> {
+        let versions = self.dir.join("versions");
+        let (cache, served) = (self.clone(), served.to_owned());
+        tokio::task::spawn_blocking(move || {
+            let folders = version_folders(&versions)?;
+            evict_listed(folders, limit, |folder| {
+                cache.delete_unless_kept(folder, &served)
+            })
+        })
+        .await?
+    }
+
+    /// Deletes the Version's `folder` unless it holds `served`, a failed pass's mark or anything
+    /// being made, and returns whether it did. It holds the folder's lock meanwhile, so a text pass
+    /// starting then waits and runs after, rather than have its folder deleted midway, which would
+    /// fail as if the file couldn't be read.
+    fn delete_unless_kept(&self, folder: &Path, served: &Path) -> io::Result<bool> {
+        if served.starts_with(folder) || folder.join(text_pass::FAILED).exists() {
+            return Ok(false);
+        }
+        let making_lock = {
+            let mut locks = self.making_locks();
+            if (locks.keys()).any(|making| making != folder && making.starts_with(folder)) {
+                return Ok(false);
+            }
+            Arc::clone(locks.entry(folder.to_owned()).or_default())
+        };
+        let deleted = match Arc::clone(&making_lock).try_lock_owned() {
+            Ok(_deleting) => match std::fs::remove_dir_all(folder) {
+                // Deleted meanwhile, as by `keep_only` or another fetch's eviction.
+                Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
+                _ => Ok(true),
+            },
+            Err(_) => Ok(false),
+        };
+        drop(making_lock);
+        self.making_locks()
+            .retain(|_, lock| Arc::strong_count(lock) > 1);
+        deleted
+    }
+
     fn making_locks(&self) -> MutexGuard<'_, HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>> {
         self.making_locks
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+/// Marks the subtitle or font cached at `path` as just served, so its Version's are the last
+/// [`Cache::evict`] deletes.
+async fn mark_served(path: &Path) {
+    let served = path.to_owned();
+    let touched = tokio::task::spawn_blocking(move || touch(&served)).await;
+    if let Err(err) = touched.map_err(io::Error::from).and_then(|touched| touched) {
+        // Not marking it only lets eviction pick it sooner.
+        tracing::warn!("could not mark {} as served: {err}", path.display());
+    }
+}
+
+/// Marks the file at `path` as just served, unless it's gone, as by a delete of its Version or
+/// another fetch's eviction.
+fn touch(path: &Path) -> io::Result<()> {
+    // Set explicitly, as mounts with `noatime` or `relatime` don't update it on every read. Opened
+    // for writing, as Windows refuses to set a file's times through a read-only handle.
+    let touched = File::options()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_times(FileTimes::new().set_accessed(served_now())));
+    match touched {
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        touched => touched,
+    }
+}
+
+/// Now, by the Server's clock (`AGENTS.md`), as a file's times are set.
+fn served_now() -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_millis(u64::try_from(db::now_ms()).unwrap_or_default())
+}
+
+/// A Version's folder in the cache, as when any of it was last served, the bytes it takes and its
+/// path: in that order, so they sort least recently served first.
+type Listed = (SystemTime, u64, PathBuf);
+
+/// Each Version's folder in `versions`, leaving out what's deleted while it's listed.
+fn version_folders(versions: &Path) -> io::Result<Vec<Listed>> {
+    let gone =
+        |err: &walkdir::Error| err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound);
+    let mut folders = Vec::new();
+    for folder in WalkDir::new(versions).min_depth(1).max_depth(1) {
+        let folder = match folder {
+            Ok(folder) => folder.into_path(),
+            Err(err) if gone(&err) => continue,
+            Err(err) => return Err(err.into()),
+        };
+        let (mut served, mut size) = (SystemTime::UNIX_EPOCH, 0);
+        for file in WalkDir::new(&folder) {
+            let metadata = match file.and_then(|file| file.metadata()) {
+                Ok(metadata) if metadata.is_file() => metadata,
+                Ok(_) => continue,
+                Err(err) if gone(&err) => continue,
+                Err(err) => return Err(err.into()),
+            };
+            // Accessed no later than written, it was read ahead and never served.
+            let accessed = metadata.accessed()?;
+            if accessed > metadata.modified()? {
+                served = served.max(accessed);
+            }
+            size += metadata.len();
+        }
+        folders.push((served, size, folder));
+    }
+    Ok(folders)
+}
+
+/// [`Cache::evict`] from `folders`, the cache as listed, with `delete`, which says whether it
+/// deleted the folder it's given or keeps it.
+fn evict_listed(
+    mut folders: Vec<Listed>,
+    limit: u64,
+    mut delete: impl FnMut(&Path) -> io::Result<bool>,
+) -> io::Result<()> {
+    let mut total: u64 = folders.iter().map(|(_, size, _)| size).sum();
+    folders.sort_unstable();
+    for (_, size, folder) in folders {
+        if total <= limit {
+            break;
+        }
+        if delete(&folder)? {
+            total -= size;
+        }
+    }
+    Ok(())
 }
 
 async fn cached(path: &Path) -> io::Result<Option<Vec<u8>>> {

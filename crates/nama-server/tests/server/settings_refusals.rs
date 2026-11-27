@@ -21,6 +21,7 @@ fn saved_playback(server: &TestServer) -> PlaybackSettings {
         segment_folder: server.segment_folder(),
         max_transcodes: Some(2),
         keep_behind_minutes: Some(30),
+        subtitle_cache_mib: Some(2048),
         hardware_acceleration: HardwareAcceleration::HARDWARE_ACCELERATION_OFF.into(),
         remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_720P.into(),
         ..Default::default()

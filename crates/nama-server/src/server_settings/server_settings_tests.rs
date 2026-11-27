@@ -43,6 +43,7 @@ fn change(folder: &str) -> PlaybackChange<'_> {
         keep_behind_minutes: None,
         hardware: HardwareChoice::Automatic,
         remote_limit: None,
+        subtitle_cache_mib: None,
     }
 }
 
@@ -163,6 +164,7 @@ async fn stored_playback_settings_are_in_use_and_read_again_after_a_restart() {
                 keep_behind_minutes: Some(12),
                 hardware: HardwareChoice::Api(Accel::Vaapi, None),
                 remote_limit: Some(PlaybackLimit::P720),
+                subtitle_cache_mib: Some(2048),
             },
             &[],
         )
@@ -175,11 +177,13 @@ async fn stored_playback_settings_are_in_use_and_read_again_after_a_restart() {
         keep_behind_minutes: NonZeroU32::new(12),
         hardware: HardwareChoice::Api(Accel::Vaapi, None),
         remote_limit: Some(PlaybackLimit::P720),
+        subtitle_cache_mib: NonZeroU32::new(2048),
     };
     assert_eq!(stored, expected);
     assert_eq!(playback.now(), expected);
     assert_eq!(playback.path(), Path::new(&folder));
     assert_eq!(playback.keep_behind_ms(), 720_000);
+    assert_eq!(playback.subtitle_cache_bytes(), 2048 * 1024 * 1024);
     assert_eq!(
         playback.leftover_paths(),
         [PathBuf::from(&folder), DEFAULT_FOLDER.into()]
@@ -199,6 +203,7 @@ async fn playback_settings_go_back_to_their_defaults_when_cleared() {
                 keep_behind_minutes: Some(12),
                 hardware: HardwareChoice::Off,
                 remote_limit: Some(PlaybackLimit::P720),
+                subtitle_cache_mib: Some(2048),
             },
             &[],
         )
@@ -211,6 +216,7 @@ async fn playback_settings_go_back_to_their_defaults_when_cleared() {
     assert_eq!(restarted.now(), PlaybackValues::default());
     assert_eq!(restarted.path(), Path::new(DEFAULT_FOLDER));
     assert_eq!(restarted.keep_behind_ms(), 300_000);
+    assert_eq!(restarted.subtitle_cache_bytes(), 5120 * 1024 * 1024);
 }
 
 #[tokio::test]
@@ -265,6 +271,28 @@ async fn keeping_0_minutes_behind_is_refused_and_leaves_every_playback_setting_a
         .await;
 
     assert_eq!(invalid(refused), Invalid::NothingKeptBehind);
+    assert_eq!(
+        restarted(&settings).await.playback().now(),
+        PlaybackValues::default()
+    );
+}
+
+#[tokio::test]
+async fn a_subtitle_cache_of_0_mib_is_refused_and_leaves_every_playback_setting_as_it_was() {
+    let (data_dir, settings) = fresh().await;
+    let folder = folder_in(&data_dir);
+
+    let refused = settings
+        .change_playback(
+            PlaybackChange {
+                subtitle_cache_mib: Some(0),
+                ..change(&folder)
+            },
+            &[],
+        )
+        .await;
+
+    assert_eq!(invalid(refused), Invalid::NoSubtitleCache);
     assert_eq!(
         restarted(&settings).await.playback().now(),
         PlaybackValues::default()

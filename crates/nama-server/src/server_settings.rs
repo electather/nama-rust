@@ -2,9 +2,10 @@
 //! URL, which notifications link to the web app with, what it shares with Nama's developers, and
 //! the Playback settings: the folder playback writes segment files to, how far behind playback it
 //! keeps them, the most Transcodes it runs at once, what they run on, and the default Playback
-//! Limit for remote playback; and whether Posters and Backdrops are resized, how much disk the
-//! resized copies take, and which store keeps the images; the default Home layout; and where
-//! Backups go and how many are kept; and the VAPID key the Server signs its Web Push with.
+//! Limit for remote playback, and how much disk the subtitle cache takes; and whether Posters and
+//! Backdrops are resized, how much disk the resized copies take, and which store keeps the images;
+//! the default Home layout; and where Backups go and how many are kept; and the VAPID key the
+//! Server signs its Web Push with.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -27,7 +28,7 @@ use url::Url;
 use crate::{
     db::{BoxFuture, Database},
     diagnostics::{self, Sharing},
-    ffmpeg::{Accel, Hardware},
+    ffmpeg::Hardware,
     web_push::VapidKey,
 };
 
@@ -137,6 +138,10 @@ pub(crate) enum Invalid {
     /// asks for the default by leaving it out.
     #[error("the time kept for skipping back must be at least 1 minute")]
     NothingKeptBehind,
+    /// The subtitle cache's limit is 0, which would delete each subtitle as it's served; a client
+    /// asks for the default by leaving it out.
+    #[error("the subtitle cache must be allowed at least 1 MiB")]
+    NoSubtitleCache,
     /// The resized copies' limit is 0, which would delete each copy as it's made; a client asks
     /// for the default by leaving it out.
     #[error("the resized copies must be allowed at least 1 MiB")]
@@ -191,8 +196,9 @@ impl Settings {
         let stored = sqlx::query!(
             "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
                     hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,
-                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout,
-                    backup_folder, backups_kept, share_diagnostics, share_usage_analytics
+                    subtitle_cache_mib, resize_images, resized_cache_mib, image_store_plugin,
+                    default_home_layout, backup_folder, backups_kept, share_diagnostics,
+                    share_usage_analytics
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -213,6 +219,7 @@ impl Settings {
                     stored.hardware_gpu_name,
                 ),
                 remote_limit: PlaybackLimit::named(&stored.remote_playback_limit),
+                subtitle_cache_mib: stored.subtitle_cache_mib.and_then(non_zero),
             },
             images: ImageValues {
                 resize: stored.resize_images != 0,
@@ -323,8 +330,9 @@ impl Settings {
     /// # Errors
     ///
     /// [`Invalid::FolderNotAbsolute`], [`Invalid::NoTranscodes`], [`Invalid::NothingKeptBehind`],
-    /// [`Invalid::GpuNotOffered`] or [`Invalid::FolderNotWritable`], in that order, or if storing
-    /// them fails. A folder given is created before it's stored, even if storing then fails.
+    /// [`Invalid::NoSubtitleCache`], [`Invalid::GpuNotOffered`] or [`Invalid::FolderNotWritable`],
+    /// in that order, or if storing them fails. A folder given is created before it's stored, even
+    /// if storing then fails.
     pub(crate) async fn change_playback(
         &self,
         change: PlaybackChange<'_>,
@@ -337,14 +345,10 @@ impl Settings {
             }
             .into());
         }
-        let max_transcodes = match change.max_transcodes {
-            Some(max) => Some(NonZeroU32::new(max).ok_or(Invalid::NoTranscodes)?),
-            None => None,
-        };
-        let keep_behind_minutes = match change.keep_behind_minutes {
-            Some(minutes) => Some(NonZeroU32::new(minutes).ok_or(Invalid::NothingKeptBehind)?),
-            None => None,
-        };
+        let max_transcodes = at_least_1(change.max_transcodes, Invalid::NoTranscodes)?;
+        let keep_behind_minutes =
+            at_least_1(change.keep_behind_minutes, Invalid::NothingKeptBehind)?;
+        let subtitle_cache_mib = at_least_1(change.subtitle_cache_mib, Invalid::NoSubtitleCache)?;
         let mut hardware = change.hardware;
         if let HardwareChoice::Api(accel, Some(gpu)) = &mut hardware {
             *gpu = self.offered_gpu(*accel, &gpu.id, passed)?;
@@ -361,10 +365,12 @@ impl Settings {
             keep_behind_minutes,
             hardware,
             remote_limit: change.remote_limit,
+            subtitle_cache_mib,
         };
         let stored_folder = playback.segment_folder.clone();
         let max = max_transcodes.map(NonZeroU32::get);
         let keep_behind = keep_behind_minutes.map(NonZeroU32::get);
+        let subtitle_cache = subtitle_cache_mib.map(NonZeroU32::get);
         let api = playback.hardware.stored();
         let (gpu, gpu_name) = playback
             .hardware
@@ -379,8 +385,8 @@ impl Settings {
                         "INSERT INTO server_settings
                              (id, url, segment_folder, max_transcodes, keep_behind_minutes,
                               hardware_acceleration, hardware_gpu, hardware_gpu_name,
-                              remote_playback_limit)
-                         VALUES (1, '', ?, ?, ?, ?, ?, ?, ?)
+                              remote_playback_limit, subtitle_cache_mib)
+                         VALUES (1, '', ?, ?, ?, ?, ?, ?, ?, ?)
                          ON CONFLICT (id) DO UPDATE SET
                              segment_folder = excluded.segment_folder,
                              max_transcodes = excluded.max_transcodes,
@@ -388,14 +394,16 @@ impl Settings {
                              hardware_acceleration = excluded.hardware_acceleration,
                              hardware_gpu = excluded.hardware_gpu,
                              hardware_gpu_name = excluded.hardware_gpu_name,
-                             remote_playback_limit = excluded.remote_playback_limit",
+                             remote_playback_limit = excluded.remote_playback_limit,
+                             subtitle_cache_mib = excluded.subtitle_cache_mib",
                         stored_folder,
                         max,
                         keep_behind,
                         api,
                         gpu,
                         gpu_name,
-                        limit
+                        limit,
+                        subtitle_cache
                     )
                     .execute(&mut **tx)
                     .await?;
@@ -586,33 +594,6 @@ impl Settings {
         .await
     }
 
-    /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
-    /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
-    fn offered_gpu(
-        &self,
-        accel: Accel,
-        id: &str,
-        passed: &[Hardware],
-    ) -> Result<PickedGpu, Invalid> {
-        let found = (passed.iter())
-            .find(|hardware| hardware.is_pair(accel, id))
-            .and_then(|hardware| hardware.gpu.as_ref());
-        if let Some(gpu) = found {
-            return Ok(PickedGpu {
-                id: id.to_owned(),
-                name: gpu.name(),
-            });
-        }
-        match &read(&self.values).playback.hardware {
-            HardwareChoice::Api(stored, Some(gpu)) if *stored == accel && gpu.id == id => {
-                Ok(gpu.clone())
-            }
-            HardwareChoice::Automatic | HardwareChoice::Off | HardwareChoice::Api(..) => {
-                Err(Invalid::GpuNotOffered { id: id.to_owned() })
-            }
-        }
-    }
-
     /// Runs `upsert`, which writes only its own group's columns, then `merge`s the same values
     /// into the ones in use once they're committed.
     async fn store<U>(
@@ -735,6 +716,13 @@ async fn writable(folder: &Path) -> std::io::Result<()> {
 /// A stored count this Server can read, `None` for one out of range.
 fn non_zero(stored: i64) -> Option<NonZeroU32> {
     u32::try_from(stored).ok().and_then(NonZeroU32::new)
+}
+
+/// A count a client asked for, `None` for the default, or `refused` for 0.
+fn at_least_1(asked: Option<u32>, refused: Invalid) -> Result<Option<NonZeroU32>, Invalid> {
+    asked
+        .map(|asked| NonZeroU32::new(asked).ok_or(refused))
+        .transpose()
 }
 
 pub(super) fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Values> {

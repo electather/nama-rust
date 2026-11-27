@@ -184,6 +184,7 @@ pub fn serve(
         subtitles.clone(),
         reads.clone(),
         passes.follow(),
+        settings.playback(),
     );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let users =
