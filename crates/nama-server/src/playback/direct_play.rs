@@ -34,7 +34,7 @@ pub(super) fn direct_play_url(version: i64) -> String {
 /// Serves `GET /media/versions/<id>`, and `GET /media/downloads/<id>` as [`download`] says, with
 /// the file of the Version `id` in `db`, and 404 if there is none, marking the caller's Direct
 /// Plays of it in `running` asked for as the request arrives and with each part of the file sent,
-/// and the subtitles plans offer, found in `db`, read with `ffmpeg`, a Version's text ones in a
+/// and the subtitles plans offer, found in `db`, read with `ffmpeg`, those in a Version's file in a
 /// background pass on `reads`, and cached in `cache`.
 /// A caller off the local network whose User has a cap for remote playback gets 403 unless that
 /// User has a plan on their Device, made off the local network, that Direct Plays the Version.
