@@ -61,6 +61,16 @@ fn an_episode_without_its_show_is_invalid() {
 }
 
 #[test]
+fn an_episode_whose_show_is_over_its_length_is_invalid() {
+    let event = ViewingEvent {
+        show_external_id: Some(format!("tmdb-{}", "1".repeat(ExternalId::MAX_LENGTH))),
+        ..played_episode()
+    };
+
+    assert!(!event.is_valid());
+}
+
+#[test]
 fn a_movie_naming_a_show_is_invalid() {
     let event = ViewingEvent {
         show_external_id: Some("tmdb-1399".to_owned()),

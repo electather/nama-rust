@@ -299,7 +299,7 @@ impl Watchlists {
     /// watchlisted first, by the pooled counts' rules (ADR 0093): a title is read only once
     /// [`MIN_POOLED_ACCOUNTS`] Accounts have it, and an Account that turned pooling off isn't
     /// counted. Leaves out one stored under text that isn't an External ID, which only a row
-    /// from before the Hub checked their form can be.
+    /// from before the Hub checked an id's form can be.
     // ponytail: counts every Watchlist, leaving out every opted-out Account by id, on each call,
     // which each Linked Server makes about once a day; keep counts as Watchlists and pooling
     // change once that's slow.

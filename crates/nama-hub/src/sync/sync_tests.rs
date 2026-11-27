@@ -373,7 +373,7 @@ fn alien_then(change: WatchStateChange) -> Result<(), Error> {
     check_watch_states(&[alien_at(7, 3000, 1_000), change])
 }
 
-/// An External ID of `length` characters, its value's each two bytes, so a limit counted in bytes
+/// An External ID of `length` characters, its value's two bytes each, so a limit counted in bytes
 /// fails.
 fn id_of(length: usize) -> String {
     format!("tmdb-{}", "é".repeat(length - "tmdb-".len()))

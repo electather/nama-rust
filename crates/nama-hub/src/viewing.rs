@@ -365,7 +365,7 @@ impl Viewing {
     /// The Movies most Accounts finished this week and last, in UTC, at most [`MAX_TRENDING`],
     /// most watched first. A week's count is read only once [`MIN_POOLED_ACCOUNTS`] Accounts are
     /// in it. Leaves out one stored under text that isn't an External ID, which only a row
-    /// from before the Hub checked their form can be.
+    /// from before the Hub checked an id's form can be.
     pub(crate) async fn trending(&self) -> Result<Vec<TrendingTitle>, sqlx::Error> {
         // Last week too, so the chart doesn't empty each Monday.
         let rows = sqlx::query!(
@@ -418,7 +418,7 @@ impl Viewing {
 
 /// Every pooled count of at least [`MIN_POOLED_ACCOUNTS`] Accounts, which title vectors train on
 /// (ADR 0095). Leaves out one naming text that isn't an External ID, which only a row from
-/// before the Hub checked their form can.
+/// before the Hub checked an id's form can.
 pub(crate) async fn pooled_counts(db: &PgPool) -> Result<Vec<PooledCount>, sqlx::Error> {
     let rows = sqlx::query!(
         "SELECT title_a AS a, title_b AS b, accounts FROM pooled_counts WHERE accounts >= $1",
