@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import type { ConnectRouter } from "@connectrpc/connect";
+import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 
 import {
   type LinkedServer,
@@ -9,7 +9,15 @@ import {
   LinkService,
   type UserInvite,
 } from "@/gen/nama/hub/v1/link_pb";
+import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
 import { type ViewingEvent, ViewingEventService } from "@/gen/nama/hub/v1/viewing_pb";
+
+/** A Connect error as the Hub refuses with one. */
+export function hubRefused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
+  return new ConnectError("refused", code, undefined, [
+    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
+  ]);
+}
 
 /** What a fake Hub holds about the Account's Servers and plays, which a test may read and change. */
 export interface LinksHub {
@@ -17,6 +25,8 @@ export interface LinksHub {
   users: LinkedUser[];
   /** The Users Admins created from the Account, waiting for it to accept them. */
   invites: UserInvite[];
+  /** The Linked Servers, by id, the Account has no User on, so the Hub gives no token for. */
+  noUserOn: string[];
   /** What the Hub refuses accepting an Invite with, if it does. */
   acceptRefusal?: Error | undefined;
   events: ViewingEvent[];
@@ -24,13 +34,19 @@ export interface LinksHub {
 }
 
 /**
- * Serves `hub`'s Servers, Users, Invites and plays, and a token for each Server naming it. Accepting an Invite Links its User on its
+ * Serves `hub`'s Servers, Users, Invites and plays, and a token for each Server naming it, but
+ * those it has no User on. Accepting an Invite Links its User on its
  * Server, and any code Links Ada's User on Basement.
  */
 export function serveLinks(service: ConnectRouter["service"], hub: LinksHub) {
   service(LinkService, {
     listLinkedServers: () => ({ servers: hub.servers }),
-    createServerToken: ({ linkedServerId }) => ({ token: `hub-token-${linkedServerId}` }),
+    createServerToken: ({ linkedServerId }) => {
+      if (hub.noUserOn.includes(linkedServerId)) {
+        throw hubRefused(Code.FailedPrecondition, RefusalReason.NO_USER_ON_SERVER);
+      }
+      return { token: `hub-token-${linkedServerId}` };
+    },
     listLinkedUsers: () => ({ users: hub.users }),
     approveUserLink: () => {
       const user = create(LinkedUserSchema, {

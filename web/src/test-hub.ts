@@ -10,18 +10,11 @@ import {
   SessionSchema,
 } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
-import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
-import { type LinksHub, serveLinks } from "@/test-hub-links";
+import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
+import { type LinksHub, hubRefused, serveLinks } from "@/test-hub-links";
 
 /** The Account the fake Hubs know, whose password is "correct horse". */
 export const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
-
-/** A Connect error as the Hub refuses with one. */
-export function hubRefused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
-  return new ConnectError("refused", code, undefined, [
-    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
-  ]);
-}
 
 /** What a fake Hub's Account holds, which a test may read and change as it goes. */
 export interface AccountHub extends LinksHub {
@@ -63,6 +56,7 @@ export function accountHub(state: Partial<AccountHub> = {}) {
     servers: [],
     users: [],
     invites: [],
+    noUserOn: [],
     events: [],
     pooling: true,
     ...state,

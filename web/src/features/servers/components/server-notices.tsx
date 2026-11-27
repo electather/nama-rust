@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { ServerList } from "@/features/servers/components/server-list";
+import { LinkedServerNotices } from "@/features/servers/components/linked-server-notices";
 import { ErrorBoundary } from "@/shared/components/error-boundary";
 import { Notice } from "@/shared/components/sign-in-layout/notice";
 
@@ -10,12 +10,12 @@ const failed = (
   </Notice>
 );
 
-/** Each of the Account's Servers, with its Libraries under its name. */
-export function AccountServers() {
+/** Over Home at the Hub, a notice for each of the Account's Servers it can't show, or none. */
+export function ServerNotices() {
   return (
     <ErrorBoundary failed={failed}>
       <Suspense fallback={null}>
-        <ServerList />
+        <LinkedServerNotices />
       </Suspense>
     </ErrorBoundary>
   );

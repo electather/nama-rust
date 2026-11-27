@@ -129,7 +129,7 @@ export const sectionWords: Partial<Record<Section, string>> = {
   account: "email delete",
   "account-signin": "password passkeys",
   "account-sessions": "sign out browsers",
-  "account-servers": "linked unlink",
+  "account-servers": "linked unlink link code invites accept",
   "account-history": "viewing events plays export pooled counts",
 };
 
