@@ -6,7 +6,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
 };
 
-use axum::http::Uri;
+use reqwest::Url;
 
 use super::LinkedServerId;
 use crate::dns::Record;
@@ -72,8 +72,8 @@ pub(super) fn shown(own: &str, records: &[Record]) -> Vec<String> {
 /// point a name at someone else's host.
 // ponytail: IPv6 LAN addresses get no name; add unique local ones once Servers report them.
 fn lan_ip(address: &str) -> Option<Ipv4Addr> {
-    let uri = address.parse::<Uri>().ok()?;
-    let ip = uri.host()?.parse::<Ipv4Addr>().ok()?;
+    let url = Url::parse(address).ok()?;
+    let ip = url.host_str()?.parse::<Ipv4Addr>().ok()?;
     ip.is_private().then_some(ip)
 }
 

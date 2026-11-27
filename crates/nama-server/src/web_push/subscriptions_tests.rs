@@ -11,7 +11,7 @@ use url::Url;
 use super::{push, subscribe, subscriptions_of, unsubscribe};
 use crate::{
     db::Database,
-    users::testing::insert_user,
+    users::testing::{insert_device, insert_user},
     web_push::{
         Pusher,
         testing::{assert_valid_vapid, browser, new_key, push_service, silent_push_service},
@@ -33,14 +33,21 @@ async fn endpoints_of(db: &Database, user: i64) -> Vec<String> {
 async fn unsubscribing_removes_only_the_callers_and_another_subscribing_takes_the_endpoint() {
     let (_dir, db) = open().await;
     let (ada, lin) = (insert_user(&db, "ada").await, insert_user(&db, "lin").await);
+    let (adas_device, lins_device) = (insert_device(&db, ada).await, insert_device(&db, lin).await);
     let (laptop, phone) = (
         "https://push.example.net/laptop",
         "https://push.example.net/phone",
     );
-    subscribe(&db, ada, browser(laptop)).await.unwrap();
-    subscribe(&db, ada, browser(phone)).await.unwrap();
+    subscribe(&db, ada, adas_device, browser(laptop))
+        .await
+        .unwrap();
+    subscribe(&db, ada, adas_device, browser(phone))
+        .await
+        .unwrap();
 
-    subscribe(&db, lin, browser(phone)).await.unwrap();
+    subscribe(&db, lin, lins_device, browser(phone))
+        .await
+        .unwrap();
     unsubscribe(&db, ada, phone.to_owned()).await.unwrap();
 
     assert_eq!(endpoints_of(&db, ada).await, [laptop]);
@@ -53,7 +60,8 @@ async fn unsubscribing_removes_only_the_callers_and_another_subscribing_takes_th
 async fn deleting_a_user_deletes_their_subscriptions() {
     let (_dir, db) = open().await;
     let ada = insert_user(&db, "ada").await;
-    subscribe(&db, ada, browser("https://push.example.net/1"))
+    let device = insert_device(&db, ada).await;
+    subscribe(&db, ada, device, browser("https://push.example.net/1"))
         .await
         .unwrap();
 
@@ -76,15 +84,18 @@ async fn each_subscription_is_pushed_to_and_a_gone_one_deleted_while_a_silent_on
     let (_dir, db) = open().await;
     let db = Arc::new(db);
     let ada = insert_user(&db, "ada").await;
+    let device = insert_device(&db, ada).await;
     let (laptop, laptop_got) = push_service(StatusCode::CREATED).await;
     let (phone, phone_got) = push_service(StatusCode::CREATED).await;
     let (gone, _) = push_service(StatusCode::GONE).await;
     // Subscribed first, so a push waiting on it would hold up the others.
-    subscribe(&db, ada, browser(&silent_push_service().await))
+    subscribe(&db, ada, device, browser(&silent_push_service().await))
         .await
         .unwrap();
     for endpoint in [&laptop, &phone, &gone] {
-        subscribe(&db, ada, browser(endpoint)).await.unwrap();
+        subscribe(&db, ada, device, browser(endpoint))
+            .await
+            .unwrap();
     }
     let key = new_key();
     let public_key = key.public_key().to_vec();

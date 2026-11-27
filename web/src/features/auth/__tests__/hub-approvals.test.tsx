@@ -8,7 +8,8 @@ import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { LinkedServerSchema, LinkedUserSchema, LinkService } from "@/gen/nama/hub/v1/link_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
-import { ada, hubRefused } from "@/test-hub";
+import { ada } from "@/test-hub";
+import { hubRefused } from "@/test-hub-links";
 
 afterEach(() => {
   cleanup();
@@ -47,6 +48,10 @@ function fakeHub({
       },
     });
     service(LinkService, {
+      // What Settings' Servers section lists around its forms.
+      listLinkedServers: () => ({}),
+      listLinkedUsers: () => ({}),
+      listUserInvites: () => ({}),
       approveServerLink: ({ code }) => {
         if (code !== "SRVR-CODE") {
           throw hubRefused(Code.NotFound, RefusalReason.LINK_CODE_NOT_FOUND);
@@ -89,8 +94,8 @@ async function enterCode(heading: string, code: string, action: string) {
   return form;
 }
 
-test("an Account Links a Server by the code it shows", async () => {
-  openApp("/", fakeHub());
+test("in Settings, an Account Links a Server by the code it shows", async () => {
+  openApp("/?settings=account-servers", fakeHub());
 
   await enterCode("Link a Server", "SRVR-CODE", "Link Server");
 
@@ -98,7 +103,7 @@ test("an Account Links a Server by the code it shows", async () => {
 });
 
 test("a code nothing waits on is refused under the code", async () => {
-  openApp("/", fakeHub());
+  openApp("/?settings=account-servers", fakeHub());
 
   const form = await enterCode("Link a Server", "XXXX-XXXX", "Link Server");
 
@@ -106,8 +111,8 @@ test("a code nothing waits on is refused under the code", async () => {
   expect(form.getByLabelText("Code").getAttribute("aria-invalid")).toBe("true");
 });
 
-test("an Account Links a User by the code their Server shows them", async () => {
-  openApp("/", fakeHub());
+test("in Settings, an Account Links a User by the code their Server shows them", async () => {
+  openApp("/?settings=account-servers", fakeHub());
 
   await enterCode("Link a User", "USER-CODE", "Link User");
 
@@ -117,7 +122,7 @@ test("an Account Links a User by the code their Server shows them", async () => 
 });
 
 test("a Link that needs the email proven offers a Sign-in Link", async () => {
-  openApp("/", fakeHub());
+  openApp("/?settings=account-servers", fakeHub());
 
   const form = await enterCode("Link a User", "WRONG", "Link User");
 

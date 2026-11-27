@@ -5,8 +5,8 @@ import { SwitchRow } from "@/features/settings/components/switch-row";
 import { useBrowserPush } from "@/features/settings/data/use-browser-push";
 import { useSetBrowserPush } from "@/features/settings/data/use-set-browser-push";
 import { browserPushText } from "@/features/settings/lib/notification-labels";
-import { notificationsBlocked, webPushMissing } from "@/features/settings/lib/web-push";
 import { refusal } from "@/shared/lib/forms";
+import { notificationsBlocked, webPushMissing } from "@/shared/lib/web-push";
 
 /**
  * "Notify this browser": the switch that has the Server push the User's notifications to this

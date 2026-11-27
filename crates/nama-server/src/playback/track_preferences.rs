@@ -12,10 +12,7 @@ use std::{slice, sync::Arc};
 use isolang::Language;
 use nama_plugin_api::{
     metadata::ExternalIds,
-    points::{
-        TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
-        TrackPreferenceFor,
-    },
+    points::{TrackDescription, TrackPreference, TrackPreferenceFor},
 };
 use sqlx::SqliteConnection;
 
@@ -24,7 +21,6 @@ use crate::{
     db::{Database, detached, now_ms},
     library::{Contents, MatchedTo},
     link,
-    plugins::ExtensionPoints,
 };
 
 // The `kind` of a Preference, part of its key.
@@ -40,8 +36,6 @@ const MOVIE: &str = "movie";
 pub(crate) struct TrackPreferences {
     db: Arc<Database>,
     contents: Contents,
-    /// Told of each Preference kept.
-    points: ExtensionPoints,
 }
 
 /// What a User wants subtitles to start as.
@@ -213,11 +207,10 @@ pub(crate) enum Error {
 }
 
 impl TrackPreferences {
-    pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
+    pub(crate) fn new(db: Arc<Database>) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),
             db,
-            points,
         }
     }
 
@@ -328,10 +321,10 @@ impl TrackPreferences {
     }
 
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
-    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, tells
-    /// `TrackPreferenceChanged` Observers, and returns the change. `None` for the User's own audio
-    /// forgets it, as audio is never off. They're told in a task of its own, so they're told even
-    /// if the caller stops waiting once the write is sent (ADR 0029).
+    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, and
+    /// returns the change. `None` for the User's own audio forgets it, as audio is never off. It's
+    /// kept in a task of its own, so it's kept and queued even if the caller stops waiting once the
+    /// write is sent (ADR 0029).
     #[expect(
         clippy::too_many_arguments,
         reason = "the row's key and columns, each set by a different public `keep_*`"
@@ -351,14 +344,10 @@ impl TrackPreferences {
             foreign_audio_only,
             changed_at: now_ms(),
         };
-        let (db, points) = (Arc::clone(&self.db), self.points.clone());
+        let db = Arc::clone(&self.db);
         detached(async move {
-            let preference = (db.write(move |tx| Box::pin(keep_change(tx, user, change)))).await?;
-            points.notify::<TrackPreferenceChanged>(TrackPreferenceChange {
-                user_id: user,
-                preference: preference.clone(),
-            });
-            Ok(preference)
+            db.write(move |tx| Box::pin(keep_change(tx, user, change)))
+                .await
         })
         .await
     }
@@ -489,7 +478,7 @@ enum Overwrite {
 }
 
 /// Writes `change` of the User `user`'s Preferences over whatever they had, queues it for the Hub,
-/// and returns it as Observers are told of it.
+/// and returns it.
 async fn keep_change(
     conn: &mut SqliteConnection,
     user: i64,

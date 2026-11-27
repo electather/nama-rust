@@ -71,7 +71,7 @@ export const Route = createFileRoute("/_member")({
 function Member() {
   const { signedIn, account } = Route.useRouteContext();
   if (account) {
-    return <HubMemberLayout />;
+    return <HubMemberLayout email={account.email} />;
   }
   return <MemberLayout chrome={{ userName: signedIn.user?.name ?? "" }} user={signedIn.user} />;
 }

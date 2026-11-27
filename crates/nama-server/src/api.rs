@@ -115,7 +115,7 @@ pub(crate) fn router(
         Contents::new(Arc::clone(&db)),
         image_settings.clone(),
     );
-    let preferences = TrackPreferences::new(Arc::clone(&db), plugins.clone());
+    let preferences = TrackPreferences::new(Arc::clone(&db));
     let plans = Plans::new(
         probing,
         abilities.clone(),
@@ -490,6 +490,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_ALREADY_SET_UP
         | R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED
         | R::REFUSAL_REASON_LAST_ADMIN
+        | R::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY
         | R::REFUSAL_REASON_LAST_SIGN_IN_METHOD
         | R::REFUSAL_REASON_OWN_PASSWORD_RESET
         | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED

@@ -94,7 +94,7 @@ impl Alien {
             running,
             settings.playback(),
             preview_frames,
-            TrackPreferences::new(Arc::clone(&db), ExtensionPoints::default()),
+            TrackPreferences::new(Arc::clone(&db)),
             Arc::clone(&db),
         );
         let ripley = ripley_on_the_nostromo(&db).await;

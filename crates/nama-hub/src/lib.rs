@@ -9,6 +9,7 @@ pub mod dns;
 mod https;
 mod links;
 pub mod mail;
+pub mod probe;
 mod recommendations;
 pub mod signing;
 mod sync;
@@ -25,7 +26,7 @@ use sqlx::PgPool;
 use tokio::net::TcpListener;
 use url::Url;
 
-use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail};
+use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail, probe::Probe};
 
 /// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, signing with
 /// `keys`, until `shutdown` resolves, then lets requests in flight finish. Forwarded headers are
@@ -33,7 +34,8 @@ use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail};
 /// `mail`, and without it aren't offered. Linked Servers are named in the zone of `names`, and
 /// without it aren't named (ADR 0104). What Linked Servers share goes to `diagnostics`, and
 /// without it is dropped. Passkeys are for the Hub at `public_url`, and without it aren't offered.
-/// Must be called inside a Tokio runtime, which sends them.
+/// A Linked Server's public port is tried through `probe`, [`probe::Tcp`] outside tests. Must be
+/// called inside a Tokio runtime, which sends them.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the web app (ADR 0105).
@@ -55,6 +57,7 @@ pub fn serve(
     names: Option<ServerNames>,
     diagnostics: Option<Arc<dyn Backend>>,
     public_url: Option<&Url>,
+    probe: Arc<dyn Probe>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let app = api::router(
@@ -65,6 +68,7 @@ pub fn serve(
         names,
         diagnostics,
         public_url,
+        probe,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));

@@ -3,6 +3,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
+import { pickFromMenu } from "@/test-menu";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -20,10 +21,10 @@ async function settings() {
   return within(await screen.findByRole("dialog", { name: "Settings" }));
 }
 
-test("at the Hub, the Account's page opens Settings on the Account's own Sections", async () => {
+test("at the Hub, the Account's menu opens Settings on the Account's own Sections", async () => {
   openApp("/", accountHub().transport);
 
-  fireEvent.click(await screen.findByRole("link", { name: "Settings" }));
+  await pickFromMenu(`${ada.email}’s menu`, "Settings");
 
   await expect(sections()).resolves.toStrictEqual([
     "Account",

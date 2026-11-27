@@ -3,10 +3,12 @@
 
 use crate::support::hub::TestHub;
 use crate::support::linking::*;
+use crate::support::mail::fake_mail;
 use crate::support::refused::assert_refused;
 use connectrpc::ErrorCode;
 use nama_hub_proto::nama::hub::v1::{
     ListLinkedServersRequest, RefusalReason, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerSignInRequest,
 };
 use sqlx::PgPool;
 
@@ -42,6 +44,21 @@ async fn set_addresses_with_port(
         })
         .await?;
     Ok(set.into_owned())
+}
+
+/// Starts a sign-in to the Server presenting `credential`, returning to `return_url`.
+async fn start_sign_in(
+    hub: &TestHub,
+    credential: &str,
+    return_url: &str,
+) -> Result<(), connectrpc::ConnectError> {
+    linked_server(hub, credential)
+        .start_server_sign_in(StartServerSignInRequest {
+            return_url: return_url.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
 }
 
 /// Each Server the Account signed in as `token` lists: its name, its Server URL and its Server
@@ -162,6 +179,32 @@ async fn a_server_sets_only_its_own_addresses(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_server_url_a_browser_opens_is_admitted_listed_as_sent_and_returned_to(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+
+    set_addresses(&hub, &living_room, "https://bücher.example", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [(
+            "Living room".to_owned(),
+            "https://bücher.example".to_owned(),
+            vec!["https://bücher.example".to_owned()]
+        )]
+    );
+    start_sign_in(&hub, &living_room, "https://BÜCHER.example/sign-in")
+        .await
+        .unwrap();
+    start_sign_in(&hub, &living_room, "https://xn--bcher-kva.example/sign-in")
+        .await
+        .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_server_address_must_be_an_http_url(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
@@ -253,59 +296,56 @@ async fn the_hub_lists_the_public_address_it_reached_between_the_server_url_and_
 async fn the_hub_stores_a_new_server_url_at_once_and_keeps_the_public_address_while_it_probes(
     db: PgPool,
 ) {
+    let (mail, mut inbox) = fake_mail();
+    let (hub, mut probes) = TestHub::start_holding_probes(db, Some(mail)).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let first = set_addresses_with_port(&hub, &living_room, "https://old.example.com", &[], 7980);
+    let answered = async { probes.recv().await.unwrap().send(true).unwrap() };
+    tokio::join!(first, answered).0.unwrap();
+
+    let set = set_addresses_with_port(&hub, &living_room, "https://nama.example.com", &[], 7980);
+    let listed_while_probing = async {
+        let held = probes.recv().await.unwrap();
+        let listed = server_addresses(&hub, &ada).await.swap_remove(0);
+        held.send(true).unwrap();
+        listed
+    };
+    let (set, (_, url, addresses)) = tokio::join!(set, listed_while_probing);
+
+    set.unwrap();
+    assert_eq!(url, "https://nama.example.com");
+    assert_eq!(
+        addresses,
+        ["https://nama.example.com", "http://127.0.0.1:7980"]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_sign_in_never_returns_to_the_public_address_as_the_server_cant_know_its_public_ip(
+    db: PgPool,
+) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let living_room = linked(&hub, &ada, "Living room").await;
-    // The test's calls come from 127.0.0.1, so the Hub tries the Server's ports there.
+    // The test's calls come from 127.0.0.1, so the Hub tries the Server's port there.
     let open = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let reached = open.local_addr().unwrap().port();
+    let port = open.local_addr().unwrap().port();
+    let public = format!("http://127.0.0.1:{port}");
     set_addresses_with_port(
-        &hub,
-        &living_room,
-        "https://old.example.com",
-        &[],
-        reached.into(),
-    )
-    .await
-    .unwrap();
-    // Linux drops a SYN to a listener whose accept queue is full, so the Hub's connection waits
-    // out its whole probe: a backlog of 0 queues one connection, which `_queued` takes.
-    let socket = tokio::net::TcpSocket::new_v4().unwrap();
-    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
-    let full = socket.listen(0).unwrap();
-    let port = full.local_addr().unwrap().port();
-    let _queued = tokio::net::TcpStream::connect(("127.0.0.1", port))
-        .await
-        .unwrap();
-
-    let set = set_addresses_with_port(
         &hub,
         &living_room,
         "https://nama.example.com",
         &[],
         port.into(),
-    );
-    let stored = async {
-        loop {
-            let (_, url, addresses) = server_addresses(&hub, &ada).await.swap_remove(0);
-            if url == "https://nama.example.com" {
-                return addresses;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-        }
-    };
-    // Well inside the Hub's 5-second probe, so storing the Server URL only after it fails here.
-    let stored = tokio::time::timeout(std::time::Duration::from_secs(2), stored);
+    )
+    .await
+    .unwrap();
+    assert!(server_addresses(&hub, &ada).await[0].2.contains(&public));
 
-    let listed = tokio::select! {
-        listed = stored => listed.expect("the Hub stored the Server URL only after its probe"),
-        answer = set => panic!("the probe ended at once, so it held nothing: {answer:?}"),
-    };
-    assert_eq!(
-        listed,
-        [
-            "https://nama.example.com".to_owned(),
-            format!("http://127.0.0.1:{reached}")
-        ]
+    assert_refused(
+        start_sign_in(&hub, &living_room, &format!("{public}/sign-in")).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_URL_INVALID,
     );
 }

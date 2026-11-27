@@ -6,10 +6,11 @@ import type { TitleListing } from "@/features/library/lib/title-listing";
 import { LibraryKind, type Library } from "@/gen/nama/v1/library_pb";
 import { MayDownloadAgain } from "@/shared/components/delete-media/may-download-again";
 import { Page } from "@/shared/components/page";
+import { useLibraries } from "@/shared/hooks/use-libraries";
 
 /**
- * A Library: its titles, their sort and filter bar, a Movies Library's Box Sets in a tab beside
- * its Movies, its Unmatched Items and a delete's notice.
+ * A Library: its name, on its Backdrop if it has one, then its titles, their sort and filter bar, a
+ * Movies Library's Box Sets in a tab beside its Movies, its Unmatched Items and a delete's notice.
  */
 export function LibraryPage({
   library,
@@ -28,9 +29,14 @@ export function LibraryPage({
   change: (listing: TitleListing) => void;
   switchView: (view: LibraryView) => void;
 }) {
+  // The route's copy is the loader's, which doesn't hear Settings change it, such as its Backdrop.
+  const live = useLibraries().find(({ id }) => id === library.id) ?? library;
   const titles = { libraryId: library.id, listing, change };
   return (
-    <Page heading={library.name}>
+    <Page
+      heading={live.name}
+      backdrop={{ url: live.backdropUrl, thumbhash: live.backdropThumbhash }}
+    >
       {deleted !== undefined && (
         <div className="mt-2">
           <MayDownloadAgain title={deleted} fulfillers={notTold} />

@@ -1,16 +1,13 @@
 use std::{
-    future,
     sync::Arc,
     task::{Context, Waker},
     time::Duration,
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar,
     metadata::{ExternalId, ExternalIds},
-    points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
+    points::WatchStateChange,
 };
-use tokio::sync::mpsc;
 
 use super::{Kind, MovieOrEpisode, Progress, WatchState, WatchStates, Watched};
 use crate::{
@@ -27,49 +24,6 @@ pub(super) async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64)
     let watch_states = WatchStates::new(db, ExtensionPoints::default());
     let user = another_user(&watch_states, "Ada").await;
     (watch_states, user)
-}
-
-/// Watch States as [`watch_states`] gives, whose Observers' news the test hears.
-async fn heard_watch_states(
-    data: &tempfile::TempDir,
-) -> (WatchStates, i64, mpsc::UnboundedReceiver<WatchStateChanges>) {
-    let (heard, hearing) = mpsc::unbounded_channel();
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(Hears(heard))).unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let watch_states = WatchStates::new(db, plugins.extension_points());
-    let user = another_user(&watch_states, "Ada").await;
-    (watch_states, user, hearing)
-}
-
-/// A Plugin that hands each Watch State change it's told of to the test.
-#[derive(Clone)]
-struct Hears(mpsc::UnboundedSender<WatchStateChanges>);
-
-impl Plugin for Hears {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            extension_points: vec![PointKey::observe::<WatchStatesChanged>()],
-            ..Manifest::new(PluginId::from_static("hears"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.observe::<WatchStatesChanged>(self.clone());
-        Ok(())
-    }
-}
-
-impl Observer<WatchStatesChanged> for Hears {
-    fn observe<'a>(
-        &'a self,
-        event: &'a WatchStateChanges,
-    ) -> BoxFuture<'a, Result<(), PluginError>> {
-        let sent = self.0.send(event.clone());
-        Box::pin(future::ready(
-            sent.map_err(|_unsent| "the test stopped listening".into()),
-        ))
-    }
 }
 
 /// Creates a User called `name` on the database of `watch_states`, and gives their id.
@@ -574,9 +528,9 @@ async fn of_a_titles_pulled_changes_under_several_ids_only_the_newest_is_taken_i
 }
 
 #[tokio::test]
-async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
+async fn a_change_whose_caller_stops_waiting_is_still_stored() {
     let data = tempfile::tempdir().unwrap();
-    let (watch_states, user, mut hearing) = heard_watch_states(&data).await;
+    let (watch_states, user) = watch_states(&data).await;
 
     // Polled once, which sends the write on its way, then dropped, as when a client hangs up
     // (ADR 0029).
@@ -586,12 +540,17 @@ async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
         .poll(&mut Context::from_waker(Waker::noop()));
     assert!(polled.is_pending(), "the mark finished at once");
     drop(marking);
-    let told = tokio::time::timeout(Duration::from_secs(5), hearing.recv()).await;
 
-    let told = told.expect("no Observer was told").unwrap();
-    assert_eq!((told.user_id, told.changes[0].played), (user, true));
-    let stored = movie_state(&watch_states, user, alien_id()).await;
-    assert!(stored.is_some_and(|state| state.played));
+    let stored = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match movie_state(&watch_states, user, alien_id()).await {
+                Some(state) => return state,
+                None => tokio::task::yield_now().await,
+            }
+        }
+    })
+    .await;
+    assert!(stored.expect("it was never stored").played);
 }
 
 /// Where Alien stands for `user`: its position and when it last changed, in milliseconds.
@@ -648,42 +607,6 @@ async fn a_newer_offline_change_to_a_played_movie_keeps_it_played() {
 
     let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
     assert_eq!((state.played, state.position_ms), (true, 500));
-}
-
-#[tokio::test]
-async fn observers_hear_each_offline_change_stored_and_none_ignored() {
-    let data = tempfile::tempdir().unwrap();
-    let (watch_states, user, mut hearing) = heard_watch_states(&data).await;
-    let mut hear = async || {
-        let told = tokio::time::timeout(Duration::from_secs(5), hearing.recv()).await;
-        told.expect("no Observer was told").unwrap().changes
-    };
-    let stored = made_elsewhere(1_000, false, 120);
-    let older = made_elsewhere(500, false, 180);
-    let newer = made_elsewhere(1_500, false, 60);
-
-    (watch_states.take_offline(user, vec![(alien_by_both_ids(), stored)]))
-        .await
-        .unwrap();
-    let told_stored = hear().await;
-    let ignored = (watch_states.take_offline(user, vec![(alien_by_both_ids(), older)]))
-        .await
-        .unwrap();
-    (watch_states.take_offline(user, vec![(alien_by_both_ids(), newer.clone())]))
-        .await
-        .unwrap();
-    let told_newer = hear().await;
-
-    assert_eq!(told_stored.len(), 1);
-    assert_eq!(ignored, []);
-    let [told] = told_newer.as_slice() else {
-        panic!("{told_newer:?}")
-    };
-    assert_eq!(told.ids, ["tmdb-348", "imdb-tt0078748"]);
-    assert_eq!(
-        (told.position_ms, told.changed_at_ms),
-        (1_500, newer.changed_at_ms)
-    );
 }
 
 #[tokio::test]

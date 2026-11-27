@@ -17,7 +17,7 @@ export function WaitingActions({
 }) {
   return (
     <>
-      <StateLabel tone="warning" label="Waiting for you" Icon={Clock} />
+      <StateLabel label="Waiting for you" Icon={Clock} />
       <Button
         variant="ghost"
         aria-label={`Cancel connecting ${name}`}

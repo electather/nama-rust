@@ -58,12 +58,15 @@ function homeRows(...rows: HomeRowInit[]) {
 
 test("a Show's next Episode, which has no Watch State, takes the time of the card below it", () => {
   const merged = mergeContinueWatching([
-    [
-      ...movieCard(basement, "Alien", 300n),
-      ...nextEpisodeCard(basement, "Severance"),
-      ...movieCard(basement, "Heat", 100n),
-    ],
-    movieCard(cabin, "Dune", 200n),
+    {
+      cards: [
+        ...movieCard(basement, "Alien", 300n),
+        ...nextEpisodeCard(basement, "Severance"),
+        ...movieCard(basement, "Heat", 100n),
+      ],
+      more: false,
+    },
+    { cards: movieCard(cabin, "Dune", 200n), more: false },
   ]);
 
   expect(merged.map(({ card }) => card.backdrop.title)).toStrictEqual([
@@ -76,8 +79,29 @@ test("a Show's next Episode, which has no Watch State, takes the time of the car
 
 test("a Show's next Episode atop its Server's list doesn't outrank another Server's newer title", () => {
   const merged = mergeContinueWatching([
-    nextEpisodeCard(basement, "Severance"),
-    movieCard(cabin, "Dune", 200n),
+    { cards: nextEpisodeCard(basement, "Severance"), more: false },
+    { cards: movieCard(cabin, "Dune", 200n), more: false },
+  ]);
+
+  expect(merged.map(({ card }) => card.backdrop.title)).toStrictEqual(["Dune", "Severance"]);
+});
+
+test("cards older than the last so far of a Server with more to load wait for its next page", () => {
+  const merged = mergeContinueWatching([
+    {
+      cards: [...movieCard(basement, "Alien", 300n), ...nextEpisodeCard(basement, "Severance")],
+      more: true,
+    },
+    { cards: [...movieCard(cabin, "Dune", 400n), ...movieCard(cabin, "Heat", 200n)], more: false },
+  ]);
+
+  expect(merged.map(({ card }) => card.backdrop.title)).toStrictEqual(["Dune", "Alien"]);
+});
+
+test("a Server's next Episodes with no time to go by show, last, though it has more to load", () => {
+  const merged = mergeContinueWatching([
+    { cards: nextEpisodeCard(basement, "Severance"), more: true },
+    { cards: movieCard(cabin, "Dune", 200n), more: false },
   ]);
 
   expect(merged.map(({ card }) => card.backdrop.title)).toStrictEqual(["Dune", "Severance"]);
