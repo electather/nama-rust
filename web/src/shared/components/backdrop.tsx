@@ -3,7 +3,7 @@ import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /** The backdrop at `url`, under its `thumbhash` until it loads. Nothing without one. */
-export function TitleBackdrop({
+export function Backdrop({
   url,
   thumbhash,
 }: {

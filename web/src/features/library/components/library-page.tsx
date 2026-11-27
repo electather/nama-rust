@@ -8,7 +8,7 @@ import { MayDownloadAgain } from "@/shared/components/delete-media/may-download-
 import { Page } from "@/shared/components/page";
 
 /**
- * A Library: its titles, their sort and filter bar, a Movies Library's Box Sets in a tab beside
+ * A Library: its name on its Backdrop, if it has one, its titles, their sort and filter bar, a Movies Library's Box Sets in a tab beside
  * its Movies, its Unmatched Items and a delete's notice.
  */
 export function LibraryPage({
@@ -30,7 +30,10 @@ export function LibraryPage({
 }) {
   const titles = { libraryId: library.id, listing, change };
   return (
-    <Page heading={library.name}>
+    <Page
+      heading={library.name}
+      backdrop={{ url: library.backdropUrl, thumbhash: library.backdropThumbhash }}
+    >
       {deleted !== undefined && (
         <div className="mt-2">
           <MayDownloadAgain title={deleted} fulfillers={notTold} />
