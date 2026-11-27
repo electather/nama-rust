@@ -183,18 +183,19 @@ test("a Processing Season's Episodes show a ring filled to how far its downloads
   expect(firstOf(1).queryByRole("progressbar")).toBeNull();
 });
 
-test("an Episode in a Library isn't dimmed, and the main button Requests the next Season", async () => {
+test("an Episode in a Library isn't dimmed, and the row opens on the next Season the main button Requests", async () => {
   const inLibrary = season(1, {
     inLibrary: true,
-    episodes: [{ episodeNumber: 1, title: "Secrets", inLibrary: true }],
+    episodes: [{ episodeNumber: 1, title: "Secrets", inLibrary: true, runtimeMinutes: 51 }],
   });
   const { transport } = showServer({ ...dark, seasons: [inLibrary, season(2)] });
   openApp("/shows/tmdb-70523", transport);
   await screen.findByRole("heading", { name: "Dark" });
 
   expect(firstOf(1).queryByRole("button")).toBeNull();
-  expect(screen.getByText("Season 1, Episode 1: Secrets")).toBeDefined();
+  expect(screen.getByText("Season 1, Episode 1: Secrets, 51m")).toBeDefined();
   expect(screen.getByRole("button", { name: "Request Season 2 of Dark" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Season 2" })).toBeDefined();
 });
 
 test("a Season someone else Requested shows its state, and Requesting it joins", async () => {

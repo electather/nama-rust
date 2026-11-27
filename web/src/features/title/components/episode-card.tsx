@@ -1,60 +1,57 @@
-import { useParams } from "@tanstack/react-router";
-
 import { EpisodeCaption } from "@/features/title/components/episode-caption";
-import { EpisodeMoreLoader } from "@/features/title/components/episode-more-loader";
+import { EpisodeCardMenu } from "@/features/title/components/episode-card-menu";
+import { EpisodePlayLink } from "@/features/title/components/episode-play-link";
+import { MissingShade } from "@/features/title/components/missing-shade";
 import { episodeCardLabel } from "@/features/title/lib/episode-card-label";
 import type { RowLook } from "@/features/title/lib/row-look";
-import type { Episode } from "@/gen/nama/v1/browse_pb";
-import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
+import type { RowEpisode } from "@/features/title/lib/show-row";
+import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
 import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 import { stillOf } from "@/shared/lib/server-image";
 
 /**
- * An Episode by its Still, which plays its largest Version, with its caption over
- * the Still and a "…" to mark it watched or delete it, as Continue Watching's cards are drawn. It is
- * the card at `place.index` of the `place.of` in its row, drawn as the row's `look` says.
+ * An Episode of a Show's row by its Still, with its caption over the Still, as Continue Watching's
+ * cards are drawn. One in the page's Library, `libraryId`, plays its largest Version and has a "…"
+ * to mark it watched or delete it; one in another Library plays nothing; one missing from the
+ * Server is dimmed, with where its Season's Request is in its top corner. It is the card at
+ * `place.index` of the `place.of` in its row, drawn as the row's `look` says.
  */
 export function EpisodeCard({
   libraryId,
-  episode,
+  item,
   place,
   look,
 }: {
-  libraryId: bigint;
-  episode: Episode;
+  libraryId: bigint | undefined;
+  item: RowEpisode;
   place: { index: number; of: number };
   look: RowLook;
 }) {
-  // Without its own ID there's nothing to mark or delete.
-  const episodeId = episode.id;
-  const show = useParams({ from: "/_member/_server/libraries/$libraryId/shows/$showId/" });
+  const label = episodeCardLabel(item);
   return (
     <li
       // The row's scroll reads its Season.
-      data-season={episode.seasonNumber}
+      data-season={item.seasonNumber}
       aria-setsize={place.of}
       aria-posinset={place.index + 1}
       className="w-tile-backdrop shrink-0 snap-start"
     >
-      <BackdropCard
-        art={{ images: [stillOf(episode), look.backdrop], sizes: backdropTileSizes }}
-        link={{
-          to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
-          params: {
-            ...show,
-            season: String(episode.seasonNumber),
-            episode: String(episode.episodeNumber),
-          },
-        }}
-        label={episodeCardLabel(episode)}
+      <BackdropFrame
+        art={{ images: [stillOf(item.episode), look.backdrop], sizes: backdropTileSizes }}
         tall={look.tall}
-        caption={<EpisodeCaption episode={episode} />}
-        menu={
-          episodeId && (
-            <EpisodeMoreLoader libraryId={libraryId} episodeId={episodeId} episode={episode} />
-          )
-        }
-      />
+        caption={<EpisodeCaption item={item} />}
+        menu={<EpisodeCardMenu libraryId={libraryId} item={item} />}
+      >
+        {item.kind === "here" ? (
+          <EpisodePlayLink episode={item.episode} label={label} />
+        ) : (
+          // The caption is hidden from screen readers, as a card's link names it, so this does.
+          <span className="sr-only">{label}</span>
+        )}
+        {item.kind === "missing" && (
+          <MissingShade season={item.seasonNumber} standing={item.standing} />
+        )}
+      </BackdropFrame>
     </li>
   );
 }

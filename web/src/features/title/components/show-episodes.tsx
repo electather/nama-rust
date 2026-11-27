@@ -1,48 +1,33 @@
-import type { Ref, RefObject } from "react";
-
 import { EpisodeRow } from "@/features/title/components/episode-row";
 import { SeasonBar } from "@/features/title/components/season-bar";
-import type { RowScroller } from "@/features/title/lib/season-row";
-import type { RowEpisode } from "@/features/title/lib/show-row";
+import type { ShowRow } from "@/features/title/hooks/use-show-row";
 import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
- * A Show's Episodes in one row, Season after Season, Specials last, under the name of the Season
- * it's on, `current`, a menu that scrolls it to another of `seasons`. The Show's `backdrop` stands
- * in for a missing Still.
+ * A Show's `row` of Episodes, `useShowRow`'s, Season after Season, Specials last, under the name of
+ * the Season it's on, a menu that scrolls it to another; nothing while it has no Season. Those of
+ * the page's Library, `libraryId`, play. The Show's `backdrop` stands in for a missing Still.
  */
 export function ShowEpisodes({
   row,
-  scroller,
-  opening,
   libraryId,
-  seasons,
-  episodes,
-  current,
-  onPick,
   backdrop,
 }: {
-  row: RefObject<HTMLDivElement | null>;
-  scroller: Ref<RowScroller>;
-  opening: number;
+  row: ShowRow;
   libraryId: bigint | undefined;
-  seasons: number[];
-  episodes: RowEpisode[];
-  current: number;
-  onPick: (season: number) => void;
   backdrop: ServerImage | undefined;
 }) {
+  const {
+    seasons,
+    season,
+    view: { pick },
+  } = row;
   return (
-    <section aria-label="Episodes" className="flex flex-col gap-4">
-      <SeasonBar {...{ seasons, current, onPick }} />
-      <EpisodeRow
-        ref={row}
-        scroller={scroller}
-        libraryId={libraryId}
-        episodes={episodes}
-        opening={opening}
-        backdrop={backdrop}
-      />
-    </section>
+    seasons.length > 0 && (
+      <section aria-label="Episodes" className="flex flex-col gap-4">
+        <SeasonBar seasons={seasons} current={season} onPick={pick} />
+        <EpisodeRow row={row} libraryId={libraryId} look={{ tall: row.tall, backdrop }} />
+      </section>
+    )
   );
 }

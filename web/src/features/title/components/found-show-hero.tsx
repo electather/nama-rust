@@ -2,16 +2,13 @@ import { SeasonAsk } from "@/features/title/components/season-ask";
 import { SeasonAskRefusal } from "@/features/title/components/season-ask-refusal";
 import { ShowRequestMenu } from "@/features/title/components/show-request-menu";
 import { TitleTop } from "@/features/title/components/title-top";
-import { heroTarget } from "@/features/title/lib/hero-target";
-import type { RowEpisode } from "@/features/title/lib/show-row";
+import type { ShowRow } from "@/features/title/hooks/use-show-row";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { FoundShow } from "@/gen/nama/v1/request_pb";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { useMay } from "@/shared/hooks/use-may";
 
 /**
- * The top of a found Show's page: what it is, "Request Season N" for the first Season of its `row`
- * missing from the Server, or where its Request is, and a "…" that Requests many.
+ * The top of a found Show's page: what it is, "Request Season N" for its `row`'s main button's
+ * Season, or where its Request is, and a "…" that Requests many.
  */
 export function FoundShowHero({
   show,
@@ -20,9 +17,8 @@ export function FoundShowHero({
 }: {
   show: FoundShow;
   showId: ExternalId;
-  row: RowEpisode[];
+  row: ShowRow;
 }) {
-  const mayRetry = useMay(Permission.MANAGE_REQUESTS);
   return (
     <TitleTop
       title={show}
@@ -31,11 +27,11 @@ export function FoundShowHero({
       facts={[show.year?.toString()]}
       actions={
         <>
-          <SeasonAsk target={heroTarget(row, undefined, mayRetry)} />
+          <SeasonAsk target={row.target} />
           <SeasonAskRefusal />
         </>
       }
-      more={<ShowRequestMenu row={row} />}
+      more={<ShowRequestMenu row={row.episodes} />}
     />
   );
 }
