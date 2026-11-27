@@ -3,10 +3,11 @@ import { useParams } from "@tanstack/react-router";
 import { EpisodeCaption } from "@/features/title/components/episode-caption";
 import { EpisodeMoreLoader } from "@/features/title/components/episode-more-loader";
 import { episodeCardLabel } from "@/features/title/lib/episode-card-label";
-import { type RowLook, cardArt } from "@/features/title/lib/row-look";
+import type { RowLook } from "@/features/title/lib/row-look";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
 import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
+import { stillOf } from "@/shared/lib/server-image";
 
 /**
  * An Episode by its Still, which plays its largest Version, with its caption over
@@ -36,12 +37,7 @@ export function EpisodeCard({
       className="w-tile-backdrop shrink-0 snap-start"
     >
       <BackdropCard
-        art={{
-          ...cardArt({ url: episode.stillUrl, thumbhash: episode.stillThumbhash }, look),
-          sizes: backdropTileSizes,
-          // Stills have no prerendered width list.
-          widths: "imageWidths",
-        }}
+        art={{ images: [stillOf(episode), look.backdrop], sizes: backdropTileSizes }}
         link={{
           to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
           params: {

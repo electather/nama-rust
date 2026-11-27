@@ -3,7 +3,7 @@ import { useState } from "react";
 import { type FoundTitle, isFoundTitle } from "@/features/action-bar/lib/titles";
 
 // Versioned, so a change to `FoundTitle` starts a new list instead of reading the old one wrong.
-const storageKey = "nama:action-bar:recents:v1";
+const storageKey = "nama:action-bar:recents:v2";
 const kept = 4;
 
 function read(): FoundTitle[] {

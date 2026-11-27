@@ -1,38 +1,26 @@
-import { useState } from "react";
-
-import { useServerUrl } from "@/shared/hooks/use-server-url";
-import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { ServerImg } from "@/shared/components/server-img";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
  * A title as its Title Logo, named by the title, or as text without one or once it fails to load.
- * `logo` sizes the logo's box and `sizes` says how wide it shows, for its `srcset`.
+ * `look` sizes the logo's box and says how wide it shows, for its `srcset`.
  */
 export function TitleOrLogo({
   title,
-  logoUrl,
   logo,
+  look,
 }: {
   title: string;
-  logoUrl: string | undefined;
-  logo: { className: string; sizes: string };
+  logo: ServerImage | undefined;
+  look: { className: string; sizes: string };
 }) {
-  const src = useServerUrl(logoUrl);
-  const srcSet = useSrcSet(logoUrl, "titleLogoWidths");
-  // Kept by URL, so the next title's logo, shown in the same place, gets its own try.
-  const [failedUrl, setFailedUrl] = useState<string>();
-  if (logoUrl === undefined || logoUrl === failedUrl) {
-    return title;
-  }
   return (
-    <img
-      src={src}
-      srcSet={srcSet}
-      sizes={logo.sizes}
+    <ServerImg
+      images={[logo]}
+      sizes={look.sizes}
       alt={title}
-      className={`w-auto object-contain object-left ${logo.className}`}
-      onError={() => {
-        setFailedUrl(logoUrl);
-      }}
+      className={`w-auto object-contain object-left ${look.className}`}
+      fallback={title}
     />
   );
 }

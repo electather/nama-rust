@@ -2,10 +2,11 @@ import type { Ref, RefObject } from "react";
 
 import { RowCard } from "@/features/title/components/row-card";
 import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtualizer";
-import { type CardArt, rowLook } from "@/features/title/lib/row-look";
+import { rowLook } from "@/features/title/lib/row-look";
 import type { RowScroller } from "@/features/title/lib/season-row";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import { paddingFor } from "@/shared/lib/padding-for";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
  * Every one of a Show's `episodes` in one row, those of the page's Library, `libraryId`, and those it
@@ -27,7 +28,7 @@ export function EpisodeRow({
   libraryId: bigint | undefined;
   episodes: RowEpisode[];
   opening: number;
-  backdrop: CardArt;
+  backdrop: ServerImage | undefined;
 }) {
   const look = rowLook(episodes, backdrop);
   const virtualizer = useEpisodeVirtualizer({

@@ -2,6 +2,7 @@ import { useId } from "react";
 
 import { TrailerCard } from "@/features/title/components/trailer-card";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
+import type { ServerImage } from "@/shared/lib/server-image";
 import { shelfBleed } from "@/shared/lib/shelf-bleed";
 
 /**
@@ -14,7 +15,7 @@ export function TitleTrailers({
   art,
 }: {
   trailers: Trailer[];
-  art: { url: string | undefined; thumbhash: Uint8Array | undefined };
+  art: ServerImage | undefined;
 }) {
   const heading = useId();
   if (trailers.length === 0) {

@@ -17,7 +17,7 @@ export function FeaturedCopy({ panel }: { panel: Panel }) {
   return (
     <div className="pointer-events-none invisible absolute inset-s-5 bottom-5 flex w-featured-copy -translate-x-3.5 flex-col gap-2.5 opacity-0 transition-all duration-600 ease-out-expo group-data-open:visible group-data-open:translate-x-0 group-data-open:opacity-100 group-data-open:delay-120 motion-reduce:transition-none max-[720px]:inset-x-3.5 max-[720px]:bottom-3.5 max-[720px]:w-auto">
       <h1 className="text-hero font-medium text-balance">
-        <TitleOrLogo title={panel.title} logoUrl={panel.logoUrl} logo={heroLogo} />
+        <TitleOrLogo title={panel.title} logo={panel.logo} look={heroLogo} />
       </h1>
       <FeaturedFacts rating={panel.rating} facts={panel.facts} />
       {panel.overview !== undefined && (

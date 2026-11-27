@@ -11,6 +11,7 @@ import type { RowEpisode } from "@/features/title/lib/show-row";
 import { titleBadges } from "@/features/title/lib/title-badges";
 import type { Episode, Season, Show } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { titleLogoOf } from "@/shared/lib/server-image";
 import { yearOf } from "@/shared/lib/title-facts";
 
 /**
@@ -48,7 +49,7 @@ export function ShowHero({
       title={show}
       kind="Show"
       id={showId}
-      logoUrl={show.titleLogoUrl}
+      logo={titleLogoOf(show)}
       facts={[yearOf(show.firstAirDate), seasonsOf(show.seasonCount)]}
       boxed={titleBadges(episodes.flatMap(({ versions }) => versions))}
       actions={

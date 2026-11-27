@@ -12,6 +12,12 @@ import type {
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
+  type ServerImage,
+  backdropOf,
+  titleLogoOf,
+  titledBackdropOf,
+} from "@/shared/lib/server-image";
+import {
   episodeName,
   metadataLine,
   remainingOf,
@@ -32,11 +38,10 @@ export interface Card {
   titleId: string;
   link: LinkOptions;
   backdrop: {
-    url: string | undefined;
-    thumbhash: Uint8Array | undefined;
+    art: ServerImage | undefined;
     title: string;
     /** Its Title Logo, shown in place of its title, if it has one. */
-    logoUrl: string | undefined;
+    logo: ServerImage | undefined;
     /** Whether the art carries its title, so the card doesn't draw it again. */
     titled: boolean;
     /** Which Episode, and how much is left, such as "S1, E3 · 33m left", as its link says it. */
@@ -138,12 +143,12 @@ function episodeCard(library: bigint, entry: ContinueWatchingEpisode): Card[] {
  * crops.
  */
 function artOf(movieOrShow: Movie | Show) {
-  if (movieOrShow.backdropUrl === undefined && movieOrShow.titledBackdropUrl !== undefined) {
-    const { titledBackdropUrl: url, titledBackdropThumbhash: thumbhash } = movieOrShow;
-    return { url, thumbhash, logoUrl: undefined, titled: true };
+  const backdrop = backdropOf(movieOrShow);
+  const titled = titledBackdropOf(movieOrShow);
+  if (backdrop === undefined && titled !== undefined) {
+    return { art: titled, logo: undefined, titled: true };
   }
-  const { backdropUrl: url, backdropThumbhash: thumbhash, titleLogoUrl: logoUrl } = movieOrShow;
-  return { url, thumbhash, logoUrl, titled: false };
+  return { art: backdrop, logo: titleLogoOf(movieOrShow), titled: false };
 }
 
 /** An Episode entry with its Show's and Episode's ids, as the Server always sends it. */

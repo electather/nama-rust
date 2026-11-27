@@ -1,6 +1,7 @@
 import type { Movie, Season, Show } from "@/gen/nama/v1/browse_pb";
 import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import type { EditableImage } from "@/shared/lib/editable-image";
+import { imageToEditOf } from "@/shared/lib/server-image";
 import { seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -16,7 +17,7 @@ export function movieImages(movieId: ExternalId, movie: Movie): TitleImages {
   const images: EditableImage[] = [
     {
       name: "Poster",
-      url: movie.posterUrl,
+      shown: imageToEditOf(movie.posterUrl),
       custom: movie.customPoster,
       path: `${path}/poster`,
       shape: "poster",
@@ -24,7 +25,7 @@ export function movieImages(movieId: ExternalId, movie: Movie): TitleImages {
     },
     {
       name: "Backdrop",
-      url: movie.backdropUrl,
+      shown: imageToEditOf(movie.backdropUrl),
       custom: movie.customBackdrop,
       path: `${path}/backdrop`,
       shape: "backdrop",
@@ -41,7 +42,7 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
   const images: EditableImage[] = [
     {
       name: "Poster",
-      url: show.posterUrl,
+      shown: imageToEditOf(show.posterUrl),
       custom: show.customPoster,
       path: `${path}/poster`,
       shape: "poster",
@@ -51,7 +52,7 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
   if (season) {
     images.push({
       name: `${seasonName(season.number)} Poster`,
-      url: season.posterUrl,
+      shown: imageToEditOf(season.posterUrl),
       custom: season.customPoster,
       path: `${path}/season/${String(season.number)}/poster`,
       shape: "poster",
@@ -60,7 +61,7 @@ export function showImages(showId: ExternalId, show: Show, season?: Season): Tit
   }
   images.push({
     name: "Backdrop",
-    url: show.backdropUrl,
+    shown: imageToEditOf(show.backdropUrl),
     custom: show.customBackdrop,
     path: `${path}/backdrop`,
     shape: "backdrop",

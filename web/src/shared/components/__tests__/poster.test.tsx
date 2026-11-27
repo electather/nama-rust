@@ -9,16 +9,14 @@ import { createContext, useContext } from "react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { Poster } from "@/shared/components/poster/poster";
+import { type ServerImage, posterOf } from "@/shared/lib/server-image";
 import { onServerAt } from "@/test-server-at";
 
 afterEach(cleanup);
 
-interface Art {
-  url: string | undefined;
-  thumbhash: Uint8Array | undefined;
-}
+type Art = ServerImage | undefined;
 
-const ArtShown = createContext<Art>({ url: undefined, thumbhash: undefined });
+const ArtShown = createContext<Art>(undefined);
 
 function HeatPoster() {
   return <Poster link={{ to: "/" }} title="Heat" detail="1995" art={useContext(ArtShown)} />;
@@ -56,21 +54,23 @@ function images(link: HTMLElement) {
 }
 
 test("a poster without art shows its title in its box", async () => {
-  render(heat({ url: undefined, thumbhash: undefined }), { wrapper: onServerAt() });
+  render(heat(posterOf({})), { wrapper: onServerAt() });
 
   const link = await screen.findByRole("link", { name: "Heat, 1995" });
   expect([link.textContent, images(link)]).toStrictEqual(["Heat", []]);
 });
 
 test("a poster whose art loads shows it, not its title", async () => {
-  render(heat({ url: first, thumbhash: undefined }), { wrapper: onServerAt() });
+  render(heat(posterOf({ posterUrl: first })), { wrapper: onServerAt() });
 
   const link = await screen.findByRole("link", { name: "Heat, 1995" });
   expect([link.textContent, images(link)]).toStrictEqual(["", [`https://friend.example${first}`]]);
 });
 
 test("a poster whose art fails to load shows its title, as one without art does", async () => {
-  render(heat({ url: first, thumbhash }), { wrapper: onServerAt() });
+  render(heat(posterOf({ posterUrl: first, posterThumbhash: thumbhash })), {
+    wrapper: onServerAt(),
+  });
   const link = await screen.findByRole("link", { name: "Heat, 1995" });
 
   fireEvent.error(artOf(link, first));
@@ -80,7 +80,7 @@ test("a poster whose art fails to load shows its title, as one without art does"
 });
 
 test("a poster whose art failed tries new art in its place", async () => {
-  const { rerender } = render(heat({ url: first, thumbhash: undefined }), {
+  const { rerender } = render(heat(posterOf({ posterUrl: first })), {
     wrapper: onServerAt(),
   });
   const link = await screen.findByRole("link", { name: "Heat, 1995" });
@@ -88,7 +88,7 @@ test("a poster whose art failed tries new art in its place", async () => {
   expect(link.textContent).toBe("Heat");
 
   const next = "/media/artwork/tmdb/%2Fheat-2.jpg";
-  rerender(heat({ url: next, thumbhash: undefined }));
+  rerender(heat(posterOf({ posterUrl: next })));
 
   expect([link.textContent, images(link)]).toStrictEqual(["", [`https://friend.example${next}`]]);
 });

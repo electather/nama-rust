@@ -5,7 +5,7 @@ import { CantPlayReasons } from "@/features/player/components/cant-play-reasons"
 import { otherVersion } from "@/features/player/lib/other-version";
 import type { PlayerProps } from "@/features/player/lib/player-props";
 import type { PlaybackReason } from "@/gen/nama/v1/playback_pb";
-import { useServerUrl } from "@/shared/hooks/use-server-url";
+import { ServerImg } from "@/shared/components/server-img";
 
 /**
  * Says the Version can't play here, over the title's art: why, as the `reasons` that decided its
@@ -16,21 +16,23 @@ export function CantPlay({
   title,
   heading,
   back,
-  backdropUrl,
+  art,
   versions,
   reasons,
   playable,
-}: Pick<PlayerProps, "title" | "heading" | "back" | "backdropUrl" | "versions"> & {
+}: Pick<PlayerProps, "title" | "heading" | "back" | "art" | "versions"> & {
   reasons: PlaybackReason[];
   playable: bigint[];
 }) {
-  const backdrop = useServerUrl(backdropUrl);
   const other = otherVersion(versions, playable);
   return (
     <div className="fixed inset-0 flex overflow-y-auto bg-background px-5 py-12">
-      {backdropUrl !== undefined && (
-        <img src={backdrop} alt="" className="absolute inset-0 size-full object-cover" />
-      )}
+      <ServerImg
+        images={[art]}
+        sizes="100vw"
+        largest
+        className="absolute inset-0 size-full object-cover"
+      />
       <div aria-hidden className="absolute inset-0 bg-scrim" />
       <div className="absolute inset-x-0 top-0 flex p-5">
         <BackButton back={back} />

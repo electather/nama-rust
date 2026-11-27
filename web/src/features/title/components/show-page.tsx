@@ -22,6 +22,7 @@ import { seasonsOfRow, showRow } from "@/features/title/lib/show-row";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { isGone } from "@/shared/hooks/browse";
+import { backdropOf } from "@/shared/lib/server-image";
 
 /**
  * A Show of a Library: its top, with Play or Resume, or Request for a Season it lacks, and what else
@@ -81,12 +82,9 @@ export function ShowPage({
           episodes={row}
           current={season}
           onPick={pick}
-          backdrop={{ url: data.show.backdropUrl, thumbhash: data.show.backdropThumbhash }}
+          backdrop={backdropOf(data.show)}
         />
-        <TitleTrailers
-          trailers={data.show.trailers}
-          art={{ url: data.show.backdropUrl, thumbhash: data.show.backdropThumbhash }}
-        />
+        <TitleTrailers trailers={data.show.trailers} art={backdropOf(data.show)} />
         <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
         <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
         <ShowDetails

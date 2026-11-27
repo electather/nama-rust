@@ -1,7 +1,8 @@
 import { Link, type LinkOptions } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 
-import { TileArt } from "@/shared/components/tile-art";
+import { ServerImg } from "@/shared/components/server-img";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /** The `sizes` of a shelf's poster, as wide as `w-tile-poster`. */
 const shelfSizes = "(max-width: 1071px) 150px, (max-width: 1500px) 14vw, 210px";
@@ -28,16 +29,12 @@ export function Poster({
   link: LinkOptions;
   title: string;
   detail?: string | undefined;
-  art: { url: string | undefined; thumbhash: Uint8Array | undefined };
+  art: ServerImage | undefined;
   sizes?: string;
   current?: boolean;
   describedBy?: string | undefined;
   children?: ReactNode;
 }) {
-  // Kept by URL, so a new image in its place gets its own try.
-  const [failedUrl, setFailedUrl] = useState<string>();
-  const failed = art.url !== undefined && art.url === failedUrl;
-  const shown = failed ? { url: undefined, thumbhash: undefined } : art;
   return (
     <Link
       {...link}
@@ -46,19 +43,17 @@ export function Poster({
       aria-describedby={describedBy}
       className={`relative isolate flex aspect-2/3 items-center justify-center overflow-hidden bg-muted p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${radius}`}
     >
-      {shown.url === undefined && (
-        <span className="text-center text-sm font-medium text-balance text-muted-foreground">
-          {title}
-        </span>
-      )}
-      <TileArt
-        url={shown.url}
-        thumbhash={shown.thumbhash}
-        look={{ sizes, radius, widths: "posterWidths" }}
-        onError={() => {
-          setFailedUrl(art.url);
-        }}
+      <ServerImg
+        images={[art]}
+        sizes={sizes}
+        className="absolute inset-0 size-full object-cover"
+        fallback={
+          <span className="text-center text-sm font-medium text-balance text-muted-foreground">
+            {title}
+          </span>
+        }
       />
+      <span aria-hidden className={`absolute inset-0 inset-ring inset-ring-border ${radius}`} />
       {children}
     </Link>
   );

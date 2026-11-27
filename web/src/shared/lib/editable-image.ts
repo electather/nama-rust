@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import type { ListArtworkRequestSchema } from "@/gen/nama/v1/library_pb";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /** Each shape's preview: a Poster tall, a Backdrop wide. */
 export const shapes = {
@@ -12,8 +13,9 @@ export const shapes = {
 export interface EditableImage {
   /** What it is, such as "Poster" or "Season 2 Poster". */
   name: string;
-  url: string | undefined;
-  /** Whether `url` is a Custom Image, which removing brings the downloaded one back from. */
+  /** The image as it is now. */
+  shown: ServerImage | undefined;
+  /** Whether `shown` is a Custom Image, which removing brings the downloaded one back from. */
   custom: boolean;
   /** Where its Custom Image is uploaded to and removed from, as the Server names it. */
   path: string;

@@ -1,6 +1,7 @@
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { PlayProgress } from "@/shared/components/backdrop-card/play-progress";
 import { TitleOrLogo } from "@/shared/components/title-or-logo";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
  * A card's Title Logo: up to 48px tall and 60% of the card wide (DESIGN.md, "Backdrop cards"), with
@@ -14,13 +15,13 @@ const cardLogo = { className: "mb-2 max-h-12 max-w-3/5", sizes: "264px" };
  */
 export function ContinueWatchingCaption({
   title,
-  logoUrl,
+  logo,
   titled,
   detail,
   state,
 }: {
   title: string;
-  logoUrl: string | undefined;
+  logo: ServerImage | undefined;
   /** Whether the art carries the title, which then isn't drawn over it. */
   titled: boolean;
   detail: string | undefined;
@@ -30,7 +31,7 @@ export function ContinueWatchingCaption({
     <>
       {!titled && (
         <span className="truncate text-tile font-semibold">
-          <TitleOrLogo title={title} logoUrl={logoUrl} logo={cardLogo} />
+          <TitleOrLogo title={title} logo={logo} look={cardLogo} />
         </span>
       )}
       <PlayProgress state={state} detail={detail} />

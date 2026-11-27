@@ -2,8 +2,8 @@ import { Link, type LinkOptions } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
-import type { OfferedWidths } from "@/shared/hooks/use-src-set";
 import { backdropLink } from "@/shared/lib/backdrop-card-classes";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
  * A card of a title's or Episode's art that opens `link`, named `label`, such as a Continue
@@ -19,12 +19,7 @@ export function BackdropCard({
   caption,
   menu,
 }: {
-  art: {
-    url: string | undefined;
-    thumbhash: Uint8Array | undefined;
-    sizes: string;
-    widths: OfferedWidths;
-  };
+  art: { images: (ServerImage | undefined)[]; sizes: string };
   link: LinkOptions;
   label: string;
   tall?: boolean;

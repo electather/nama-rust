@@ -1,36 +1,27 @@
-import { Thumbhash } from "@/shared/components/thumbhash";
-import { useServerUrl } from "@/shared/hooks/use-server-url";
-import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { ServerImg } from "@/shared/components/server-img";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
- * The Backdrop at `url`, under its `thumbhash` until it loads, on the scrim text over it sits on,
- * filling its `relative isolate` box behind what comes after it. `sizes` is how wide it shows, for
- * its `srcset`. Nothing without one.
+ * The `backdrop`, under its thumbhash until it loads, on the scrim text over it sits on, filling
+ * its `relative isolate` box behind what comes after it. `sizes` is how wide it shows, for its
+ * `srcset`. Nothing without one.
  */
 export function Backdrop({
-  url,
-  thumbhash,
+  backdrop,
   sizes,
 }: {
-  url: string | undefined;
-  thumbhash: Uint8Array | undefined;
+  backdrop: ServerImage | undefined;
   sizes: string;
 }) {
-  const src = useServerUrl(url);
-  const srcSet = useSrcSet(url, "backdropWidths");
-  if (url === undefined) {
+  if (backdrop === undefined) {
     return null;
   }
   return (
     <>
-      <Thumbhash thumbhash={thumbhash} />
-      <img
-        src={src}
-        srcSet={srcSet}
+      <ServerImg
+        images={[backdrop]}
         sizes={sizes}
-        alt=""
-        // The page's largest image, so it loads first.
-        fetchPriority="high"
+        largest
         className="absolute inset-0 -z-10 size-full object-cover"
       />
       <div aria-hidden className="absolute inset-0 -z-10 title-scrim" />
