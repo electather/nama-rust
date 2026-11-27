@@ -390,7 +390,10 @@ impl Plans {
                 playable_versions,
             }));
         }
-        let started = (self.running.start(viewer_of_caller(caller), plan, start_ms)).await?;
+        let started = self
+            .running
+            .start(viewer_of_caller(caller), plan, start_ms)
+            .await?;
         Ok(started.map(Planned::Started))
     }
 

@@ -123,6 +123,7 @@ impl Alien {
             probing.clone(),
             &db,
             events.clone(),
+            data.path(),
         );
         let preview_frames = PreviewFrames::new(
             Arc::clone(&db),

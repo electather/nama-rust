@@ -278,20 +278,25 @@ impl RunningPlans {
             probing,
             db,
             events,
+            folder,
         )
     }
 
     /// Plans on `db` publishing on `events` with `settings`, cutting a Remux at the keyframes
-    /// `probing` lists, whose runs are `runs`.
+    /// `probing` lists, whose runs are `runs`, and burning in subtitles cached under `folder`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle plans run on, shared with the test"
+    )]
     pub(in crate::playback) fn on_fake_runs(
         runs: &FakeRuns,
         settings: PlaybackSettings,
         probing: Probing,
         db: &Arc<Database>,
         events: EventBus,
+        folder: &Path,
     ) -> Self {
-        // A run only looks for a subtitle cached to burn in, so the cache's folder is never written.
-        let subtitles = subtitles::Cache::new(&std::env::temp_dir());
+        let subtitles = subtitles::Cache::new(folder);
         let contents = Contents::new(Arc::clone(db));
         Self::with_runner(
             settings,
