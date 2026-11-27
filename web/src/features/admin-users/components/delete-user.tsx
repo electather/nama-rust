@@ -1,5 +1,5 @@
 import { useDeleteUser } from "@/features/admin-users/data/use-delete-user";
-import { onlyAdminRefusal } from "@/features/admin-users/lib/user-refusals";
+import { userChangeRefusal } from "@/features/admin-users/lib/user-refusals";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
 
@@ -15,7 +15,7 @@ export function DeleteUser({ user }: { user: User }) {
       onConfirm={async () => {
         await remove.mutateAsync({ userId: user.id });
       }}
-      refusal={(error) => onlyAdminRefusal(error, user.name, "delete this User")}
+      refusal={(error) => userChangeRefusal(error, user.name, "delete this User")}
     />
   );
 }

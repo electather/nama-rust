@@ -58,6 +58,9 @@ impl From<users::Error> for ConnectError {
             users::Error::ApprovingUserDeleted => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),
             users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
             users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
+            users::Error::ManageUsersNeedsEveryLibrary => {
+                refuse(R::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY, message)
+            }
             users::Error::LastSignInMethod => {
                 refuse(R::REFUSAL_REASON_LAST_SIGN_IN_METHOD, message)
             }
