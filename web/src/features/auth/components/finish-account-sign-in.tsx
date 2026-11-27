@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "nama-ui/components/button";
 import { useEffect, useRef } from "react";
 
-import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 import { useSignInWithAccount } from "@/features/auth/data/use-sign-in-with-account";
 import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
 import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
@@ -20,7 +19,7 @@ export function FinishAccountSignIn({
   redirect: string | undefined;
   code: string;
 }) {
-  const { mutate, error } = useSignInWithAccount(useFinishSignIn(redirect));
+  const { mutate, error } = useSignInWithAccount(redirect);
   // The secret works once, and StrictMode runs an effect twice.
   const finishing = useRef(false);
   useEffect(() => {

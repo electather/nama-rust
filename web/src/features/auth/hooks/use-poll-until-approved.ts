@@ -8,11 +8,11 @@ import { SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
 const pollEvery = 3000;
 
 /**
- * Polls the sign-in `handle` stands for until it's approved, then calls `onSignedIn`. Returns
+ * Polls the sign-in `handle` stands for until it's approved, then goes on to `redirect`. Returns
  * whether it expired instead.
  */
-export function usePollUntilApproved(handle: string, onSignedIn: () => Promise<void>) {
-  const { mutate, isPending, data, error } = usePollSignInCode(onSignedIn);
+export function usePollUntilApproved(handle: string, redirect: string | undefined) {
+  const { mutate, isPending, data, error } = usePollSignInCode(redirect);
 
   // Runs again after every poll, since each brings a new `data` or `error`. `isPending` alone
   // wouldn't do: a quick answer can arrive before React renders the pending state.

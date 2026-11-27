@@ -1,7 +1,6 @@
 import { AccountSignIn } from "@/features/auth/components/account-sign-in";
 import { PasswordSignIn } from "@/features/auth/components/password-sign-in";
 import { SwitchSignInWay } from "@/features/auth/components/switch-sign-in-way";
-import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 
 /**
  * The sign-in page: a username and password, or else a code, on a page of its own, or an Account
@@ -10,7 +9,7 @@ import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 export function SignIn({ redirect }: { redirect: string | undefined }) {
   return (
     <PasswordSignIn
-      onSignedIn={useFinishSignIn(redirect)}
+      redirect={redirect}
       footer={
         <>
           <SwitchSignInWay to="/sign-in/code" redirect={redirect} label="Sign in with a code" />

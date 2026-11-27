@@ -1,25 +1,18 @@
-import { useMutation, useTransport } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import { callUnaryMethod } from "@connectrpc/connect-query";
+import { useMutation } from "@tanstack/react-query";
 
-import { SignInService } from "@/gen/nama/v1/sign_in_pb";
-import { moveBrowserPush } from "@/shared/hooks/browser-push";
+import { useIdentityChange } from "@/features/auth/data/use-identity-change";
+import { type AcceptInviteRequestSchema, SignInService } from "@/gen/nama/v1/sign_in_pb";
 
-/**
- * Creates a User with an Invite's link, signs them in, hands them this browser's notifications,
- * and opens the home page.
- */
+/** Creates a User with an Invite's link, signs them in, and opens the home page. */
 export function useAcceptInvite() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const transport = useTransport();
-  return useMutation(SignInService.method.acceptInvite, {
-    onSuccess: async () => {
-      // A browser signed in as someone else can open an Invite, and the Server keeps pushing them.
-      await moveBrowserPush(transport);
-      // Forget anything cached for whoever was signed in on this browser before.
-      queryClient.clear();
-      await navigate({ to: "/" });
+  const join = useIdentityChange({ kind: "signed in", goOn: undefined });
+  return useMutation({
+    mutationFn: async (input: MessageInitShape<typeof AcceptInviteRequestSchema>) => {
+      await join(async (server) => {
+        await callUnaryMethod(server, SignInService.method.acceptInvite, input);
+      });
     },
   });
 }

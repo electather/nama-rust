@@ -1,7 +1,7 @@
 import { useMutation, useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useSignInIfSessionEnded } from "@/features/auth/data/use-sign-in-if-session-ended";
+import { useSignInIfSessionEnded } from "@/features/auth/data/use-identity-change";
 import { useRefreshAccountSessions } from "@/features/settings/data/use-account-sessions";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { signedInAccountQuery } from "@/shared/hooks/access";

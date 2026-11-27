@@ -67,7 +67,7 @@ export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean
           disabled={signOutAccount.isPending || signOutUser.isPending}
           onClick={() => {
             if (atHub) {
-              signOutAccount.mutate({});
+              signOutAccount.mutate();
             } else {
               signOutUser.mutate();
             }

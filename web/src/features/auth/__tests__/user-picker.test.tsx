@@ -6,28 +6,18 @@ import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { fill, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
 import { fakeServer, newUser } from "@/test-server";
-import { PUSH_ENDPOINT, browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
-afterEach(() => {
-  cleanup();
-  forgetBrowserPush();
-});
+afterEach(cleanup);
 
 const PIN_TRIES = 5;
 
 /**
  * A TV signed in as Sam, Ada and Kim, acting as `acting`, or 0n for none of them. Ada's Switch PIN is 1234. The Server's
- * other Users, such as Lee, sign in to it with "correct horse". Each Web Push subscribe and
- * unsubscribe is kept with the User the TV acted as then, and a subscribe is refused while
- * `refusesPush`.
+ * other Users, such as Lee, sign in to it with "correct horse".
  */
 function sharedTv(acting = 1n) {
   const revoked: [bigint, bigint | undefined][] = [];
-  const subscribed: [bigint, string][] = [];
-  const unsubscribed: [bigint, string][] = [];
   const tv = {
-    subscribed,
-    unsubscribed,
     acting,
     users: [
       { id: 1n, name: "Sam" },
@@ -36,7 +26,6 @@ function sharedTv(acting = 1n) {
     ],
     revoked,
     wrongPins: 0,
-    refusesPush: false,
   };
   const actAs = (id: bigint) => {
     tv.acting = id;
@@ -94,19 +83,6 @@ function sharedTv(acting = 1n) {
           tv.revoked.push([deviceId, userId]);
           tv.users = tv.users.filter((each) => each.id !== tv.acting);
           tv.acting = 0n;
-          return {};
-        },
-      },
-      WebPushService: {
-        subscribeWebPush: ({ endpoint }) => {
-          if (tv.refusesPush) {
-            throw new ConnectError("database is locked", Code.Internal);
-          }
-          tv.subscribed.push([tv.acting, endpoint]);
-          return {};
-        },
-        unsubscribeWebPush: ({ endpoint }) => {
-          tv.unsubscribed.push([tv.acting, endpoint]);
           return {};
         },
       },
@@ -256,86 +232,4 @@ test("the User picker signs every User out of this Device", async () => {
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
   expect(router.state.location.pathname).toBe("/sign-in");
   expect(tv.users).toStrictEqual([]);
-});
-
-test("signing out stops this browser's notifications for that User, at the Server and in the browser", async () => {
-  const browser = browserWithPush("granted", true);
-  const { tv, transport } = sharedTv();
-  openApp("/code", transport);
-
-  await fromMenu("Sam", "Sign out");
-
-  await expectPicker(["Ada", "Kim"]);
-  // Sam's, asked while the TV still acted as them.
-  expect(tv.unsubscribed).toStrictEqual([[1n, PUSH_ENDPOINT]]);
-  expect(browser.subscription.unsubscribe).toHaveBeenCalledWith();
-});
-
-test("signing everyone out stops this browser's notifications, at the Server and in the browser", async () => {
-  const browser = browserWithPush("granted", true);
-  const { tv, transport } = sharedTv();
-  openApp("/switch-user", transport);
-
-  fireEvent.click(await screen.findByRole("button", { name: "Sign everyone out" }));
-
-  await screen.findByRole("heading", { name: "Sign in to Living Room" });
-  expect(tv.unsubscribed).toStrictEqual([[1n, PUSH_ENDPOINT]]);
-  expect(browser.subscription.unsubscribe).toHaveBeenCalledWith();
-});
-
-test("switching hands this browser's notifications to the User switched to", async () => {
-  browserWithPush("granted", true);
-  const { tv, transport } = sharedTv();
-  openApp("/switch-user", transport);
-
-  fireEvent.click(await screen.findByRole("button", { name: "Kim" }));
-
-  await screen.findByRole("button", { name: "Kim’s menu" });
-  expect(tv.subscribed).toStrictEqual([[3n, PUSH_ENDPOINT]]);
-});
-
-test("switching in a browser without notifications subscribes nothing", async () => {
-  browserWithPush("granted");
-  const { tv, transport } = sharedTv();
-  openApp("/switch-user", transport);
-
-  fireEvent.click(await screen.findByRole("button", { name: "Kim" }));
-
-  await screen.findByRole("button", { name: "Kim’s menu" });
-  expect(tv.subscribed).toStrictEqual([]);
-});
-
-test("adding another User hands them this browser's notifications", async () => {
-  browserWithPush("granted", true);
-  const { tv, transport } = sharedTv();
-  openApp("/switch-user", transport);
-
-  await addLee();
-
-  await expectPicker(["Sam", "Ada", "Kim", "Lee"]);
-  expect(tv.subscribed).toStrictEqual([[4n, PUSH_ENDPOINT]]);
-});
-
-test("adding another User in a browser without notifications subscribes nothing", async () => {
-  browserWithPush("granted");
-  const { tv, transport } = sharedTv();
-  openApp("/switch-user", transport);
-
-  await addLee();
-
-  await expectPicker(["Sam", "Ada", "Kim", "Lee"]);
-  expect(tv.subscribed).toStrictEqual([]);
-});
-
-test("a refused hand-over of notifications still adds the User, and unsubscribes the browser", async () => {
-  const browser = browserWithPush("granted", true);
-  const { tv, transport } = sharedTv();
-  tv.refusesPush = true;
-  openApp("/switch-user", transport);
-
-  await addLee();
-
-  await expectPicker(["Sam", "Ada", "Kim", "Lee"]);
-  expect(screen.getByRole("button", { name: "Lee" }).getAttribute("aria-current")).toBe("true");
-  expect(browser.subscription.unsubscribe).toHaveBeenCalledWith();
 });

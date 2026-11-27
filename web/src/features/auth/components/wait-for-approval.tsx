@@ -7,17 +7,20 @@ import { WhereToEnterIt } from "@/features/auth/components/where-to-enter-it";
 import { usePollUntilApproved } from "@/features/auth/hooks/use-poll-until-approved";
 import type { WaitingCode } from "@/features/auth/lib/history-state";
 
-/** Shows the code until it's approved, or, once it expires, `newCode` to get another. */
+/**
+ * Shows the code until it's approved, then goes on to `redirect`, or, once it expires, `newCode`
+ * to get another.
+ */
 export function WaitForApproval({
   shown,
-  onSignedIn,
+  redirect,
   children: newCode,
 }: {
   shown: WaitingCode;
-  onSignedIn: () => Promise<void>;
+  redirect: string | undefined;
   children: ReactNode;
 }) {
-  const expired = usePollUntilApproved(shown.handle, onSignedIn);
+  const expired = usePollUntilApproved(shown.handle, redirect);
   const countdown = <ExpiresIn expiresAt={shown.expiresAt} />;
   return (
     <>

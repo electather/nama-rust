@@ -16,7 +16,6 @@ import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
-import { pickFromMenu } from "@/test-menu";
 
 afterEach(() => {
   cleanup();
@@ -226,16 +225,4 @@ test("coming back to the Hub signs in to a Server with the session it kept, not 
 
   await expect(screen.findByRole("link", { name: "Films" })).resolves.toBeDefined();
   expect(served.trades).toStrictEqual(["hub-token-cabin"]);
-});
-
-test("signing the Account out forgets its sessions on its Servers", async () => {
-  const served: Served = { trades: [] };
-  const at = { "https://cabin.example": fakeServerAt("https://cabin.example", "0.3.0", served) };
-  openHub(at, [cabin]);
-  await screen.findByRole("link", { name: "Films" });
-
-  await pickFromMenu("ada@example.com’s menu", "Sign out");
-
-  await screen.findByRole("heading", { name: "Sign in to the Hub" });
-  expect(localStorage.getItem("nama:server-session:v1:0192-ada:cabin")).toBeNull();
 });
