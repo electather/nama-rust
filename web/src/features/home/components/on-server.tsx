@@ -1,10 +1,10 @@
-// fallow-ignore-next-line policy-violation:feature-layout/data-hooks -- no query is built here: a tile at the Hub reads its art's widths from, and acts on, its own Server, as `_member/_server` hands a Server's pages theirs
+// fallow-ignore-next-line policy-violation:feature-layout/data-hooks -- no query is built here: a tile or Featured panel on Home at the Hub reads its art's widths from, and acts on, its own Server, as `_member/_server` hands a Server's pages theirs
 import { TransportProvider } from "@connectrpc/connect-query";
 import type { ReactNode } from "react";
 
 import type { ReachedServer } from "@/features/home/lib/hub-rows";
 
-/** A tile, `children`, run against the Server `transport` reaches, as one at the Hub needs. */
+/** A tile or Featured panel, `children`, run against the Server `transport` reaches. */
 export function OnServer({
   transport,
   children,
