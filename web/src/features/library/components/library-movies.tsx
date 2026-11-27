@@ -26,7 +26,6 @@ export function LibraryMovies({ libraryId, listing, change }: TitlesProps) {
           title={movie.title}
           detail={yearOf(movie.releaseDate)}
           art={{ url: movie.posterUrl, thumbhash: movie.posterThumbhash }}
-          state={movie.watchState}
         />
       ),
     }));

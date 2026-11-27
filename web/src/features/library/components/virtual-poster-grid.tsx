@@ -17,8 +17,6 @@ declare module "react" {
   }
 }
 
-/** A caption's two lines and the gap over them (`gap-2.5`), under each poster. */
-const CAPTION = 50;
 /** The grid's `gap-y-7.5`, between rows. */
 const ROW_GAP = 30;
 /** Where a row scrolled to rests: under the top bar, 72px (`h-18`), and 24px more, as the rail. */
@@ -45,8 +43,8 @@ export function VirtualPosterGrid({
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders this component itself whenever the window scrolls
   const virtualizer = useWindowVirtualizer({
     count: Math.ceil(posters.length / columns),
-    // A 2:3 poster over its caption, until the row is measured.
-    estimateSize: () => columnWidth * 1.5 + CAPTION,
+    // A 2:3 poster, until the row is measured.
+    estimateSize: () => columnWidth * 1.5,
     gap: ROW_GAP,
     overscan: 2,
     scrollMargin: top,
