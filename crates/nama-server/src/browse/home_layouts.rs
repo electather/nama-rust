@@ -146,18 +146,18 @@ impl HomeLayouts {
     pub(crate) async fn default_layout(&self) -> Result<SeenHomeLayout, HomeLayoutError> {
         let placeable = self.home_rows.placeable().await?;
         let libraries = self.browsing.everything().libraries().await?;
-        let plugin_rows = placeable.into_iter().map(|(id, heading)| {
-            // `placeable` gives each shared row with its heading, and the entry for Users' own.
-            let shown = if let HomeRowId::Shared { key, .. } = &id {
-                ShownRow::Plugin {
+        let plugin_rows = placeable.into_iter().filter_map(|(id, heading)| {
+            let shown = match &id {
+                HomeRowId::Shared { key, .. } | HomeRowId::Own { key, .. } => ShownRow::Plugin {
                     key: key.clone(),
                     heading,
                     library: None,
-                }
-            } else {
-                ShownRow::UsersOwn
+                },
+                HomeRowId::UsersOwn { .. } => ShownRow::UsersOwn,
+                // `kernel_rows` lists the Kernel's; `placeable` gives only the Plugins'.
+                HomeRowId::ContinueWatching | HomeRowId::RecentlyAdded { .. } => return None,
             };
-            (id, shown)
+            Some((id, shown))
         });
         let rows = kernel_rows(&libraries).chain(plugin_rows).collect();
         let default = self.settings.now().default_home_layout;

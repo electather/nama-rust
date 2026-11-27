@@ -13,7 +13,7 @@ use crate::{
 
 /// A row of a User's Home as `ListHomeRows` has it: `None` for an entry of a Plugin's Users' own
 /// rows, which only the default Home layout lists.
-pub(in crate::api) fn home_row_to_proto((id, shown): HomeRow) -> Option<KernelOrPlugin> {
+pub(super) fn home_row_to_proto((id, shown): HomeRow) -> Option<KernelOrPlugin> {
     let plugin_id = id.plugin().map_or_default(ToString::to_string);
     Some(match shown {
         ShownRow::ContinueWatching => KernelOrPlugin::Kernel(continue_watching()),
