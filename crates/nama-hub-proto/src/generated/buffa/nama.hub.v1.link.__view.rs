@@ -9893,8 +9893,10 @@ pub struct WatchStateChangeView<'a> {
     ///
     /// Field 2: `episode`
     pub episode: bool,
-    /// Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
-    /// characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+    /// Every External ID it is known by (ADR 0013), each written `namespace-value` (ADR 0042): a
+    /// Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`.
+    /// 1 to 20, each up to 100 characters. An Unmatched Item has none, so its Watch State never
+    /// leaves its Server.
     ///
     /// Field 3: `ids`
     pub ids: ::buffa::RepeatedView<'a, &'a str>,
@@ -10258,8 +10260,10 @@ impl WatchStateChangeOwnedView {
     pub fn episode(&self) -> bool {
         self.0.reborrow().episode
     }
-    /// Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
-    /// characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+    /// Every External ID it is known by (ADR 0013), each written `namespace-value` (ADR 0042): a
+    /// Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`.
+    /// 1 to 20, each up to 100 characters. An Unmatched Item has none, so its Watch State never
+    /// leaves its Server.
     ///
     /// Field 3: `ids`
     #[must_use]
@@ -11436,8 +11440,9 @@ pub struct TrackPreferenceChangeView<'a> {
     ///
     /// Field 3: `title_kind`
     pub title_kind: ::buffa::EnumValue<super::super::TitleKind>,
-    /// The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
-    /// User's own.
+    /// The Movie's or Show's External ID, written `namespace-value` (ADR 0042): a Namespace of
+    /// lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`. 1 to 100
+    /// characters; empty for the User's own.
     ///
     /// Field 4: `title_id`
     pub title_id: &'a str,
@@ -11895,8 +11900,9 @@ impl TrackPreferenceChangeOwnedView {
     pub fn title_kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
         self.0.reborrow().title_kind
     }
-    /// The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
-    /// User's own.
+    /// The Movie's or Show's External ID, written `namespace-value` (ADR 0042): a Namespace of
+    /// lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`. 1 to 100
+    /// characters; empty for the User's own.
     ///
     /// Field 4: `title_id`
     #[must_use]
@@ -12615,7 +12621,9 @@ pub struct WatchlistEntryView<'a> {
     ///
     /// Field 1: `kind`
     pub kind: ::buffa::EnumValue<super::super::TitleKind>,
-    /// The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+    /// The External ID it was added under (ADR 0013), written `namespace-value` (ADR 0042): a
+    /// Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-603`.
+    /// 1 to 100 characters.
     ///
     /// Field 2: `id`
     pub id: &'a str,
@@ -12905,7 +12913,9 @@ impl WatchlistEntryOwnedView {
     pub fn kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
         self.0.reborrow().kind
     }
-    /// The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+    /// The External ID it was added under (ADR 0013), written `namespace-value` (ADR 0042): a
+    /// Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-603`.
+    /// 1 to 100 characters.
     ///
     /// Field 2: `id`
     #[must_use]
