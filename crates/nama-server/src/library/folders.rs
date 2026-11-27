@@ -7,7 +7,7 @@ use sqlx::SqliteConnection;
 
 use super::libraries::Error;
 
-/// Why a folder can't be one of a Library's.
+/// Why a folder can't be one of a Library's, or can't be listed to pick one from.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FolderProblem {
     #[error("is not an absolute path")]

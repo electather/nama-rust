@@ -27,8 +27,8 @@ interface Branches {
   current: string | undefined;
   empty: string;
   rows: RefObject<Map<string, HTMLElement>>;
-  toggle: (id: string) => void;
-  onSelect: (id: string) => void;
+  /** Opens or closes the row's node on its chevron, else picks it. */
+  onClick: (id: string, onChevron: boolean) => void;
   onKeyDown: (event: KeyboardEvent, id: string) => void;
 }
 
@@ -40,7 +40,7 @@ function TreeBranch({ node, level, tree }: { node: TreeNode; level: number; tree
   const onClick = (event: MouseEvent) => {
     const onChevron =
       event.target instanceof Element && event.target.closest("[data-slot=tree-chevron]") !== null;
-    (onChevron ? tree.toggle : tree.onSelect)(id);
+    tree.onClick(id, onChevron);
   };
   return (
     <>

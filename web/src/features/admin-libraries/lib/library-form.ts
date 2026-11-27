@@ -6,7 +6,7 @@ export function foldersTyped(typed: string) {
     .filter((folder) => folder !== "");
 }
 
-/** `folders` with `picked` as a new last line, unless it's one of them already. */
+/** `folders` with `picked` as a new last line, or `folders` itself if it's one of them already. */
 export function foldersWith(folders: string[], picked: string) {
   return folders.includes(picked) ? folders : [...folders, picked];
 }

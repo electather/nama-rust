@@ -108,6 +108,21 @@ describe("the folder picker", () => {
     await expect(screen.findByText("No folders")).resolves.toBeDefined();
   });
 
+  test("a click on a folder's chevron makes it the one row the keyboard tabs to", async () => {
+    openPicker("/media/shows");
+    const shows = await row("shows");
+    await waitFor(() => {
+      expect(shows.getAttribute("aria-selected")).toBe("true");
+    });
+
+    await clickChevron("srv");
+
+    const srv = await row("srv");
+    expect(srv.getAttribute("aria-selected")).toBe("true");
+    expect(srv.tabIndex).toBe(0);
+    expect(shows.tabIndex).toBe(-1);
+  });
+
   test("the keyboard moves, opens, closes and picks as in a tree", async () => {
     const { picked } = openPicker("");
     const media = await row("media");

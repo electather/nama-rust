@@ -1,4 +1,4 @@
-// shortcut: a Windows folder typed in another case than the Server lists it, such as `c:\media`
+// ponytail: a Windows folder typed in another case than the Server lists it, such as `c:\media`
 // for `C:\Media`, stops the tree there; match without case if Windows Admins type paths so.
 /**
  * The folders from the top of the Server's disks down to `path`, each as `ListServerFolders`

@@ -94,6 +94,12 @@ function Tree({
     setShown({ ...shown, open });
   }
 
+  // A click moves the tab stop too, or the row the click focused and the selected one would differ.
+  function click(id: string, onChevron: boolean) {
+    setActive(id);
+    (onChevron ? toggle : onSelect)(id);
+  }
+
   function move(row: Row | undefined) {
     if (row !== undefined) {
       setActive(row.id);
@@ -130,8 +136,7 @@ function Tree({
     current: tabStop,
     empty,
     rows,
-    toggle,
-    onSelect,
+    onClick: click,
     onKeyDown,
   };
   return (
