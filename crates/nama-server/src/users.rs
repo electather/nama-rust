@@ -40,7 +40,7 @@ mod seeing;
 mod sessions;
 mod sign_in;
 mod sign_in_codes;
-// Neighbours' tests reach it by path: `insert_user` here is the production one.
+// Neighbours' tests reach it by path: `insert_user` and `insert_device` here are the production ones.
 #[cfg(test)]
 pub(crate) mod testing;
 
