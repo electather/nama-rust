@@ -12,7 +12,7 @@ use crate::{
     db::{self, Database},
     images::ImageStore,
     library::{
-        Artwork, Metadata,
+        CopiesAhead, Metadata,
         fixture::{MatchedMovie, matched_episodes_file, tmdb_movie},
         libraries::Libraries,
     },
@@ -68,11 +68,13 @@ async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path()
     MatchedMovie::new(&db, media.path(), matched).await;
     let store = ImageStore::new(data.path(), Arc::clone(&db));
     let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
-    let images = Settings::new(db, data.path().to_owned()).images();
+    let images = Settings::new(Arc::clone(&db), data.path().to_owned()).images();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let artwork = Artwork::new(store.clone(), Registry::new().extension_points());
-    let app = router(custom_images.clone(), artwork, images);
+    let copies_ahead =
+        CopiesAhead::for_tests(&db, store.clone(), Registry::new().extension_points());
+    let artwork = copies_ahead.artwork().clone();
+    let app = router(custom_images.clone(), artwork, copies_ahead, images);
     tokio::spawn(async move { axum::serve(listener, app).await });
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)
@@ -180,6 +182,8 @@ async fn keep_without_bytes(db: &Database, slots: &[Slot]) {
     .unwrap();
 }
 
+// Copies Ahead's walk, tested here beside `keep_without_bytes`, since only Custom Images' files
+// write `custom_images`.
 #[tokio::test]
 async fn a_librarys_custom_images_are_its_own_and_its_titles_and_seasons_under_any_of_their_ids() {
     let data = tempfile::tempdir().unwrap();
@@ -220,10 +224,10 @@ async fn a_librarys_custom_images_are_its_own_and_its_titles_and_seasons_under_a
     ];
     keep_without_bytes(&db, &[&movies_own[..], &shows_own, &neither].concat()).await;
     let store = ImageStore::new(data.path(), Arc::clone(&db));
-    let custom_images = CustomImages::new(Arc::clone(&db), store);
+    let copies_ahead = CopiesAhead::for_tests(&db, store, Registry::new().extension_points());
 
-    let of_movies = custom_images.of_library(movies).await.unwrap();
-    let of_shows = custom_images.of_library(shows).await.unwrap();
+    let of_movies = copies_ahead.custom_of(movies).await.unwrap();
+    let of_shows = copies_ahead.custom_of(shows).await.unwrap();
 
     let slots = |of: Vec<(Slot, String)>| {
         let mut slots: Vec<String> = of.into_iter().map(|(slot, _)| slot.0).collect();

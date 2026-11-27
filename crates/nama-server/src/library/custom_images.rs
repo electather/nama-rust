@@ -17,11 +17,7 @@
 //! a session fetches it at its [`Urls`] entry, under `/media/`, resized by `?width=` as a
 //! downloaded image is (`crate::library::artwork`).
 
-use std::{
-    collections::{HashMap, HashSet},
-    io, iter,
-    sync::Arc,
-};
+use std::{collections::HashMap, io, iter, sync::Arc};
 
 use axum::{
     Router,
@@ -37,13 +33,11 @@ use sqlx::SqliteConnection;
 
 use crate::{
     db::Database,
-    images::{
-        Asked, BACKDROP_WIDTHS, CUSTOM_IMAGES_DIR, ImageStore, POSTER_WIDTHS, Received, Resize,
-        UploadError, percent_decode,
-    },
+    images::{Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, UploadError, percent_decode},
     library::{
         artwork::{Artwork, Error as ArtworkError},
-        contents::{Contents, library_with_movie, library_with_show, matched_episodes, parse_hint},
+        contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
+        copies_ahead::CopiesAhead,
     },
     server_settings::ImageSettings,
     signed_urls::strip_signature,
@@ -75,7 +69,7 @@ pub(crate) struct Slot(String);
 
 /// What a [`Slot`] stands in for an image of, which the Server must have for an upload there.
 #[derive(Debug, PartialEq, Eq)]
-enum Subject {
+pub(super) enum Subject {
     Movie(ExternalId),
     Show(ExternalId),
     Season(ExternalId, i64),
@@ -107,7 +101,7 @@ enum Error {
 }
 
 impl Role {
-    const ALL: [Self; 2] = [Self::Poster, Self::Backdrop];
+    pub(super) const ALL: [Self; 2] = [Self::Poster, Self::Backdrop];
 
     /// As paths and the database name it.
     pub(super) const fn name(self) -> &'static str {
@@ -146,21 +140,12 @@ impl Slot {
         Self(format!("library/{id}/backdrop"))
     }
 
-    /// The widths the web app offers its image at, which an upload is resized to ahead of it.
-    fn widths(&self) -> &'static [u32] {
-        if self.is_poster() {
-            &POSTER_WIDTHS
-        } else {
-            &BACKDROP_WIDTHS
-        }
-    }
-
-    fn is_poster(&self) -> bool {
+    pub(super) fn is_poster(&self) -> bool {
         self.0.ends_with("/poster")
     }
 
     /// The Library whose image it is, if it is a Library's.
-    fn library_id(&self) -> Option<i64> {
+    pub(super) fn library_id(&self) -> Option<i64> {
         let id = self.0.strip_prefix("library/")?.strip_suffix("/backdrop")?;
         id.parse().ok()
     }
@@ -192,8 +177,13 @@ impl Slot {
         (slot.0 == path).then_some((slot, subject))
     }
 
+    /// What it stands in for an image of.
+    pub(super) fn subject(&self) -> Option<Subject> {
+        Self::parse(&self.0).map(|(_, subject)| subject)
+    }
+
     /// Its folder in the store, which holds one file per version.
-    fn key(&self) -> Vec<&str> {
+    pub(super) fn key(&self) -> Vec<&str> {
         iter::once(DIR).chain(self.0.split('/')).collect()
     }
 }
@@ -275,73 +265,12 @@ impl CustomImages {
     }
 
     /// Every Custom Image, as its slot and version.
-    async fn stored(&self) -> sqlx::Result<Vec<(Slot, String)>> {
+    pub(super) async fn stored(&self) -> sqlx::Result<Vec<(Slot, String)>> {
         let rows = sqlx::query!("SELECT slot, version FROM custom_images")
             .fetch_all(self.db.reader())
             .await?;
         Ok((rows.into_iter())
             .map(|row| (Slot(row.slot), row.version))
-            .collect())
-    }
-
-    /// Makes `posters` of each Custom Poster and `backdrops` of each Custom Backdrop of the Library
-    /// `library` and its Movies, Shows and Seasons, where they aren't there. Each one, not only
-    /// those uploaded since, so one uploaded before its kind was copied ahead gets them too
-    /// (#2372).
-    ///
-    /// # Errors
-    ///
-    /// If the database can't be read.
-    pub(crate) async fn copy_ahead(
-        &self,
-        library: i64,
-        posters: &[Resize],
-        backdrops: &[Resize],
-    ) -> sqlx::Result<()> {
-        for (slot, version) in self.of_library(library).await? {
-            let copies = if slot.is_poster() { posters } else { backdrops };
-            let mut key = slot.key();
-            key.push(&version);
-            self.store.copy_ahead(&key, copies).await;
-        }
-        Ok(())
-    }
-
-    /// Each Custom Image, as its slot and version, of the Library `library` or a Movie, Show or
-    /// Season it has, kept under any of the title's ids.
-    // ponytail: reads every Custom Image, as `urls` does, once a scan. Query by slot if that ever
-    // grows.
-    async fn of_library(&self, library: i64) -> sqlx::Result<Vec<(Slot, String)>> {
-        let stored = self.stored().await?;
-        let (mut movie_ids, mut show_ids) = (Vec::new(), Vec::new());
-        for (slot, _) in &stored {
-            match Slot::parse(&slot.0) {
-                Some((_, Subject::Movie(id))) => movie_ids.push(id),
-                Some((_, Subject::Show(id) | Subject::Season(id, _))) => show_ids.push(id),
-                Some((_, Subject::Library)) | None => {}
-            }
-        }
-        // Only the titles some Custom Image names, not the whole Library.
-        let contents = Contents::new(Arc::clone(&self.db));
-        let (movies, shows) = tokio::try_join!(
-            contents.movies(library, Some(&movie_ids)),
-            contents.shows(library, Some(&show_ids))
-        )?;
-        let mut owned = HashSet::from([Slot::library(library)]);
-        for movie in movies {
-            for id in iter::once(movie.id).chain(movie.ids.iter()) {
-                owned.extend(Role::ALL.map(|role| Slot::movie(&id, role)));
-            }
-        }
-        for show in shows {
-            for id in iter::once(show.id).chain(show.ids.iter()) {
-                owned.extend(Role::ALL.map(|role| Slot::show(&id, role)));
-                owned.extend(show.seasons.keys().map(|&number| Slot::season(&id, number)));
-            }
-        }
-        Ok(stored
-            .into_iter()
-            .filter(|(slot, _)| owned.contains(slot))
             .collect())
     }
 
@@ -376,9 +305,8 @@ impl CustomImages {
         })
     }
 
-    /// Keeps `body` as the Custom Image at `slot`, in place of any there before, then makes
-    /// `copies` of it in the background.
-    async fn upload(&self, slot: Slot, body: Body, copies: Vec<Resize>) -> Result<(), Error> {
+    /// Keeps `body` as the Custom Image at `slot`, in place of any there before.
+    async fn upload(&self, slot: &Slot, body: Body) -> Result<(), Error> {
         let received = self.store.receive(&slot.key(), body).await?;
         let version = received.version.clone();
         let stored = slot.0.clone();
@@ -392,22 +320,14 @@ impl CustomImages {
         }
         // The same bytes again are the same version, which mustn't go.
         if let Some(old) = replaced?.filter(|old| *old != version) {
-            self.delete_file(&slot, &old).await?;
-        }
-        if !copies.is_empty() {
-            let store = self.store.clone();
-            tokio::spawn(async move {
-                let mut key = slot.key();
-                key.push(&version);
-                store.copy_ahead(&key, &copies).await;
-            });
+            self.delete_file(slot, &old).await?;
         }
         Ok(())
     }
 
     /// Removes the Custom Image at `slot`, if there is one, which brings back the image it stood
     /// in for.
-    async fn remove(&self, slot: Slot) -> Result<(), Error> {
+    async fn remove(&self, slot: &Slot) -> Result<(), Error> {
         let stored = slot.0.clone();
         let removed = self
             .db
@@ -423,14 +343,14 @@ impl CustomImages {
             })
             .await?;
         match removed {
-            Some(version) => self.delete_file(&slot, &version).await,
+            Some(version) => self.delete_file(slot, &version).await,
             None => Ok(()),
         }
     }
 
     /// Deletes the Custom Image of the Library `id`, which was deleted, logging a failure.
     pub(crate) async fn delete_library(&self, id: i64) {
-        let deleted = match self.remove(Slot::library(id)).await {
+        let deleted = match self.remove(&Slot::library(id)).await {
             Ok(()) => self.delete_library_dir(id).await.map_err(Error::from),
             Err(err) => Err(err),
         };
@@ -537,22 +457,24 @@ fn url(slot: &str, version: &str) -> String {
     format!("/media/custom-images/{slot}/{version}")
 }
 
-/// Serves uploads to and removals from `/custom-images/<slot>`, picks from `artwork`'s offered
-/// images, and the images under `/media/custom-images/<slot>/<version>`, resized as `images` says.
-/// Who may make each request is up to the layers the router is put behind.
+/// Serves uploads to and removals from `/custom-images/<slot>`, each telling `copies_ahead` once it
+/// commits, picks from `artwork`'s offered images, and the images under
+/// `/media/custom-images/<slot>/<version>`, resized as `images` says. Who may make each request is
+/// up to the layers the router is put behind.
 pub(crate) fn router(
     custom_images: CustomImages,
     artwork: Artwork,
+    copies_ahead: CopiesAhead,
     images: ImageSettings,
 ) -> Router {
     Router::new()
         .route(&format!("{UPLOADS}{{*slot}}"), put(upload).delete(remove))
         .route(&format!("{IMAGES}{{*path}}"), get(serve))
-        .with_state((custom_images, artwork, images))
+        .with_state((custom_images, artwork, copies_ahead, images))
 }
 
 /// What the router's handlers share.
-type Handles = (CustomImages, Artwork, ImageSettings);
+type Handles = (CustomImages, Artwork, CopiesAhead, ImageSettings);
 
 /// An upload's query: the URL of an offered image to keep in place of the body.
 #[derive(Deserialize)]
@@ -570,7 +492,7 @@ fn raw_path<'a>(uri: &'a Uri, prefix: &str) -> &'a str {
 }
 
 async fn upload(
-    State((custom_images, artwork, images)): State<Handles>,
+    State((custom_images, artwork, copies_ahead, _)): State<Handles>,
     uri: Uri,
     Query(picked): Query<UploadQuery>,
     body: Body,
@@ -587,15 +509,16 @@ async fn upload(
         }
         Err(err) => return failed("keep", &err.into()),
     }
-    let copies = Resize::each(slot.widths(), &images);
-    // The write commits even if the client goes away, so deleting what it replaced must follow
-    // (ADR 0029).
+    // The write commits even if the client goes away, so deleting what it replaced and copying
+    // what it keeps ahead must follow (ADR 0029).
     let uploaded = tokio::spawn(async move {
         let body = match picked.artwork {
             Some(url) => Body::from(artwork.offered_bytes(&strip_signature(&url)).await?),
             None => body,
         };
-        custom_images.upload(slot, body, copies).await
+        custom_images.upload(&slot, body).await?;
+        copies_ahead.slot_changed(slot);
+        Ok(())
     });
     match uploaded.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
@@ -623,12 +546,17 @@ async fn upload(
     }
 }
 
-async fn remove(State((custom_images, ..)): State<Handles>, uri: Uri) -> Response {
+async fn remove(State((custom_images, _, copies_ahead, _)): State<Handles>, uri: Uri) -> Response {
     let Some((slot, _)) = Slot::parse(raw_path(&uri, UPLOADS)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    // As for an upload, deleting the file follows the committed write (ADR 0029).
-    let removed = tokio::spawn(async move { custom_images.remove(slot).await });
+    // As for an upload, deleting the file and copying the image it brings back ahead follow the
+    // committed write (ADR 0029).
+    let removed = tokio::spawn(async move {
+        custom_images.remove(&slot).await?;
+        copies_ahead.slot_changed(slot);
+        Ok(())
+    });
     match removed.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(err) => failed("remove", &err),
@@ -636,7 +564,7 @@ async fn remove(State((custom_images, ..)): State<Handles>, uri: Uri) -> Respons
 }
 
 async fn serve(
-    State((custom_images, _, images)): State<Handles>,
+    State((custom_images, _, _, images)): State<Handles>,
     Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {

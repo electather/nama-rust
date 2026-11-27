@@ -30,17 +30,16 @@ use axum::{
     routing::get,
 };
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-use tokio::sync::Mutex;
 use tokio_util::io::ReaderStream;
 
 use crate::{
     db::Database,
-    images::{Asked, ImageStore, LOCAL_IMAGES_DIR, Resize, UploadError},
+    images::{Asked, ImageStore, LOCAL_IMAGES_DIR, UploadError},
     library::{
         Role,
         contents::{Contents, LocalImage, LocalImageFile, LocalRole, TitleLocalImage},
-        custom_images::{CustomImages, served_type},
-        shown_images::{InPlaceOfDownloaded, TitleImage},
+        custom_images::served_type,
+        shown_images::TitleImage,
     },
     server_settings::ImageSettings,
 };
@@ -60,9 +59,6 @@ const ROLES: [LocalRole; 3] = [
 pub(crate) struct LocalImages {
     contents: Contents,
     store: ImageStore,
-    /// Held while one Library's images are resized ahead, so at most one of them waits on the
-    /// resize thread ahead of a request's (ADR 0039).
-    resizing: Arc<Mutex<()>>,
 }
 
 /// The images found beside a Library's Versions, by Version id and what each stands in for.
@@ -156,7 +152,7 @@ fn first_of<K: Eq + Hash>(
 impl TitleLocalImage {
     /// Which image of its title this stands in for: a Movie's, else, beside an Episode, its Show's
     /// or Season's.
-    const fn shown_as(&self) -> Option<TitleImage> {
+    pub(super) const fn shown_as(&self) -> Option<TitleImage> {
         match (self.role, self.season) {
             (LocalRole::Title(role), None) => Some(TitleImage::Movie(role)),
             (LocalRole::Title(role), Some(_)) => Some(TitleImage::Show(role)),
@@ -172,7 +168,6 @@ impl LocalImages {
         Self {
             contents: Contents::new(db),
             store,
-            resizing: Arc::default(),
         }
     }
 
@@ -195,7 +190,7 @@ impl LocalImages {
         for image in self.contents.local_images(library).await? {
             // One the store can't tell about counts as gone: copying it again logs why if it still
             // fails, and one no longer beside the media falls back to the downloaded image.
-            let key = [DIR, &folder, &image.stored];
+            let key = key(&folder, &image.stored);
             if self.store.contains(&key).await.unwrap_or(false) {
                 stored.insert((image.version, image.role), image.file);
             } else {
@@ -245,77 +240,6 @@ impl LocalImages {
         (self.contents)
             .replace_local_images(versions.to_vec(), kept)
             .await
-    }
-
-    /// Makes `posters` of each Poster and `backdrops` of each Backdrop beside the Library
-    /// `library`'s media that a title shows, having none of `custom_images` in its place, then of
-    /// each of `custom_images` of the Library and its titles, where they aren't there, logging a
-    /// failure to list them. Each one, not only those a scan just copied in or an admin just
-    /// uploaded, so a Library recorded before they were resized ahead gets its copies too (#2152,
-    /// #2244, #2372).
-    pub(super) async fn resize_shown(
-        &self,
-        library: i64,
-        custom_images: &CustomImages,
-        posters: &[Resize],
-        backdrops: &[Resize],
-    ) {
-        let _resizing = self.resizing.lock().await;
-        let beside_media = (self.copy_ahead(library, custom_images, posters, backdrops)).await;
-        if let Err(err) = beside_media {
-            tracing::error!(library, "could not list the images to resize: {err}");
-        }
-        // Here, under the same lock, so a scan's Custom Images wait their turn on the resize
-        // thread too.
-        let custom = custom_images.copy_ahead(library, posters, backdrops).await;
-        if let Err(err) = custom {
-            tracing::error!(library, "could not list the Custom Images to resize: {err}");
-        }
-    }
-
-    /// The copies [`Self::resize_shown`] makes of the images beside the media.
-    async fn copy_ahead(
-        &self,
-        library: i64,
-        custom_images: &CustomImages,
-        posters: &[Resize],
-        backdrops: &[Resize],
-    ) -> sqlx::Result<()> {
-        let folder = library.to_string();
-        for (stored, role) in self.shown(library, custom_images).await? {
-            let copies = match role {
-                LocalRole::Title(Role::Backdrop) => backdrops,
-                LocalRole::Title(Role::Poster) | LocalRole::SeasonPoster => posters,
-            };
-            (self.store)
-                .copy_ahead(&[DIR, &folder, &stored], copies)
-                .await;
-        }
-        Ok(())
-    }
-
-    /// Each image beside the Library `library`'s media, as stored in its folder, with what it stands
-    /// in for, that a title shows, having none of `custom_images` in its place.
-    async fn shown(
-        &self,
-        library: i64,
-        custom_images: &CustomImages,
-    ) -> sqlx::Result<HashSet<(String, LocalRole)>> {
-        let (images, custom) =
-            tokio::try_join!(self.contents.titles_local_images(), custom_images.urls())?;
-        // Filed from the rows just read, which `InPlaceOfDownloaded::read` would read again.
-        let in_place = InPlaceOfDownloaded::new(custom, LocalImageUrls::filed(&images));
-        let is_shown = |image: &TitleLocalImage| {
-            image.library == library
-                && image.shown_as().is_some_and(|shown_as| {
-                    in_place.shows_beside_media(&image.ids, shown_as, &url(library, &image.stored))
-                })
-        };
-        Ok(images
-            .into_iter()
-            .filter(is_shown)
-            .map(|image| (image.stored, image.role))
-            .collect())
     }
 
     /// Copies the image at `path` into the Library `library`'s folder in the store, as an upload
@@ -416,14 +340,20 @@ impl LocalImages {
         let Some(content_type) = content_type else {
             return Ok(StatusCode::NOT_FOUND.into_response());
         };
-        let key = [DIR, &library.to_string(), stored];
+        let folder = library.to_string();
+        let key = key(&folder, stored);
         let content_type = served_type(&content_type);
         self.store.serve(&key, content_type, resize, request).await
     }
 }
 
+/// Where the store keeps the copy stored as `stored` in the Library's `folder`.
+pub(super) fn key<'a>(folder: &'a str, stored: &'a str) -> [&'a str; 3] {
+    [DIR, folder, stored]
+}
+
 /// Where clients fetch the copy stored as `stored` in the Library `library`'s folder.
-fn url(library: i64, stored: &str) -> String {
+pub(super) fn url(library: i64, stored: &str) -> String {
     format!("/media/local-images/{library}/{stored}")
 }
 

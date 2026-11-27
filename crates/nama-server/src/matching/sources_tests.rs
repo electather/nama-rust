@@ -14,7 +14,7 @@ use crate::{
     events::EventBus,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, Item, Libraries, Metadata, Pin, ScanLocks, TitleSources,
+        Change, Contents, CopiesAhead, Item, Libraries, Metadata, Pin, ScanLocks, TitleSources,
         UnmatchedReason, fixture,
         scripted::{Refusal, ScriptedSource, SourcesAsked},
     },
@@ -259,7 +259,7 @@ async fn match_with_pin(pin: ExternalId, aa_looks_up: &'static [&'static str]) -
     let matcher = Matcher::new(
         Arc::clone(&db),
         plugins.extension_points(),
-        Artwork::new(images, plugins.extension_points()),
+        CopiesAhead::for_tests(&db, images, plugins.extension_points()),
         EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
         locks.clone(),
     );
@@ -430,7 +430,7 @@ impl DarkMatched {
         let matcher = Matcher::new(
             Arc::clone(&db),
             plugins.extension_points(),
-            Artwork::new(images, plugins.extension_points()),
+            CopiesAhead::for_tests(&db, images, plugins.extension_points()),
             EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
             locks.clone(),
         );
