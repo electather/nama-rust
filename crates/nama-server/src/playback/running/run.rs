@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     db,
-    ffmpeg::{Keyframe, RefusedWrite, hls_init, hls_playlist, hls_run_from},
+    ffmpeg::{Keyframe, RefusedWrite, Remux, Transcode, hls_init, hls_playlist, hls_run_from},
 };
 
 /// How long a new plan waits at most for its first file before it's answered, so one whose ffmpeg
@@ -39,6 +39,27 @@ pub(super) type Start = dyn Fn(&Path, Keyframe, CancellationToken) -> io::Result
 
 /// A run writing a plan's files, which ends with how it went, and stops when dropped.
 pub(super) type Run = BoxFuture<'static, Outcome>;
+
+/// Starts a run of the Version's file at the path it's given, converting what [`Converts`] says,
+/// as [`Start`] starts one. Running plans are handed one: ffmpeg's process in production.
+pub(super) type Runner =
+    dyn Fn(&str, Converts<'_>, &Path, Keyframe, CancellationToken) -> io::Result<Run> + Send + Sync;
+
+/// What one run converts of a Version's file.
+#[derive(Clone, Copy)]
+pub(super) enum Converts<'a> {
+    /// A Remux of a file that starts at `file_start_ms`, as Probing reads it.
+    Remux {
+        remux: &'a Remux,
+        file_start_ms: i64,
+    },
+    /// One Transcode attempt, with the subtitle it burns in, forcing a keyframe at each of `cuts`,
+    /// every cut of the plan from the first.
+    Transcode {
+        attempt: &'a Transcode,
+        cuts: &'a [i64],
+    },
+}
 
 /// How a run ended.
 #[derive(Debug)]

@@ -15,7 +15,7 @@ mod cues;
 mod ffprobe;
 mod mp4;
 #[cfg(test)]
-mod testing;
+pub(super) mod testing;
 
 use std::{
     collections::{HashMap, hash_map::Entry},

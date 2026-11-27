@@ -78,6 +78,9 @@ pub(crate) struct Abilities {
 
 struct AbilitiesInner {
     ffmpeg: Arc<Ffmpeg>,
+    /// What a test says ffmpeg can do, asking it nothing.
+    #[cfg(test)]
+    fixed: Option<CanDo>,
     zscale: tokio::sync::OnceCell<bool>,
     tonemapx: tokio::sync::OnceCell<bool>,
     subtitle_layer: tokio::sync::OnceCell<bool>,
@@ -89,21 +92,30 @@ struct AbilitiesInner {
     cancel: CancellationToken,
 }
 
+impl AbilitiesInner {
+    /// For `ffmpeg`, asked nothing yet.
+    fn unasked(ffmpeg: Arc<Ffmpeg>) -> Self {
+        Self {
+            ffmpeg,
+            #[cfg(test)]
+            fixed: None,
+            zscale: tokio::sync::OnceCell::new(),
+            tonemapx: tokio::sync::OnceCell::new(),
+            subtitle_layer: tokio::sync::OnceCell::new(),
+            libx264: tokio::sync::OnceCell::new(),
+            hardware: tokio::sync::OnceCell::new(),
+            tasks: TaskTracker::new(),
+            cancel: CancellationToken::new(),
+        }
+    }
+}
+
 impl Abilities {
     /// Starts testing `ffmpeg`'s hardware in the background, as it takes a few seconds; the first
     /// [`Self::can_do`] waits for it, and asks again if ffmpeg couldn't list its encoders.
     pub(crate) fn new(ffmpeg: Arc<Ffmpeg>) -> Self {
         let abilities = Self {
-            inner: Arc::new(AbilitiesInner {
-                ffmpeg,
-                zscale: tokio::sync::OnceCell::new(),
-                tonemapx: tokio::sync::OnceCell::new(),
-                subtitle_layer: tokio::sync::OnceCell::new(),
-                libx264: tokio::sync::OnceCell::new(),
-                hardware: tokio::sync::OnceCell::new(),
-                tasks: TaskTracker::new(),
-                cancel: CancellationToken::new(),
-            }),
+            inner: Arc::new(AbilitiesInner::unasked(ffmpeg)),
         };
         // Holds nothing but ffmpeg, so the Server shutting down mid-test still closes the
         // database cleanly (#554).
@@ -117,6 +129,17 @@ impl Abilities {
         abilities
     }
 
+    /// Abilities that hand back `can_do` and ask ffmpeg nothing, for tests.
+    #[cfg(test)]
+    pub(crate) fn fixed(can_do: CanDo) -> Self {
+        Self {
+            inner: Arc::new(AbilitiesInner {
+                fixed: Some(can_do),
+                ..AbilitiesInner::unasked(Arc::new(Ffmpeg::default()))
+            }),
+        }
+    }
+
     /// Cancels the hardware test if it still runs, killing its test encode, and waits for it to
     /// stop.
     pub(crate) async fn shutdown(&self) {
@@ -128,6 +151,10 @@ impl Abilities {
     /// What ffmpeg can do. An answer ffmpeg couldn't give, such as on a busy host whose listing
     /// timed out, counts as `false` or no hardware and is asked again next time.
     pub(crate) async fn can_do(&self) -> CanDo {
+        #[cfg(test)]
+        if let Some(fixed) = &self.inner.fixed {
+            return fixed.clone();
+        }
         let ffmpeg = &self.inner.ffmpeg;
         // Together, so a busy host waits out one listing's timeout, not two.
         let (zscale, tonemapx, subtitle_layer, libx264, hardware) = tokio::join!(
