@@ -83,7 +83,7 @@ const fn hardware_choice_to_proto(choice: &HardwareChoice) -> HardwareAccelerati
 }
 
 /// The GPU with the PCI address `id`, called `name`, as the API has it.
-pub(super) fn gpu_to_proto(id: String, name: String) -> proto::Gpu {
+pub(in crate::api) fn gpu_to_proto(id: String, name: String) -> proto::Gpu {
     proto::Gpu {
         id,
         name,

@@ -102,6 +102,14 @@ pub type OwnedUpdateBackupSettingsRequestView = ::buffa::view::OwnedView<
 pub type OwnedUpdateBackupSettingsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::UpdateBackupSettingsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListServerFoldersRequestView<'static>>`.
+pub type OwnedListServerFoldersRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListServerFoldersRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListServerFoldersResponseView<'static>>`.
+pub type OwnedListServerFoldersResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListServerFoldersResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListPlaysRequestView<'static>>`.
 pub type OwnedListPlaysRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListPlaysRequestView<'static>,
@@ -584,6 +592,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListServerFoldersResponse>
+for crate::messages::nama::v1::__buffa::view::ListServerFoldersResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListServerFoldersResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListServerFoldersResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPlaysResponse>
 for crate::messages::nama::v1::__buffa::view::ListPlaysResponseView<'_> {
     fn encode(
@@ -834,6 +876,12 @@ pub const SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC: ::connectrpc::Spec = ::con
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListServerFolders` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_LIST_SERVER_FOLDERS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/ListServerFolders",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `ListPlays` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SERVER_SERVICE_LIST_PLAYS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.ServerService/ListPlays",
@@ -1246,6 +1294,35 @@ pub trait ServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::UpdateBackupSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the folders directly inside `path` on the Server, sorted by name ignoring case, to pick
+    /// one from: one level per call. Needs `PERMISSION_MANAGE_LIBRARIES`. It leaves out
+    /// files, dot-folders, on Windows folders marked hidden or system, folders the Server can't
+    /// stat, symlinks to files and broken symlinks; a symlink to a folder is listed at its own path.
+    /// A `path` that isn't absolute is refused with `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE`, one that
+    /// doesn't exist or isn't a folder with `REFUSAL_REASON_FOLDER_NOT_FOUND`, and one the Server
+    /// can't read with `REFUSAL_REASON_FOLDER_NOT_READABLE`, each naming it.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_server_folders<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListServerFoldersRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListServerFoldersResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1791,6 +1868,35 @@ impl<S: ServerService> ServerServiceExt for S {
             .with_spec(SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC)
             .route_view_idempotent(
                 SERVER_SERVICE_SERVICE_NAME,
+                "ListServerFolders",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListServerFoldersRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListServerFoldersRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_server_folders(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListServerFoldersResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_LIST_SERVER_FOLDERS_SPEC)
+            .route_view_idempotent(
+                SERVER_SERVICE_SERVICE_NAME,
                 "ListPlays",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -2064,6 +2170,12 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC),
+                )
+            }
+            "ListServerFolders" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(SERVER_SERVICE_LIST_SERVER_FOLDERS_SPEC),
                 )
             }
             "ListPlays" => {
@@ -2392,6 +2504,28 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::UpdateBackupSettingsResponse,
+                        >(format)
+                })
+            }
+            "ListServerFolders" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListServerFoldersRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListServerFoldersRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListServerFoldersRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_server_folders(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListServerFoldersResponse,
                         >(format)
                 })
             }
@@ -3204,6 +3338,51 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListServerFolders RPC. Sends a request to /nama.v1.ServerService/ListServerFolders.
+    pub async fn list_server_folders(
+        &self,
+        request: crate::messages::nama::v1::ListServerFoldersRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListServerFoldersResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_server_folders_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListServerFolders RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_server_folders_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListServerFoldersRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListServerFoldersResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_LIST_SERVER_FOLDERS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

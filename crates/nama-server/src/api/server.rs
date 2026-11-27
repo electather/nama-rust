@@ -13,12 +13,11 @@ use nama_proto::nama::v1::{
     GetImageSettingsRequest, GetImageSettingsResponse, GetPlaybackSettingsRequest,
     GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
     GetServerInfoRequest, GetServerInfoResponse, GetServerLinkRequest, GetServerLinkResponse,
-    GetServerSettingsRequest, GetServerSettingsResponse,
-    HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
-    ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService,
-    ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse,
-    StartServerLinkRequest, StartServerLinkResponse, StopPlayRequest, StopPlayResponse,
-    SwitchImageStoreRequest, SwitchImageStoreResponse, TranscodeHardware, UnlinkServerRequest,
+    GetServerSettingsRequest, GetServerSettingsResponse, HomeLayoutRow, ImageStoreSwitch,
+    ListPlaysRequest, ListPlaysResponse, ListServerFoldersRequest, ListServerFoldersResponse,
+    RefusalReason, ServerService, ServerSettings, SetDefaultHomeLayoutRequest,
+    SetDefaultHomeLayoutResponse, StartServerLinkRequest, StartServerLinkResponse, StopPlayRequest,
+    StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse, UnlinkServerRequest,
     UnlinkServerResponse, UpdateBackupSettingsRequest, UpdateBackupSettingsResponse,
     UpdateImageSettingsRequest, UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest,
     UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
@@ -33,9 +32,7 @@ use crate::{
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     link::Linking,
-    playback::{
-        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, SubtitleCache, accel_to_proto,
-    },
+    playback::{MessageTooLong, RunningPlans, STOP_MESSAGE_LENGTH, SubtitleCache, accel_to_proto},
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
         self, BackupValues, HomeLayout, HomeRowId, ImageValues, Invalid, PlacedRow, PlaybackChange,
@@ -43,12 +40,14 @@ use crate::{
     users::Users,
 };
 
-use self::playback_settings::{
-    gpu_to_proto, hardware_choice, playback_settings_to_proto, tone_mapping_to_proto,
-};
+pub(super) use self::playback_settings::gpu_to_proto;
+use self::playback_settings::{hardware_choice, playback_settings_to_proto, tone_mapping_to_proto};
 use super::{
-    BrowserSpans, browse::recently_added_rows, database_failed, playback::limit_from_proto, refuse,
-    server_link, unknown_enum_value,
+    BrowserSpans,
+    browse::recently_added_rows,
+    database_failed, libraries,
+    playback::{limit_from_proto, play_to_proto},
+    refuse, server_link, unknown_enum_value,
 };
 
 mod playback_settings;
@@ -418,6 +417,14 @@ impl ServerService for ServerServiceHandler {
         })
     }
 
+    async fn list_server_folders(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListServerFoldersRequest>,
+    ) -> ServiceResult<ListServerFoldersResponse> {
+        libraries::list_server_folders(request.path).await
+    }
+
     async fn stop_play(
         &self,
         _ctx: RequestContext,
@@ -435,31 +442,6 @@ impl ServerService for ServerServiceHandler {
             .param("maxLength", &STOP_MESSAGE_LENGTH)
         })?;
         Response::ok(StopPlayResponse::default())
-    }
-}
-
-/// `play` as `ListPlays` sends it.
-fn play_to_proto(play: PlayNow) -> Play {
-    let transcodes = play.playback.method == PlaybackMethod::PLAYBACK_METHOD_TRANSCODE;
-    let transcodes_on = transcodes.then(|| TranscodeHardware {
-        api: (play.hardware.as_ref())
-            .map_or(
-                HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
-                |hardware| accel_to_proto(hardware.accel),
-            )
-            .into(),
-        gpu: (play.hardware.and_then(|hardware| hardware.gpu))
-            .map(|gpu| gpu_to_proto(gpu.id().to_owned(), gpu.name()))
-            .into(),
-        ..Default::default()
-    });
-    Play {
-        playback: play.playback.into(),
-        title: play.title.unwrap_or_default(),
-        position_ms: play.progress.map(|progress| progress.position_ms),
-        duration_ms: play.progress.map_or(0, |progress| progress.duration_ms),
-        transcodes_on: transcodes_on.into(),
-        ..Default::default()
     }
 }
 

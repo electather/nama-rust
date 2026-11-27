@@ -39,7 +39,7 @@ const DOWNLOAD_SUBTITLES: [&str; 2] = [
 const DOWNLOAD: [&str; 0] = [];
 
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
-const MANAGE_LIBRARIES: [&str; 11] = [
+const MANAGE_LIBRARIES: [&str; 12] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/GetLibrary",
     "/nama.v1.LibraryService/UpdateLibrary",
@@ -51,6 +51,7 @@ const MANAGE_LIBRARIES: [&str; 11] = [
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",
     "/nama.v1.MatchService/ListUnmatchedItems",
+    "/nama.v1.ServerService/ListServerFolders",
 ];
 
 /// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.

@@ -1,7 +1,9 @@
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
 import { saveOnLeave } from "@/features/admin-playback/lib/save-on-leave";
+import { FolderPicker } from "@/shared/components/folder-picker";
 import { FormField } from "@/shared/components/form-field/form-field";
+import { TypedSettingRow } from "@/shared/components/typed-setting-row";
 import type { FormErrors } from "@/shared/lib/forms";
 import { rowText } from "@/shared/lib/setting-text";
 
@@ -20,18 +22,15 @@ export function SegmentFields({
 }) {
   return (
     <>
-      <FormField
-        row
+      <TypedSettingRow
         {...rowText(serverPlaybackLabels, "segmentFolder")}
-        name="segmentFolder"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="/dev/shm/nama"
-        required={false}
+        saved={values.segmentFolder}
         error={errors.segmentFolder}
-        {...saveOnLeave(values.segmentFolder, (segmentFolder) => {
+        input={{ autoComplete: "off", spellCheck: false, placeholder: "/dev/shm/nama" }}
+        renderBeside={(fill) => <FolderPicker path={values.segmentFolder} onPick={fill} />}
+        onSave={(segmentFolder) => {
           onEdit({ segmentFolder });
-        })}
+        }}
       />
       <FormField
         row

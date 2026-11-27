@@ -1,5 +1,5 @@
 import type { Input } from "nama-ui/components/input";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 
 import { RowInput } from "@/shared/components/row-input";
 import { SettingRow } from "@/shared/components/setting-row";
@@ -18,6 +18,7 @@ export function TypedSettingRow({
   error,
   check,
   input,
+  renderBeside,
   onSave,
 }: {
   /** The key `?setting=` finds the row by, if search lists it. */
@@ -33,6 +34,8 @@ export function TypedSettingRow({
     ComponentProps<typeof Input>,
     "value" | "onChange" | "onBlur" | "onKeyDown" | "aria-invalid"
   >;
+  /** A control beside the field, such as `FolderPicker`, which may fill it in with `fill`. */
+  renderBeside?: (fill: (value: string) => void) => ReactNode;
   onSave: (typed: string) => void;
 }) {
   const [typed, setTyped] = useState(saved);
@@ -55,6 +58,12 @@ export function TypedSettingRow({
     }
   }
 
+  /** Puts `value` in the field and saves it, as − and + or a control `renderBeside` draws do. */
+  function fill(value: string) {
+    setTyped(value);
+    commit(sent, value);
+  }
+
   return (
     <SettingRow
       setting={setting}
@@ -64,28 +73,28 @@ export function TypedSettingRow({
       {...inputLayout(input.type)}
     >
       {(control) => (
-        <RowInput
-          input={input}
-          state={{
-            control,
-            value: typed,
-            invalid: shown !== undefined,
-            onType: setTyped,
-            onBlur: () => {
-              commit(sent);
-            },
-            onKeyDown: (event) => {
-              // Enter sends whatever the Server doesn't have, so it also tries a refused one again.
-              if (event.key === "Enter") {
-                commit(saved);
-              }
-            },
-            onStep: (stepped) => {
-              setTyped(stepped);
-              commit(sent, stepped);
-            },
-          }}
-        />
+        <div className="flex w-full gap-2">
+          <RowInput
+            input={input}
+            state={{
+              control,
+              value: typed,
+              invalid: shown !== undefined,
+              onType: setTyped,
+              onBlur: () => {
+                commit(sent);
+              },
+              onKeyDown: (event) => {
+                // Enter sends whatever the Server doesn't have, so it also tries a refused one again.
+                if (event.key === "Enter") {
+                  commit(saved);
+                }
+              },
+              onStep: fill,
+            }}
+          />
+          {renderBeside?.(fill)}
+        </div>
       )}
     </SettingRow>
   );

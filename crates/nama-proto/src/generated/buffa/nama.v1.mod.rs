@@ -409,6 +409,9 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_BACKUPS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_BACKUPS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__BACKUP_JSON_ANY);
+        reg.register_json_any(super::__LIST_SERVER_FOLDERS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_SERVER_FOLDERS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SERVER_FOLDER_JSON_ANY);
         reg.register_json_any(super::__UPDATE_BACKUP_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UPDATE_BACKUP_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__BACKUP_SETTINGS_JSON_ANY);
@@ -1869,6 +1872,18 @@ pub use self::__buffa::view::GetBackupsResponseOwnedView;
 pub use self::__buffa::view::BackupView;
 #[doc(inline)]
 pub use self::__buffa::view::BackupOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListServerFoldersRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListServerFoldersRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListServerFoldersResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListServerFoldersResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerFolderView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerFolderOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdateBackupSettingsRequestView;
 #[doc(inline)]
