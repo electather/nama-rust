@@ -3,7 +3,7 @@ import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
- * The backdrop at `url`, under its `thumbhash` until it loads, on the scrim text over it sits on,
+ * The Backdrop at `url`, under its `thumbhash` until it loads, on the scrim text over it sits on,
  * filling its `relative isolate` box behind what comes after it. `sizes` is how wide it shows, for
  * its `srcset`. Nothing without one.
  */

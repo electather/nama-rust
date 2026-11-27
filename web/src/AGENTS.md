@@ -11,7 +11,7 @@ The web app's own rules. `web/AGENTS.md` has the ones every web package shares. 
   - `routes/`: TanStack Router's file routes, which are thin (`routes/AGENTS.md`).
   - `gen/` and `routeTree.gen.ts`: generated (below).
   - `test-*.ts(x)`: the fake Server and helpers the tests share.
-  - `styles.css`: the app's global CSS. It imports nama-ui's tokens and fonts, and the tokens of Home and the title pages from `home.css` and `title.css`. Text subtitles' `::cue` rules are in `subtitle-cues.css`.
+  - `styles.css`: the app's global CSS. It imports nama-ui's tokens and fonts, and the tokens of Home and the title pages (with the Backdrop's scrim) from `home.css` and `title.css`. Text subtitles' `::cue` rules are in `subtitle-cues.css`.
 - **Layers.** Imports go one way, which Fallow's zones enforce (`.fallowrc.jsonc`):
   - `shared/lib/` imports only `shared/lib/`.
   - `shared/hooks/` imports `shared/hooks/` and `shared/lib/`.

@@ -1,9 +1,10 @@
-/* The Movie and Show artboards' tokens for title pages (`src/features/title/`), imported by `styles.css`. */
+/* The Movie and Show artboards' tokens for title pages (`src/features/title/`) and the scrim every
+   Backdrop draws, imported by `styles.css`. */
 
 /* The scrim under a Backdrop (`src/shared/components/backdrop.tsx`), at a title page's top and
    behind a Library page's name: from the page up to clear art above its middle, so the copy at the
    bottom keeps 4.5:1 however bright the Backdrop (DESIGN.md, "The Legible Over Art Rule"), darker
-   at the start, where the copy sits, and under the app bar. */
+   at the start, where the copy sits, and at the top, for a title page's app bar. */
 @utility title-scrim {
   --title-start: to right;
   background:

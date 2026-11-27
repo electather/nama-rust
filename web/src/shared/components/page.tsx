@@ -5,7 +5,7 @@ import { PageTitle } from "@/shared/components/page-title";
 
 /**
  * A page's main column, under its heading and the `art` beside it, if any; the heading also names
- * the browser tab. With a `backdrop` URL, the heading sits on it as a banner, at its bottom start.
+ * the browser tab. With a `backdrop` URL, the heading sits on it, at its bottom start.
  */
 export function Page({
   heading,
@@ -26,11 +26,13 @@ export function Page({
         className="relative isolate flex items-center gap-6 data-banner:h-48 data-banner:items-end data-banner:overflow-hidden data-banner:rounded-3xl data-banner:p-5 sm:data-banner:h-64"
         data-banner={banner ? "" : undefined}
       >
+        {/* Only a page with a Backdrop asks the Server for its image widths: an error page may
+            show because the Server can't be reached. */}
         {backdrop !== undefined && (
-          // The column is at most 1024px wide, less its 24px sides.
           <Backdrop
             url={backdrop.url}
             thumbhash={backdrop.thumbhash}
+            // The column is at most 1024px wide, less its 24px sides.
             sizes="(min-width: 1024px) 976px, 100vw"
           />
         )}

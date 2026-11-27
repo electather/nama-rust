@@ -30,12 +30,12 @@ export function LibraryPage({
   switchView: (view: LibraryView) => void;
 }) {
   // The route's copy is the loader's, which doesn't hear Settings change it, such as its Backdrop.
-  const shown = useLibraries().find(({ id }) => id === library.id) ?? library;
+  const live = useLibraries().find(({ id }) => id === library.id) ?? library;
   const titles = { libraryId: library.id, listing, change };
   return (
     <Page
-      heading={shown.name}
-      backdrop={{ url: shown.backdropUrl, thumbhash: shown.backdropThumbhash }}
+      heading={live.name}
+      backdrop={{ url: live.backdropUrl, thumbhash: live.backdropThumbhash }}
     >
       {deleted !== undefined && (
         <div className="mt-2">

@@ -45,7 +45,7 @@ function image(src: string) {
   return document.querySelector(`img[src="${src}"]`);
 }
 
-test("a Library with a Backdrop shows it behind its name, under its thumbhash until it loads", async () => {
+test("a Library with a Backdrop shows it behind its name, under its ThumbHash until it loads", async () => {
   const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, backdropUrl: NEWEST };
   openApp(
     "/libraries/1",
@@ -71,26 +71,46 @@ test("a Library without a Backdrop shows its name as a plain heading", async () 
   expect(heading.parentElement?.querySelector("img")).toBeNull();
 });
 
-test("uploading a Custom Backdrop in Settings changes the Library page's banner", async () => {
-  let library: Library = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, backdropUrl: NEWEST };
-  // oxlint-disable-next-line require-await, typescript/require-await -- fetch is async, and this fake answers at once
-  vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-    library = { ...library, backdropUrl: CUSTOM, customBackdrop: true };
-    return new Response(null, { status: 204 });
-  });
-  openApp(
-    "/libraries/1?settings=libraries&library=1",
-    server(() => library),
-  );
+/** A Library's Backdrop fields when it shows `url`. */
+function custom(url: string) {
+  return { backdropUrl: url, customBackdrop: url === CUSTOM };
+}
 
-  const file = new File(["backdrop"], "backdrop.jpg", { type: "image/jpeg" });
-  fireEvent.change(await screen.findByLabelText("Upload a Backdrop"), {
-    target: { files: [file] },
-  });
+/** Each way to change the Library's Custom Image in Settings' Libraries section. */
+const changes = {
+  "uploading a Custom Image": () => {
+    const file = new File(["backdrop"], "backdrop.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Upload a Backdrop"), { target: { files: [file] } });
+  },
+  "removing the Custom Image": () => {
+    fireEvent.click(screen.getByRole("button", { name: "Remove custom image: Backdrop" }));
+  },
+};
 
-  // Settings' preview draws it too, and its dialog hides the page from the accessibility tree.
-  const heading = screen.getByRole("heading", { level: 1, name: "Films", hidden: true });
-  await waitFor(() => {
-    expect(heading.parentElement?.querySelector(`img[src="${CUSTOM}"]`)).not.toBeNull();
-  });
-});
+test.each([
+  { name: "uploading a Custom Image", before: NEWEST, after: CUSTOM },
+  { name: "removing the Custom Image", before: CUSTOM, after: NEWEST },
+] as const)(
+  "$name for a Library in Settings changes its page's Backdrop",
+  async ({ name, before, after }) => {
+    let library: Library = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, ...custom(before) };
+    // oxlint-disable-next-line require-await, typescript/require-await -- fetch is async, and this fake answers at once
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      library = { ...library, ...custom(after) };
+      return new Response(null, { status: 204 });
+    });
+    openApp(
+      "/libraries/1?settings=libraries&library=1",
+      server(() => library),
+    );
+
+    await screen.findByLabelText("Upload a Backdrop");
+    changes[name]();
+
+    // Settings' preview draws it too, and its dialog hides the page from the accessibility tree.
+    const heading = screen.getByRole("heading", { level: 1, name: "Films", hidden: true });
+    await waitFor(() => {
+      expect(heading.parentElement?.querySelector(`img[src="${after}"]`)).not.toBeNull();
+    });
+  },
+);
