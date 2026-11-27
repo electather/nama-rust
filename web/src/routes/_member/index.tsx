@@ -28,5 +28,5 @@ export const Route = createFileRoute("/_member/")({
 
 function HomeRoute() {
   const { account } = Route.useRouteContext();
-  return account ? <AccountHome email={account.email} /> : <HomePage />;
+  return account ? <AccountHome /> : <HomePage />;
 }

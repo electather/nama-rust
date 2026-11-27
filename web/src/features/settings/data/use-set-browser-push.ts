@@ -3,13 +3,9 @@ import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { browserPushKey } from "@/features/settings/data/use-browser-push";
-import {
-  askToNotify,
-  browserSubscription,
-  subscribeBrowser,
-  encryptionKey,
-} from "@/features/settings/lib/web-push";
 import { WebPushService } from "@/gen/nama/v1/web_push_pb";
+import { subscribeAtServer } from "@/shared/hooks/browser-push";
+import { askToNotify, browserSubscription, subscribeBrowser } from "@/shared/lib/web-push";
 
 /**
  * Turns Web Push on or off for this browser, both in the browser and at the Server, then reads the
@@ -33,18 +29,7 @@ async function turnOn(transport: Transport) {
     return;
   }
   const { publicKey } = await callUnaryMethod(transport, WebPushService.method.getWebPushKey, {});
-  const subscription = await subscribeBrowser(publicKey);
-  try {
-    await callUnaryMethod(transport, WebPushService.method.subscribeWebPush, {
-      endpoint: subscription.endpoint,
-      p256dh: encryptionKey(subscription, "p256dh"),
-      auth: encryptionKey(subscription, "auth"),
-    });
-  } catch (error) {
-    // Kept, the switch would show on while the Server pushes nothing.
-    await subscription.unsubscribe();
-    throw error;
-  }
+  await subscribeAtServer(transport, await subscribeBrowser(publicKey));
 }
 
 async function turnOff(transport: Transport) {

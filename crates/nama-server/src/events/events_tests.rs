@@ -32,7 +32,7 @@ use crate::{
     users::{
         LibraryAccess, Permissions, User, list_inbox, personal_settings_of,
         replace_personal_settings, set_notification_preference,
-        testing::{insert_user, insert_user_holding},
+        testing::{insert_device, insert_user, insert_user_holding},
     },
     web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
@@ -597,10 +597,11 @@ async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind
         .unwrap();
     let (ada_endpoint, ada_got) = push_service(StatusCode::CREATED).await;
     let (lin_endpoint, lin_got) = push_service(StatusCode::CREATED).await;
-    subscribe_web_push(&db, ada, browser(&ada_endpoint))
+    let (adas_device, lins_device) = (insert_device(&db, ada).await, insert_device(&db, lin).await);
+    subscribe_web_push(&db, ada, adas_device, browser(&ada_endpoint))
         .await
         .unwrap();
-    subscribe_web_push(&db, lin, browser(&lin_endpoint))
+    subscribe_web_push(&db, lin, lins_device, browser(&lin_endpoint))
         .await
         .unwrap();
 

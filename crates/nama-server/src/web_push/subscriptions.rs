@@ -8,23 +8,27 @@ use tracing::{info, warn};
 use super::{Pushed, Pusher, Subscription};
 use crate::db::{Database, now};
 
-/// Pushes `user`'s notifications to `subscription` from now on. An endpoint another User
-/// subscribed becomes `user`'s, as the browser holding it now signs in as them.
+/// Pushes `user`'s notifications to `subscription`, made on their Device `device`, until they're
+/// signed out of it. An endpoint another User subscribed becomes `user`'s, as the browser holding
+/// it now acts as them.
 pub(crate) async fn subscribe(
     db: &Database,
     user: i64,
+    device: i64,
     subscription: Subscription,
 ) -> Result<(), sqlx::Error> {
     let created_at = now();
     db.write(move |tx| {
         Box::pin(async move {
             sqlx::query!(
-                "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at)
-                 VALUES (?, ?, ?, ?, ?)
+                "INSERT INTO push_subscriptions
+                     (user_id, device_id, endpoint, p256dh, auth, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)
                  ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id,
-                     p256dh = excluded.p256dh, auth = excluded.auth,
-                     created_at = excluded.created_at",
+                     device_id = excluded.device_id, p256dh = excluded.p256dh,
+                     auth = excluded.auth, created_at = excluded.created_at",
                 user,
+                device,
                 subscription.endpoint,
                 subscription.p256dh,
                 subscription.auth,

@@ -9,9 +9,10 @@ export function UserInvites() {
   }
   return (
     <section aria-labelledby="users-waiting" className="flex flex-col gap-2">
-      <h2 id="users-waiting" className="text-lg font-semibold">
+      {/* Under Settings' pane title, as its groups' titles are. */}
+      <h4 id="users-waiting" className="text-xs text-muted-foreground">
         Users waiting for you
-      </h2>
+      </h4>
       <p className="text-sm text-pretty text-muted-foreground">
         A Server’s Admin created these from your Account. Accept one to sign in to that Server with
         your Account.
