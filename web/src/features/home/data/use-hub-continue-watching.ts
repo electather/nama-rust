@@ -1,4 +1,9 @@
-import { createQueryOptions } from "@connectrpc/connect-query";
+import { isMessage } from "@bufbuild/protobuf";
+import {
+  callUnaryMethod,
+  createConnectQueryKey,
+  createQueryOptions,
+} from "@connectrpc/connect-query";
 import {
   type QueryClient,
   type UseQueryResult,
@@ -11,7 +16,11 @@ import { useReachedServers } from "@/features/home/data/use-reached-servers";
 import { entryCard } from "@/features/home/lib/continue-watching-cards";
 import type { ReachedServer } from "@/features/home/lib/hub-rows";
 import { cardOn, mergeContinueWatching } from "@/features/home/lib/hub-titles";
-import { BrowseService, type ListContinueWatchingResponse } from "@/gen/nama/v1/browse_pb";
+import {
+  BrowseService,
+  type ListContinueWatchingResponse,
+  ListContinueWatchingResponseSchema,
+} from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 const pageSize = 20;
@@ -63,28 +72,58 @@ export function useHubContinueWatching() {
  * so a card that slides to a later page is neither lost nor listed twice.
  */
 function pageQueries(queryClient: QueryClient, on: ReachedServer, after: number) {
-  let query = pageQuery(on, "");
+  let query = pageQuery(queryClient, on, { at: 0, token: "" });
   const pages = [{ on, query }];
-  for (let left = after; left > 0; left -= 1) {
-    const token = tokenAfter(queryClient.getQueryData(query.queryKey));
+  for (let at = 1; at <= after; at += 1) {
+    const token = tokenAfter(latestAnswer(queryClient, query.queryKey) ?? query.placeholderData);
     if (token === undefined) {
       break;
     }
-    query = pageQuery(on, token);
+    query = pageQuery(queryClient, on, { at, token });
     pages.push({ on, query });
   }
   return pages;
 }
 
-function pageQuery(on: ReachedServer, token: string) {
+/**
+ * The query for `on`'s page `at`, asked by `token`. The key holds `at` too, so a page asked by a
+ * new token shows what was last at `at` till it answers, rather than the shelf shrinking back.
+ */
+function pageQuery(
+  queryClient: QueryClient,
+  on: ReachedServer,
+  { at, token }: { at: number; token: string },
+) {
+  const method = BrowseService.method.listContinueWatching;
+  const input = { page: { size: pageSize, token } };
+  const { queryKey, structuralSharing } = createQueryOptions(method, input, {
+    transport: on.transport,
+  });
+  const atKey = [
+    ...createConnectQueryKey({ schema: method, cardinality: "finite", transport: on.transport }),
+    at,
+  ];
   return {
-    ...createQueryOptions(
-      BrowseService.method.listContinueWatching,
-      { page: { size: pageSize, token } },
-      { transport: on.transport },
-    ),
+    queryKey: [...queryKey, at],
+    // connect-query's own is typed for its key, which this one extends.
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const answer = await callUnaryMethod(on.transport, method, input, { signal });
+      return answer;
+    },
+    structuralSharing,
     staleTime: loaderStaleTime,
+    placeholderData: at === 0 ? undefined : latestAnswer(queryClient, atKey),
   };
+}
+
+/** The most recent answer cached under `queryKey`, whichever token asked for it. */
+function latestAnswer(queryClient: QueryClient, queryKey: unknown[]) {
+  const answered = queryClient
+    .getQueryCache()
+    .findAll({ queryKey, predicate: ({ state }) => state.data !== undefined });
+  const last = Math.max(...answered.map(({ state }) => state.dataUpdatedAt));
+  const answer = answered.find(({ state }) => state.dataUpdatedAt === last)?.state.data;
+  return isMessage(answer, ListContinueWatchingResponseSchema) ? answer : undefined;
 }
 
 type Page = UseQueryResult<ListContinueWatchingResponse>;
