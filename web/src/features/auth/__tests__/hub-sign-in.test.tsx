@@ -138,9 +138,7 @@ describe("a browser with notifications", () => {
   test("signing in at the Hub leaves this browser's notifications alone", async () => {
     const browser = browserWithPush("granted", true);
     openApp("/", fakeHub().transport);
-
     await signInAs(ada.email, "correct horse");
-
     await screen.findByRole("button", { name: `${ada.email}’s menu` });
     // The Hub serves no WebPushService: a SubscribeWebPush sent it would fail and unsubscribe.
     expect(browser.subscription.unsubscribe).not.toHaveBeenCalled();
