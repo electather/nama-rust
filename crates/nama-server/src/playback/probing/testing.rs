@@ -1,6 +1,6 @@
-//! An in-memory stand-in for ffprobe, which Probing's and playback's unit tests read files with. A test says in
-//! Rust what a probe or a listing of a file answers, rather than write a program that poses as
-//! ffprobe, or has it forward to the real ffprobe while counting what it reads.
+//! An in-memory stand-in for ffprobe, which Probing's and playback's unit tests read files with. A
+//! test says in Rust what a probe or a listing of a file answers, rather than write a program that
+//! poses as ffprobe, or has it forward to the real ffprobe while counting what it reads.
 
 use std::{
     collections::VecDeque,

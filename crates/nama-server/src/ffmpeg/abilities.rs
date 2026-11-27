@@ -92,23 +92,30 @@ struct AbilitiesInner {
     cancel: CancellationToken,
 }
 
+impl AbilitiesInner {
+    /// For `ffmpeg`, asked nothing yet.
+    fn unasked(ffmpeg: Arc<Ffmpeg>) -> Self {
+        Self {
+            ffmpeg,
+            #[cfg(test)]
+            fixed: None,
+            zscale: tokio::sync::OnceCell::new(),
+            tonemapx: tokio::sync::OnceCell::new(),
+            subtitle_layer: tokio::sync::OnceCell::new(),
+            libx264: tokio::sync::OnceCell::new(),
+            hardware: tokio::sync::OnceCell::new(),
+            tasks: TaskTracker::new(),
+            cancel: CancellationToken::new(),
+        }
+    }
+}
+
 impl Abilities {
     /// Starts testing `ffmpeg`'s hardware in the background, as it takes a few seconds; the first
     /// [`Self::can_do`] waits for it, and asks again if ffmpeg couldn't list its encoders.
     pub(crate) fn new(ffmpeg: Arc<Ffmpeg>) -> Self {
         let abilities = Self {
-            inner: Arc::new(AbilitiesInner {
-                ffmpeg,
-                #[cfg(test)]
-                fixed: None,
-                zscale: tokio::sync::OnceCell::new(),
-                tonemapx: tokio::sync::OnceCell::new(),
-                subtitle_layer: tokio::sync::OnceCell::new(),
-                libx264: tokio::sync::OnceCell::new(),
-                hardware: tokio::sync::OnceCell::new(),
-                tasks: TaskTracker::new(),
-                cancel: CancellationToken::new(),
-            }),
+            inner: Arc::new(AbilitiesInner::unasked(ffmpeg)),
         };
         // Holds nothing but ffmpeg, so the Server shutting down mid-test still closes the
         // database cleanly (#554).
@@ -127,15 +134,8 @@ impl Abilities {
     pub(crate) fn fixed(can_do: CanDo) -> Self {
         Self {
             inner: Arc::new(AbilitiesInner {
-                ffmpeg: Arc::new(Ffmpeg::default()),
                 fixed: Some(can_do),
-                zscale: tokio::sync::OnceCell::new(),
-                tonemapx: tokio::sync::OnceCell::new(),
-                subtitle_layer: tokio::sync::OnceCell::new(),
-                libx264: tokio::sync::OnceCell::new(),
-                hardware: tokio::sync::OnceCell::new(),
-                tasks: TaskTracker::new(),
-                cancel: CancellationToken::new(),
+                ..AbilitiesInner::unasked(Arc::new(Ffmpeg::default()))
             }),
         }
     }
