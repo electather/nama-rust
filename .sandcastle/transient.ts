@@ -5,7 +5,8 @@
 // command counts, so a Docker or Claude API 500 stays an infra failure.
 // The message and stderr, not `instanceof`: execFileSync puts git's output in stderr.
 
-const SERVER_ERROR = /Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|HTTP 50[0234]|returned error: 50[0234]/i;
+// GraphQL reports some 5xx-like failures in a 200 body: "Something went wrong while executing your query" (2026-11-27).
+const SERVER_ERROR = /Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|HTTP 50[0234]|returned error: 50[0234]|Something went wrong while executing your query/i;
 const NETWORK_ERROR = new RegExp([
   "i/o timeout", "dial tcp", "connection reset by peer", "connection refused", "TLS handshake timeout",
   "net/http: request canceled", "Operation timed out", "unexpected EOF", "Could not resolve host",
@@ -42,6 +43,8 @@ if (import.meta.main) {
     "fatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 502\n")));
   assert.ok(githubUnavailable(failed("gh pr view 12", "HTTP 503: Service Unavailable (https://api.github.com/graphql)\n")));
   assert.ok(githubUnavailable(failed("gh api repos/o/r", "HTTP 504: 504 Gateway Time-out\n")));
+  assert.ok(githubUnavailable(failed("gh issue comment 2253 --body hi",
+    "GraphQL: Something went wrong while executing your query on 2026-11-27T01:25:57Z. Please include `CD1F:183191:9F2FC6:F3D86D:6B08DC24` when reporting this issue.\n")));
   assert.ok(!githubUnavailable(failed("git push origin x", "remote: Invalid username or token.\nfatal: Authentication failed\n")),
     "git auth is infra");
   assert.ok(!githubUnavailable(failed("docker run sandcastle", "Error response from daemon: Internal Server Error\n")),

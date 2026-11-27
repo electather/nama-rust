@@ -570,7 +570,21 @@ async function newBox(branch: string): Promise<Box> {
   // Agents share the host's .git, and in a container every other sandbox's worktree path looks missing, so an
   // agent's `git worktree prune` wiped them all (then sandcastle's next prune deleted their folders). Prune skips
   // locked worktrees; sandcastle's `worktree remove --force` doesn't, hence the unlock before close.
-  git("worktree", "lock", "--reason", `sandcastle factory ${RUN}`, box.worktreePath);
+  // A killed run's lock outlives it: run 6409 died on a gh error (2026-11-27) and its locks crashed #2485 and #2490
+  // on every retry for ten hours. Like a claim, a lock whose run is gone from this machine is taken over.
+  const block = git("worktree", "list", "--porcelain").split("\n\n").find((b) => b.startsWith(`worktree ${box.worktreePath}\n`));
+  const holder = /^locked sandcastle factory (\S+)$/m.exec(block ?? "")?.[1];
+  const [pid, host] = holder?.split("@") ?? [];
+  if (holder && host === hostname() && !alive(Number(pid))) {
+    log(`${box.worktreePath} taking over the lock of ${holder}: that run is gone`);
+    git("worktree", "unlock", box.worktreePath);
+  }
+  try {
+    git("worktree", "lock", "--reason", `sandcastle factory ${RUN}`, box.worktreePath);
+  } catch (e) {
+    await box.close(); // else its container keeps running after the issue crashes
+    throw e;
+  }
   const close = box.close.bind(box);
   return Object.assign(box, {
     close: () => {
@@ -1473,10 +1487,19 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       outcome = "cancelled";
       finish(issue, outcome, why);
     } else if (e instanceof Blocked) {
-      if (loop === "triage") undecided(issue, e.message);
-      else handBack(issue, e.message);
-      outcome = "handed back";
-      finish(issue, outcome, e.message);
+      try {
+        if (loop === "triage") undecided(issue, e.message);
+        else handBack(issue, e.message);
+        outcome = "handed back";
+        finish(issue, outcome, e.message);
+      } catch (relabel) {
+        // GitHub failing the hand-back's comment ("Something went wrong while executing your query", 2026-11-27)
+        // ended a whole run. Only this issue crashes; the next run takes it again if it kept its label.
+        const why = `crashed handing back (${e.message}): ${oneLine(relabel)}`;
+        appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(relabel)}\n\n`);
+        log(`✗ #${issue.number} ${why}; the run goes on`);
+        finish(issue, "crashed", why);
+      }
     } else if (rateLimited(e)) {
       // After Blocked: an agent's own reason may mention a rate limit, and that one is the agent's to give.
       const why = `GitHub API rate limit at ${stageOf.get(issue.number)?.stage ?? "start"}`;
