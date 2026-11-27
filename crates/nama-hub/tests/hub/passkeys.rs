@@ -128,6 +128,44 @@ async fn a_passkey_added_by_a_fresh_session_signs_in_without_an_email_or_passwor
 }
 
 #[sqlx::test(migrations = false)]
+async fn signing_in_with_a_passkey_ends_the_browsers_session_and_leaves_the_others(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let browser = create(&hub, "ada@example.com").await;
+    let mut passkey = Passkey::new();
+    add_passkey(&hub, &browser, &mut passkey, "Phone")
+        .await
+        .unwrap();
+    let other = sign_in_with(&hub, &passkey).await.unwrap();
+    let client = signed_in(&hub, &browser);
+
+    let started = client
+        .start_passkey_sign_in(StartPasskeySignInRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    let replacement = session_token(
+        client
+            .sign_in_with_passkey(passkey.signed(&started))
+            .await
+            .unwrap()
+            .headers(),
+    );
+
+    let works = |token: String| {
+        let session = signed_in(&hub, &token);
+        async move {
+            session
+                .get_account(GetAccountRequest::default())
+                .await
+                .is_ok()
+        }
+    };
+    assert!(works(replacement).await);
+    assert!(works(other).await);
+    assert!(!works(browser).await);
+}
+
+#[sqlx::test(migrations = false)]
 async fn one_client_is_handed_only_so_many_passkey_challenges(db: PgPool) {
     let hub = TestHub::start(db, None).await;
     let client = accounts(&hub);

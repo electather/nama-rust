@@ -6,8 +6,7 @@ use std::{ops::RangeInclusive, time::Instant};
 use uuid::Uuid;
 
 use super::{
-    Account, AccountId, AccountSession, Accounts, Caller, Error, RecentAuthenticationRequired,
-    SignedIn, sessions,
+    Account, AccountId, AccountSession, Accounts, Caller, Error, SignedIn, sessions,
     webauthn::{Ceremony, RelyingParty, public_key},
 };
 
@@ -110,10 +109,7 @@ impl Accounts {
             id: AccountId(found.account_id),
             email: found.email,
         };
-        if let Some(session) = replacing {
-            sessions::end(&mut *tx, session).await?;
-        }
-        let token = sessions::start(&mut tx, account.id).await?;
+        let token = sessions::start_replacing(&mut tx, account.id, replacing).await?;
         tx.commit().await?;
         Ok(SignedIn { account, token })
     }
@@ -124,7 +120,7 @@ impl Accounts {
         session: &AccountSession,
         caller: Caller,
     ) -> Result<Adding, Error> {
-        require_recent(session)?;
+        session.require_recent_authentication()?;
         let account = session.account.id;
         let challenge = self.challenge(Ceremony::Add(account), caller)?;
         let exclude_credential_ids = sqlx::query_scalar!(
@@ -147,7 +143,7 @@ impl Accounts {
         passkey: &NewPasskey<'_>,
         now: Instant,
     ) -> Result<Passkey, Error> {
-        require_recent(session)?;
+        session.require_recent_authentication()?;
         let relying_party = self.relying_party()?;
         // Before the challenge is used up, so the same passkey can be sent again with a better name.
         let name = passkey.name.trim();
@@ -160,12 +156,7 @@ impl Accounts {
         {
             return Err(Error::PasskeyNotAccepted);
         }
-        let mut tx = self.db.begin().await?;
-        // Under the row lock, so a Sign-in Link's takeover, which removes passkeys, can't miss
-        // this one (ADR 0100).
-        if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(RecentAuthenticationRequired.into());
-        }
+        let mut tx = sessions::begin_recent(&self.db, session).await?;
         let id = sqlx::query_scalar!(
             "INSERT INTO account_passkeys (account_id, credential_id, name, algorithm, public_key)
              VALUES ($1, $2, $3, $4, $5)
@@ -204,15 +195,11 @@ impl Accounts {
         session: &AccountSession,
         id: Uuid,
     ) -> Result<(), Error> {
-        require_recent(session)?;
+        session.require_recent_authentication()?;
         let account = session.account.id;
-        let mut tx = self.db.begin().await?;
-        // The Account's row lock makes removals of its passkeys take turns. What's left is read in
-        // statements of their own after it: under READ COMMITTED, the locking statement would see
-        // them as they were before it waited.
-        if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(RecentAuthenticationRequired.into());
-        }
+        // The Account's row lock makes removals of its passkeys take turns, so what's left is read
+        // in statements of their own after it.
+        let mut tx = sessions::begin_recent(&self.db, session).await?;
         let has_password = sqlx::query_scalar!(
             r#"SELECT password_hash IS NOT NULL AS "has_password!" FROM accounts WHERE id = $1"#,
             account.0,
@@ -253,16 +240,6 @@ impl Accounts {
 
     fn relying_party(&self) -> Result<&RelyingParty, Error> {
         self.relying_party.as_deref().ok_or(Error::PasskeysOff)
-    }
-}
-
-/// Fails unless `session` has Recent Authentication, checked again under the Account's row lock
-/// before anything changes.
-fn require_recent(session: &AccountSession) -> Result<(), Error> {
-    if session.authenticated_recently {
-        Ok(())
-    } else {
-        Err(RecentAuthenticationRequired.into())
     }
 }
 
