@@ -1,78 +1,82 @@
-//! The Home rows a User could see: the Kernel's and the Plugins', for `ListHomeRows` and the Home
+//! A User's Home rows and a Home layout as the API has them, for `ListHomeRows` and the Home
 //! layouts.
 
-use connectrpc::ConnectError;
-use nama_proto::nama::v1::{self as proto, home_row::KernelOrPlugin};
-
-use super::{Fields, refusals::home_rows_refused, refused};
-use crate::{
-    api::libraries::kind_to_proto,
-    browse::{Browse, Browsing},
-    home_rows::HomeRows,
-    library::Library,
-    server_settings::HomeRowId,
-    users::User,
+use nama_proto::nama::v1::{
+    self as proto, HomeLayoutRow, home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
-/// Every Home row `reader` could see now, in no layout's order: Continue Watching, each
-/// Library's Recently Added row, then the Plugins' rows, each linked to its Library only if
-/// `reader` sees it.
-pub(in crate::api) async fn home_rows_of(
-    home_rows: &HomeRows,
-    browse: &Browsing,
-    reader: &User,
-) -> Result<Vec<(HomeRowId, KernelOrPlugin)>, ConnectError> {
-    let plugin_rows = home_rows.list(reader).await.map_err(home_rows_refused)?;
-    let seen = super::seen_by(browse, reader.id).await?;
-    let libraries = seen.libraries().await.map_err(refused(Fields::NONE))?;
-    let is_seen = |id: &i64| libraries.iter().any(|library| library.id == *id);
-    let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
-        let row = proto::PluginHomeRow {
-            plugin_id: id.plugin().map_or_default(ToString::to_string),
-            key: row.key,
-            heading: row.heading,
-            library_id: row.library.filter(is_seen),
+use crate::{
+    api::libraries::kind_to_proto,
+    browse::{HomeRow, SeenHomeLayout, ShownRow},
+    library::Library,
+};
+
+/// A row of a User's Home as `ListHomeRows` has it: `None` for an entry of a Plugin's Users' own
+/// rows, which only the default Home layout lists.
+pub(super) fn home_row_to_proto((id, shown): HomeRow) -> Option<KernelOrPlugin> {
+    let plugin_id = id.plugin().map_or_default(ToString::to_string);
+    Some(match shown {
+        ShownRow::ContinueWatching => KernelOrPlugin::Kernel(continue_watching()),
+        ShownRow::RecentlyAdded(library) => recently_added_to_proto(&library).into(),
+        ShownRow::Plugin {
+            key,
+            heading,
+            library,
+        } => proto::PluginHomeRow {
+            plugin_id,
+            key,
+            heading,
+            library_id: library,
             ..Default::default()
-        };
-        (id, row.into())
-    });
-    let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
-    let continue_watching = (
-        HomeRowId::ContinueWatching,
-        KernelOrPlugin::Kernel(continue_watching.into()),
-    );
-    let recently_added =
-        (recently_added_of(&libraries).into_iter()).map(|(id, row)| (id, row.into()));
-    Ok(std::iter::once(continue_watching)
-        .chain(recently_added)
-        .chain(plugin_rows)
-        .collect())
+        }
+        .into(),
+        ShownRow::UsersOwn => return None,
+    })
 }
 
-/// Each Recently Added row of a Library `browse` sees, oldest Library first.
-pub(in crate::api) async fn recently_added_rows(
-    browse: &Browse,
-) -> Result<Vec<(HomeRowId, proto::RecentlyAddedHomeRow)>, ConnectError> {
-    let libraries = browse.libraries().await.map_err(refused(Fields::NONE))?;
-    Ok(recently_added_of(&libraries))
-}
-
-/// The Recently Added row of each of `libraries`, in their order.
-fn recently_added_of(libraries: &[Library]) -> Vec<(HomeRowId, proto::RecentlyAddedHomeRow)> {
-    (libraries.iter())
-        .map(|library| {
-            let row = proto::RecentlyAddedHomeRow {
-                library_id: library.id,
-                library_name: library.name.clone(),
-                library_kind: kind_to_proto(library.kind).into(),
+/// `layout` as the API has it.
+pub(in crate::api) fn home_layout_to_proto(layout: SeenHomeLayout) -> proto::HomeLayout {
+    proto::HomeLayout {
+        featured_hidden: Some(!layout.featured_shown),
+        rows: (layout.rows.into_iter())
+            .map(|(row, shown)| HomeLayoutRow {
+                row: Some(layout_row_to_proto(row)),
+                hidden: !shown,
                 ..Default::default()
-            };
-            (
-                HomeRowId::RecentlyAdded {
-                    library: library.id,
-                },
-                row,
-            )
-        })
-        .collect()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// A row of a Home layout as the API has it. A Plugin's row leaves its Library link off, as saving
+/// reads only its Plugin and key (#2443).
+fn layout_row_to_proto((id, shown): HomeRow) -> LayoutRow {
+    let plugin_id = id.plugin().map_or_default(ToString::to_string);
+    match shown {
+        ShownRow::ContinueWatching => LayoutRow::Kernel(continue_watching()),
+        ShownRow::RecentlyAdded(library) => recently_added_to_proto(&library).into(),
+        ShownRow::Plugin { key, heading, .. } => proto::PluginHomeRow {
+            plugin_id,
+            key,
+            heading,
+            ..Default::default()
+        }
+        .into(),
+        ShownRow::UsersOwn => LayoutRow::PluginUsersRows(plugin_id),
+    }
+}
+
+fn continue_watching() -> buffa::EnumValue<proto::KernelHomeRow> {
+    proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into()
+}
+
+/// The Recently Added row of `library`.
+fn recently_added_to_proto(library: &Library) -> proto::RecentlyAddedHomeRow {
+    proto::RecentlyAddedHomeRow {
+        library_id: library.id,
+        library_name: library.name.clone(),
+        library_kind: kind_to_proto(library.kind).into(),
+        ..Default::default()
+    }
 }

@@ -28,11 +28,15 @@ mod featured;
 mod placed;
 mod refreshes;
 mod rows;
+#[cfg(test)]
+mod scripted;
 pub(crate) use featured::Suggested;
 use featured::Suggestions;
 use placed::placed_by;
 use refreshes::{Refreshes, Scope};
 use rows::Rows;
+#[cfg(test)]
+pub(crate) use scripted::ScriptedRows;
 
 use crate::{
     db::{self, Database},
