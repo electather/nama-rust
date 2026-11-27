@@ -1,4 +1,4 @@
-import type { Interceptor } from "@connectrpc/connect";
+import type { Interceptor, Transport } from "@connectrpc/connect";
 import type { AnyRouter } from "@tanstack/react-router";
 
 import { originOf } from "@/shared/lib/server";
@@ -95,8 +95,10 @@ export function traceRouteChanges(router: AnyRouter) {
   });
   router.subscribe("onResolved", () => {
     const page = router.state.matches.at(-1);
-    // At the Hub a Server's pages put the transport to it in their context (ADR 0105).
-    routeOrigin = page ? originOf(page.context.transport) : "";
+    // At the Hub a Server's pages put the transport to it in their context (ADR 0105). A page that
+    // threw `notFound` before its context was made has none, whatever its type says.
+    const transport: Transport | undefined = page?.context.transport;
+    routeOrigin = transport ? originOf(transport) : "";
     // The route's id, such as `/_member/libraries/$libraryId`, names the page without its ids.
     const route = page?.routeId ?? "unknown";
     routeRecorder()?.recordSpan("route change", navigatedAt, { "app.route": route });

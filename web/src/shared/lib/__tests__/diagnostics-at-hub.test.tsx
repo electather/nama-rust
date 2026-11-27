@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { type Interceptor, createRouterTransport } from "@connectrpc/connect";
-import { cleanup } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
@@ -139,4 +139,21 @@ test("at the Hub, route changes and uncaught errors on a Server's page go to tha
   failUncaught();
 
   expect(recorded).toContain(`${basement} error TypeError`);
+});
+
+test("at the Hub, an uncaught error on a Server's page naming no Server, after one that does, is dropped", async () => {
+  const router = openAtHub("/libraries/1?server=basement", { [basement]: true });
+  await vi.waitFor(() => {
+    expect(recorded).toContain(
+      `${basement} span route change /_member/_server/libraries/$libraryId/`,
+    );
+  });
+  recorded.length = 0;
+
+  // Pushed, so `?server=` isn't kept: the Hub answers "Page not found".
+  router.history.push("/libraries/1");
+  await screen.findByRole("heading", { name: "Page not found" });
+  failUncaught();
+
+  expect(recorded.filter((line) => !line.includes(" call "))).toStrictEqual([]);
 });
