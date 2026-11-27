@@ -43,6 +43,7 @@ export function ContinueWatchingShelf({ headingId }: { headingId: string }) {
         tiles={tiles}
         tile={backdropTile}
         setSize={totalSize}
+        restoreId="continue-watching"
         next={{ has: hasNextPage, load: fetchNextPage }}
       />
     </ContinueWatchingFrame>

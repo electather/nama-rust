@@ -1,7 +1,7 @@
 import type { RowTitle } from "@/shared/lib/row-titles";
 
 /**
- * A shelf's tile: its width class, the width the virtualizer guesses before measuring, and its
+ * A shelf's tile: its width class, the width to take where the class can't be measured, and its
  * corners' radius class.
  */
 export interface ShelfTile {
@@ -21,7 +21,7 @@ export const backdropTile: ShelfTile = {
 export const posterTile: ShelfTile = {
   width: "w-tile-poster",
   estimate: 210,
-  radius: "rounded-3xl",
+  radius: "rounded-xl",
 };
 
 /**

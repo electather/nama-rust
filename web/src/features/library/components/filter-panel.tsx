@@ -1,19 +1,17 @@
-import { GenreChips } from "@/features/library/components/genre-chips";
-import { WatchStateChoice } from "@/features/library/components/watch-state-choice";
+import { ClearFilters } from "@/features/library/components/clear-filters";
+import { FilterChoices } from "@/features/library/components/filter-choices";
 import type { BarProps } from "@/features/library/lib/listing-bar";
 
-const heading = "text-sm font-medium";
-
-/** What the Filter button opens: genres, then Watch State. */
-export function FilterPanel({ genres, ...bar }: BarProps & { genres: string[] }) {
+/** What the Filter button opens: its choices, with Clear filters in the top end corner. */
+export function FilterPanel(props: BarProps & { genres: string[] }) {
   return (
-    // A short window scrolls the panel. While the popover eases to a new size it clips instead,
-    // or a scrollbar coming and going narrows the chips, rewraps them and resizes it again.
-    <div className="flex min-h-0 scrollbar-quiet flex-col gap-4 overflow-y-auto p-3 in-data-resizing:overflow-hidden">
-      {genres.length > 0 && <GenreChips genres={genres} {...bar} />}
-      <div className="flex flex-col gap-2">
-        <p className={heading}>Watch State</p>
-        <WatchStateChoice {...bar} />
+    // Clear filters sits outside the scroller, so it stays in reach however far that's scrolled.
+    <div className="relative flex min-h-0 flex-col">
+      <FilterChoices {...props} />
+      {/* Over the panel, so coming and going moves nothing, centred on its first heading's line,
+          where it clears the chips under it. */}
+      <div className="absolute inset-e-1.5 top-1.5">
+        <ClearFilters {...props} />
       </div>
     </div>
   );
