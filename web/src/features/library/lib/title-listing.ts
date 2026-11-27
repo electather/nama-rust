@@ -65,6 +65,49 @@ export function isFiltered({ genres, from, to, watched }: TitleListing) {
   return [genres, from, to, watched].some((value) => value !== undefined);
 }
 
+/** What the sort menu calls each way `sort` runs, in words. */
+export function orderNames(sort: Sort) {
+  return sort === "title"
+    ? { asc: "A to Z", desc: "Z to A" }
+    : { asc: "Oldest first", desc: "Newest first" };
+}
+
+/** `listing` keeping every title, in its sort. */
+export function unfiltered({ sort, order }: TitleListing): TitleListing {
+  return { sort, order };
+}
+
+/** "1990–1999", "From 1990", "To 1999": the years `listing` keeps, if it keeps some. */
+function yearsName({ from, to }: TitleListing) {
+  if (from === undefined) {
+    return to === undefined ? undefined : `To ${to}`;
+  }
+  return to === undefined ? `From ${from}` : `${from}–${to}`;
+}
+
+/** Each filter `listing` has on, by name, and `listing` with it off. */
+export function filterTokens(listing: TitleListing) {
+  const { genres = [], watched } = listing;
+  const tokens: { name: string; without: TitleListing }[] = genres.map((genre) => {
+    const left = genres.filter((other) => other !== genre);
+    return { name: genre, without: { ...listing, genres: left.length === 0 ? undefined : left } };
+  });
+  const years = yearsName(listing);
+  if (years !== undefined) {
+    tokens.push({ name: years, without: { ...listing, from: undefined, to: undefined } });
+  }
+  if (watched !== undefined) {
+    tokens.push({ name: watchedStates[watched], without: { ...listing, watched: undefined } });
+  }
+  return tokens;
+}
+
+/** How many of the filters `listing` keeps titles by: each genre, the years and the Watch State. */
+export function filterCount({ genres = [], from, to, watched }: TitleListing) {
+  const years = from !== undefined || to !== undefined ? 1 : 0;
+  return genres.length + years + (watched === undefined ? 0 : 1);
+}
+
 /** Which way `listing` runs: as its URL says, else up by title and newest first otherwise. */
 export function isDescending({ sort = "title", order }: TitleListing) {
   return order === undefined ? sort !== "title" : order === "desc";

@@ -134,19 +134,20 @@ const collisionPadding = {
 };
 
 /**
- * The panel, in `container` so it shows in full screen, on `side` of `anchor`'s end edge,
- * `sideOffset` pixels off it.
+ * The panel, in `container` so it shows in full screen, on `side` of `anchor`, lined up with its
+ * `align` edge, its end unless asked, `sideOffset` pixels off it.
  */
 function PopoverContent({
   container,
   anchor,
   side = "top",
+  align = "end",
   sideOffset = 4,
   width,
   ...props
 }: PopoverPrimitive.Popup.Props &
   VariantProps<typeof popoverContentVariants> &
-  Pick<PopoverPrimitive.Positioner.Props, "anchor" | "sideOffset"> & {
+  Pick<PopoverPrimitive.Positioner.Props, "anchor" | "align" | "sideOffset"> & {
     side?: "top" | "bottom";
   } & Pick<PopoverPrimitive.Portal.Props, "container">) {
   return (
@@ -155,7 +156,7 @@ function PopoverContent({
         ref={onPositioner}
         className="isolate z-50 outline-none"
         side={side}
-        align="end"
+        align={align}
         anchor={anchor}
         sideOffset={sideOffset}
         collisionPadding={collisionPadding[side]}

@@ -61,7 +61,7 @@ pub(crate) use local_images::{LocalImage, LocalImageFile, LocalRole, TitleLocalI
 pub(crate) use match_images::StoredTitleImage;
 pub(crate) use matched::{Episode, MatchedTo, Movie, Season, Show, TitlesIn, Version, show_poster};
 pub(crate) use nfo::{NfoFile, NfoHints, NfoItem};
-pub(crate) use pages::{Listing, TitleSort, Watched};
+pub(crate) use pages::{IndexKey, Listed, Listing, TitleSort, Watched};
 pub(crate) use pins::{Named, Pin};
 pub(crate) use roles::PersonRole;
 pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow};

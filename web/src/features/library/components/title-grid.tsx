@@ -1,15 +1,29 @@
+import { Button } from "nama-ui/components/button";
+
 import { VirtualPosterGrid } from "@/features/library/components/virtual-poster-grid";
-import type { GridProps } from "@/features/library/lib/titles-props";
+import type { GridProps, Jump } from "@/features/library/lib/titles-props";
 import { ShowMore } from "@/shared/components/show-more";
 
-/** The posters, and Show more under them while a page follows, or that none match the filters. */
-export function TitleGrid({ titles, paged, posters }: GridProps) {
+/**
+ * The posters, and Show more under them while a page follows, or that none match the filters,
+ * with `clear` to clear them.
+ */
+export function TitleGrid({ titles, paged, posters, clear, jump }: GridProps & { jump?: Jump }) {
   if (posters.length === 0) {
-    return <p className="mt-8 text-muted-foreground">No {titles.many} match these filters.</p>;
+    return (
+      <div className="mt-8 flex flex-col items-start gap-3">
+        <p className="text-muted-foreground">No {titles.many} match these filters.</p>
+        {clear && (
+          <Button variant="secondary" onClick={clear}>
+            Clear filters
+          </Button>
+        )}
+      </div>
+    );
   }
   return (
     <>
-      <VirtualPosterGrid posters={posters} setSize={paged.totalSize} />
+      <VirtualPosterGrid posters={posters} setSize={paged.totalSize} jump={jump} />
       {paged.hasNextPage && (
         <ShowMore load={paged.fetchNextPage} loaded={paged.data.pages.length} />
       )}

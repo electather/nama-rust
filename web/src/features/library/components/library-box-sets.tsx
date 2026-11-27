@@ -1,3 +1,4 @@
+import { RailLayout } from "@/features/library/components/rail-layout";
 import { TitleCount } from "@/features/library/components/title-count";
 import { TitleGrid } from "@/features/library/components/title-grid";
 import { firstBoxSetPage } from "@/features/library/lib/library-view";
@@ -31,7 +32,9 @@ export function LibraryBoxSets({ libraryId }: { libraryId: bigint }) {
   return (
     <>
       <TitleCount count={paged.totalSize} titles={titles} />
-      <TitleGrid titles={titles} paged={paged} posters={posters} />
+      <RailLayout>
+        <TitleGrid titles={titles} paged={paged} posters={posters} />
+      </RailLayout>
     </>
   );
 }

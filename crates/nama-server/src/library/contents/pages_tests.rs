@@ -4,7 +4,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 use tempfile::TempDir;
 
-use super::{Listing, TitleSort, Watched};
+use super::{IndexKey, Listed, Listing, TitleSort, Watched};
 use crate::{
     db,
     library::{
@@ -110,13 +110,38 @@ async fn page_of(
     started: &[(String, bool)],
     asked: &PageRequest,
 ) -> (Vec<i64>, PageResponse) {
+    let (tmdb, listed) = listed(fx, (library, listing), started, asked).await;
+    (tmdb, listed.page)
+}
+
+async fn listed(
+    fx: &Fixture,
+    (library, listing): (i64, &Listing),
+    started: &[(String, bool)],
+    asked: &PageRequest,
+) -> (Vec<i64>, Listed) {
     let page = Page::read(asked, b"test").unwrap();
-    let (ids, paged) = (fx.contents)
+    let (ids, listed) = (fx.contents)
         .title_page(library, listing, started, None, &page)
         .await
         .unwrap();
     let tmdb = ids.iter().map(|id| id.value().parse().unwrap()).collect();
-    (tmdb, paged)
+    (tmdb, listed)
+}
+
+/// Each key of the index of the first page `listing` lists, and where it starts.
+async fn index(fx: &Fixture, listing: &Listing, asked: &PageRequest) -> Vec<(String, u32)> {
+    let (_, listed) = listed(fx, (fx.library, listing), &[], asked).await;
+    let keys = listed.index.into_iter();
+    keys.map(|IndexKey { key, position }| (key, position))
+        .collect()
+}
+
+fn keys(keys: &[(&str, u32)]) -> Vec<(String, u32)> {
+    let owned = keys
+        .iter()
+        .map(|&(key, position)| (key.to_owned(), position));
+    owned.collect()
 }
 
 /// The TMDB ids of the first page of Movies `listing` lists, for a User who started none.
@@ -287,4 +312,73 @@ async fn the_watched_filter_reads_the_users_watch_states_rolling_a_show_up() {
     assert_eq!(kept(fx.library, Watched::Played).await, [1]);
     assert_eq!(kept(shows.library, Watched::Started).await, [10]);
     assert_eq!(kept(shows.library, Watched::Played).await, [20]);
+}
+
+#[tokio::test]
+async fn by_title_the_index_has_each_sort_titles_first_letter_where_it_starts() {
+    let fx = Fixture::new().await;
+    let titles = [
+        (1, "Heat"),
+        (2, "The Matrix"),
+        (3, "Alien"),
+        (4, "Élite"),
+        (5, "12 Monkeys"),
+        (6, "Aliens"),
+    ];
+    store_movies(&fx, &titles).await;
+    let z_to_a = Listing {
+        descending: true,
+        ..BY_TITLE
+    };
+    let first = PageRequest::default();
+
+    let up = keys(&[("#", 0), ("A", 1), ("E", 3), ("H", 4), ("M", 5)]);
+    let down = keys(&[("M", 0), ("H", 1), ("E", 2), ("A", 3), ("#", 5)]);
+    assert_eq!(index(&fx, &BY_TITLE, &first).await, up);
+    assert_eq!(index(&fx, &z_to_a, &first).await, down);
+}
+
+#[tokio::test]
+async fn by_release_date_the_index_has_each_year_and_leaves_out_the_undated() {
+    let fx = Fixture::new().await;
+    let dated = |tmdb, title: &str, date: Option<&str>| Metadata {
+        release_date: date.map(str::to_owned),
+        ..tmdb_movie(tmdb, title)
+    };
+    store_movie(&fx, "/1.mkv", dated(1, "Alien", Some("1979-05-25"))).await;
+    store_movie(&fx, "/2.mkv", dated(2, "Heat", Some("1995-12-15"))).await;
+    store_movie(&fx, "/3.mkv", dated(3, "Scream", Some("1996-12-20"))).await;
+    store_movie(&fx, "/4.mkv", dated(4, "Fargo", Some("1996-03-08"))).await;
+    store_movie(&fx, "/5.mkv", dated(5, "Undated", None)).await;
+    let newest_first = Listing {
+        sort: TitleSort::Released,
+        descending: true,
+        ..BY_TITLE
+    };
+
+    let index = index(&fx, &newest_first, &PageRequest::default()).await;
+
+    assert_eq!(index, keys(&[("1996", 0), ("1995", 2), ("1979", 3)]));
+}
+
+#[tokio::test]
+async fn only_the_first_page_by_title_or_release_date_has_an_index() {
+    let fx = Fixture::new().await;
+    store_movies(&fx, &[(1, "Alien"), (2, "Heat")]).await;
+    let first = PageRequest {
+        size: 1,
+        ..Default::default()
+    };
+    let (_, paged) = page_of(&fx, fx.library, &BY_TITLE, &[], &first).await;
+    let next = PageRequest {
+        token: paged.next_token,
+        ..first.clone()
+    };
+
+    assert_eq!(
+        index(&fx, &BY_TITLE, &first).await,
+        keys(&[("A", 0), ("H", 1)])
+    );
+    assert_eq!(index(&fx, &BY_TITLE, &next).await, []);
+    assert_eq!(index(&fx, &NEWEST_FIRST, &first).await, []);
 }

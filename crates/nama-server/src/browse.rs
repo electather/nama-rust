@@ -18,9 +18,9 @@ use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, OnServer,
-        Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
-        WatchStates,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listed, Listing, NotFound,
+        OnServer, Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState,
+        WatchStateKind, WatchStates,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -136,7 +136,7 @@ impl Browse {
         library: i64,
         listing: &Listing,
         asked: &PageRequest,
-    ) -> Result<(Vec<(LibraryMovie, Option<WatchState>)>, PageResponse), Error> {
+    ) -> Result<(Vec<(LibraryMovie, Option<WatchState>)>, Listed), Error> {
         let (ids, paged) =
             (self.title_page(user, (library, LibraryKind::Movies), listing, asked)).await?;
         let movies = self.contents.movies(library, Some(&ids)).await?;
@@ -195,7 +195,7 @@ impl Browse {
         library: i64,
         listing: &Listing,
         asked: &PageRequest,
-    ) -> Result<(Vec<ListedShow>, PageResponse), Error> {
+    ) -> Result<(Vec<ListedShow>, Listed), Error> {
         let (ids, paged) =
             (self.title_page(user, (library, LibraryKind::Shows), listing, asked)).await?;
         let shows = self.contents.shows(library, Some(&ids)).await?;
@@ -356,7 +356,7 @@ impl Browse {
         (library, kind): (i64, LibraryKind),
         listing: &Listing,
         asked: &PageRequest,
-    ) -> Result<(Vec<ExternalId>, PageResponse), Error> {
+    ) -> Result<(Vec<ExternalId>, Listed), Error> {
         let library = self.library(library).await?;
         if library.kind != kind {
             return Err(NotFound::WrongKind { wanted: kind }.into());

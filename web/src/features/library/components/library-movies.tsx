@@ -34,6 +34,7 @@ export function LibraryMovies({ libraryId, listing, change }: TitlesProps) {
   return (
     <Titles
       titles={{ one: "Movie", many: "Movies" }}
+      index={paged.data.pages[0]?.index ?? []}
       {...{ libraryId, listing, change, paged, posters }}
     />
   );

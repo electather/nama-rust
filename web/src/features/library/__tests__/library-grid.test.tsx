@@ -93,9 +93,9 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Sort: Title" }));
   fireEvent.click(await screen.findByRole("menuitemradio", { name: "Recently Added" }));
   await screen.findByRole("button", { name: "Sort: Recently Added" });
-  fireEvent.click(screen.getByRole("button", { name: "Watch State: All" }));
-  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Not started" }));
-  await screen.findByRole("button", { name: "Watch State: Not started" });
+  fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+  fireEvent.click(await screen.findByRole("radio", { name: "Not started" }));
+  await screen.findByRole("button", { name: "Filter, 1 on" });
   act(() => {
     fireEvent.change(screen.getByRole("textbox", { name: "From year" }), {
       target: { value: "1990" },
@@ -112,21 +112,56 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   expect(last?.page?.token).toBe("");
 });
 
-test("choosing two genres asks for the titles with either", async () => {
+test("the sort menu says which way it runs in words, and picking the other turns it", async () => {
   const asked: ListMoviesRequest[] = [];
   openApp("/libraries/1", thousandMovies(asked));
   await screen.findByText("1,000 Movies");
 
-  fireEvent.click(screen.getByRole("button", { name: "Genre: All" }));
-  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Crime" }));
-  await screen.findByRole("button", { name: "Genre: Crime" });
-  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Horror" }));
-  await screen.findByRole("button", { name: "Genre: Crime +1" });
+  fireEvent.click(screen.getByRole("button", { name: "Sort: Title" }));
+  const order = await screen.findByRole("menuitemradio", { name: "A to Z" });
+  expect(order.getAttribute("aria-checked")).toBe("true");
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "Z to A" }));
+
+  await waitFor(() => {
+    expect(asked.at(-1)?.direction).toBe(SortDirection.DESCENDING);
+  });
+  expect(asked.at(-1)?.sort).toBe(MovieSort.TITLE);
+});
+
+test("choosing two genres asks for the titles with either, and each shows as a chip", async () => {
+  const asked: ListMoviesRequest[] = [];
+  openApp("/libraries/1", thousandMovies(asked));
+  await screen.findByText("1,000 Movies");
+
+  fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Crime", pressed: false }));
+  await screen.findByRole("button", { name: "Filter, 1 on" });
+  fireEvent.click(await screen.findByRole("button", { name: "Horror", pressed: false }));
+  await screen.findByRole("button", { name: "Filter, 2 on" });
 
   await waitFor(() => {
     expect(asked.at(-1)?.filter?.genres).toStrictEqual(["Crime", "Horror"]);
   });
   expect(asked.at(-1)?.page?.token).toBe("");
+  expect(screen.getByRole("button", { name: "Remove Crime" })).toBeDefined();
+});
+
+test("a filter's chip turns it off, and Clear all turns them all off", async () => {
+  const asked: ListMoviesRequest[] = [];
+  openApp("/libraries/1?genres=%5B%22Crime%22%5D&watched=played&from=1990", thousandMovies(asked));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Remove Crime" }));
+  await waitFor(() => {
+    expect(asked.at(-1)?.filter?.genres).toStrictEqual([]);
+  });
+  expect(screen.getByRole("button", { name: "Remove From 1990" })).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+
+  await waitFor(() => {
+    expect(asked.at(-1)?.filter?.watched).toBe(WatchedFilter.UNSPECIFIED);
+  });
+  expect(asked.at(-1)?.filter?.minYear).toBeUndefined();
+  expect(screen.queryByRole("button", { name: /^Remove/u })).toBeNull();
 });
 
 test("a Library's posters are images alone, labelled with title and year, naming a title without art", async () => {

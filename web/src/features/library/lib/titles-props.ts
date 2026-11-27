@@ -17,4 +17,12 @@ export interface GridProps {
     data: { pages: unknown[] };
   };
   posters: { key: string; poster: ReactNode }[];
+  /** Turns the filters off, for a grid that none of the titles passed. */
+  clear?: (() => void) | undefined;
+}
+
+/** The poster the quick-scroll rail asked the grid to scroll to, and what to call once it has. */
+export interface Jump {
+  target: number | undefined;
+  reached: () => void;
 }

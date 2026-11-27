@@ -44,13 +44,44 @@ pub(crate) struct Listing {
     pub(crate) descending: bool,
 }
 
+/// What a page of a Library's Movies or Shows says of the listing besides its titles.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Listed {
+    /// What it says of the rest; only the first page counts them.
+    pub(crate) page: PageResponse,
+    /// On the first page by title or release date, where each letter or year starts, in the
+    /// listing's order; else empty.
+    pub(crate) index: Vec<IndexKey>,
+}
+
+/// Where the first title under one letter or year of a listing is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IndexKey {
+    /// The sort title's first letter in upper case, or "#" for one without a letter A to Z; or
+    /// the release year.
+    pub(crate) key: String,
+    /// How many titles the listing has before it.
+    pub(crate) position: u32,
+}
+
+/// The keys `json` holds, as the page's query groups them, in the listing's order.
+fn index_of(json: &str) -> Result<Vec<IndexKey>, sqlx::Error> {
+    let keys: Vec<(String, u32)> =
+        serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))?;
+    let mut index: Vec<IndexKey> = (keys.into_iter())
+        .map(|(key, position)| IndexKey { key, position })
+        .collect();
+    index.sort_by_key(|key| key.position);
+    Ok(index)
+}
+
 impl Contents {
     /// A page of the Movies of the Movies Library `library`, or the Shows of the Shows Library,
     /// that `listing` keeps, in its order, each by the id it is listed under, and what the page
-    /// says of the rest; only the first page counts them. `started` is the User's Watch States of
-    /// the Movies, or Episodes, they've started or played: each by an id in its text form, and
-    /// whether it is played. With `ratings`, only titles whose Content Rating is one of them, the
-    /// empty string standing for none, are listed.
+    /// says of the listing. `started` is the User's Watch States of the Movies, or Episodes,
+    /// they've started or played: each by an id in its text form, and whether it is played. With
+    /// `ratings`, only titles whose Content Rating is one of them, the empty string standing for
+    /// none, are listed.
     #[expect(clippy::too_many_lines, reason = "one query, whose SQL is most of it")]
     #[expect(
         clippy::too_many_arguments,
@@ -63,7 +94,7 @@ impl Contents {
         started: &[(String, bool)],
         ratings: Option<&[String]>,
         page: &Page<String>,
-    ) -> Result<(Vec<ExternalId>, PageResponse), sqlx::Error> {
+    ) -> Result<(Vec<ExternalId>, Listed), sqlx::Error> {
         let started =
             serde_json::to_string(started).map_err(|err| sqlx::Error::Encode(err.into()))?;
         let sort = match listing.sort {
@@ -131,7 +162,25 @@ impl Contents {
                                   OR coalesce(content_rating, '')
                                          IN (SELECT value FROM json_each(?12))))
                        SELECT listed_id AS "listed_id!: String", id AS "id!: i64",
-                              sort_key AS "sort_key!: String", COUNT(*) OVER () AS "total!: i64"
+                              sort_key AS "sort_key!: String", COUNT(*) OVER () AS "total!: i64",
+                              -- Read once, as it names no row: each key's first place in the
+                              -- listing, on the first page by title or release date.
+                              IIF(?9 IS NULL AND ?3 != 'added', (
+                                  SELECT json_group_array(json_array(key, position))
+                                  FROM (SELECT key, MIN(position) AS position
+                                        FROM (SELECT CASE
+                                                       WHEN ?3 = 'released'
+                                                           THEN NULLIF(substr(sort_key, 1, 4), '')
+                                                       WHEN substr(sort_key, 1, 1) BETWEEN 'a' AND 'z'
+                                                           THEN upper(substr(sort_key, 1, 1))
+                                                       ELSE '#' END AS key,
+                                                     ROW_NUMBER() OVER (
+                                                         ORDER BY IIF(?8, sort_key, NULL) DESC,
+                                                                  IIF(?8, id, NULL) DESC,
+                                                                  sort_key, id) - 1 AS position
+                                              FROM listed)
+                                        WHERE key IS NOT NULL
+                                        GROUP BY key)), NULL) AS "index: String"
                        FROM listed
                        WHERE ?9 IS NULL
                           OR (?8 AND (sort_key, id) < (?9, ?10))
@@ -157,12 +206,14 @@ impl Contents {
         // Every row holds the count of those the page's WHERE lets through: on the first page,
         // every title the listing keeps.
         let total = rows.first().map_or(0, |row| row.total);
+        let index = rows.first().and_then(|row| row.index.as_deref());
+        let index = index.map(index_of).transpose()?.unwrap_or_default();
         let mut paged = page.finish(&mut rows, |row| (row.sort_key.clone(), row.id));
         if page.is_first() {
             paged.total_size = Some(i32::try_from(total).unwrap_or(i32::MAX));
         }
         let ids = rows.iter().filter_map(|row| parse_hint(&row.listed_id));
-        Ok((ids.collect(), paged))
+        Ok((ids.collect(), Listed { page: paged, index }))
     }
 }
 
