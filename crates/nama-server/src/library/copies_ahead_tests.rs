@@ -15,7 +15,7 @@ use crate::{
         FoundImages, LocalImages, Metadata,
         contents::{ImageRef, LocalImageFile},
         custom_images::{self, Urls as CustomImageUrls},
-        fixture::{MatchedMovie, tmdb_movie},
+        fixture::{MatchedMovie, matched_episodes_file, tmdb_movie},
         scripted::{ScriptedSource, SourcesAsked},
     },
     plugins::Registry,
@@ -446,5 +446,58 @@ async fn posters_of_every_source_get_copies_ahead_first_until_the_cache_is_nearl
         "{copied:?}"
     );
     assert!(first.contains(&cache.join("filler")));
-    assert_eq!(cached(), first, "the second scan made and evicted nothing");
+    assert_eq!(cached(), first, "the second run made and evicted nothing");
+}
+
+#[tokio::test]
+async fn a_librarys_custom_images_are_its_own_and_its_titles_and_seasons_under_any_of_their_ids() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let folders = [(); 3].map(|()| tempfile::tempdir().unwrap());
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let alien = Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(348), imdb.clone()]),
+        ..tmdb_movie(348, "Alien")
+    };
+    let movies = MatchedMovie::new(&db, folders[0].path(), alien)
+        .await
+        .library;
+    let other_movie = tmdb_movie(1, "Other");
+    let others = MatchedMovie::new(&db, folders[1].path(), other_movie)
+        .await
+        .library;
+    let dark = ExternalId::tmdb(70523);
+    let dark_ids = ExternalIds::from_iter([dark.clone()]);
+    matched_episodes_file(&db, folders[2].path(), dark_ids, [10, 11]).await;
+    let libraries = Libraries::new(Arc::clone(&db)).list().await.unwrap();
+    let shows = libraries.iter().map(|library| library.id).max().unwrap();
+    let movies_own = [
+        Slot::movie(&imdb, Role::Poster),
+        Slot::movie(&ExternalId::tmdb(348), Role::Backdrop),
+        Slot::library(movies),
+    ];
+    let shows_own = [
+        Slot::show(&dark, Role::Poster),
+        Slot::show(&dark, Role::Backdrop),
+        Slot::season(&dark, 1),
+    ];
+    let neither = [
+        Slot::movie(&ExternalId::tmdb(1), Role::Poster),
+        Slot::library(others),
+        Slot::movie(&ExternalId::tmdb(999), Role::Poster),
+        Slot::season(&dark, 2),
+    ];
+    let store = ImageStore::new(data.path(), Arc::clone(&db));
+    let copies_ahead = CopiesAhead::for_tests(&db, store, Registry::new().extension_points());
+    let all = [&movies_own[..], &shows_own, &neither].concat();
+    custom_images::keep_without_bytes(&db, &all).await.unwrap();
+
+    let of_movies = copies_ahead.custom_of(movies).await.unwrap();
+    let of_shows = copies_ahead.custom_of(shows).await.unwrap();
+
+    let slots = |of: Vec<(Slot, String)>| -> HashSet<Slot> {
+        of.into_iter().map(|(slot, _)| slot).collect()
+    };
+    assert_eq!(slots(of_movies), HashSet::from(movies_own));
+    assert_eq!(slots(of_shows), HashSet::from(shows_own));
 }

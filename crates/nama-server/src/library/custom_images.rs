@@ -410,6 +410,28 @@ pub(super) fn served_type(content_type: &str) -> &'static str {
     }
 }
 
+/// Keeps a Custom Image at each of `slots`, as a version with no bytes in the store, for a test
+/// of which slots a walk picks: here, since only this file writes `custom_images`.
+#[cfg(test)]
+pub(super) async fn keep_without_bytes(db: &Database, slots: &[Slot]) -> sqlx::Result<()> {
+    for slot in slots {
+        let slot = slot.0.clone();
+        db.write(move |tx| {
+            Box::pin(async move {
+                sqlx::query(
+                    "INSERT INTO custom_images (slot, version, content_type)
+                     VALUES (?, 'v', 'image/png')",
+                )
+                .bind(slot)
+                .execute(&mut **tx)
+                .await
+            })
+        })
+        .await?;
+    }
+    Ok(())
+}
+
 /// Records `received` as the Custom Image at the slot `stored`, which is the Library `library`'s
 /// if it is one's, and returns the version it replaced, if any. [`Error::NoLibrary`] if that
 /// Library isn't there.

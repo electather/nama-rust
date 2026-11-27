@@ -13,8 +13,7 @@ use crate::{
     images::ImageStore,
     library::{
         CopiesAhead, Metadata,
-        fixture::{MatchedMovie, matched_episodes_file, tmdb_movie},
-        libraries::Libraries,
+        fixture::{MatchedMovie, tmdb_movie},
     },
     plugins::Registry,
     server_settings::Settings,
@@ -158,87 +157,4 @@ async fn upgrading_deletes_a_plugins_custom_image_and_keeps_a_titles() {
         .await
         .unwrap();
     assert_eq!(slots, ["movie/tmdb-348/poster"]);
-}
-
-/// Keeps a Custom Image at each of `slots`, as a version with no bytes in the store, which the
-/// slots' choice doesn't read.
-async fn keep_without_bytes(db: &Database, slots: &[Slot]) {
-    let slots: Vec<String> = slots.iter().map(|slot| slot.0.clone()).collect();
-    db.write(move |tx| {
-        Box::pin(async move {
-            for slot in slots {
-                sqlx::query(
-                    "INSERT INTO custom_images (slot, version, content_type)
-                     VALUES (?, 'v', 'image/png')",
-                )
-                .bind(slot)
-                .execute(&mut **tx)
-                .await?;
-            }
-            Ok::<_, sqlx::Error>(())
-        })
-    })
-    .await
-    .unwrap();
-}
-
-// Copies Ahead's walk, tested here beside `keep_without_bytes`, since only Custom Images' files
-// write `custom_images`.
-#[tokio::test]
-async fn a_librarys_custom_images_are_its_own_and_its_titles_and_seasons_under_any_of_their_ids() {
-    let data = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let folders = [(); 3].map(|()| tempfile::tempdir().unwrap());
-    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
-    let alien = Metadata {
-        ids: ExternalIds::from_iter([ExternalId::tmdb(348), imdb.clone()]),
-        ..tmdb_movie(348, "Alien")
-    };
-    let movies = MatchedMovie::new(&db, folders[0].path(), alien)
-        .await
-        .library;
-    let other_movie = tmdb_movie(1, "Other");
-    let others = MatchedMovie::new(&db, folders[1].path(), other_movie)
-        .await
-        .library;
-    let dark = ExternalId::tmdb(70523);
-    let dark_ids = ExternalIds::from_iter([dark.clone()]);
-    matched_episodes_file(&db, folders[2].path(), dark_ids, [10, 11]).await;
-    let libraries = Libraries::new(Arc::clone(&db)).list().await.unwrap();
-    let shows = libraries.iter().map(|library| library.id).max().unwrap();
-    let movies_own = [
-        Slot::movie(&imdb, Role::Poster),
-        Slot::movie(&ExternalId::tmdb(348), Role::Backdrop),
-        Slot::library(movies),
-    ];
-    let shows_own = [
-        Slot::show(&dark, Role::Poster),
-        Slot::show(&dark, Role::Backdrop),
-        Slot::season(&dark, 1),
-    ];
-    let neither = [
-        Slot::movie(&ExternalId::tmdb(1), Role::Poster),
-        Slot::library(others),
-        Slot::movie(&ExternalId::tmdb(999), Role::Poster),
-        Slot::season(&dark, 2),
-    ];
-    keep_without_bytes(&db, &[&movies_own[..], &shows_own, &neither].concat()).await;
-    let store = ImageStore::new(data.path(), Arc::clone(&db));
-    let copies_ahead = CopiesAhead::for_tests(&db, store, Registry::new().extension_points());
-
-    let of_movies = copies_ahead.custom_of(movies).await.unwrap();
-    let of_shows = copies_ahead.custom_of(shows).await.unwrap();
-
-    let slots = |of: Vec<(Slot, String)>| {
-        let mut slots: Vec<String> = of.into_iter().map(|(slot, _)| slot.0).collect();
-        slots.sort();
-        slots
-    };
-    let sorted = |own: &[Slot]| {
-        let mut own: Vec<String> = own.iter().map(|slot| slot.0.clone()).collect();
-        own.sort();
-        own
-    };
-    assert_eq!(slots(of_movies), sorted(&movies_own));
-    assert_eq!(slots(of_shows), sorted(&shows_own));
 }

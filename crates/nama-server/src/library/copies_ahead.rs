@@ -57,19 +57,11 @@ pub(super) enum Kind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) enum Image {
     /// A downloaded one, by the Plugin whose title source handed out its path.
-    Downloaded {
-        plugin: String,
-        path: String,
-    },
+    Downloaded { plugin: String, path: String },
     /// One beside the media, by its Library and the name its copy is stored under.
-    BesideMedia {
-        library: i64,
-        stored: String,
-    },
-    Custom {
-        slot: Slot,
-        version: String,
-    },
+    BesideMedia { library: i64, stored: String },
+    /// A Custom Image, by its slot and the version it is kept as.
+    Custom { slot: Slot, version: String },
 }
 
 /// One image to copy ahead, with the copies to make of it.
