@@ -19,7 +19,7 @@ export function FilterPopover(props: BarProps & { genres: string[] }) {
         Filter
         {count > 0 && <span className="tabular-nums">{count}</span>}
       </PopoverTrigger>
-      <PopoverContent side="bottom" width="list" flip>
+      <PopoverContent side="bottom" width="text" flip>
         <FilterPanel {...props} />
       </PopoverContent>
     </Popover>

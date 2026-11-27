@@ -35,6 +35,12 @@
   scrollbar-color: var(--border) transparent;
 }
 
+/* A panel that may scroll, with room kept for its scrollbar, so one coming and going while it
+   resizes doesn't narrow what's in it, rewrap it and resize it again. */
+@utility scrollbar-stable {
+  scrollbar-gutter: stable;
+}
+
 /* A row that scrolls sideways with no scrollbar, such as tabs that don't all fit. */
 @utility scrollbar-none {
   scrollbar-width: none;
