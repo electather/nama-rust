@@ -31,7 +31,7 @@ describe("an override that changes the model", () => {
     {
       ServerService: {
         updateServerSettings: ({ settings }) => {
-          server.info = { ...server.info, name: settings?.url ?? "" };
+          server.serverSettings = settings ?? {};
           return {};
         },
       },
@@ -42,7 +42,9 @@ describe("an override that changes the model", () => {
   test("changes what later reads answer", async () => {
     await client.updateServerSettings({ settings: { url: "https://media.example" } });
 
-    await expect(client.getServerInfo({})).resolves.toHaveProperty("name", "https://media.example");
+    const read = await client.getServerSettings({});
+
+    expect(read.settings?.url).toBe("https://media.example");
   });
 });
 

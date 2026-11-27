@@ -5,8 +5,11 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { PluginPoints } from "@/features/settings/components/plugin-points";
 import { ExtensionPoint } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { openApp } from "@/test-app";
 import { openPlugin, openPluginSettings } from "@/test-plugins";
 import { refused } from "@/test-refusal";
+import { fakeServer } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -206,16 +209,14 @@ test("a Plugin to set up first is enabled from its own view, which its “…”
 });
 
 test("a Plugin running without a setting it needs says so, with a button to set it up", async () => {
-  openPluginSettings({
-    PluginService: {
-      listPlugins: () => ({
-        summaries: [
-          { id: "radarr", version: "0.2.0", enabled: true, settingsMissing: true },
-          { id: "sonarr", version: "0.2.0", settingsMissing: true },
-        ],
-      }),
-    },
-  });
+  const plugins = [
+    { summary: { id: "radarr", version: "0.2.0", enabled: true, settingsMissing: true } },
+    { summary: { id: "sonarr", version: "0.2.0", settingsMissing: true } },
+  ];
+  openApp(
+    "/code?settings=plugins",
+    fakeServer({ signedIn: [Permission.MANAGE_SETTINGS], plugins }).transport,
+  );
 
   const waiting = within(await screen.findByRole("list", { name: "Needs attention" }));
   expect(waiting.getByText("Missing a setting")).toBeDefined();

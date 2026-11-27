@@ -33,8 +33,8 @@ export interface ServerModel {
   playbackSettings: MessageInitShape<typeof PlaybackSettingsSchema>;
   /** By default, images are resized. */
   imageSettings: MessageInitShape<typeof ImageSettingsSchema>;
-  /** The Events the app's subscription gets: by default, none ever. */
-  events: ReadableStream<SubscribeResponse>;
+  /** The Events the app's subscription gets, or `undefined` for none ever. */
+  events: ReadableStream<SubscribeResponse> | undefined;
 }
 
 /**
@@ -54,7 +54,7 @@ export function fakeServer(
     serverSettings: {},
     playbackSettings: {},
     imageSettings: { resizeImages: true },
-    events: new ReadableStream(),
+    events: undefined,
     ...facts,
     info: { name: "Living Room", ...facts.info },
   };
@@ -90,7 +90,8 @@ function derived(server: ServerModel): Answers {
         plugin: found(server.plugins, (plugin) => plugin.summary?.id === id, `Plugin ${id}`),
       }),
     },
-    EventService: { subscribe: () => server.events },
+    // A fresh stream each time: the app subscribes again after a drop, and a read stream is locked.
+    EventService: { subscribe: () => server.events ?? new ReadableStream() },
     PlaybackService: {
       getSubtitleAppearance: () => ({
         size: SubtitleSize.DEFAULT,
