@@ -93,23 +93,27 @@ fn a_taste_vector_past_what_pgvector_holds_keeps_its_heaviest_values() {
 const TITLE: Trained = Trained::Wikidata(Uuid::from_u128(1));
 const FINISHED_WITH_IT: Trained = Trained::Wikidata(Uuid::from_u128(3));
 
+fn id(text: &str) -> ExternalId {
+    ExternalId::parse(text).unwrap()
+}
+
 fn pooled(a: &str, b: &str, accounts: i64) -> PooledCount {
     PooledCount {
-        a: a.to_owned(),
-        b: b.to_owned(),
+        a: id(a),
+        b: id(b),
         accounts,
     }
 }
 
 /// The Movies the pooled counts below name, by the External IDs they name them by.
-fn movies() -> HashMap<String, Trained> {
+fn movies() -> HashMap<ExternalId, Trained> {
     [
         ("tmdb-603", TITLE),
         ("imdb-tt0133093", TITLE),
         ("tmdb-348", FINISHED_WITH_IT),
     ]
     .into_iter()
-    .map(|(id, title)| (id.to_owned(), title))
+    .map(|(text, title)| (id(text), title))
     .collect()
 }
 
@@ -183,7 +187,7 @@ fn a_movie_wikidata_lacks_gets_behaviour_under_its_external_id() {
         value: "999".to_owned(),
     });
     let mut movies = movies();
-    movies.insert("tmdb-999".to_owned(), lacking.clone());
+    movies.insert(id("tmdb-999"), lacking.clone());
 
     let behaviours = behaviours(
         &[

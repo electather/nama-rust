@@ -7,6 +7,7 @@ use sqlx::{PgConnection, PgPool};
 use crate::{
     accounts::AccountId,
     links::{LinkedServer, Links},
+    titles::ExternalId,
     viewing::{MIN_POOLED_ACCOUNTS, Viewing},
 };
 
@@ -15,9 +16,6 @@ pub(crate) const MAX_CHANGES: usize = 500;
 
 /// The most External IDs one change may name.
 pub(crate) const MAX_IDS: usize = 20;
-
-/// The most characters one External ID may have.
-pub(crate) const MAX_ID_LENGTH: usize = 100;
 
 /// The latest time a change may be made at, in milliseconds since the Unix epoch: the end of 9999.
 pub(crate) const MAX_CHANGED_AT_MS: i64 = 253_402_300_799_999;
@@ -53,22 +51,29 @@ pub(crate) enum Error {
 /// The part of a change or Watchlist entry that broke a limit, as its message names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum Part {
-    #[error("a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters")]
+    #[error(
+        "a change names 1 to {MAX_IDS} External IDs, each `namespace-value` of up to {} characters",
+        ExternalId::MAX_LENGTH
+    )]
     Ids,
     #[error("the position is past the duration")]
     Position,
     #[error("a change is dated from 1970 to the end of 9999")]
     ChangedAt,
     #[error(
-        "a Movie's or Show's Preference names its External ID of 1 to {MAX_ID_LENGTH} \
-         characters, and the User's own none"
+        "a Movie's or Show's Preference names its External ID, `namespace-value` of up to {} \
+         characters, and the User's own none",
+        ExternalId::MAX_LENGTH
     )]
     TitleId,
     #[error("the language is too long")]
     Language,
     #[error("the title is too long")]
     Title,
-    #[error("an entry's External ID has 1 to {MAX_ID_LENGTH} characters")]
+    #[error(
+        "an entry's External ID is `namespace-value` of up to {} characters",
+        ExternalId::MAX_LENGTH
+    )]
     EntryId,
     #[error("an entry is dated from 1970 to the end of 9999")]
     EntryChangedAt,
@@ -95,7 +100,9 @@ pub(crate) struct WatchStateChange {
 impl WatchStateChange {
     /// The first part of it that breaks a limit, if one does.
     fn broken(&self) -> Option<Part> {
-        if !(1..=MAX_IDS).contains(&self.ids.len()) || !self.ids.iter().all(|id| id_fits(id)) {
+        if !(1..=MAX_IDS).contains(&self.ids.len())
+            || !self.ids.iter().all(|id| ExternalId::parse(id).is_some())
+        {
             Some(Part::Ids)
         } else if !(0..=self.duration_ms).contains(&self.position_ms) {
             Some(Part::Position)
@@ -207,7 +214,7 @@ pub(crate) struct WatchlistEntry {
 impl WatchlistEntry {
     /// The first part of it that breaks a limit, if one does.
     fn broken(&self) -> Option<Part> {
-        if !id_fits(&self.id) {
+        if ExternalId::parse(&self.id).is_none() {
             Some(Part::EntryId)
         } else if !dated_in_range(self.changed_at_ms) {
             Some(Part::EntryChangedAt)
@@ -222,8 +229,7 @@ impl WatchlistEntry {
 pub(crate) struct WatchlistedTitle {
     /// Whether it is a Show rather than a Movie.
     pub(crate) show: bool,
-    /// Such as `tmdb-603`.
-    pub(crate) external_id: String,
+    pub(crate) id: ExternalId,
     /// How watchlisted it is, from 0.0 to 1.0: its Accounts against the most watchlisted's.
     pub(crate) weight: f32,
 }
@@ -292,7 +298,8 @@ impl Watchlists {
     /// The Movies and Shows on most Accounts' Watchlists, at most [`MAX_WATCHLISTED`], most
     /// watchlisted first, by the pooled counts' rules (ADR 0093): a title is read only once
     /// [`MIN_POOLED_ACCOUNTS`] Accounts have it, and an Account that turned pooling off isn't
-    /// counted.
+    /// counted. Leaves out one stored under text that isn't an External ID, which only a row
+    /// from before the Hub checked their form can be.
     // ponytail: counts every Watchlist, leaving out every opted-out Account by id, on each call,
     // which each Linked Server makes about once a day; keep counts as Watchlists and pooling
     // change once that's slow.
@@ -302,8 +309,7 @@ impl Watchlists {
             .map(|account| account.0)
             .collect();
         // An Account keeps one row per title and id, so each counts once.
-        sqlx::query_as!(
-            WatchlistedTitle,
+        let rows = sqlx::query!(
             r#"SELECT show, title_id AS external_id,
              (count(*)::float8 / max(count(*)) OVER ())::real AS "weight!"
              FROM watchlists WHERE NOT removed AND account_id <> ALL($1)
@@ -314,7 +320,16 @@ impl Watchlists {
             MAX_WATCHLISTED,
         )
         .fetch_all(&self.db)
-        .await
+        .await?;
+        Ok((rows.into_iter())
+            .filter_map(|row| {
+                Some(WatchlistedTitle {
+                    show: row.show,
+                    id: ExternalId::parse(&row.external_id)?,
+                    weight: row.weight,
+                })
+            })
+            .collect())
     }
 }
 
@@ -379,7 +394,7 @@ impl TrackPreferenceChange {
     fn broken(&self) -> Option<Part> {
         let title_id_fits = match &self.kept_for {
             PreferenceFor::User => true,
-            PreferenceFor::Movie(id) | PreferenceFor::Show(id) => id_fits(id),
+            PreferenceFor::Movie(id) | PreferenceFor::Show(id) => ExternalId::parse(id).is_some(),
         };
         if !title_id_fits {
             Some(Part::TitleId)
@@ -637,11 +652,6 @@ fn first_broken<T>(held: &[T], broken: impl Fn(&T) -> Option<Part>) -> Result<()
     (held.iter().enumerate())
         .find_map(|(nth, item)| broken(item).map(|part| Error::Invalid { nth, part }))
         .map_or(Ok(()), Err)
-}
-
-/// Whether `id` has 1 to [`MAX_ID_LENGTH`] characters.
-fn id_fits(id: &str) -> bool {
-    (1..=MAX_ID_LENGTH).contains(&id.chars().count())
 }
 
 /// Whether `changed_at_ms` is from 1970 to [`MAX_CHANGED_AT_MS`].

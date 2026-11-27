@@ -12,8 +12,12 @@ use super::{
     hub_failed,
     links::{LinkedServerServiceHandler, linked_server},
     refuse, sync_refused,
+    titles::id_to_proto,
 };
-use crate::sync::{MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle};
+use crate::{
+    sync::{MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle},
+    titles::ExternalId,
+};
 
 pub(super) async fn sync_watchlist(
     handler: &LinkedServerServiceHandler,
@@ -39,9 +43,7 @@ pub(super) async fn list_most_watchlisted_titles(
         .await
         .map_err(|err| hub_failed(&err))?;
     Response::ok(ListMostWatchlistedTitlesResponse {
-        titles: (watchlisted.iter())
-            .filter_map(watchlisted_to_proto)
-            .collect(),
+        titles: watchlisted.into_iter().map(watchlisted_to_proto).collect(),
         ..Default::default()
     })
 }
@@ -95,27 +97,17 @@ fn invalid_watchlist(field: &str, message: impl Into<String>) -> ConnectError {
     refuse(RefusalReason::REFUSAL_REASON_WATCHLIST_INVALID, message)
         .field(field)
         .param("maxEntries", &MAX_WATCHLIST_ENTRIES)
-        .param("maxIdLength", &MAX_ID_LENGTH)
+        .param("maxIdLength", &ExternalId::MAX_LENGTH)
         .into()
 }
 
-/// `watchlisted` as a Server reads it, or `None` for an External ID not written
-/// `namespace-value`, which no Server sends.
-pub(super) fn watchlisted_to_proto(
-    watchlisted: &WatchlistedTitle,
-) -> Option<proto::WatchlistedTitle> {
-    let (namespace, value) = watchlisted.external_id.split_once('-')?;
-    Some(proto::WatchlistedTitle {
+pub(super) fn watchlisted_to_proto(watchlisted: WatchlistedTitle) -> proto::WatchlistedTitle {
+    proto::WatchlistedTitle {
         kind: kind_to_proto(watchlisted.show).into(),
-        id: proto::ExternalId {
-            namespace: namespace.to_owned(),
-            value: value.to_owned(),
-            ..Default::default()
-        }
-        .into(),
+        id: id_to_proto(watchlisted.id).into(),
         weight: watchlisted.weight,
         ..Default::default()
-    })
+    }
 }
 
 /// A Show's kind when `show`, else a Movie's.

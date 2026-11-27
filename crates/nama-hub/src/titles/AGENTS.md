@@ -6,6 +6,7 @@ Films and series from Wikidata's weekly dump, the External ID crosswalk between 
 - **No Account owns a title.** No table here has an `account_id` (ADR 0097).
 - **One owner.** Only this area reads or writes `titles`, `title_ids`, `title_facts`, `training_runs` and `title_vectors`, tests included.
 - **Titles come in through `import`**, which the `import-wikidata` subcommand runs as its own process, never the serving one (ADR 0096). It replaces them in one transaction, and a dump cut short changes nothing.
+- **Only `ExternalId` reads an External ID's text form**, `namespace-value` (ADR 0042), through `ExternalId::parse`, which holds its one length limit. Every External ID a Linked Server sends as text goes through it, and an area hands out `ExternalId` wherever a reader needs an id's parts.
 - **Answers are External IDs.** A Server asks by any id it has, with a kind, and gets the title's ids in the Namespaces it uses (ADR 0042).
 - **Vectors come from a training run**, which `train` makes as the `train-vectors` subcommand, its own process. It replaces every vector in one transaction, and each records its run (ADR 0095).
 - **Behaviour only as pooled counts.** A vector blends a title's facts with the Movies Accounts finished with it, weighing behaviour more the more Accounts finished it. A Movie Wikidata lacks gets a vector from behaviour alone, under the External ID Servers pool it by, which `similar` asks and answers by. `train` takes the pooled counts `lib` reads from `viewing`, never one Account's Viewing Events: a title vector is shared by every Account (ADR 0093).
@@ -13,4 +14,4 @@ Films and series from Wikidata's weekly dump, the External ID crosswalk between 
 ### Neighbours
 
 - Uses: nothing but the database.
-- Used by: `main` (`import`), `lib` (`train`), `viewing` (`PooledCount`), `api` (`similar`), `recommendations` (`recommended`), and the `nama-hub-eval` crate (`similar`). `crosswalk` has no caller yet.
+- Used by: `main` (`import`), `lib` (`train`), `viewing` (`ExternalId`, `PooledCount`), `sync` (`ExternalId`), `api` (`similar`), `recommendations` (`recommended`), and the `nama-hub-eval` crate (`similar`). `crosswalk` has no caller yet.

@@ -12,9 +12,12 @@ use super::{
     links::{LinkedServerServiceHandler, linked_server},
     refuse, sync_refused,
 };
-use crate::sync::{
-    self, Like, MAX_CHANGES, MAX_ID_LENGTH, MAX_LANGUAGE_LENGTH, MAX_TITLE_LENGTH, Part,
-    PreferenceFor, TrackPreferenceChange,
+use crate::{
+    sync::{
+        self, Like, MAX_CHANGES, MAX_LANGUAGE_LENGTH, MAX_TITLE_LENGTH, Part, PreferenceFor,
+        TrackPreferenceChange,
+    },
+    titles::ExternalId,
 };
 
 pub(super) async fn push_track_preferences(
@@ -126,7 +129,7 @@ fn invalid(field: &str, message: impl Into<String>) -> ConnectError {
     )
     .field(field)
     .param("maxChanges", &MAX_CHANGES)
-    .param("maxIdLength", &MAX_ID_LENGTH)
+    .param("maxIdLength", &ExternalId::MAX_LENGTH)
     .param("maxLanguageLength", &MAX_LANGUAGE_LENGTH)
     .param("maxTitleLength", &MAX_TITLE_LENGTH)
     .into()

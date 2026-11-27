@@ -14,5 +14,5 @@ Sync (ADR 0008, ADR 0092): each Account's merged Watch State and Subtitle and Au
 
 ### Neighbours
 
-- Uses: `links`, which `api` hands to each Linked Server call (the Accounts a Linked Server's Users are Linked to), `accounts` (`AccountId`) and `viewing` (who pools, and `MIN_POOLED_ACCOUNTS`).
+- Uses: `links`, which `api` hands to each Linked Server call (the Accounts a Linked Server's Users are Linked to), `accounts` (`AccountId`), `titles` (`ExternalId`, which reads and limits each id a Linked Server sends) and `viewing` (who pools, and `MIN_POOLED_ACCOUNTS`).
 - Used by: `api`, which converts what a Linked Server sends and maps sync's refusals, with its limits as their params.

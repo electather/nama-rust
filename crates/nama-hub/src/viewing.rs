@@ -17,9 +17,6 @@ use crate::{
 /// The most Viewing Events one call records.
 pub(crate) const MAX_RECORDED: usize = 1000;
 
-/// The most characters an External ID has.
-const EXTERNAL_ID_LENGTH: usize = 100;
-
 /// The most characters the key a Server names a Viewing Event by has.
 const KEY_LENGTH: usize = 64;
 
@@ -139,9 +136,9 @@ impl ViewingEvent {
         let show = self.show_external_id.as_deref();
         let names_its_show = match self.kind {
             Kind::Movie => show.is_none(),
-            Kind::Episode => show.is_some_and(has_external_id_length),
+            Kind::Episode => show.and_then(ExternalId::parse).is_some(),
         };
-        has_external_id_length(&self.external_id)
+        ExternalId::parse(&self.external_id).is_some()
             && names_its_show
             && (0..MINUTES_PER_DAY).contains(&self.time_of_day_minutes)
             && self.duration_ms > 0
@@ -154,11 +151,6 @@ impl ViewingEvent {
         // `show_external_id` once counts want Shows.
         self.finished && self.kind == Kind::Movie
     }
-}
-
-/// Whether `id` is as long as an External ID may be, 1 to 100 characters.
-fn has_external_id_length(id: &str) -> bool {
-    (1..=EXTERNAL_ID_LENGTH).contains(&id.chars().count())
 }
 
 /// A Viewing Event a Linked Server records for its User `user_id`, named by its `key`.
@@ -185,8 +177,7 @@ pub(crate) struct ListedViewingEvent {
 /// A Movie many Accounts finished lately.
 #[derive(Debug)]
 pub(crate) struct TrendingTitle {
-    /// Such as `tmdb-603`.
-    pub(crate) external_id: String,
+    pub(crate) id: ExternalId,
     /// How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most
     /// watched's.
     pub(crate) weight: f32,
@@ -206,7 +197,10 @@ struct Counted {
 pub(crate) enum Error {
     #[error("send at most {MAX_RECORDED} Viewing Events at once")]
     TooMany,
-    #[error("a Viewing Event breaks the rules ViewingEvent gives")]
+    #[error(
+        "a Viewing Event breaks the rules ViewingEvent gives, such as naming an External ID not \
+         written `namespace-value`"
+    )]
     Invalid,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -304,7 +298,7 @@ impl Viewing {
     ) -> Result<Vec<ExternalId>, sqlx::Error> {
         Ok((self.list(account).await?.into_iter())
             .filter(|listed| listed.event.finished && listed.event.kind == Kind::Movie)
-            .filter_map(|listed| external_id(&listed.event.external_id))
+            .filter_map(|listed| ExternalId::parse(&listed.event.external_id))
             .collect())
     }
 
@@ -370,11 +364,11 @@ impl Viewing {
 
     /// The Movies most Accounts finished this week and last, in UTC, at most [`MAX_TRENDING`],
     /// most watched first. A week's count is read only once [`MIN_POOLED_ACCOUNTS`] Accounts are
-    /// in it.
+    /// in it. Leaves out one stored under text that isn't an External ID, which only a row
+    /// from before the Hub checked their form can be.
     pub(crate) async fn trending(&self) -> Result<Vec<TrendingTitle>, sqlx::Error> {
         // Last week too, so the chart doesn't empty each Monday.
-        sqlx::query_as!(
-            TrendingTitle,
+        let rows = sqlx::query!(
             r#"SELECT title AS external_id,
              (sum(accounts) / max(sum(accounts)) OVER ())::real AS "weight!"
              FROM weekly_counts
@@ -386,7 +380,15 @@ impl Viewing {
             MAX_TRENDING,
         )
         .fetch_all(&self.db)
-        .await
+        .await?;
+        Ok((rows.into_iter())
+            .filter_map(|row| {
+                Some(TrendingTitle {
+                    id: ExternalId::parse(&row.external_id)?,
+                    weight: row.weight,
+                })
+            })
+            .collect())
     }
 
     /// Deletes `account`'s Viewing Event `id`, and takes the Account back out of its week's count
@@ -414,25 +416,25 @@ impl Viewing {
     }
 }
 
-/// The External ID a Viewing Event names as `tmdb-603`: a namespace has no `-`, though a value may.
-fn external_id(id: &str) -> Option<ExternalId> {
-    let (namespace, value) = id.split_once('-')?;
-    Some(ExternalId {
-        namespace: namespace.to_owned(),
-        value: value.to_owned(),
-    })
-}
-
 /// Every pooled count of at least [`MIN_POOLED_ACCOUNTS`] Accounts, which title vectors train on
-/// (ADR 0095).
+/// (ADR 0095). Leaves out one naming text that isn't an External ID, which only a row from
+/// before the Hub checked their form can.
 pub(crate) async fn pooled_counts(db: &PgPool) -> Result<Vec<PooledCount>, sqlx::Error> {
-    sqlx::query_as!(
-        PooledCount,
+    let rows = sqlx::query!(
         "SELECT title_a AS a, title_b AS b, accounts FROM pooled_counts WHERE accounts >= $1",
         MIN_POOLED_ACCOUNTS,
     )
     .fetch_all(db)
-    .await
+    .await?;
+    Ok((rows.into_iter())
+        .filter_map(|row| {
+            Some(PooledCount {
+                a: ExternalId::parse(&row.a)?,
+                b: ExternalId::parse(&row.b)?,
+                accounts: row.accounts,
+            })
+        })
+        .collect())
 }
 
 /// Records `event` under `account` as `key`, unless it was already, and pools it when it is the
