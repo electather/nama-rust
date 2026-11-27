@@ -6,6 +6,8 @@ import { heroTarget } from "@/features/title/lib/hero-target";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { FoundShow } from "@/gen/nama/v1/request_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { useMay } from "@/shared/hooks/use-may";
 
 /**
  * The top of a found Show's page: what it is, "Request Season N" for the first Season of its `row`
@@ -20,6 +22,7 @@ export function FoundShowHero({
   showId: ExternalId;
   row: RowEpisode[];
 }) {
+  const mayRetry = useMay(Permission.MANAGE_REQUESTS);
   return (
     <TitleTop
       title={show}
@@ -28,7 +31,7 @@ export function FoundShowHero({
       facts={[show.year?.toString()]}
       actions={
         <>
-          <SeasonAsk target={heroTarget(row)} />
+          <SeasonAsk target={heroTarget(row, undefined, mayRetry)} />
           <SeasonAskRefusal />
         </>
       }

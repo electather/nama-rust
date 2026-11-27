@@ -39,9 +39,7 @@ export function FoundEpisodeCard({
       >
         {/* The caption is hidden from screen readers, as a card's link names it, so this does. */}
         <span className="sr-only">{foundEpisodeLabel(item)}</span>
-        {item.kind === "missing" && (
-          <MissingShade season={seasonNumber} request={item.request} askable={item.askable} />
-        )}
+        {item.kind === "missing" && <MissingShade season={seasonNumber} standing={item.standing} />}
       </BackdropFrame>
     </li>
   );

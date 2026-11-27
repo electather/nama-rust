@@ -10,6 +10,7 @@ export function SeasonAsk({ target }: { target: HeroTarget | undefined }) {
   const asking = useSeasonAsking();
   const asked = targetAsk(target);
   return (
-    asking && asked && <AskedSeason asking={asking} season={asked.season} request={asked.request} />
+    asking &&
+    asked && <AskedSeason asking={asking} season={asked.season} standing={asked.standing} />
   );
 }

@@ -1,9 +1,10 @@
 import type { LinkOptions } from "@tanstack/react-router";
 import { CirclePlus } from "lucide-react";
 
-import { type MovieHit, RequestState } from "@/gen/nama/v1/request_pb";
+import type { MovieHit } from "@/gen/nama/v1/request_pb";
 import { shownRequestState } from "@/shared/components/request-state/request-states";
 import type { Shown } from "@/shared/components/state-label";
+import { titleStanding } from "@/shared/lib/request-standing";
 import type { RowTitle } from "@/shared/lib/row-titles";
 import { type ServerImage, posterOf } from "@/shared/lib/server-image";
 import { yearOf } from "@/shared/lib/title-facts";
@@ -22,20 +23,12 @@ export interface RowTile {
   badge: TileBadgeShown | undefined;
 }
 
-/** A missing title nobody has asked for, or whose Request ended without it. */
+/** A missing title nobody has asked for. */
 const notHere: TileBadgeShown = {
   label: "Not on this Server",
   short: "Not here",
   Icon: CirclePlus,
 };
-
-/** The Request states a shelf badges with their own label; the rest read as `notHere` or none. */
-const requested = new Set<RequestState>([
-  RequestState.PENDING,
-  RequestState.APPROVED,
-  RequestState.PROCESSING,
-]);
-const arrived = new Set<RequestState>([RequestState.AVAILABLE, RequestState.PARTIALLY_AVAILABLE]);
 
 /** The tile of a row's `title`. */
 export function rowTile(title: RowTitle): RowTile {
@@ -98,17 +91,14 @@ function missingMovieLink(movie: MovieHit): LinkOptions {
   };
 }
 
-function missingMovieBadge(movie: MovieHit) {
-  return movie.libraryId === undefined ? badgeFor(movie.request?.state) : undefined;
-}
-
-/** A Request's state on a shelf: its own label while asked for, none once it's here. */
-function badgeFor(state: RequestState | undefined): TileBadgeShown | undefined {
-  if (state === undefined) {
-    return notHere;
-  }
-  if (arrived.has(state)) {
+/**
+ * Where a missing Movie stands on a shelf: its open Request's state, none once any of it is here,
+ * else `notHere`.
+ */
+function missingMovieBadge({ request, libraryId }: MovieHit): TileBadgeShown | undefined {
+  const standing = titleStanding({ request, inLibrary: libraryId !== undefined });
+  if (standing.kind === "inLibrary" || standing.kind === "partlyArrived") {
     return undefined;
   }
-  return requested.has(state) ? shownRequestState(state) : notHere;
+  return "request" in standing ? shownRequestState(standing.request.state) : notHere;
 }

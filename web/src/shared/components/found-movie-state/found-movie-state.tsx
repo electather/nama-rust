@@ -2,12 +2,12 @@ import type { FoundMovie, MovieHit } from "@/gen/nama/v1/request_pb";
 import { InYourLibrary } from "@/shared/components/found-movie-state/in-your-library";
 import { RequestButton } from "@/shared/components/found-movie-state/request-button";
 import { RequestStateAndQuality } from "@/shared/components/found-movie-state/request-state-and-quality";
-import { canAsk } from "@/shared/lib/can-ask";
+import { titleStanding } from "@/shared/lib/request-standing";
 
 /**
  * Where a Movie found in the title source is on its way to the Server: in a Library, linking
  * there, or its Request's status. Request, which `primary` makes the screen's primary action, its
- * status as large, while the signed-in User `you` can ask for it. The caller lays them out.
+ * status as large, while the signed-in User `you` can ask for it or join. The caller lays them out.
  */
 export function FoundMovieState({
   movie,
@@ -18,14 +18,19 @@ export function FoundMovieState({
   you: bigint | undefined;
   primary?: boolean;
 }) {
-  if (movie.libraryId !== undefined) {
-    return <InYourLibrary movie={movie} libraryId={movie.libraryId} />;
+  const { libraryId, request } = movie;
+  if (libraryId !== undefined) {
+    return <InYourLibrary movie={movie} libraryId={libraryId} />;
   }
-  const { request } = movie;
+  const standing = titleStanding({ request, inLibrary: false, you });
   return (
     <>
-      {request && <RequestStateAndQuality request={request} what={movie.title} large={primary} />}
-      {canAsk(request, you) && <RequestButton movie={movie} primary={primary} />}
+      {"request" in standing && (
+        <RequestStateAndQuality standing={standing} what={movie.title} large={primary} />
+      )}
+      {standing.can !== "nothing" && (
+        <RequestButton movie={movie} opening={standing.can === "open"} primary={primary} />
+      )}
     </>
   );
 }

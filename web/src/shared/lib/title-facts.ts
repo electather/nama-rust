@@ -27,11 +27,11 @@ export function dayOf(seconds: bigint) {
 }
 
 /**
- * Whether `date`, a `YYYY-MM-DD` day, comes after today. Read in this browser's time zone, as the
- * title source's dates name a local day, not UTC's.
+ * Whether `date`, a `YYYY-MM-DD` day, comes after the day `now` falls on. Read in this browser's
+ * time zone, as the title source's dates name a local day, not UTC's.
  */
-export function isLaterDay(date: string) {
-  return localMidnight(date).getTime() > Date.now();
+export function isLaterDay(date: string, now = Date.now()) {
+  return localMidnight(date).getTime() > now;
 }
 
 /** `date`, a `YYYY-MM-DD` day, as this browser writes dates. */

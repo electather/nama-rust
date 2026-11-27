@@ -1,6 +1,6 @@
 import type { FoundRowEpisode } from "@/features/title/lib/show-row";
 import { shownOnTitle } from "@/shared/components/request-state/request-states";
-import { calendarDay, episodeName, isLaterDay, runtimeOf } from "@/shared/lib/title-facts";
+import { calendarDay, episodeName, runtimeOf } from "@/shared/lib/title-facts";
 
 /**
  * A found Episode card's last line: its runtime when another Library has it, when it airs while it
@@ -11,11 +11,11 @@ export function foundEpisodeStatus(item: FoundRowEpisode) {
   if (item.kind === "elsewhere") {
     return runtimeOf(item.episode.runtimeMinutes, "short");
   }
-  const { airDate } = item.episode;
-  if (airDate !== undefined && isLaterDay(airDate)) {
-    return `Airs ${calendarDay(airDate)}`;
+  const { standing } = item;
+  if (standing.kind === "notAired") {
+    return `Airs ${calendarDay(standing.airDate)}`;
   }
-  return item.request ? shownOnTitle(item.request.state).label : "Not on this Server";
+  return "request" in standing ? shownOnTitle(standing.request.state).label : "Not on this Server";
 }
 
 /** A found Episode card's name, which says all its caption does. */

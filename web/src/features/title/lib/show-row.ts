@@ -1,15 +1,16 @@
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import type { FoundEpisode, FoundShow, Request } from "@/gen/nama/v1/request_pb";
+import type { FoundEpisode, FoundShow } from "@/gen/nama/v1/request_pb";
+import { type Standing, titleStanding } from "@/shared/lib/request-standing";
 
 /**
  * One card of a Show's row: an Episode `here`, in the page's Library, or one from the title source,
- * `elsewhere` in another Library or `missing` from the Server, with its Season's `request`. A
- * missing one is `askable` unless its Season is in a Library already, as one not aired yet is.
+ * `elsewhere` in another Library or `missing` from the Server, with where it stands with its
+ * Season's Request.
  */
 export type RowEpisode = { seasonNumber: number; episodeNumber: number } & (
   | { kind: "here"; episode: Episode }
   | { kind: "elsewhere"; episode: FoundEpisode }
-  | { kind: "missing"; episode: FoundEpisode; request: Request | undefined; askable: boolean }
+  | { kind: "missing"; episode: FoundEpisode; standing: Standing }
 );
 
 /** A card of a Show's row for an Episode the page's Library doesn't have. */
@@ -17,9 +18,10 @@ export type FoundRowEpisode = Extract<RowEpisode, { kind: "elsewhere" | "missing
 
 /**
  * Every Episode of a Show in the order its row runs, numbered Seasons first, then Specials: the
- * Library's `episodes`, and those of `found`, the Show from the title source, the Library lacks.
+ * Library's `episodes`, and those of `found`, the Show from the title source, the Library lacks,
+ * as they stand for the signed-in User `you`.
  */
-export function showRow(episodes: Episode[], found?: FoundShow): RowEpisode[] {
+export function showRow(episodes: Episode[], found?: FoundShow, you?: bigint): RowEpisode[] {
   const has = new Set(
     episodes.map((episode) => place(episode.seasonNumber, episode.episodeNumber)),
   );
@@ -38,7 +40,11 @@ export function showRow(episodes: Episode[], found?: FoundShow): RowEpisode[] {
         row.push(
           episode.inLibrary
             ? { kind: "elsewhere", ...at }
-            : { kind: "missing", ...at, request, askable: !inLibrary },
+            : {
+                kind: "missing",
+                ...at,
+                standing: titleStanding({ request, inLibrary, you, airDate: episode.airDate }),
+              },
         );
       }
     }

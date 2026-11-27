@@ -36,6 +36,11 @@ const arrival = {
   title: "Arrival",
   request: { id: 8n, state: RequestState.DECLINED },
 };
+const tenet = {
+  id: { namespace: "tmdb", value: "577922" },
+  title: "Tenet",
+  request: { id: 9n, state: RequestState.FAILED },
+};
 const alien = {
   libraryId: 1n,
   movieOrEpisode: {
@@ -77,6 +82,7 @@ function openHome(asked: ListHomeRowTitlesRequest[] = [], rows?: HomeRowInit[]) 
                 { movieOrShow: { case: "movie", value: heat } },
                 { movieOrShow: { case: "missingMovie", value: dune } },
                 { movieOrShow: { case: "missingMovie", value: arrival } },
+                { movieOrShow: { case: "missingMovie", value: tenet } },
                 { movieOrShow: { case: "missingShow", value: severance } },
               ],
             };
@@ -207,6 +213,8 @@ test("a missing title opens its page to Request it, badged with where it stands"
   expect(
     within(picks).getByRole("link", { name: "Arrival", description: "Not on this Server" }),
   ).toBeDefined();
+  // A Failed one waits on a Request manager's Retry, so it isn't offered to Request.
+  expect(within(picks).getByRole("link", { name: "Tenet", description: "Failed" })).toBeDefined();
   const severancePoster = within(picks).getByRole("link", {
     name: "Severance, 2022",
     description: "Not on this Server",

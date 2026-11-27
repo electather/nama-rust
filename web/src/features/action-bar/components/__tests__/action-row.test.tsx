@@ -4,24 +4,24 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { ActionRow } from "@/features/action-bar/components/action-row";
+import type { Row } from "@/features/action-bar/lib/rows";
 import { RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
 
 afterEach(cleanup);
 
 // The bar's selected row is this row ("office") or another one ("matrix").
 test.each([
-  { label: "Declined", state: RequestState.DECLINED, activeId: "matrix", selected: false },
-  { label: "Declined", state: RequestState.DECLINED, activeId: "office", selected: true },
-  { label: "Failed", state: RequestState.FAILED, activeId: "matrix", selected: false },
-  { label: "Failed", state: RequestState.FAILED, activeId: "office", selected: true },
+  { activeId: "matrix", selected: false },
+  { activeId: "office", selected: true },
 ])(
-  "a $label Request pill on the Popover tint sits in a row whose selection drops it (selected: $selected)",
-  ({ label, state, activeId, selected }) => {
-    const row = {
+  "a Failed Request pill on the Popover tint sits in a row whose selection drops it (selected: $selected)",
+  ({ activeId, selected }) => {
+    const request = create(RequestSchema, { state: RequestState.FAILED });
+    const row: Row = {
       id: "office",
       label: "Office Space",
       hint: "",
-      request: create(RequestSchema, { state }),
+      standing: { kind: "stalled", request, can: "nothing" },
     };
     const bar = {
       active: { id: activeId, label: "", hint: "" },
@@ -30,7 +30,7 @@ test.each([
       serverOf: () => ({ server: undefined, transport: createRouterTransport(() => {}) }),
     };
     render(<ActionRow row={row} bar={bar} listId="list" />);
-    const pill = screen.getByText(label);
+    const pill = screen.getByText("Failed");
     const has = (name: string) => pill.classList.contains(name);
     // jsdom applies no Tailwind, so the selector `group-aria-selected:` compiles to stands in for it.
     expect({

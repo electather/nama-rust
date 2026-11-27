@@ -1,17 +1,17 @@
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import type { FoundShow } from "@/gen/nama/v1/request_pb";
-import { canAsk } from "@/shared/lib/can-ask";
+import { titleStanding } from "@/shared/lib/request-standing";
 import { isStarted } from "@/shared/lib/watch-progress";
 
 /**
- * The numbered Seasons of `show` not in a Library that the signed-in User `you` can ask for, which
+ * The numbered Seasons of `show` whose button offers Request to the signed-in User `you`, which
  * "Request All Seasons" asks for. Specials are left to their own cards.
  */
 export function seasonsToAsk(show: FoundShow, you: bigint | undefined) {
   return show.seasons
     .filter(
       ({ seasonNumber, inLibrary, request }) =>
-        seasonNumber > 0 && !inLibrary && canAsk(request, you),
+        seasonNumber > 0 && titleStanding({ request, inLibrary, you }).can !== "nothing",
     )
     .map(({ seasonNumber }) => seasonNumber);
 }

@@ -1,18 +1,20 @@
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { type FoundMovie, type MovieHit, RequestState } from "@/gen/nama/v1/request_pb";
+import type { FoundMovie, MovieHit } from "@/gen/nama/v1/request_pb";
 import { RequestSplitButton } from "@/shared/components/request-button/request-split-button";
 import { useAskForMovie } from "@/shared/hooks/use-ask-for-movie";
 import { askRefusal } from "@/shared/lib/forms";
 
 /**
- * Asks for `movie`, at the User's Quality or one they pick, then shows its Request once the Server
- * has it. Asking for one Declined opens a new Request, so its Quality can be picked again.
+ * Asks for `movie`, at the User's Quality, or one they pick while it's `opening` a Request rather
+ * than joining one, then shows its Request once the Server has it.
  */
 export function RequestButton({
   movie,
+  opening,
   primary,
 }: {
   movie: MovieHit | FoundMovie;
+  opening: boolean;
   primary: boolean;
 }) {
   const movieId = movie.id;
@@ -29,7 +31,7 @@ export function RequestButton({
       <RequestSplitButton
         what={movie.title}
         kind="movie"
-        opening={movie.request === undefined || movie.request.state === RequestState.DECLINED}
+        opening={opening}
         primary={primary}
         busy={ask.isPending}
         onRequest={(quality) => {
