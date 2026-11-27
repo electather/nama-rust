@@ -177,6 +177,9 @@ impl Artwork {
     /// `testing` feature: integration tests run one per process under nextest.
     #[cfg(feature = "testing")]
     pub async fn settled() {
+        // `TaskTracker::wait` never finishes if another caller reopens between `close` and `wait`.
+        static SETTLING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+        let _settling = SETTLING.lock().await;
         let tasks = background_tasks();
         tasks.close();
         tasks.wait().await;
