@@ -42,12 +42,16 @@ export function SettingsSide({
     // The pane, its sibling, hides on a phone while this is `data-searching` (`settings-pane.tsx`).
     <div
       data-searching={searching || undefined}
-      className="flex shrink-0 flex-col max-md:data-searching:min-h-0 max-md:data-searching:flex-1 md:w-48 md:gap-2.5 md:overflow-y-auto md:bg-sidebar md:px-2 md:py-3 lg:w-52"
+      className="flex shrink-0 flex-col max-md:data-searching:min-h-0 max-md:data-searching:flex-1 md:w-48 md:gap-2.5 md:bg-sidebar md:px-2 md:py-3 lg:w-52"
     >
       {children}
       <SettingsSearch search={search} listId={listId} />
-      {searching ? <SearchResults search={search} listId={listId} /> : sections}
-      <ResultCount count={searching ? search.results.length : undefined} />
+      {/* Wider, only what's under the field scrolls, so Search stays at the top. A phone keeps its
+          strip as it is. */}
+      <div className="max-md:contents md:-mx-2 md:flex md:min-h-0 md:flex-1 md:scrollbar-quiet md:flex-col md:gap-2.5 md:overflow-y-auto md:overscroll-contain md:px-2">
+        {searching ? <SearchResults search={search} listId={listId} /> : sections}
+        <ResultCount count={searching ? search.results.length : undefined} />
+      </div>
     </div>
   );
 }

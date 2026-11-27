@@ -76,6 +76,8 @@ export function SettingsModal({
   return (
     // ponytail: the native modal <dialog> traps focus, makes the page inert and returns focus
     // itself. Its backdrop and it contain scrolling, so the page behind stays put.
+    // Wider than a phone it fills the window 16px in from its edges (`md:inset-4`), up to 760px
+    // tall, then sits centred.
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
@@ -93,7 +95,7 @@ export function SettingsModal({
           close();
         }
       }}
-      className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none text-sm-dense backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200 xl:max-h-9/10 xl:max-w-5xl"
+      className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none text-sm-dense backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-190 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200 xl:max-w-5xl"
     >
       {atHub ? (
         <HubSettings section={section} header={header} />

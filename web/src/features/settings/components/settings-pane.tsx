@@ -62,7 +62,7 @@ export function SettingsPane({ section, user }: { section: Section; user: User |
     // ponytail: one height for whatever sticks, the tallest. Measure it if one outgrows this.
     <div
       ref={pane}
-      className="flex min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain max-md:group-has-data-searching/settings:hidden md:has-data-sticks:scroll-pt-48"
+      className="flex min-w-0 flex-1 scrollbar-quiet flex-col overflow-y-auto overscroll-contain max-md:group-has-data-searching/settings:hidden md:has-data-sticks:scroll-pt-48"
     >
       <PaneBoundary section={section}>
         <Pane user={user} />
