@@ -308,13 +308,14 @@ impl ServerLink {
         else {
             return Ok(());
         };
-        self.learn_answered_id(&kept, server_id).await?;
         *self
             .reachability
             .lock()
             .unwrap_or_else(PoisonError::into_inner) =
             reachability.map(|reachability| (kept.credential.clone(), reachability));
         self.found.send_replace(());
+        // Before the report is kept as told, so a failure learns it on the next.
+        self.learn_answered_id(&kept, server_id).await?;
         *reported = Some(Reported {
             credential: kept.credential,
             addresses,
@@ -599,11 +600,14 @@ impl ServerLink {
     /// Keeps `server_id`, which the Hub answered a report through the Link `kept` with, as the
     /// Server's id there while `kept` has none. The answer came to the Link's credential, so unlike
     /// a token a page hands over, it can't be another Server's.
-    async fn learn_answered_id(&self, kept: &Kept, server_id: String) -> Result<(), Failure> {
-        if server_id.is_empty() {
-            // A Hub from before it answered the id.
+    async fn learn_answered_id(
+        &self,
+        kept: &Kept,
+        server_id: Option<String>,
+    ) -> Result<(), Failure> {
+        let Some(server_id) = server_id else {
             return Ok(());
-        }
+        };
         match kept.server_id.as_deref() {
             None => {
                 self.learn_server_id(kept.credential.clone(), server_id)

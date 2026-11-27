@@ -627,10 +627,7 @@ fn tell(
     }
     let port = request.public_port;
     state.told.push(request.clone());
-    let server_id = state
-        .audience
-        .clone()
-        .unwrap_or_else(|| SERVER_ID.to_owned());
+    let server_id = state.audience.as_deref().unwrap_or(SERVER_ID).to_owned();
     if port == 0 {
         return Ok(SetServerAddressesResponse {
             names,

@@ -245,11 +245,11 @@ impl LinkedHub {
 
     /// Tells the Hub `addresses` are where clients reach the Server, and answers whether the Hub
     /// reached its public port, if it has one, and the names it gave the Server, if any, with the
-    /// Server's id at the Hub: empty from a Hub that doesn't name it.
+    /// Server's id at the Hub, if it names it.
     pub(super) async fn set_addresses(
         self,
         addresses: ServerAddresses,
-    ) -> Result<(Option<Reachability>, String), Failure> {
+    ) -> Result<(Option<Reachability>, Option<String>), Failure> {
         let checked = (self.client()?)
             .set_server_addresses(SetServerAddressesRequest {
                 url: addresses.url,
@@ -269,7 +269,9 @@ impl LinkedHub {
             reachable: checked.reachable,
             names: checked.names,
         });
-        Ok((reachability, checked.server_id))
+        // A Hub from before #2484 answers no id.
+        let server_id = (!checked.server_id.is_empty()).then_some(checked.server_id);
+        Ok((reachability, server_id))
     }
 
     /// Has the Hub publish `values` as the Server's certificate challenge, or remove it when empty.
