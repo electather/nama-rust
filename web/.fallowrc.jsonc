@@ -200,13 +200,15 @@
       },
       {
         "from": "app",
-        // A Server's pages at the Hub confirm it's you by signing in on the Hub again.
+        // A Server's pages at the Hub confirm it's you by signing in on the Hub again, and the top bar
+        // there links the Libraries of each Server the page reached.
         "allow": [
           "app",
           "action-bar",
           "auth",
           "inbox",
           "player",
+          "servers",
           "settings",
           "shared-components",
           "shared-hooks",

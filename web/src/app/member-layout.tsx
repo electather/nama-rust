@@ -1,10 +1,9 @@
-import { Outlet, useMatches } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
+import { AppChrome } from "@/app/app-chrome";
 import { useEvents } from "@/app/data/use-events";
 import { SettingsLoader } from "@/app/settings-loader";
-import { ActionBarHost } from "@/app/top-bar/action-bar-host";
-import { TopBar } from "@/app/top-bar/top-bar";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
 
@@ -16,21 +15,13 @@ export function MemberLayout({
   chrome,
   user,
 }: {
-  chrome: Omit<ComponentProps<typeof TopBar>, "onSearch">;
+  chrome: ComponentProps<typeof AppChrome>;
   user: User | undefined;
 }) {
-  // A full-screen page that didn't load, such as an unknown Movie's player, keeps the chrome, so
-  // its not-found or error page has a way out.
-  const fullScreen = useMatches({
-    select: (matches) =>
-      matches.some((m) => m.staticData.fullScreen === true && m.status === "success"),
-  });
   useEvents();
   return (
     <ConfirmItsYou>
-      {!fullScreen && (
-        <ActionBarHost>{(onSearch) => <TopBar {...chrome} onSearch={onSearch} />}</ActionBarHost>
-      )}
+      <AppChrome {...chrome} />
       <Outlet />
       <SettingsLoader user={user} />
     </ConfirmItsYou>
