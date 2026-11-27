@@ -2,7 +2,7 @@
 //! an Admin chose, everywhere the Server hands out titles, over a real socket with the fake TMDB,
 //! whose Similar source answers Alien's as Aliens and Heat.
 
-use crate::support::{browsing, http, refused, server};
+use crate::support::{browsing, http, permissions::set_permissions, refused, server};
 
 use std::time::{Duration, Instant};
 
@@ -18,8 +18,7 @@ use nama_proto::nama::v1::{
     ListHomeRowsRequest, ListLibrariesRequest, ListMoviesRequest, ListUnmatchedRequest,
     ListUsersRequest, LookUpMovieRequest, Permission, PlanPlaybackRequest, PlaybackServiceClient,
     RefusalReason, RequestServiceClient, SearchSubtitlesRequest, SetLibraryAccessRequest,
-    SetPermissionsRequest, UserServiceClient, event, home_row::KernelOrPlugin,
-    home_row_title::MovieOrShow,
+    UserServiceClient, event, home_row::KernelOrPlugin, home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
 use server::{
@@ -95,21 +94,6 @@ async fn set_access(
         ..Default::default()
     };
     users.set_library_access(request).await.map(drop)
-}
-
-/// Has the Admin give the User `user` exactly `permissions`.
-async fn set_permissions(
-    server: &TestServer,
-    user: i64,
-    permissions: &[Permission],
-) -> Result<(), ConnectError> {
-    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    let request = SetPermissionsRequest {
-        user_id: user,
-        permissions: permissions.iter().map(|&p| p.into()).collect(),
-        ..Default::default()
-    };
-    users.set_permissions(request).await.map(drop)
 }
 
 /// The Permissions the User `user` holds, as the Admin lists them.
@@ -449,21 +433,22 @@ async fn only_manage_users_changes_library_access_and_not_on_themself() {
 #[tokio::test]
 async fn manage_users_is_refused_to_a_user_on_a_chosen_list_unless_they_see_every_library() {
     let fx = Fixture::start().await;
+    let admin = fx.server.client_config();
     let held = permissions_of(&fx.server, fx.bishop.id).await;
     let manage_users = Permission::PERMISSION_MANAGE_USERS;
     let manage_libraries = Permission::PERMISSION_MANAGE_LIBRARIES;
 
-    let alone = set_permissions(&fx.server, fx.bishop.id, &[manage_users]).await;
+    let alone = set_permissions(&admin, fx.bishop.id, &[manage_users]).await;
     let held_after = permissions_of(&fx.server, fx.bishop.id).await;
     let with_libraries = [manage_users, manage_libraries];
-    let vasquezs = set_permissions(&fx.server, fx.vasquez.id, &with_libraries).await;
-    let admin = set_permissions(&fx.server, fx.bishop.id, &[Permission::PERMISSION_ADMIN]).await;
+    let vasquezs = set_permissions(&admin, fx.vasquez.id, &with_libraries).await;
+    let made_admin = set_permissions(&admin, fx.bishop.id, &[Permission::PERMISSION_ADMIN]).await;
 
     let needs_every = RefusalReason::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY;
     assert_refused(alone, ErrorCode::FailedPrecondition, needs_every);
     assert_eq!(held_after, held);
     vasquezs.unwrap();
-    admin.unwrap();
+    made_admin.unwrap();
 }
 
 #[tokio::test]

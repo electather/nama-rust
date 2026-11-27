@@ -1695,9 +1695,10 @@ export const UserService: GenService<{
    * Replaces a User's Permissions and cap for remote playback, which apply from their next
    * request. Their Devices stay signed in. Fails with `invalid_argument` for
    * `PERMISSION_UNSPECIFIED` or a value the Server doesn't know, `not_found` if no User has the ID,
-   * and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`, or with
-   * `REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY` if it gives `PERMISSION_MANAGE_USERS`
-   * without `PERMISSION_MANAGE_LIBRARIES` to a User who sees only a chosen list of Libraries.
+   * `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`, and
+   * `failed_precondition` with `REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY` if it gives
+   * `PERMISSION_MANAGE_USERS` without `PERMISSION_MANAGE_LIBRARIES` to a User who sees only a chosen
+   * list of Libraries.
    *
    * @generated from rpc nama.v1.UserService.SetPermissions
    */
