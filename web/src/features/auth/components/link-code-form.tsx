@@ -39,9 +39,10 @@ export function LinkCodeForm({
         onCode(formText(typed, "linkCode"), form);
       })}
     >
-      <h2 id={id} className="text-lg font-semibold">
+      {/* Under Settings' pane title, as its groups' titles are. */}
+      <h4 id={id} className="text-xs text-muted-foreground">
         {heading}
-      </h2>
+      </h4>
       <FormField
         label="Code"
         name="linkCode"

@@ -152,6 +152,6 @@ test("a crumb that failed on one picked Server shows its name again on the next"
 
   // The header's crumbs, not the Plugin pane's own.
   await waitFor(() => {
-    expect(globalThis.document.querySelector("header nav")?.textContent).toMatch(/TMDB/u);
+    expect(screen.getByRole("navigation", { name: "Breadcrumbs" }).textContent).toMatch(/TMDB/u);
   });
 });

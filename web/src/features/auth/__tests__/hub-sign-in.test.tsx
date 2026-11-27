@@ -1,13 +1,15 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { AccountSchema, AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
-import { ada, hubRefused } from "@/test-hub";
+import { accountHub, ada } from "@/test-hub";
+import { hubRefused } from "@/test-hub-links";
+import { pickFromMenu } from "@/test-menu";
 import { expectUnderField } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -126,8 +128,7 @@ test("at the Hub, a signed-out visitor signs in to their Account with its passwo
 
   await signInAs(ada.email, "correct horse");
 
-  await expect(screen.findByRole("heading", { name: "Your Account" })).resolves.toBeDefined();
-  expect(screen.getByText(ada.email)).toBeDefined();
+  await expect(screen.findByRole("button", { name: `${ada.email}’s menu` })).resolves.toBeDefined();
 });
 
 test("at the Hub, a wrong password is refused under the password", async () => {
@@ -141,9 +142,19 @@ test("at the Hub, a wrong password is refused under the password", async () => {
 test("signing the Account out goes back to sign-in", async () => {
   openApp("/", fakeHub({ signedIn: true }).transport);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await pickFromMenu(`${ada.email}’s menu`, "Sign out");
 
   await expect(screen.findByRole("heading", { name: "Sign in to the Hub" })).resolves.toBeDefined();
+});
+
+test("signing the Account out that the Hub can't says so in the menu", async () => {
+  openApp("/", accountHub({ signOutFails: true }).transport);
+
+  await pickFromMenu(`${ada.email}’s menu`, "Sign out");
+
+  const menu = within(await screen.findByRole("menu"));
+  await expect(menu.findByText(/The Hub couldn’t sign you out just now/u)).resolves.toBeDefined();
+  expect(menu.getByRole("menuitem", { name: "Sign out" })).toBeDefined();
 });
 
 test("creating an Account at the Hub signs it in", async () => {
@@ -155,7 +166,9 @@ test("creating an Account at the Hub signs it in", async () => {
   fill("Password", "a long password");
   fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
 
-  await expect(screen.findByText("bea@example.com")).resolves.toBeDefined();
+  await expect(
+    screen.findByRole("button", { name: "bea@example.com’s menu" }),
+  ).resolves.toBeDefined();
 });
 
 test("creating an Account goes on to where signing in was going", async () => {
@@ -232,7 +245,7 @@ test("a Sign-in Link signs its Account in", async () => {
   await screen.findByText(ada.email);
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-  await expect(screen.findByRole("heading", { name: "Your Account" })).resolves.toBeDefined();
+  await expect(screen.findByRole("button", { name: `${ada.email}’s menu` })).resolves.toBeDefined();
 });
 
 test("an expired Sign-in Link offers a new one", async () => {

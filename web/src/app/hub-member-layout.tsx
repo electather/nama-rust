@@ -1,39 +1,29 @@
-import { Outlet, useMatch, useMatches, useSearch } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
+import { AppChrome } from "@/app/app-chrome";
 import { SettingsLoader } from "@/app/settings-loader";
-import { ActionBarHost } from "@/app/top-bar/action-bar-host";
-import { SearchButton } from "@/app/top-bar/search-button";
-import { SignedOutLayout } from "@/shared/components/sign-in-layout/signed-out-layout";
+
+const outlet = <Outlet />;
 
 /**
- * The signed-in Account's pages at the Hub, with the Account's Settings over them while the address
- * asks for it, and the action bar searching all its Servers. Home, a Server's pages, and those that
- * say they fill the Hub, such as the Watchlist, fill the screen, as they do at the Server. On a
- * Server's pages, only its keys open the action bar.
+ * The pages of the Account with `email` signed in at the Hub, `children`, under the Server's app
+ * chrome, which stays the Hub's on a Server's pages too, with the Account's Settings over them
+ * while the address asks for it. It follows no Server's Events and asks no "Confirm it’s you": a
+ * Server's pages ask their own (`ServerLayout`).
  */
-export function HubMemberLayout() {
-  const onAServer = useSearch({ strict: false, select: (search) => search.server !== undefined });
-  const atHome = useMatch({ from: "/_member/", shouldThrow: false }) !== undefined;
-  const fills = useMatches({
-    select: (matches) => matches.some((match) => match.staticData.fillsTheHub === true),
-  });
-  const settings = <SettingsLoader user={undefined} atHub />;
-  // ponytail: the rest sit in the signed-out pages' frame, and all of them under no app chrome
-  // but the search button, until the Hub gives them some (#2204).
-  const fillsTheScreen = onAServer || atHome || fills;
-  const pages = (onSearch: () => void) => {
-    const page = (
-      <>
-        {!onAServer && (
-          <div className="flex justify-center">
-            <SearchButton label="Search your Servers" onSearch={onSearch} />
-          </div>
-        )}
-        <Outlet />
-        {settings}
-      </>
-    );
-    return fillsTheScreen ? page : <SignedOutLayout>{page}</SignedOutLayout>;
-  };
-  return <ActionBarHost>{pages}</ActionBarHost>;
+export function HubMemberLayout({
+  email,
+  children = outlet,
+}: {
+  email: string;
+  children?: ReactNode;
+}) {
+  return (
+    <>
+      <AppChrome userName={email} atHub />
+      {children}
+      <SettingsLoader user={undefined} atHub />
+    </>
+  );
 }

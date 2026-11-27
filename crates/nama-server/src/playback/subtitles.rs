@@ -332,22 +332,28 @@ impl Source {
         }
     }
 
-    /// Reads it out of its file, as a sidecar or an image Track is: a PGS Track copied into
-    /// `.sup`, the framing a Device's renderer reads, a VobSub one into Matroska, which carries its
-    /// palette and size beside it, an ASS or SSA one as ASS for a Device that draws it, and any
-    /// other as WebVTT.
+    /// Reads it out of its file, as a sidecar or an image Track fetched before its pass is, in
+    /// its [`encoding`], but an ASS or SSA one served as WebVTT read as ASS and made WebVTT here.
     async fn read(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {
         let (path, subtitle) = (&self.path, self.subtitle);
-        match self.served_as {
-            PGS => Ok(ffmpeg.subtitle(path, subtitle, "copy", "sup").await?),
-            VOBSUB => Ok(ffmpeg.subtitle(path, subtitle, "copy", "matroska").await?),
-            ASS => Ok(ffmpeg.subtitle(path, subtitle, "ass", "ass").await?),
-            UNSPECIFIED | WEBVTT if self.ass => {
-                let ass = ffmpeg.subtitle(path, subtitle, "ass", "ass").await?;
-                Ok(ass::to_webvtt(&String::from_utf8_lossy(&ass)).into_bytes())
-            }
-            UNSPECIFIED | WEBVTT => Ok(ffmpeg.subtitle(path, subtitle, "webvtt", "webvtt").await?),
+        if self.ass && matches!(self.served_as, UNSPECIFIED | WEBVTT) {
+            let ass = ffmpeg.subtitle(path, subtitle, "ass", "ass").await?;
+            return Ok(ass::to_webvtt(&String::from_utf8_lossy(&ass)).into_bytes());
         }
+        let (codec, muxer) = encoding(self.served_as);
+        Ok(ffmpeg.subtitle(path, subtitle, codec, muxer).await?)
+    }
+}
+
+/// The encoder and muxer ffmpeg reads a subtitle out in to serve it as `served_as`: a PGS one
+/// copied into `.sup`, the framing a Device's renderer reads, a VobSub one into Matroska, which
+/// carries its palette and size beside it, an ASS or SSA one as ASS, and any other as WebVTT.
+const fn encoding(served_as: proto::SubtitleFormat) -> (&'static str, &'static str) {
+    match served_as {
+        PGS => ("copy", "sup"),
+        VOBSUB => ("copy", "matroska"),
+        ASS => ("ass", "ass"),
+        UNSPECIFIED | WEBVTT => ("webvtt", "webvtt"),
     }
 }
 
@@ -388,11 +394,12 @@ fn cache_folder(file: Stored) -> String {
     )
 }
 
-/// Subtitles on disk, each made by its source the first time it's asked for, and a Version's text
-/// ones and fonts all at once. It has no size limit.
-// ponytail: every Version's text subtitles and fonts are cached ahead of time, wanted or not, and
-// ASS fonts, 10–50 MB a Version, aren't shared between Versions; if that fills disks, share fonts
-// by their content's hash, then throw away the least recently served.
+/// Subtitles on disk, each made by its source the first time it's asked for, and a Version's
+/// subtitles in its file and fonts all at once. It has no size limit.
+// ponytail: every Version's subtitles and fonts are cached ahead of time, wanted or not, image
+// ones tens of MB a Blu-ray rip, and ASS fonts, 10–50 MB a Version, aren't shared between
+// Versions; if that fills disks, share fonts by their content's hash, then throw away the least
+// recently served.
 #[derive(Debug, Clone)]
 pub(crate) struct Cache {
     dir: PathBuf,

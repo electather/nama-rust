@@ -19,7 +19,7 @@ use axum::{
 
 use crate::link::Linking;
 
-/// What the web app's Connect calls send besides the bearer token.
+/// What the web app's Connect calls and Diagnostics posts send besides the bearer token.
 const ALLOWED_HEADERS: &str =
     "authorization, content-type, connect-protocol-version, connect-timeout-ms, traceparent";
 

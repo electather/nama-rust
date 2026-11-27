@@ -3,7 +3,7 @@ import { RowLoader } from "@/features/home/components/row-loader";
 
 /**
  * Home's rows at the Hub, each kind merged across the Account's Servers, or nothing while its
- * Servers are listed or if they can't be: the Account's own section says so.
+ * Servers are listed or if they can't be: the notices over them say so.
  */
 export function HubRows() {
   return (

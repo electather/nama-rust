@@ -11,7 +11,6 @@ export const Route = createFileRoute("/_member/watchlist")({
       await queryClient.query(watchlistQuery(transport));
     }
   },
-  staticData: { fillsTheHub: true },
   component: Watchlist,
 });
 

@@ -23,7 +23,7 @@ import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 // oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { traceCalls } from "@/shared/lib/diagnostics";
+import { traceCallsTo } from "@/shared/lib/diagnostics";
 import type { ServerAt } from "@/shared/lib/server";
 import { tickWorker } from "@/test-worker";
 
@@ -140,7 +140,7 @@ export function fakeServer(
 }
 
 // The app's transport traces calls while the Server exports Diagnostics, so the fake Server's does too.
-const interceptingAsTheApp = { transport: { interceptors: [traceCalls] } };
+const interceptingAsTheApp = { transport: { interceptors: [traceCallsTo("")] } };
 
 /** The title of each row of Settings' Requests, Show titles included, top to bottom. */
 export function requestTitles() {
