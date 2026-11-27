@@ -42,6 +42,7 @@ const cabin = create(LinkedServerSchema, {
 
 const alien = { namespace: "tmdb", value: "348" };
 const heat = { namespace: "tmdb", value: "949" };
+const arrival = { namespace: "tmdb", value: "329865" };
 
 /** A fake Server with one Movies Library, 1, that signs the Hub's Account in as Ada. */
 function fakeServer(
@@ -115,11 +116,68 @@ function linksIn(name: string) {
   const section = within(screen.getByRole("region", { name }));
   return section.getAllByRole("link").map((link) => ({
     name: link.getAttribute("aria-label"),
-    server: new URL(link.getAttribute("href") ?? "", "https://hub.example").searchParams.get(
-      "server",
-    ),
+    server: serverOf(link),
   }));
 }
+
+/** The Server `link` opens on at the Hub. */
+function serverOf(link: HTMLElement) {
+  return new URL(link.getAttribute("href") ?? "", "https://hub.example").searchParams.get("server");
+}
+
+/** A Featured Movie `title`, `id`, in Library 1. */
+function featuredMovie(id: typeof alien, title: string) {
+  return { libraryId: 1n, movieOrShow: { case: "movie", value: { id, title } } } as const;
+}
+
+/** Featured's slides now, as their titles and the Server each plays on. Throws till there's one. */
+function featuredSlides() {
+  const featured = within(screen.getByRole("region", { name: "Featured" }));
+  return featured.getAllByRole("listitem").map((slide) => ({
+    name: within(slide).getByRole("heading").textContent,
+    server: serverOf(within(slide).getByRole("link")),
+  }));
+}
+
+test("featured at the Hub takes each Server's in turn, each title once, opening on its Server", async () => {
+  openHub({
+    "https://basement.example": fakeServer({
+      listFeatured: () => ({
+        titles: [featuredMovie(alien, "Alien"), featuredMovie(heat, "Heat")],
+      }),
+    }),
+    "https://cabin.example": fakeServer({
+      listFeatured: () => ({
+        titles: [featuredMovie(arrival, "Arrival"), featuredMovie(alien, "Alien")],
+      }),
+    }),
+  });
+
+  await waitFor(() => {
+    expect(featuredSlides()).toStrictEqual([
+      { name: "Alien", server: "basement" },
+      { name: "Arrival", server: "cabin" },
+      { name: "Heat", server: "basement" },
+    ]);
+  });
+});
+
+test("a failing Server's Featured is left out, and the others' still show", async () => {
+  openHub({
+    "https://basement.example": fakeServer({
+      listFeatured: () => {
+        throw new ConnectError("database is locked", Code.Unavailable);
+      },
+    }),
+    "https://cabin.example": fakeServer({
+      listFeatured: () => ({ titles: [featuredMovie(heat, "Heat")] }),
+    }),
+  });
+
+  await waitFor(() => {
+    expect(featuredSlides()).toStrictEqual([{ name: "Heat", server: "cabin" }]);
+  });
+});
 
 test("continue Watching at the Hub lists each title once, from the Server it was last watched on", async () => {
   openHub({

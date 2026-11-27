@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import type { ReachedServer } from "@/features/home/lib/hub-rows";
 
-/** A tile at the Hub, `children`, run against the Server `transport` reaches. */
+/** A tile, `children`, run against the Server `transport` reaches, as one at the Hub needs. */
 export function OnServer({
   transport,
   children,
