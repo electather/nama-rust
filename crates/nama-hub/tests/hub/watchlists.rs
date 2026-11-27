@@ -82,7 +82,7 @@ async fn a_watchlist_breaking_a_limit_is_refused_even_of_a_user_who_isnt_linked(
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let server = linked(&hub, &ada, "Ada's").await;
     let long_id = WatchlistEntry {
-        id: "x".repeat(101),
+        id: format!("tmdb-{}", "6".repeat(96)),
         ..the_matrix(1_000)
     };
 
@@ -93,6 +93,22 @@ async fn a_watchlist_breaking_a_limit_is_refused_even_of_a_user_who_isnt_linked(
     );
     assert_eq!(refused.field, "entries[1].id");
     assert_eq!(refused.params["maxIdLength"], "100");
+    let without_a_namespace = WatchlistEntry {
+        id: "603".to_owned(),
+        ..the_matrix(1_000)
+    };
+    let malformed = assert_refused(
+        sync_watchlist(
+            &hub,
+            &server,
+            7,
+            vec![the_matrix(1_000), without_a_namespace],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCHLIST_INVALID,
+    );
+    assert_eq!(malformed.field, "entries[1].id");
 }
 
 // How many Accounts it takes is checked where they're counted, in `src/sync/sync_tests.rs`.

@@ -12,7 +12,10 @@ use super::{
     links::{LinkedServerServiceHandler, linked_server},
     refuse, sync_refused,
 };
-use crate::sync::{self, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, Part, WatchStateChange};
+use crate::{
+    sync::{self, MAX_CHANGES, MAX_IDS, Part, WatchStateChange},
+    titles::ExternalId,
+};
 
 pub(super) async fn push_watch_states(
     handler: &LinkedServerServiceHandler,
@@ -105,6 +108,6 @@ fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
         .field(field)
         .param("maxChanges", &MAX_CHANGES)
         .param("maxIds", &MAX_IDS)
-        .param("maxIdLength", &MAX_ID_LENGTH)
+        .param("maxIdLength", &ExternalId::MAX_LENGTH)
         .into()
 }

@@ -46,6 +46,28 @@ pub struct ExternalId {
     pub value: String,
 }
 
+impl ExternalId {
+    /// The most characters an External ID's text form may have.
+    pub const MAX_LENGTH: usize = 100;
+
+    /// The External ID `text` writes as `namespace-value`, or `None` if it isn't one: 1 to
+    /// [`Self::MAX_LENGTH`] characters, split at the first `-`, after a Namespace of `a-z` and
+    /// `0-9` and before a value that isn't empty (ADR 0042).
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        let (namespace, value) = text.split_once('-')?;
+        let namespace_is_valid = !namespace.is_empty()
+            && (namespace.bytes()).all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit());
+        if !namespace_is_valid || value.is_empty() || text.chars().count() > Self::MAX_LENGTH {
+            return None;
+        }
+        Some(Self {
+            namespace: namespace.to_owned(),
+            value: value.to_owned(),
+        })
+    }
+}
+
 /// The ids in `namespaces`, ordered by namespace, of the `kind` of title that `id` names: the
 /// External IDs a Server uses for a title it knows by any other (ADR 0042, 0094).
 ///
@@ -79,3 +101,7 @@ pub async fn crosswalk(
     .fetch_all(db)
     .await
 }
+
+#[cfg(test)]
+#[path = "titles/titles_tests.rs"]
+mod tests;

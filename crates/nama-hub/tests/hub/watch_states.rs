@@ -63,6 +63,21 @@ async fn a_push_breaking_a_limit_is_refused(db: PgPool) {
         RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
     );
     assert_eq!(without_ids.field, "changes[0].ids");
+    let without_a_namespace = WatchStateChange {
+        ids: vec!["tmdb-348".to_owned(), "603".to_owned()],
+        ..alien_at(7, 3000, 1_000)
+    };
+    let refused = assert_refused(
+        push(
+            &hub,
+            &server,
+            vec![alien_at(7, 3000, 1_000), without_a_namespace],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(refused.field, "changes[1].ids");
 }
 
 /// The Watch State the Server presenting `credential` pulls for its User `user_id`, each title

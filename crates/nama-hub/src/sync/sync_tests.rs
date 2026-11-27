@@ -10,6 +10,7 @@ use super::{
 use crate::{
     accounts::{AccountId, AccountSession, Accounts, Caller},
     db,
+    titles::ExternalId,
     viewing::Viewing,
 };
 
@@ -298,11 +299,15 @@ async fn accounts_on(db: &PgPool, count: usize) -> (Watchlists, Viewing, Vec<Acc
 }
 
 /// The most watchlisted titles, each as whether it is a Show and its External ID.
-async fn most_watchlisted_ids(watchlists: &Watchlists) -> Vec<(bool, String)> {
+async fn most_watchlisted_ids(watchlists: &Watchlists) -> Vec<(bool, ExternalId)> {
     let watchlisted = watchlists.most_watchlisted().await.unwrap();
     (watchlisted.into_iter())
-        .map(|title| (title.show, title.external_id))
+        .map(|title| (title.show, title.id))
         .collect()
+}
+
+fn id(text: &str) -> ExternalId {
+    ExternalId::parse(text).unwrap()
 }
 
 #[sqlx::test(migrations = false)]
@@ -330,10 +335,10 @@ async fn titles_on_twenty_accounts_watchlists_are_most_watchlisted_first_and_rem
 
     let watchlisted = watchlists.most_watchlisted().await.unwrap();
 
-    let ids: Vec<(bool, &str)> = (watchlisted.iter())
-        .map(|title| (title.show, title.external_id.as_str()))
+    let ids: Vec<(bool, &ExternalId)> = (watchlisted.iter())
+        .map(|title| (title.show, &title.id))
         .collect();
-    assert_eq!(ids, [(true, "tvdb-81189"), (false, "tmdb-603")]);
+    assert_eq!(ids, [(true, &id("tvdb-81189")), (false, &id("tmdb-603"))]);
     assert!((watchlisted[0].weight - 1.0).abs() < 1e-6);
     assert!((watchlisted[1].weight - 20.0 / 21.0).abs() < 1e-6);
 }
@@ -346,7 +351,7 @@ async fn an_account_with_pooling_off_isnt_counted_in_the_most_watchlisted(db: Pg
     }
     assert_eq!(
         most_watchlisted_ids(&watchlists).await,
-        [(false, "tmdb-603".to_owned())]
+        [(false, id("tmdb-603"))]
     );
 
     viewing.set_pooling(accounts[0], false).await.unwrap();
@@ -368,9 +373,10 @@ fn alien_then(change: WatchStateChange) -> Result<(), Error> {
     check_watch_states(&[alien_at(7, 3000, 1_000), change])
 }
 
-/// An External ID of `length` characters, each two bytes, so a limit counted in bytes fails.
+/// An External ID of `length` characters, its value's two bytes each, so a limit counted in bytes
+/// fails.
 fn id_of(length: usize) -> String {
-    "é".repeat(length)
+    format!("tmdb-{}", "é".repeat(length - "tmdb-".len()))
 }
 
 #[test]

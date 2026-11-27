@@ -63,7 +63,7 @@ fn an_episode_without_its_show_is_invalid() {
 #[test]
 fn an_episode_whose_show_is_over_its_length_is_invalid() {
     let event = ViewingEvent {
-        show_external_id: Some("1".repeat(EXTERNAL_ID_LENGTH + 1)),
+        show_external_id: Some(format!("tmdb-{}", "1".repeat(ExternalId::MAX_LENGTH))),
         ..played_episode()
     };
 
@@ -116,18 +116,6 @@ fn each_device_kind_reads_back_as_stored() {
     for kind in DeviceKind::ALL {
         assert_eq!(DeviceKind::stored(kind.as_str()), kind);
     }
-}
-
-#[test]
-fn an_external_id_splits_at_its_first_hyphen() {
-    let id = |namespace: &str, value: &str| ExternalId {
-        namespace: namespace.to_owned(),
-        value: value.to_owned(),
-    };
-
-    assert_eq!(external_id("imdb-tt0133093"), Some(id("imdb", "tt0133093")));
-    assert_eq!(external_id("anidb-12-a"), Some(id("anidb", "12-a")));
-    assert_eq!(external_id("603"), None);
 }
 
 /// Viewing on a migrated `db`, and `count` new Accounts.
@@ -268,8 +256,8 @@ async fn pooled_counts_hold_only_counts_of_twenty_accounts(db: PgPool) {
     let pooled = pooled_counts(&db).await.unwrap();
 
     let only_the_matrix = PooledCount {
-        a: "tmdb-603".to_owned(),
-        b: "tmdb-603".to_owned(),
+        a: id("tmdb-603"),
+        b: id("tmdb-603"),
         accounts: 20,
     };
     assert_eq!(pooled, [only_the_matrix]);
@@ -285,12 +273,13 @@ fn now() -> i64 {
 const WEEK: i64 = 7 * 24 * 60 * 60;
 
 /// The External IDs trending, most watched first.
-async fn trending_ids(viewing: &Viewing) -> Vec<String> {
+async fn trending_ids(viewing: &Viewing) -> Vec<ExternalId> {
     let trending = viewing.trending().await.unwrap();
-    trending
-        .into_iter()
-        .map(|title| title.external_id)
-        .collect()
+    trending.into_iter().map(|title| title.id).collect()
+}
+
+fn id(text: &str) -> ExternalId {
+    ExternalId::parse(text).unwrap()
 }
 
 #[sqlx::test(migrations = false)]
@@ -309,10 +298,8 @@ async fn movies_twenty_accounts_finished_this_week_trend_most_watched_first(db: 
 
     let trending = viewing.trending().await.unwrap();
 
-    let ids: Vec<&str> = (trending.iter())
-        .map(|title| title.external_id.as_str())
-        .collect();
-    assert_eq!(ids, ["tmdb-78", "tmdb-603"]);
+    let ids: Vec<&ExternalId> = trending.iter().map(|title| &title.id).collect();
+    assert_eq!(ids, [&id("tmdb-78"), &id("tmdb-603")]);
     assert!((trending[0].weight - 1.0).abs() < 1e-6);
     assert!((trending[1].weight - 20.0 / 21.0).abs() < 1e-6);
 }
@@ -327,7 +314,7 @@ async fn a_movie_finished_again_the_same_week_counts_its_account_once(db: PgPool
 
     finish_at(&db, accounts[0], "b", "tmdb-603", at).await;
 
-    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+    assert_eq!(trending_ids(&viewing).await, []);
 }
 
 #[sqlx::test(migrations = false)]
@@ -339,7 +326,7 @@ async fn last_weeks_count_still_trends_and_the_week_before_doesnt(db: PgPool) {
         finish_at(&db, account, "b", "tmdb-78", at - 2 * WEEK).await;
     }
 
-    assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
+    assert_eq!(trending_ids(&viewing).await, [id("tmdb-603")]);
 }
 
 #[sqlx::test(migrations = false)]
@@ -354,7 +341,7 @@ async fn an_account_with_pooling_off_adds_nothing_to_whats_trending(db: PgPool) 
     viewing.set_pooling(*opted_out, false).await.unwrap();
     finish_at(&db, *opted_out, "a", "tmdb-603", at).await;
 
-    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+    assert_eq!(trending_ids(&viewing).await, []);
 }
 
 #[sqlx::test(migrations = false)]
@@ -373,7 +360,7 @@ async fn finishing_a_movie_again_after_deleting_the_counted_play_counts_its_acco
         finish_at(&db, accounts[0], key, "tmdb-603", at).await;
     }
 
-    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+    assert_eq!(trending_ids(&viewing).await, []);
 }
 
 #[sqlx::test(migrations = false)]
@@ -383,12 +370,12 @@ async fn deleting_the_counted_play_takes_its_account_out_of_the_weeks_count(db: 
     for &account in &accounts {
         finish_at(&db, account, "a", "tmdb-603", at).await;
     }
-    assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
+    assert_eq!(trending_ids(&viewing).await, [id("tmdb-603")]);
 
     let [counted] = viewing.list(accounts[0]).await.unwrap().try_into().unwrap();
     viewing.delete(accounts[0], counted.id).await.unwrap();
 
-    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+    assert_eq!(trending_ids(&viewing).await, []);
 }
 
 #[sqlx::test(migrations = false)]
@@ -414,5 +401,5 @@ async fn deleting_an_account_deletes_its_plays_but_leaves_its_pooled_counts(db: 
 
     assert!(viewing.list(created.account.id).await.unwrap().is_empty());
     assert_eq!(count_of(&viewing, "tmdb-603").await, Some(20));
-    assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
+    assert_eq!(trending_ids(&viewing).await, [id("tmdb-603")]);
 }

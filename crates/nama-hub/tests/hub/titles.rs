@@ -48,11 +48,15 @@ async fn trained(db: &PgPool) {
 
 /// The pooled counts of `accounts` Accounts that finished both Movies `a` and `b`, the lesser
 /// first, as Servers name them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 fn finished_together_by(accounts: i64, a: &str, b: &str) -> Vec<PooledCount> {
     [(a, a), (b, b), (a, b)]
         .map(|(a, b)| PooledCount {
-            a: a.to_owned(),
-            b: b.to_owned(),
+            a: ExternalId::parse(a).unwrap(),
+            b: ExternalId::parse(b).unwrap(),
             accounts,
         })
         .into()

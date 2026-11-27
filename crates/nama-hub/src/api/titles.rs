@@ -69,7 +69,7 @@ pub(super) async fn list_trending_titles(
         .await
         .map_err(|err| hub_failed(&err))?;
     Response::ok(ListTrendingTitlesResponse {
-        titles: trending.iter().filter_map(trending_to_proto).collect(),
+        titles: trending.into_iter().map(trending_to_proto).collect(),
         ..Default::default()
     })
 }
@@ -95,7 +95,7 @@ fn recommended_to_proto(recommended: RecommendedTitle) -> proto::RecommendedTitl
     }
 }
 
-fn id_to_proto(id: ExternalId) -> proto::ExternalId {
+pub(super) fn id_to_proto(id: ExternalId) -> proto::ExternalId {
     proto::ExternalId {
         namespace: id.namespace,
         value: id.value,
@@ -103,20 +103,12 @@ fn id_to_proto(id: ExternalId) -> proto::ExternalId {
     }
 }
 
-/// `trending` as a Server reads it, or `None` for an External ID not written `namespace-value`,
-/// which no Server sends.
-fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
-    let (namespace, value) = trending.external_id.split_once('-')?;
-    Some(proto::TrendingTitle {
-        id: proto::ExternalId {
-            namespace: namespace.to_owned(),
-            value: value.to_owned(),
-            ..Default::default()
-        }
-        .into(),
+fn trending_to_proto(trending: TrendingTitle) -> proto::TrendingTitle {
+    proto::TrendingTitle {
+        id: id_to_proto(trending.id).into(),
         weight: trending.weight,
         ..Default::default()
-    })
+    }
 }
 
 #[cfg(test)]
