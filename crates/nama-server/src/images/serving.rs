@@ -178,6 +178,9 @@ impl ImageStore {
             return None;
         }
         let _reading = self.whole_read().await.ok()?;
+        // Until the copy, its marker or thumbhash is kept, so a delete of the image waits for it
+        // rather than removing the folder it writes into (see `ImageStore::delete`).
+        let _writing = self.write_lock(&row_key(key)).lock().await;
         let original = match self.blobs().get(&row_key(key)).await {
             Ok(Some(original)) => original,
             // Sent as stored, the original answers 404.
@@ -218,8 +221,6 @@ impl ImageStore {
             Ok(Copied::Found(format)) => Some(format),
             Ok(Copied::Made { format, thumbhash }) => {
                 // Without it the image only goes without a placeholder.
-                // ponytail: a Custom Image replaced while it is resized can leave its thumbhash
-                // behind, a row no URL sent names; sweep rows without a file if that matters.
                 if let Err(err) = self.keep_thumbhash(key, thumbhash).await {
                     tracing::error!("could not keep the thumbhash of {key:?}: {err}");
                 }

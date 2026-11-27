@@ -17,6 +17,7 @@ use axum::{
 use http_body_util::BodyExt as _;
 use image::{ImageFormat, ImageReader, RgbImage, RgbaImage};
 use tempfile::{NamedTempFile, TempDir};
+use tokio::sync::{Notify, Semaphore};
 
 use super::super::{Blobs, ImageStore, MAX_BYTES, Resize, WHOLE_READS};
 use crate::db::{BoxFuture, Database};
@@ -24,12 +25,20 @@ use crate::db::{BoxFuture, Database};
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
 
 /// A store that keeps its objects in memory, so nothing it holds is on disk, and counts its
-/// reads, failing each while `gets_fail` is set.
+/// reads, failing each while `gets_fail` is set and holding each back while `held` is set.
 #[derive(Debug, Default)]
 struct InMemory {
     objects: Mutex<BTreeMap<String, Vec<u8>>>,
     gets: AtomicUsize,
     gets_fail: AtomicBool,
+    held: Option<Held>,
+}
+
+/// Reads held back: each tells `reading` once it has its bytes, then waits for a permit of `open`.
+#[derive(Debug)]
+struct Held {
+    reading: Notify,
+    open: Semaphore,
 }
 
 impl InMemory {
@@ -62,7 +71,13 @@ impl Blobs for InMemory {
         } else {
             Ok(self.objects().get(key).cloned())
         };
-        Box::pin(async { found })
+        Box::pin(async move {
+            if let Some(held) = &self.held {
+                held.reading.notify_one();
+                drop(held.open.acquire().await.unwrap());
+            }
+            found
+        })
     }
 
     fn delete(&self, key: &str) -> BoxFuture<'_, io::Result<()>> {
@@ -396,6 +411,44 @@ async fn a_failed_resize_is_tried_again_by_the_next_copy_ahead() {
     store.copy_ahead(KEY, &[AT_320]).await;
 
     assert_eq!(blobs.gets(), 4);
+}
+
+#[tokio::test]
+async fn deleting_an_image_while_it_is_copied_ahead_waits_and_leaves_no_copies() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Database::open(data.path()).await.unwrap();
+    let blobs = Arc::new(InMemory {
+        held: Some(Held {
+            reading: Notify::new(),
+            open: Semaphore::new(0),
+        }),
+        ..InMemory::default()
+    });
+    let store = ImageStore::over(data.path(), Arc::new(db), Arc::<InMemory>::clone(&blobs));
+    store
+        .write(KEY, &png(RgbImage::new(1000, 1500)))
+        .await
+        .unwrap();
+    let copying = tokio::spawn({
+        let store = store.clone();
+        async move { store.copy_ahead(KEY, &[AT_320]).await }
+    });
+    let held = blobs.held.as_ref().unwrap();
+    held.reading.notified().await;
+
+    let mut deleting = tokio::spawn({
+        let store = store.clone();
+        async move { store.delete(KEY).await }
+    });
+
+    // The read is held, so a delete that finishes meanwhile didn't wait for the resize.
+    let waited = tokio::time::timeout(Duration::from_millis(100), &mut deleting).await;
+    assert!(waited.is_err(), "the delete didn't wait for the resize");
+    held.open.add_permits(1);
+    copying.await.unwrap();
+    deleting.await.unwrap().unwrap();
+    assert!(!store.copies_path(KEY).exists());
+    assert_eq!(store.thumbhashes("artwork").await.unwrap(), []);
 }
 
 #[tokio::test]

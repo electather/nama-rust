@@ -408,12 +408,13 @@ impl ImageStore {
     ///
     /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
-        self.forget_thumbhashes(key).await?;
         let row = row_key(key);
-        {
-            let _writing = self.write_lock(&row).lock().await;
-            self.blobs().delete(&row).await?;
-        }
+        // Held throughout, as a resize of the image holds it: one finishing mid-delete would
+        // write copies into the folder being removed, failing the delete (#2520), and keep a
+        // thumbhash after it was forgotten.
+        let _writing = self.write_lock(&row).lock().await;
+        self.forget_thumbhashes(key).await?;
+        self.blobs().delete(&row).await?;
         self.delete_copies(key).await
     }
 
