@@ -47,7 +47,7 @@ impl Matcher {
             all.titles += refreshed.titles;
             all.unavailable.extend(refreshed.unavailable);
             self.artwork.drop_unused(&self.contents).await;
-            (self.artwork).download_missing(self.contents.clone(), library.id);
+            self.copies_ahead.matches_changed(library.id);
         }
         Ok(all)
     }

@@ -1,24 +1,58 @@
-//! The Watchlist's wire form: `LinkedServerService.SyncWatchlist`'s entries to and from the
-//! Hub's, the refusal of one that breaks a limit, and `ListMostWatchlistedTitles`' titles.
+//! Watchlists for a Linked Server: `LinkedServerService.SyncWatchlist` and
+//! `ListMostWatchlistedTitles`, the entries and titles they convert, and the refusal of an entry
+//! that breaks a limit.
 
-use connectrpc::ConnectError;
-use nama_hub_proto::nama::hub::v1::{self as proto, RefusalReason};
-
-use super::refuse;
-use crate::sync::{
-    MAX_CHANGED_AT_MS, MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle,
+use connectrpc::{ConnectError, RequestContext, Response, ServiceResult};
+use nama_hub_proto::nama::hub::v1::{
+    self as proto, ListMostWatchlistedTitlesResponse, RefusalReason, SyncWatchlistRequest,
+    SyncWatchlistResponse,
 };
 
-/// `entries` as `sync` takes them, or the refusal of the first limit they break.
+use super::{
+    hub_failed,
+    links::{LinkedServerServiceHandler, linked_server},
+    refuse, sync_refused,
+    titles::id_to_proto,
+};
+use crate::{
+    sync::{MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle},
+    titles::ExternalId,
+};
+
+pub(super) async fn sync_watchlist(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: SyncWatchlistRequest,
+) -> ServiceResult<SyncWatchlistResponse> {
+    let server = linked_server(ctx)?;
+    let entries = watchlist_from_proto(request.entries)?;
+    let merged = (handler.watchlists)
+        .sync(&handler.links, server, request.user_id, entries)
+        .await
+        .map_err(|err| sync_refused(&err, "entries", invalid_watchlist))?;
+    Response::ok(SyncWatchlistResponse {
+        entries: merged.into_iter().map(watchlist_entry_to_proto).collect(),
+        ..Default::default()
+    })
+}
+
+pub(super) async fn list_most_watchlisted_titles(
+    handler: &LinkedServerServiceHandler,
+) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
+    let watchlisted = (handler.watchlists.most_watchlisted())
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(ListMostWatchlistedTitlesResponse {
+        titles: watchlisted.into_iter().map(watchlisted_to_proto).collect(),
+        ..Default::default()
+    })
+}
+
+/// `entries` as `sync` takes them, or the refusal of the first that is neither a Movie nor a
+/// Show. `sync` checks the rest.
 pub(super) fn watchlist_from_proto(
     entries: Vec<proto::WatchlistEntry>,
 ) -> Result<Vec<WatchlistEntry>, ConnectError> {
-    if entries.len() > MAX_WATCHLIST_ENTRIES {
-        return Err(invalid_watchlist(
-            "entries",
-            format!("a Watchlist holds up to {MAX_WATCHLIST_ENTRIES} entries"),
-        ));
-    }
     (entries.into_iter().enumerate())
         .map(|(nth, entry)| watchlist_entry_from_proto(nth, entry))
         .collect()
@@ -29,29 +63,16 @@ fn watchlist_entry_from_proto(
     nth: usize,
     entry: proto::WatchlistEntry,
 ) -> Result<WatchlistEntry, ConnectError> {
-    let field = |name: &str| format!("entries[{nth}].{name}");
     let show = match entry.kind.as_known() {
         Some(proto::TitleKind::TITLE_KIND_MOVIE) => false,
         Some(proto::TitleKind::TITLE_KIND_SHOW) => true,
         Some(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
             return Err(invalid_watchlist(
-                &field("kind"),
+                &format!("entries[{nth}].kind"),
                 "an entry is a Movie or a Show",
             ));
         }
     };
-    if !(1..=MAX_ID_LENGTH).contains(&entry.id.chars().count()) {
-        return Err(invalid_watchlist(
-            &field("id"),
-            format!("an entry's External ID has 1 to {MAX_ID_LENGTH} characters"),
-        ));
-    }
-    if !(0..=MAX_CHANGED_AT_MS).contains(&entry.changed_at_ms) {
-        return Err(invalid_watchlist(
-            &field("changed_at_ms"),
-            "an entry is dated from 1970 to the end of 9999",
-        ));
-    }
     Ok(WatchlistEntry {
         show,
         id: entry.id,
@@ -76,27 +97,17 @@ fn invalid_watchlist(field: &str, message: impl Into<String>) -> ConnectError {
     refuse(RefusalReason::REFUSAL_REASON_WATCHLIST_INVALID, message)
         .field(field)
         .param("maxEntries", &MAX_WATCHLIST_ENTRIES)
-        .param("maxIdLength", &MAX_ID_LENGTH)
+        .param("maxIdLength", &ExternalId::MAX_LENGTH)
         .into()
 }
 
-/// `watchlisted` as a Server reads it, or `None` for an External ID not written
-/// `namespace-value`, which no Server sends.
-pub(super) fn watchlisted_to_proto(
-    watchlisted: &WatchlistedTitle,
-) -> Option<proto::WatchlistedTitle> {
-    let (namespace, value) = watchlisted.external_id.split_once('-')?;
-    Some(proto::WatchlistedTitle {
+pub(super) fn watchlisted_to_proto(watchlisted: WatchlistedTitle) -> proto::WatchlistedTitle {
+    proto::WatchlistedTitle {
         kind: kind_to_proto(watchlisted.show).into(),
-        id: proto::ExternalId {
-            namespace: namespace.to_owned(),
-            value: value.to_owned(),
-            ..Default::default()
-        }
-        .into(),
+        id: id_to_proto(watchlisted.id).into(),
         weight: watchlisted.weight,
         ..Default::default()
-    })
+    }
 }
 
 /// A Show's kind when `show`, else a Movie's.

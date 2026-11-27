@@ -5,13 +5,15 @@ use nama_plugin_api::{
     BoxFuture, PluginError, PluginId, contract,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
 };
-use nama_proto::nama::v1::{RefusalReason, Request, RequestState};
+use nama_proto::nama::v1::{FollowedShow, RefusalReason, Request, RequestState};
 use tokio::sync::Notify;
 
 use super::Claim;
+use crate::log_capture::CapturedLog;
 use crate::plugins::{Registry, ScriptedFulfiller};
 use crate::requests::Requests;
 use crate::requests::asking::{WantedSeasons, ask_seasons};
+use crate::requests::followed::{follow_new_seasons, load_followed};
 use crate::requests::testing::{
     ADA, FulfillerPlugin, GIVE_UP_AFTER, NOTHING, ada, approved_for, approved_on, come_up, dark,
     read,
@@ -310,4 +312,69 @@ async fn disabling_the_fulfiller_before_it_is_asked_again_leaves_the_request_wai
 
     assert_eq!(request.state, RequestState::Approved);
     assert_eq!(busy.asked(), 1);
+}
+
+/// Ada follows Dark, asking for no Season, which opens its Followed Show Approved, with
+/// `fulfiller` as the Shows Fulfiller.
+async fn follow_dark_with(
+    fulfiller: &Arc<ScriptedFulfiller>,
+) -> (tempfile::TempDir, Requests, FollowedShow) {
+    let shows: Arc<dyn Fulfiller<Shows>> = Arc::<ScriptedFulfiller>::clone(fulfiller);
+    let (data, requests) = approved_on(&Registry::new(), &[], shows).await;
+    let show = WantedSeasons {
+        seasons: Vec::new(),
+        ..dark()
+    };
+    let followed = requests
+        .apply(|tx| {
+            Box::pin(follow_new_seasons(
+                tx,
+                ADA,
+                show,
+                None,
+                RequestState::Approved,
+            ))
+        })
+        .await
+        .unwrap();
+    (data, requests, followed)
+}
+
+#[tokio::test]
+async fn a_show_its_fulfiller_says_to_try_again_about_following_is_asked_to_follow_again() {
+    let busy = Arc::new(ScriptedFulfiller::default().trying_again(1, Duration::from_millis(1)));
+
+    let (_data, _requests, _) = follow_dark_with(&busy).await;
+    let asked_at_once = busy.followed().len();
+    let asked_again = tokio::time::timeout(GIVE_UP_AFTER, async {
+        while busy.followed().len() < 2 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+
+    assert_eq!(asked_at_once, 1);
+    assert!(asked_again.is_ok(), "it was never asked to follow again");
+}
+
+#[tokio::test]
+async fn a_fulfiller_failing_to_follow_is_logged_and_leaves_the_followed_show_approved() {
+    let failing = Arc::new(ScriptedFulfiller::default().failing("Sonarr is unreachable"));
+    let log = CapturedLog::start();
+
+    let (_data, requests, followed) = follow_dark_with(&failing).await;
+
+    let logged = log.finish();
+    let mut conn = requests.db.reader().acquire().await.unwrap();
+    let stored = load_followed(&mut conn, Some(followed.id), None)
+        .await
+        .unwrap();
+    assert_eq!(failing.followed().len(), 1);
+    assert!(
+        logged.contains("the Shows Fulfiller didn't follow the Show")
+            && logged.contains("Sonarr is unreachable"),
+        "{logged}"
+    );
+    assert_eq!(followed.state, RequestState::Approved);
+    assert_eq!(stored[0].state, RequestState::Approved);
 }

@@ -322,7 +322,7 @@ A title's Roles that are jobs, such as Director or Creator.
 _Avoid_: staff, credits
 
 **Trailer**:
-A video advertising a Movie or Show, kept as a link to where it is hosted. Nama plays it only in its host's own player, loaded once a User opens it.
+A video advertising a Movie or Show, kept as a link to where it is hosted, with the thumbnail the Server stores from there when the title's Matches are refreshed. Nama plays it only in its host's own player, loaded once a User opens it.
 _Avoid_: clip, teaser, preview
 
 **Similar titles**:
@@ -356,6 +356,18 @@ _Avoid_: image list, artwork set, gallery
 **Custom Image**:
 An image an admin uploaded, or picked from a title source's artwork list, to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Library's Backdrop. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
 _Avoid_: override, variant, replacement
+
+**Image beside the media**:
+A Poster or Backdrop left beside a Movie's file or in a Show's or Season's folder, shown in place of the downloaded one unless the title has a Custom Image.
+_Avoid_: local artwork, fanart
+
+**Resized cache**:
+The local cache of copies of stored images at the listed widths, with their markers and thumbhashes, which may be deleted at any time and drops the least recently sent past its limit (ADR 0039, ADR 0052).
+_Avoid_: image cache, thumbnail cache
+
+**Copy ahead**:
+A resized copy of an image a Library shows, made at a width the web app offers it at before any client asks (ADR 0039).
+_Avoid_: prefetch, warm-up, pre-render
 
 **Match**:
 The link between an Item in a Library and a title in a title source. An Item without one is Unmatched.
@@ -435,6 +447,10 @@ _Avoid_: trickplay, thumbnail, BIF
 The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, as in profile 5: a Dolby Vision player shows them as they are, and any other player only through a Transcode, which converts it by its RPU to HDR10 on hardware making HEVC for a Device showing HDR, and else to SDR.
 _Avoid_: fallback layer, compatibility layer
 
+**Viewer**:
+The User and Device a request for media acts as, from its session or from the signed URL it uses. A plan plays only for its Viewer, and a Version's media goes only to a Viewer whose User may see it.
+_Avoid_: watcher, player, audience
+
 **Direct Play**:
 Playing a Version's file exactly as it is.
 _Avoid_: direct stream, original
@@ -446,6 +462,10 @@ _Avoid_: direct stream, repackage
 **Transcode**:
 Playing a Version with its video re-encoded, such as when the client can't decode it, a Playback Limit asks for less, or a subtitle needs Burn-in.
 _Avoid_: convert, encode
+
+**Transcode limit**:
+The most Transcodes an Admin lets the Server run at once. A Device whose Version only a Transcode would play while the Server runs that many is told the Server is busy.
+_Avoid_: max streams, concurrent transcodes
 
 **Burn-in**:
 The Server drawing a subtitle Track into the picture as it Transcodes, for a Device that can't show that Track itself.

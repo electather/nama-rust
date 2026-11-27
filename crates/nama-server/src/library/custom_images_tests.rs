@@ -12,9 +12,8 @@ use crate::{
     db::{self, Database},
     images::ImageStore,
     library::{
-        Artwork, Metadata,
-        fixture::{MatchedMovie, matched_episodes_file, tmdb_movie},
-        libraries::Libraries,
+        CopiesAhead, Metadata,
+        fixture::{MatchedMovie, tmdb_movie},
     },
     plugins::Registry,
     server_settings::Settings,
@@ -68,11 +67,13 @@ async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path()
     MatchedMovie::new(&db, media.path(), matched).await;
     let store = ImageStore::new(data.path(), Arc::clone(&db));
     let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
-    let images = Settings::new(db, data.path().to_owned()).images();
+    let images = Settings::new(Arc::clone(&db), data.path().to_owned()).images();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let artwork = Artwork::new(store.clone(), Registry::new().extension_points());
-    let app = router(custom_images.clone(), artwork, images);
+    let copies_ahead =
+        CopiesAhead::for_tests(&db, store.clone(), Registry::new().extension_points());
+    let artwork = copies_ahead.artwork().clone();
+    let app = router(custom_images.clone(), artwork, copies_ahead, images);
     tokio::spawn(async move { axum::serve(listener, app).await });
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)
@@ -156,85 +157,4 @@ async fn upgrading_deletes_a_plugins_custom_image_and_keeps_a_titles() {
         .await
         .unwrap();
     assert_eq!(slots, ["movie/tmdb-348/poster"]);
-}
-
-/// Keeps a Custom Image at each of `slots`, as a version with no bytes in the store, which the
-/// slots' choice doesn't read.
-async fn keep_without_bytes(db: &Database, slots: &[Slot]) {
-    let slots: Vec<String> = slots.iter().map(|slot| slot.0.clone()).collect();
-    db.write(move |tx| {
-        Box::pin(async move {
-            for slot in slots {
-                sqlx::query(
-                    "INSERT INTO custom_images (slot, version, content_type)
-                     VALUES (?, 'v', 'image/png')",
-                )
-                .bind(slot)
-                .execute(&mut **tx)
-                .await?;
-            }
-            Ok::<_, sqlx::Error>(())
-        })
-    })
-    .await
-    .unwrap();
-}
-
-#[tokio::test]
-async fn a_librarys_custom_images_are_its_own_and_its_titles_and_seasons_under_any_of_their_ids() {
-    let data = tempfile::tempdir().unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let folders = [(); 3].map(|()| tempfile::tempdir().unwrap());
-    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
-    let alien = Metadata {
-        ids: ExternalIds::from_iter([ExternalId::tmdb(348), imdb.clone()]),
-        ..tmdb_movie(348, "Alien")
-    };
-    let movies = MatchedMovie::new(&db, folders[0].path(), alien)
-        .await
-        .library;
-    let other_movie = tmdb_movie(1, "Other");
-    let others = MatchedMovie::new(&db, folders[1].path(), other_movie)
-        .await
-        .library;
-    let dark = ExternalId::tmdb(70523);
-    let dark_ids = ExternalIds::from_iter([dark.clone()]);
-    matched_episodes_file(&db, folders[2].path(), dark_ids, [10, 11]).await;
-    let libraries = Libraries::new(Arc::clone(&db)).list().await.unwrap();
-    let shows = libraries.iter().map(|library| library.id).max().unwrap();
-    let movies_own = [
-        Slot::movie(&imdb, Role::Poster),
-        Slot::movie(&ExternalId::tmdb(348), Role::Backdrop),
-        Slot::library(movies),
-    ];
-    let shows_own = [
-        Slot::show(&dark, Role::Poster),
-        Slot::show(&dark, Role::Backdrop),
-        Slot::season(&dark, 1),
-    ];
-    let neither = [
-        Slot::movie(&ExternalId::tmdb(1), Role::Poster),
-        Slot::library(others),
-        Slot::movie(&ExternalId::tmdb(999), Role::Poster),
-        Slot::season(&dark, 2),
-    ];
-    keep_without_bytes(&db, &[&movies_own[..], &shows_own, &neither].concat()).await;
-    let store = ImageStore::new(data.path(), Arc::clone(&db));
-    let custom_images = CustomImages::new(Arc::clone(&db), store);
-
-    let of_movies = custom_images.of_library(movies).await.unwrap();
-    let of_shows = custom_images.of_library(shows).await.unwrap();
-
-    let slots = |of: Vec<(Slot, String)>| {
-        let mut slots: Vec<String> = of.into_iter().map(|(slot, _)| slot.0).collect();
-        slots.sort();
-        slots
-    };
-    let sorted = |own: &[Slot]| {
-        let mut own: Vec<String> = own.iter().map(|slot| slot.0.clone()).collect();
-        own.sort();
-        own
-    };
-    assert_eq!(slots(of_movies), sorted(&movies_own));
-    assert_eq!(slots(of_shows), sorted(&shows_own));
 }

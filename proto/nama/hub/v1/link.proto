@@ -430,8 +430,10 @@ message WatchStateChange {
   int64 user_id = 1;
   // Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
   bool episode = 2;
-  // Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
-  // characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+  // Every External ID it is known by (ADR 0013), each written `namespace-value` (ADR 0042): a
+  // Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`.
+  // 1 to 20, each up to 100 characters. An Unmatched Item has none, so its Watch State never
+  // leaves its Server.
   repeated string ids = 3;
   // Whether it was played. Marking it unplayed leaves it unplayed at 0 of 0 milliseconds.
   bool played = 4;
@@ -472,8 +474,9 @@ message TrackPreferenceChange {
   bool audio = 2;
   // Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
   TitleKind title_kind = 3;
-  // The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
-  // User's own.
+  // The Movie's or Show's External ID, written `namespace-value` (ADR 0042): a Namespace of
+  // lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`. 1 to 100
+  // characters; empty for the User's own.
   string title_id = 4;
   // Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
   // nothing describes a Track.
@@ -512,7 +515,9 @@ message SyncWatchlistResponse {
 message WatchlistEntry {
   // A Movie or a Show, never unspecified.
   TitleKind kind = 1;
-  // The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+  // The External ID it was added under (ADR 0013), written `namespace-value` (ADR 0042): a
+  // Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-603`.
+  // 1 to 100 characters.
   string id = 2;
   // Whether it was taken off.
   bool removed = 3;

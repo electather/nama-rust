@@ -143,4 +143,38 @@ async fn a_preference_push_breaking_a_limit_is_refused(db: PgPool) {
         RefusalReason::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
     );
     assert_eq!(too_long.field, "changes[0].language");
+    let movie_without_a_namespace = TrackPreferenceChange {
+        title_id: "603".to_owned(),
+        ..alien_in(7, "eng", 1_000)
+    };
+    let refused = assert_refused(
+        push(
+            &hub,
+            &server,
+            vec![alien_in(7, "eng", 1_000), movie_without_a_namespace],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+    );
+    assert_eq!(refused.field, "changes[1].title_id");
+}
+
+// `sync` never sees a change turned off's language, so `api` refuses it.
+#[sqlx::test(migrations = false)]
+async fn a_preference_turned_off_with_a_long_language_is_refused(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let off = TrackPreferenceChange {
+        off: true,
+        ..alien_in(7, &"e".repeat(101), 1_000)
+    };
+
+    let too_long = assert_refused(
+        push(&hub, &server, vec![off]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+    );
+    assert_eq!(too_long.field, "changes[0].language");
 }

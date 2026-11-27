@@ -127,6 +127,42 @@ async fn a_passkey_added_by_a_fresh_session_signs_in_without_an_email_or_passwor
     assert_eq!(account.account.unwrap().email, "ada@example.com");
 }
 
+async fn session_works(hub: &TestHub, token: &str) -> bool {
+    signed_in(hub, token)
+        .get_account(GetAccountRequest::default())
+        .await
+        .is_ok()
+}
+
+#[sqlx::test(migrations = false)]
+async fn signing_in_with_a_passkey_ends_the_browsers_session_and_leaves_the_others(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let browser = create(&hub, "ada@example.com").await;
+    let mut passkey = Passkey::new();
+    add_passkey(&hub, &browser, &mut passkey, "Phone")
+        .await
+        .unwrap();
+    let other = sign_in_with(&hub, &passkey).await.unwrap();
+    let client = signed_in(&hub, &browser);
+
+    let started = client
+        .start_passkey_sign_in(StartPasskeySignInRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    let replacement = session_token(
+        client
+            .sign_in_with_passkey(passkey.signed(&started))
+            .await
+            .unwrap()
+            .headers(),
+    );
+
+    assert!(session_works(&hub, &replacement).await);
+    assert!(session_works(&hub, &other).await);
+    assert!(!session_works(&hub, &browser).await);
+}
+
 #[sqlx::test(migrations = false)]
 async fn one_client_is_handed_only_so_many_passkey_challenges(db: PgPool) {
     let hub = TestHub::start(db, None).await;

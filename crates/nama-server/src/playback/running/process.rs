@@ -1,4 +1,6 @@
-//! ffmpeg's process as a [`Run`].
+//! ffmpeg's process as a [`Run`], and what starts each run as one.
+
+use std::{path::Path, sync::Arc};
 
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
@@ -6,11 +8,31 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::run::{Outcome, Run};
+use super::run::{Converts, Outcome, Run, Runner};
+use crate::ffmpeg::{Ffmpeg, FromCut, Keyframe};
 
 /// How much of the end of ffmpeg's stderr a run keeps, in bytes: a run that fails over and over,
 /// such as on every frame, would otherwise hold all it wrote in memory.
 pub(super) const KEPT_STDERR: usize = 64 * 1024;
+
+/// Starts each run as `ffmpeg`'s process, with the arguments the ffmpeg area builds.
+pub(super) fn runner(ffmpeg: Arc<Ffmpeg>) -> Arc<Runner> {
+    Arc::new(
+        move |path: &str, converts: Converts<'_>, dir: &Path, from: Keyframe, stop| {
+            let command = match converts {
+                Converts::Remux {
+                    remux,
+                    file_start_ms,
+                } => ffmpeg.remux(path, remux, dir, from, file_start_ms)?,
+                Converts::Transcode { attempt, cuts } => {
+                    let cuts = cuts.get(from.n..).unwrap_or_default();
+                    ffmpeg.transcode(path, attempt, dir, FromCut { n: from.n, cuts })?
+                }
+            };
+            Ok(run(command.spawn()?, stop))
+        },
+    )
+}
 
 /// `child`, an ffmpeg started with its stderr piped and to be killed on drop, as a run, which
 /// kills it and waits for it to exit once `stop` is cancelled, and so stops it when dropped.

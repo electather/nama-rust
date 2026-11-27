@@ -32,8 +32,8 @@
 //! Library's scan lock, so Matching sees the items the scan stored. Then
 //! [`crate::playback::Probing`] is told its files changed, and probes them in the background
 //! without holding up the next scan. Last, the images no Match stores any more are deleted, and
-//! those the Library's Matches store and the store lacks are downloaded in the background (see
-//! [`crate::library::Artwork`]).
+//! those the Library's Matches store and the store lacks are downloaded in the background, and
+//! the images it shows copied ahead (see [`crate::library::CopiesAhead`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
@@ -68,8 +68,8 @@ use crate::{
     diagnostics,
     events::{EventBus, event},
     library::{
-        Artwork, Change, Contents, CustomImages, LastScan, Libraries, LibraryError, LibraryKind,
-        LocalImages, NotFound, Recognisers, ScanLock, ScanLocks,
+        Artwork, Change, Contents, CopiesAhead, CustomImages, LastScan, Libraries, LibraryError,
+        LibraryKind, LocalImages, NotFound, Recognisers, ScanLock, ScanLocks,
     },
     matching::{self, Matcher, Refreshed, count},
     playback::{Leftovers, Probing, RunningPlans, Sidecars},
@@ -168,8 +168,10 @@ struct Inner {
     recognisers: Recognisers,
     contents: Contents,
     sidecars: Sidecars,
-    /// Downloads the images Matches store, and deletes those none does.
+    /// Deletes the images no Match stores.
     artwork: Artwork,
+    /// Told once a scan's Matches are stored, to download their images and copy them ahead.
+    copies_ahead: CopiesAhead,
     /// Deletes a deleted Library's Custom Image.
     custom_images: CustomImages,
     /// Copies the images beside Movies' files, and deletes a deleted Library's copies.
@@ -219,7 +221,7 @@ impl Scanner {
     pub(crate) fn new(
         db: Arc<Database>,
         plugin_settings: PluginSettings,
-        artwork: Artwork,
+        copies_ahead: CopiesAhead,
         custom_images: CustomImages,
         local_images: LocalImages,
         events: EventBus,
@@ -236,11 +238,12 @@ impl Scanner {
                 matcher: Matcher::new(
                     Arc::clone(&db),
                     plugins.clone(),
-                    artwork.clone(),
+                    copies_ahead.clone(),
                     events.clone(),
                     locks.clone(),
                 ),
-                artwork,
+                artwork: copies_ahead.artwork().clone(),
+                copies_ahead,
                 custom_images,
                 local_images,
                 recognisers: Recognisers::new(plugins.clone(), RecogniserMethod::File),
@@ -451,7 +454,7 @@ impl Scanner {
         }
         let matched = self.inner.matcher.match_library(scan, &cancel).await?;
         // Before `MatchingFinished`, so a test that waits on it can wait out the artwork work too.
-        let _artwork = self.inner.artwork.working();
+        let _artwork = self.inner.copies_ahead.working();
         self.inner.events.publish(vec![event(MatchingFinished {
             library_id: id,
             matched: matched.matched,
@@ -478,7 +481,7 @@ impl Scanner {
         // Last, so no event of the scan waits on it.
         let contents = &self.inner.contents;
         self.inner.artwork.drop_unused(contents).await;
-        self.inner.artwork.download_missing(contents.clone(), id);
+        self.inner.copies_ahead.matches_changed(id);
         Ok(summary)
     }
 

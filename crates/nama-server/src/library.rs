@@ -1,8 +1,10 @@
 //! The Library area: what a Library holds, its title sources and Recognisers, artwork, Custom
-//! Images and Watch State. Its rules are in `src/library/AGENTS.md`.
+//! Images, the copies made ahead of the images it shows, and Watch State. Its rules are in
+//! `src/library/AGENTS.md`.
 
 mod artwork;
 mod contents;
+mod copies_ahead;
 mod country_tags;
 mod custom_images;
 mod folders;
@@ -32,6 +34,7 @@ pub(crate) use contents::{
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
+pub(crate) use copies_ahead::CopiesAhead;
 pub(crate) use country_tags::country_tag;
 pub(crate) use custom_images::{CustomImages, Role, Slot, router as custom_images_router};
 pub(crate) use folders::FolderProblem;
@@ -43,7 +46,7 @@ pub(crate) use libraries::{
 pub(crate) use local_images::{FoundImages, LocalImages, router as local_images_router};
 pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
-pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage};
+pub(crate) use shown_images::{Downloaded, ImageSources, ShownImage, ShownImages, TitleImage};
 pub(crate) use similar_sources::{
     Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar,
 };

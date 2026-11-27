@@ -12,7 +12,7 @@ use crate::{
     ffmpeg::Ffmpeg,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, CustomImages, Decided, File, Item, Libraries, LibraryError,
+        Change, Contents, CopiesAhead, CustomImages, Decided, File, Item, Libraries, LibraryError,
         LibraryKind, LocalImages, Order, TitleTarget,
         fixture::{decide, tmdb_movie},
     },
@@ -90,7 +90,7 @@ impl Fixture {
             scanner: Scanner::new(
                 Arc::clone(&db),
                 PluginSettings::for_tests(Arc::clone(&db), plugins),
-                Artwork::new(images.clone(), ExtensionPoints::default()),
+                CopiesAhead::for_tests(&db, images.clone(), ExtensionPoints::default()),
                 CustomImages::new(Arc::clone(&db), images.clone()),
                 LocalImages::new(Arc::clone(&db), images),
                 events.clone(),

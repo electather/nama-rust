@@ -17,6 +17,7 @@
 //! Versions, files a scan stored for a Library and Matched, are served, by id, so a client can
 //! never name a path. The subtitles a plan offers are served beside it ([`subtitles`]).
 
+mod access;
 mod autoplay;
 mod choices;
 mod codecs;
@@ -40,8 +41,9 @@ mod track_preferences;
 mod tracks;
 mod transcode_downloads;
 
+pub(crate) use access::{PlaybackAccess, require_lease, viewer_of_caller};
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
-pub(crate) use direct_play::{router, seen_versions_only, viewer_of_caller};
+pub(crate) use direct_play::router;
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
 pub(crate) use limits::{NAMED_LIMITS, limit_to_proto};
 pub(crate) use made_from_files::{Leftovers, ProbePasses, WholeFileReads};
@@ -79,6 +81,7 @@ use proto::PlaybackReasonKind as Kind;
 use crate::{
     ffmpeg::{Accel, CanDo, Remux, Transcode},
     server_settings::{HardwareChoice, PlaybackLimit},
+    signed_urls::Viewer,
 };
 
 use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles};
@@ -242,6 +245,8 @@ pub(crate) struct StartedPlan {
     pub(crate) id: u64,
     /// Where to play it from, on this Server.
     pub(crate) url: String,
+    /// Who it plays for, whom a URL signed for it acts as.
+    pub(crate) viewer: Viewer,
     pub(crate) plan: Plan,
 }
 

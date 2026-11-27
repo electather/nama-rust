@@ -11,4 +11,4 @@ Adding a Show to a Watchlist on the Server follows it, for a User who may Reques
 ## Consequences
 
 - Only `AddToWatchlist` on the Server follows. A Show added on the Hub and synced to the Server is on the Watchlist without being followed.
-- The Fulfiller is asked to follow only by a hand-off. A Show watchlisted with no Season asked for through it, or whose Seasons were handed off before it was followed, gets no new Seasons until a Fulfiller call asks to follow without a hand-off.
+- A hand-off alone asked the Fulfiller to follow, so a Show watchlisted with no Season asked for through it, or whose Seasons were handed off before it was followed, got no new Seasons. `Fulfiller::follow` closes the gap (#2485): the Kernel asks the Shows Fulfiller to follow each time a Followed Show becomes Approved, with or without a hand-off.

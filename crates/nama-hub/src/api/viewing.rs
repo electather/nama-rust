@@ -1,16 +1,21 @@
-//! Viewing Events and pooling: `nama.hub.v1.ViewingEventService` for a signed-in Account, and the
-//! conversions `LinkedServerService.RecordViewingEvents` uses.
+//! Viewing Events and pooling: `nama.hub.v1.ViewingEventService` for a signed-in Account, and
+//! `LinkedServerService.RecordViewingEvents` with the conversions and refusals it uses.
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     self as proto, DeleteViewingEventRequest, DeleteViewingEventResponse,
     DeviceKind as ProtoDevice, GetPoolingRequest, GetPoolingResponse, ListViewingEventsRequest,
-    ListViewingEventsResponse, RefusalReason, SetPoolingRequest, SetPoolingResponse,
-    ViewingEventService,
+    ListViewingEventsResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    RefusalReason, SetPoolingRequest, SetPoolingResponse, ViewingEventService,
 };
 
-use super::{accounts::session, hub_failed, refuse};
+use super::{
+    accounts::session,
+    hub_failed,
+    links::{LinkedServerServiceHandler, linked_server},
+    refuse,
+};
 use crate::viewing::{
     self, DeviceKind, Kind, ListedViewingEvent, MAX_RECORDED, UserViewingEvent, Viewing,
     ViewingEvent, ViewingEventId,
@@ -85,8 +90,21 @@ impl ViewingEventService for ViewingEventServiceHandler {
     }
 }
 
+pub(super) async fn record_viewing_events(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: RecordViewingEventsRequest,
+) -> ServiceResult<RecordViewingEventsResponse> {
+    let server = linked_server(ctx)?;
+    let events = recorded_from_proto(request.events)?;
+    (handler.viewing.record(&handler.links, server, events))
+        .await
+        .map_err(|err| refused(&err))?;
+    Response::ok(RecordViewingEventsResponse::default())
+}
+
 /// The Viewing Events a Linked Server sent, or the refusal for one it can't have meant.
-pub(super) fn recorded_from_proto(
+fn recorded_from_proto(
     events: Vec<proto::UserViewingEvent>,
 ) -> Result<Vec<UserViewingEvent>, ConnectError> {
     events
@@ -151,7 +169,7 @@ fn event_to_proto(listed: ListedViewingEvent) -> proto::ViewingEvent {
 }
 
 /// The Connect error a Linked Server gets for Viewing Events that couldn't be recorded.
-pub(super) fn refused(err: &viewing::Error) -> ConnectError {
+fn refused(err: &viewing::Error) -> ConnectError {
     match err {
         viewing::Error::TooMany | viewing::Error::Invalid => refuse(
             RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,

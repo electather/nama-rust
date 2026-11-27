@@ -82,11 +82,11 @@ pub mod services {
 /// is matched against. `AGENTS.md` says when one changes.
 pub const SERVICES: &[(&str, &str)] = &[
     (services::MOVIE_FULFILLER, "1.1.0"),
-    (services::SHOW_FULFILLER, "1.1.0"),
+    (services::SHOW_FULFILLER, "1.2.0"),
     (services::NOTIFIER, "1.3.0"),
     (services::CONNECTOR, "1.0.0"),
     (services::EVENT_OBSERVER, "1.0.0"),
-    (services::TITLE_SOURCE, "1.10.0"),
+    (services::TITLE_SOURCE, "1.11.0"),
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
     (services::HOME_ROW, "1.6.0"),

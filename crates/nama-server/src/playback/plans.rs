@@ -8,16 +8,17 @@ use nama_proto::nama::v1::{AudioCodec, Container, VideoCodec};
 use super::{
     AskedAudio, Description, DeviceDecoding, Facts, Method, Network, PickedLimit, Plan, Planned,
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
-    TrackKind, TrackPreferenceError, TrackPreferences, audio_asked, build,
+    TrackKind, TrackPreferenceError, TrackPreferences,
+    access::{sees_version, viewer_of_caller},
+    audio_asked, build,
     codecs::is_audio,
-    direct_play::{sees_version, viewer_of_caller},
     on_local_network, playable_versions,
     probing::{self, ProbeError},
     subtitle_offsets, too_busy_to_play,
     tracks::segments_of,
 };
 use crate::{
-    db::{Database, detached},
+    db::Database,
     diagnostics::{self, Usage},
     ffmpeg::{Abilities, RunError},
     server_settings::{PlaybackLimit, PlaybackSettings},
@@ -389,9 +390,10 @@ impl Plans {
                 playable_versions,
             }));
         }
-        let (running, caller) = (self.running.clone(), caller.clone());
-        // A Device giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).
-        let started = detached(async move { running.start(&caller, plan, start_ms).await }).await?;
+        let started = self
+            .running
+            .start(viewer_of_caller(caller), plan, start_ms)
+            .await?;
         Ok(started.map(Planned::Started))
     }
 

@@ -201,10 +201,13 @@ impl TestServer {
     }
 
     /// Waits until the artwork work a scan, Matching or a correction began is done: the sweep of
-    /// unused images and every download after it, which run on after `MatchingFinished`. Waits
-    /// for the process's, as `Artwork::settled` does, which under nextest is this test's Server's.
+    /// unused images and every download and copy ahead after it, which run on after
+    /// `MatchingFinished`, and the copies ahead a Custom Image's upload or removal began. Waits for
+    /// the process's, as `Artwork::settled` does, which under nextest is this test's Server's.
     pub(crate) async fn artwork_settled(&self) {
-        let settled = tokio::time::timeout(WAIT, nama_server::Artwork::settled()).await;
+        // Longer than `WAIT`: each copy ahead is a resize, a second or more in a debug build.
+        let settling = Duration::from_secs(120);
+        let settled = tokio::time::timeout(settling, nama_server::Artwork::settled()).await;
         assert!(settled.is_ok(), "artwork work never settled");
     }
 

@@ -46,10 +46,10 @@ use crate::{
     dns::ServerNames,
     links::{LinkedServer, Links},
     mail::Mail,
-    probe::Probe,
+    probe::{Probe, Tcp},
     recommendations::Recommendations,
     signing::Keys,
-    sync::{TrackPreferences, WatchStates, Watchlists},
+    sync::{self, Part, TrackPreferences, WatchStates, Watchlists},
     viewing::Viewing,
 };
 
@@ -59,27 +59,63 @@ use self::{
     viewing::ViewingEventServiceHandler,
 };
 
-/// The Hub's routes: every service, each call in a span of its own, knowing where it came from
-/// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, the
-/// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
-/// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
-/// through `mail`, if it is set up, and Linked Servers are named through `names`, if it is.
-/// Passkeys are for the Hub at `public_url`, and public ports are tried through `probe`.
+/// What the Hub is built from besides its database. Each handle but the keys is off unless set.
 #[expect(
-    clippy::too_many_arguments,
-    reason = "each is a separate handle the Hub is built from, as `serve`'s are"
+    missing_debug_implementations,
+    reason = "nothing prints it, and its fakes and keys needn't implement Debug"
 )]
-pub(crate) fn router(
-    db: PgPool,
-    keys: Arc<Keys>,
-    trusted_proxies: &[IpRange],
-    mail: Option<Mail>,
-    names: Option<ServerNames>,
-    diagnostics: Option<Arc<dyn Backend>>,
-    public_url: Option<&Url>,
-    probe: Arc<dyn Probe>,
-) -> axum::Router {
-    let accounts = Accounts::new(db.clone(), mail, public_url);
+pub struct Handles {
+    /// The keys Linked Servers' tokens are signed with, whose public half is at
+    /// `/.well-known/jwks.json`. Without them the Hub doesn't start.
+    pub keys: Keys,
+    /// The peers whose forwarded headers are believed (ADR 0018). Without any, none is, and a
+    /// client is the peer itself.
+    pub trusted_proxies: Vec<IpRange>,
+    /// Where Sign-in Links are emailed through. Without it they aren't offered.
+    pub mail: Option<Mail>,
+    /// The zone Linked Servers are named in, and its DNS provider (ADR 0104). Without it they
+    /// aren't named.
+    pub names: Option<ServerNames>,
+    /// Where what Linked Servers share goes. Without it it is dropped.
+    pub diagnostics: Option<Arc<dyn Backend>>,
+    /// The address clients reach the Hub at, which passkeys are for. Without it they aren't
+    /// offered.
+    pub public_url: Option<Url>,
+    /// How a Linked Server's public port is tried: [`Tcp`] unless a test says otherwise.
+    pub probe: Arc<dyn Probe>,
+}
+
+impl Handles {
+    /// Handles signing with `keys`, with every other one off.
+    #[must_use]
+    pub fn new(keys: Keys) -> Self {
+        Self {
+            keys,
+            trusted_proxies: Vec::new(),
+            mail: None,
+            names: None,
+            diagnostics: None,
+            public_url: None,
+            probe: Arc::new(Tcp),
+        }
+    }
+}
+
+/// The Hub's routes: every service, each call in a span of its own, knowing where it came from and
+/// which Account or Linked Server, if any, sent it, with OTLP/HTTP's `/otlp/v1/traces` and
+/// `/otlp/v1/logs` taking what Linked Servers share. `handles` says what the rest is built from.
+pub(crate) fn router(db: PgPool, handles: Handles) -> axum::Router {
+    let Handles {
+        keys,
+        trusted_proxies,
+        mail,
+        names,
+        diagnostics,
+        public_url,
+        probe,
+    } = handles;
+    let keys = Arc::new(keys);
+    let accounts = Accounts::new(db.clone(), mail, public_url.as_ref());
     let links = Links::new(
         db.clone(),
         accounts.clone(),
@@ -112,7 +148,7 @@ pub(crate) fn router(
             identify_caller,
         ))
         .layer(middleware::from_fn_with_state(
-            Arc::from(trusted_proxies),
+            Arc::<[IpRange]>::from(trusted_proxies),
             identify_source,
         ))
         .layer(middleware::from_fn(trace_call))
@@ -452,6 +488,32 @@ fn recent_authentication_required(err: &RecentAuthenticationRequired) -> Refused
         err.to_string(),
     )
     .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
+}
+
+/// The error a Linked Server gets for a push or Watchlist `sync` couldn't merge: `invalid`'s
+/// refusal at the change or entry in the request's `list` that broke a limit, or at `list` for
+/// one that holds too many.
+fn sync_refused(
+    err: &sync::Error,
+    list: &str,
+    invalid: impl Fn(&str, String) -> ConnectError,
+) -> ConnectError {
+    match err {
+        sync::Error::TooManyChanges | sync::Error::TooManyEntries => invalid(list, err.to_string()),
+        sync::Error::Invalid { nth, part } => {
+            let field = match part {
+                Part::Ids => "ids",
+                Part::Position => "position_ms",
+                Part::TitleId => "title_id",
+                Part::Language => "language",
+                Part::Title => "title",
+                Part::EntryId => "id",
+                Part::ChangedAt | Part::EntryChangedAt => "changed_at_ms",
+            };
+            invalid(&format!("{list}[{nth}].{field}"), err.to_string())
+        }
+        sync::Error::Database(_) => hub_failed(err),
+    }
 }
 
 /// The error a client gets for a failure on the Hub's side: logged, not sent, since it says

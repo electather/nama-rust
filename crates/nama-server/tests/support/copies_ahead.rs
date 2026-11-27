@@ -1,26 +1,13 @@
-//! Finding and waiting for the copies the Server makes of an image ahead of a request, at the
-//! widths it offers that image at.
+//! Finding the copies the Server makes of an image ahead of a request, at the widths it offers
+//! that image at, which a test looks for once the Server's background work is done
+//! (`TestServer::artwork_settled`).
 
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::path::PathBuf;
 
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerServiceClient};
 
 use super::browsing::Fixture;
-
-/// Waits until a file is at `path`, failing the test after 60 seconds.
-pub(crate) async fn until_exists(path: &Path) {
-    let made = tokio::time::timeout(Duration::from_secs(60), async {
-        while !path.exists() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(made.is_ok(), "{} was never made", path.display());
-}
 
 #[expect(
     clippy::unwrap_used,

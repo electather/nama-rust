@@ -3,11 +3,9 @@
 //! session: an image's for its one path, a playback URL's for every path under one Version and the
 //! plan playing it, so an HLS playlist's relative segment URLs and a Version's Preview frames load
 //! under the same `/media/signed/<grant>/<signature>/` prefix as the URL handed out. A player
-//! fetches under that prefix for as long as it plays, so a playback URL past its few minutes
-//! still loads while its plan runs for its Device, and stops once the plan does, or at once when
-//! its Device stops acting as the User it was signed for (ADR 0106).
-
-use std::sync::Arc;
+//! fetches under that prefix for as long as it plays, so whether a playback URL still loads, past
+//! its few minutes while its plan runs and only while its Device acts as its User (ADR 0106), is
+//! Playback access's to judge; this module only checks what the Server signed.
 
 use axum::{
     extract::{Request, State},
@@ -16,7 +14,6 @@ use axum::{
     response::Response,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use futures_util::future::BoxFuture;
 use ring::{hmac, rand::SystemRandom};
 
 use crate::db::now;
@@ -41,20 +38,12 @@ pub(crate) struct UrlSigner {
     key: hmac::Key,
 }
 
-/// Whether the plan `id` runs for the Device `device`, which keeps a playback URL for it loading
-/// past its expiry.
-pub(crate) type PlanRuns = Arc<dyn Fn(u64, i64) -> bool + Send + Sync>;
-
-/// Whether the Viewer's Device still acts as its User, without which a playback URL signed for
-/// them loads nothing.
-pub(crate) type StillActing = Arc<dyn Fn(Viewer) -> BoxFuture<'static, bool> + Send + Sync>;
-
 /// Marks a request [`admit`] let through by its URL's signature, which the access layer takes in
 /// place of a session.
 #[derive(Clone, Copy)]
 pub(crate) struct SignedUrl;
 
-/// The User and Device a request for a signed playback URL acts as, which [`admit`] adds to it,
+/// The User and Device a request for media acts as, from its session or its signed playback URL,
 /// since a plan belongs to its User and Device and a User's Library access and cap apply to what
 /// it plays.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -75,6 +64,14 @@ pub(crate) struct PlaybackGrant {
     pub(crate) version: i64,
     /// The plan, by the id the API gives it, 0 being none.
     pub(crate) plan: u64,
+}
+
+/// A signed playback URL's grant and when it expires, which [`admit`] adds to its request unjudged.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SignedGrant {
+    pub(crate) grant: PlaybackGrant,
+    /// When its few minutes end, by `db::now`.
+    pub(crate) expires: i64,
 }
 
 impl PlaybackGrant {
@@ -163,18 +160,18 @@ impl UrlSigner {
         format!("{SIGNED}{token}/{signature}/{rest}")
     }
 
-    /// The path `signed` was signed for, and the Viewer it acts as if it is a playback URL, if this
-    /// signer signed it for that path and it hasn't expired, or, for a playback URL, its plan still
-    /// runs for its Device as `plan_runs` says.
-    fn verify(&self, signed: &str, plan_runs: &PlanRuns) -> Option<(String, Option<Viewer>)> {
+    /// The path `signed` was signed for, and its grant if it is a playback URL, if this signer
+    /// signed it for that path and, for an image's, it hasn't expired. A playback URL's expiry is
+    /// Playback access's to judge.
+    fn verify(&self, signed: &str) -> Option<(String, Option<SignedGrant>)> {
         let (token, rest) = signed.strip_prefix(SIGNED)?.split_once('/')?;
         let (signature, rest) = rest.split_once('/')?;
         let path = format!("{MEDIA}{rest}");
         let signature = URL_SAFE_NO_PAD.decode(signature).ok()?;
         if let Some((expires, grant)) = PlaybackGrant::parse(token) {
             hmac::verify(&self.key, &playback_message(token), &signature).ok()?;
-            let plays = grant.plan != 0 && plan_runs(grant.plan, grant.viewer.device);
-            (grant.covers(rest) && (now() < expires || plays)).then_some((path, Some(grant.viewer)))
+            let admitted = SignedGrant { grant, expires };
+            grant.covers(rest).then_some((path, Some(admitted)))
         } else {
             hmac::verify(&self.key, &image_message(token, &path), &signature).ok()?;
             (now() < token.parse::<i64>().ok()?).then_some((path, None))
@@ -221,31 +218,23 @@ fn playback_message(token: &str) -> Vec<u8> {
     format!("playback {token}").into_bytes()
 }
 
-/// Lets a request for a URL `signer` signed, before it expires or, for a playback URL, while its
-/// plan runs as `plan_runs` says, through as a request for the path it was signed for, marked
-/// [`SignedUrl`], and with its [`Viewer`] if it is a playback URL whose Device still acts as its
-/// User, as `still_acting` says. Any other request goes on as it came, so a bad or expired
-/// signature reaches the access layer with no session. Must run before routing, which reads the
-/// rewritten path.
+/// Lets a request for a URL `signer` signed through as a request for the path it was signed for,
+/// marked [`SignedUrl`], with its [`SignedGrant`] if it is a playback URL, an image's only before it
+/// expires. Any other request goes on as it came, so a bad signature reaches the access layer with
+/// no session. Must run before routing, which reads the rewritten path.
 pub(crate) async fn admit(
-    State((signer, plan_runs, still_acting)): State<(UrlSigner, PlanRuns, StillActing)>,
+    State(signer): State<UrlSigner>,
     mut request: Request,
     next: Next,
 ) -> Response {
-    let unsigned = signer.verify(request.uri().path(), &plan_runs);
-    if let Some((path, viewer)) = unsigned
+    let unsigned = signer.verify(request.uri().path());
+    if let Some((path, grant)) = unsigned
         && let Some(uri) = with_path(request.uri(), &path)
-        // Asked even while its plan runs, which keeps the URL alive past its expiry, since a plan
-        // belongs to its User and a Device that switched away can't keep playing it (ADR 0106).
-        && match viewer {
-            Some(viewer) => still_acting(viewer).await,
-            None => true,
-        }
     {
         *request.uri_mut() = uri;
         request.extensions_mut().insert(SignedUrl);
-        if let Some(viewer) = viewer {
-            request.extensions_mut().insert(viewer);
+        if let Some(grant) = grant {
+            request.extensions_mut().insert(grant);
         }
     }
     next.run(request).await

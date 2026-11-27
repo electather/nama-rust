@@ -360,6 +360,17 @@ async fn an_invalid_event_even_of_a_user_who_isnt_linked_records_none_of_its_bat
     );
 
     assert_eq!(refused.field, "events");
+    let without_a_namespace = assert_refused(
+        record(
+            &hub,
+            &server,
+            vec![played(7, "a", "tmdb-603"), played(9, "b", "603")],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+    );
+    assert_eq!(without_a_namespace.field, "events");
     assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
 }
 
@@ -368,12 +379,16 @@ async fn an_episode_without_its_show_is_refused(db: PgPool) {
     let (hub, _inbox, ada, server) = ada_watching(db).await;
     let mut episode = played_episode(7, "a");
     episode.event.modify(|event| event.show_external_id.clear());
+    let mut show_without_a_namespace = played_episode(7, "b");
+    (show_without_a_namespace.event).modify(|event| "603".clone_into(&mut event.show_external_id));
 
-    assert_refused(
-        record(&hub, &server, vec![episode]).await,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
-    );
+    for event in [episode, show_without_a_namespace] {
+        assert_refused(
+            record(&hub, &server, vec![event]).await,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+        );
+    }
     assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
 }
 

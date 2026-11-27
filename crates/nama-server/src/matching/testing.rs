@@ -21,7 +21,7 @@ use crate::{
     events::EventBus,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, File, FileItem, Item, Libraries, LibraryKind, LibraryShow,
+        Change, Contents, CopiesAhead, File, FileItem, Item, Libraries, LibraryKind, LibraryShow,
         Recognisers, Recorded, ScanLocks, UnmatchedReason,
     },
     page::Page,
@@ -179,9 +179,9 @@ impl Fixture {
         let images = ImageStore::new(data.path(), Arc::clone(&db));
         let locks = ScanLocks::for_tests();
         let matcher = Matcher::new(
-            db,
+            Arc::clone(&db),
             plugins.extension_points(),
-            Artwork::new(images, plugins.extension_points()),
+            CopiesAhead::for_tests(&db, images, plugins.extension_points()),
             events.clone(),
             locks.clone(),
         );

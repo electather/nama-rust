@@ -15,8 +15,8 @@
 use std::collections::HashMap;
 
 pub use nama_plugin_proto::nama::plugin::v1::{
-    Download, DownloadStatus, EpisodeNumber, EpisodeNumbers, Fulfilled, MovieDeleted, Request,
-    ShowDeleted, StopMonitoring, TitleId, show_deleted, stop_monitoring,
+    Download, DownloadStatus, EpisodeNumber, EpisodeNumbers, FollowShow, Fulfilled, MovieDeleted,
+    Request, ShowDeleted, StopMonitoring, TitleId, show_deleted, stop_monitoring,
 };
 
 use crate::{BoxFuture, PluginError};
@@ -47,6 +47,7 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     /// A Season Request naming a Followed Show in `followed_show_id` also asks it to follow the
     /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`]. The
     /// Kernel names one only while it is Approved, so a single-Season ask never asks to follow.
+    /// It also asks [`Fulfiller::follow`] as the Followed Show becomes Approved.
     ///
     /// # Errors
     ///
@@ -59,8 +60,24 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     fn fulfill<'a>(&'a self, request: &'a Request)
     -> BoxFuture<'a, Result<Fulfilled, PluginError>>;
 
-    /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
-    /// Followed Show ended. A Fulfiller that never follows, such as one for Movies, leaves it be.
+    /// Follows `show`, whose Followed Show became Approved: has the service fetch the Seasons that
+    /// come out from now on, but none already out, adding the Show at `show`'s quality profile if
+    /// the service lacks it. A hand-off naming the Followed Show asks to follow too, so following
+    /// must be idempotent. A Fulfiller that never follows, such as one for Movies, leaves it be.
+    ///
+    /// # Errors
+    ///
+    /// [`TryAgainIn`] when the service can't be told yet: ask again after that long. Otherwise
+    /// when the service couldn't be told. The Kernel only logs it.
+    ///
+    /// [`TryAgainIn`]: crate::TryAgainIn
+    fn follow<'a>(&'a self, _show: &'a FollowShow) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// Stops following the Show `request` is a Season of, as a hand-off or [`Fulfiller::follow`]
+    /// asked it to, since its Followed Show ended. A Fulfiller that never follows, such as one for
+    /// Movies, leaves it be.
     ///
     /// # Errors
     ///

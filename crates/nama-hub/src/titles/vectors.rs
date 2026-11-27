@@ -2,7 +2,7 @@
 //! hashed into a sparse vector, which pgvector searches for the titles most like one.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     hash::{DefaultHasher, Hash, Hasher as _},
 };
 
@@ -58,10 +58,10 @@ pub struct SimilarTitle {
 /// (ADR 0093).
 #[derive(Debug, PartialEq, Eq)]
 pub struct PooledCount {
-    /// One Movie's External ID as Servers send it, such as `tmdb-603`.
-    pub a: String,
+    /// One Movie's External ID.
+    pub a: ExternalId,
     /// The other's, or `a` again.
-    pub b: String,
+    pub b: ExternalId,
     /// How many Accounts finished both.
     pub accounts: i64,
 }
@@ -149,20 +149,11 @@ pub async fn train(db: &PgPool, pooled: &[PooledCount]) -> Result<usize, sqlx::E
 async fn movies_of(
     tx: &mut PgConnection,
     pooled: &[PooledCount],
-) -> Result<HashMap<String, Trained>, sqlx::Error> {
-    // Servers name a title `namespace-value`, as `title_ids` splits it.
-    let named: HashMap<&str, ExternalId> = (pooled.iter())
-        .flat_map(|count| [count.a.as_str(), count.b.as_str()])
-        .filter_map(|id| {
-            let (namespace, value) = id.split_once('-')?;
-            let external_id = ExternalId {
-                namespace: namespace.to_owned(),
-                value: value.to_owned(),
-            };
-            Some((id, external_id))
-        })
+) -> Result<HashMap<ExternalId, Trained>, sqlx::Error> {
+    let named: HashSet<&ExternalId> = (pooled.iter())
+        .flat_map(|count| [&count.a, &count.b])
         .collect();
-    let (namespaces, values): (Vec<&str>, Vec<&str>) = (named.values())
+    let (namespaces, values): (Vec<&str>, Vec<&str>) = (named.iter())
         .map(|id| (id.namespace.as_str(), id.value.as_str()))
         .unzip();
     let movies = sqlx::query!(
@@ -190,12 +181,12 @@ async fn movies_of(
         })
         .collect();
     Ok((named.into_iter())
-        .map(|(id, external_id)| {
-            let movie = match in_wikidata.get(&external_id) {
+        .map(|id| {
+            let movie = match in_wikidata.get(id) {
                 Some(&title) => Trained::Wikidata(title),
-                None => Trained::Lacking(external_id),
+                None => Trained::Lacking(id.clone()),
             };
-            (id.to_owned(), movie)
+            (id.clone(), movie)
         })
         .collect())
 }
@@ -208,7 +199,7 @@ async fn movies_of(
 /// for it; count Accounts per title rather than per External ID if that ever skews it.
 fn behaviours(
     pooled: &[PooledCount],
-    movies: &HashMap<String, Trained>,
+    movies: &HashMap<ExternalId, Trained>,
 ) -> HashMap<Trained, Behaviour> {
     let mut alone: HashMap<&Trained, i64> = HashMap::new();
     let mut pairs: HashMap<(&Trained, &Trained), i64> = HashMap::new();

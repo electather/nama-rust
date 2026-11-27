@@ -84,10 +84,10 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     library::{
-        Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, METADATA_VERSION,
-        Metadata, Name, Named, NfoHints, NotFound, Picked, Pin, Recognisers, ScanLock, ScanLocks,
-        SimilarSources, Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources,
-        Titles, Unanswered, UnmatchedReason, known_as,
+        Artwork, Contents, CopiesAhead, Decided, Decisions, Item, Libraries, LibraryError,
+        METADATA_VERSION, Metadata, Name, Named, NfoHints, NotFound, Picked, Pin, Recognisers,
+        ScanLock, ScanLocks, SimilarSources, Source, SourceEpisode, SourceSeason, SourceShow,
+        TitleKind, TitleSources, Titles, Unanswered, UnmatchedReason, known_as,
     },
     plugins::ExtensionPoints,
 };
@@ -143,8 +143,10 @@ pub(crate) struct Matcher {
     recognisers: Recognisers,
     /// Asks which titles are like each one Matched.
     similar: SimilarSources,
-    /// Picks a Match's artwork, and downloads the images of the Matches set by hand.
+    /// Picks a Match's artwork, and deletes the images no Match stores after a Match set by hand.
     artwork: Artwork,
+    /// Told once a Match set by hand is stored, to download its images and copy them ahead.
+    copies_ahead: CopiesAhead,
     events: EventBus,
     locks: ScanLocks,
 }
@@ -315,7 +317,7 @@ impl Matcher {
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
-        artwork: Artwork,
+        copies_ahead: CopiesAhead,
         events: EventBus,
         locks: ScanLocks,
     ) -> Self {
@@ -325,7 +327,8 @@ impl Matcher {
             contents: Contents::new(db),
             similar: SimilarSources::new(plugins.clone()),
             metadata: TitleSources::new(plugins),
-            artwork,
+            artwork: copies_ahead.artwork().clone(),
+            copies_ahead,
             events,
             locks,
         }
@@ -730,11 +733,10 @@ impl Matcher {
                 .ok_or(gone)?;
             happened.extend(made_available);
             // Before the events, so a test that waits on them can wait out the artwork work too.
-            let _artwork = this.artwork.working();
+            let _artwork = this.copies_ahead.working();
             this.events.publish(happened);
             this.artwork.drop_unused(&this.contents).await;
-            this.artwork
-                .download_missing(this.contents.clone(), library);
+            this.copies_ahead.matches_changed(library);
             Ok::<_, ManualError>(())
         })
         .await?;

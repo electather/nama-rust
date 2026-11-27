@@ -2,24 +2,23 @@
 //! data directory (ADR 0037).
 //!
 //! Only [`ImageStore`] reads or writes them (`AGENTS.md`). A key names an image by a few parts,
-//! each escaped to one file name, so no key reaches outside the store. Resized copies are kept
-//! apart, in a `resized` folder, and can be deleted at any time (ADR 0039). An image's thumbhash is
-//! kept in the database once it has been resized.
+//! each escaped to one file name, so no key reaches outside the store. Their resized copies and
+//! thumbhashes are the resized cache's (`resized_cache.rs`).
 
 mod blobs;
 mod local_disk;
 mod plugin_logos;
 mod resized;
+mod resized_cache;
 mod serving;
 mod switch;
+#[cfg(test)]
+mod testing;
 
 use std::{
     io::{self, Write as _},
     path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex, PoisonError, RwLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex, PoisonError, RwLock},
 };
 
 use axum::{body::Body, http::StatusCode};
@@ -34,7 +33,7 @@ use tokio::io::AsyncWriteExt as _;
 pub(crate) use blobs::{Blobs, MAX_BYTES};
 use local_disk::LocalDisk;
 pub(crate) use plugin_logos::{PluginLogos, router as plugin_logos_router};
-use resized::{Copied, Format, ResizeThread};
+use resized_cache::ResizedCache;
 pub(crate) use switch::{Persist, SwitchRefused, Switching};
 
 use crate::{db::Database, server_settings::ImageSettings};
@@ -102,9 +101,6 @@ pub(crate) const ORIGINAL_DIRS: &[&str] = &[
     PREVIEW_FRAMES_DIR,
 ];
 
-/// The folder in the data directory resized copies are kept in (`AGENTS.md`).
-const RESIZED_DIR: &str = "resized";
-
 /// The folder in the data directory uploads are written to as they arrive. No image key starts
 /// with it, and it is on the data directory's filesystem, so `LocalDisk` can rename one into place.
 const UPLOADS_DIR: &str = "uploads";
@@ -160,21 +156,12 @@ pub enum UploadError {
 pub struct ImageStore {
     dir: PathBuf,
     db: Arc<Database>,
-    resizer: ResizeThread,
+    cache: ResizedCache,
     /// The store the originals are kept in, or while a switch runs one that mirrors writes into
     /// the next (`switch.rs`).
     store: Arc<RwLock<Arc<dyn Blobs>>>,
     /// The running or last failed switch to another store.
     switching: Arc<Mutex<Option<Switching>>>,
-    /// Held from fetching an original to resize until its copy is made, so one original at a time
-    /// is held in memory for it, and a request that waited behind the one making its copy finds
-    /// it rather than fetching the original again. It holds the bytes the resized copies take, as
-    /// measured last, or `None` until a copy made ahead first needs it.
-    resizing: Arc<tokio::sync::Mutex<Option<u64>>>,
-    /// Set once copies are deleted, so the next copy made ahead measures the cache again rather
-    /// than skip for bytes no longer there. Apart from `resizing`, so a delete never waits on a
-    /// resize.
-    copies_deleted: Arc<AtomicBool>,
     /// A permit is held by each original read whole, until it is sent or resized, so at most
     /// [`WHOLE_READS`] originals are in memory at once on a small device (ADR 0039, ADR 0052).
     // ponytail: a client that stops reading holds its permit with no timeout, so a few stalled
@@ -195,9 +182,10 @@ pub struct Resize {
 }
 
 impl Resize {
-    /// A copy at each of `widths`, all on [`WIDTHS`], or none while `images` has resizing off.
-    pub(crate) fn each(widths: &[u32], images: &ImageSettings) -> Vec<Self> {
-        let Some(cache_limit) = images.resizing() else {
+    /// A copy at each of `widths`, all on [`WIDTHS`], in a cache of `cache_limit` bytes, or none
+    /// while resizing is off, as `ImageSettings::resizing` says.
+    pub(crate) fn each(widths: &[u32], cache_limit: Option<u64>) -> Vec<Self> {
+        let Some(cache_limit) = cache_limit else {
             return Vec::new();
         };
         (widths.iter())
@@ -250,11 +238,9 @@ impl ImageStore {
         Self {
             dir: data_dir.to_owned(),
             db,
-            resizer: ResizeThread::start(),
+            cache: ResizedCache::start(),
             store: Arc::new(RwLock::new(store)),
             switching: Arc::default(),
-            resizing: Arc::default(),
-            copies_deleted: Arc::default(),
             reading: Arc::new(tokio::sync::Semaphore::new(WHOLE_READS)),
             writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
@@ -275,6 +261,16 @@ impl ImageStore {
             hash.wrapping_mul(31).wrapping_add(usize::from(byte))
         });
         &self.writing[hash % WRITE_LOCKS]
+    }
+
+    /// A permit of `reading`, held while an original is in memory whole; waits while
+    /// [`WHOLE_READS`] are held.
+    async fn whole_read(&self) -> io::Result<tokio::sync::OwnedSemaphorePermit> {
+        // `reading` is never closed, so this never fails.
+        Arc::clone(&self.reading)
+            .acquire_owned()
+            .await
+            .map_err(io::Error::other)
     }
 
     /// Stores `bytes` as the image at `key`, so no reader ever sees part of it, keeping an image
@@ -367,50 +363,6 @@ impl ImageStore {
         self.blobs().exists(&row_key(key)).await
     }
 
-    async fn keep_thumbhash(&self, key: &[&str], thumbhash: Vec<u8>) -> sqlx::Result<()> {
-        let key = row_key(key);
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "INSERT INTO image_thumbhashes (key, thumbhash) VALUES (?, ?)
-                         ON CONFLICT (key) DO UPDATE SET thumbhash = excluded.thumbhash",
-                        key,
-                        thumbhash,
-                    )
-                    .execute(&mut **tx)
-                    .await
-                    .map(drop)
-                })
-            })
-            .await
-    }
-
-    /// The key and thumbhash of every image stored under `dir` that has been resized, each key
-    /// starting with `dir`.
-    ///
-    /// # Errors
-    ///
-    /// If the database can't be read.
-    // ponytail: reads every thumbhash under `dir` for each response that shows images; query by
-    // key if a store of tens of thousands of images makes that slow.
-    pub(crate) async fn thumbhashes(&self, dir: &str) -> sqlx::Result<Vec<(Vec<String>, Vec<u8>)>> {
-        let under = format!("{}/", file_name(dir));
-        let rows = sqlx::query!(
-            "SELECT key, thumbhash FROM image_thumbhashes WHERE instr(key, ?) = 1",
-            under
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        Ok(rows
-            .into_iter()
-            .filter_map(|row| {
-                let key = row.key.split('/').map(unescape).collect::<Option<_>>()?;
-                Some((key, row.thumbhash))
-            })
-            .collect())
-    }
-
     /// Deletes the image at `key`, if one is stored, with its resized copies and thumbhash.
     ///
     /// # Errors
@@ -418,13 +370,10 @@ impl ImageStore {
     /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
         let row = row_key(key);
-        // Held throughout, as a resize of the image holds it: one finishing mid-delete would
-        // write copies into the folder being removed, failing the delete (#2520), and keep a
-        // thumbhash after it was forgotten.
+        // In the resized cache's lock order, so its forget is final.
         let _writing = self.write_lock(&row).lock().await;
-        self.forget_thumbhashes(key).await?;
-        self.blobs().delete(&row).await?;
-        self.delete_copies(key).await
+        self.forget(key).await?;
+        self.blobs().delete(&row).await
     }
 
     /// Deletes every image under `key`, with their resized copies and thumbhashes.
@@ -433,12 +382,14 @@ impl ImageStore {
     ///
     /// If an image or the copies are there but can't be deleted, or the thumbhashes can't be.
     pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
-        self.forget_thumbhashes(key).await?;
+        self.forget(key).await?;
         for stored in self.blobs().list(&format!("{}/", row_key(key))).await? {
             let _writing = self.write_lock(&stored).lock().await;
             self.blobs().delete(&stored).await?;
         }
-        self.delete_copies(key).await
+        // Again, now that every resize under way when the first ran has finished: those that
+        // held an image's write lock kept what they made after it.
+        self.forget(key).await
     }
 
     /// Stores `bytes` at `key` as [`Self::write`] does, and returns the local file holding them,
@@ -470,38 +421,6 @@ impl ImageStore {
         unless_gone(tokio::fs::remove_dir_all(under(self.dir.clone(), key)).await)
     }
 
-    /// Deletes the thumbhash of the image at `key`, or of every image under it. First, before the
-    /// image: one left behind would outlive its image for good.
-    async fn forget_thumbhashes(&self, key: &[&str]) -> io::Result<()> {
-        let (row, below) = (row_key(key), format!("{}/", row_key(key)));
-        let forgotten = self
-            .db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "DELETE FROM image_thumbhashes WHERE key = ? OR instr(key, ?) = 1",
-                        row,
-                        below,
-                    )
-                    .execute(&mut **tx)
-                    .await
-                    .map(drop)
-                })
-            })
-            .await;
-        forgotten.map_err(io::Error::other)
-    }
-
-    /// Deletes the resized copies of the image at `key`, or of every image under it, with the
-    /// markers of those it goes unresized at. Left, they would be found by an image stored at
-    /// `key` again, which then never gets a thumbhash, or is sent as stored where it could be
-    /// resized.
-    async fn delete_copies(&self, key: &[&str]) -> io::Result<()> {
-        let deleted = unless_gone(tokio::fs::remove_dir_all(self.copies_path(key)).await);
-        self.copies_deleted.store(true, Ordering::Release);
-        deleted
-    }
-
     /// The key of every image stored under `dir`, each starting with `dir`.
     ///
     /// # Errors
@@ -514,17 +433,6 @@ impl ImageStore {
             // Skips a name `file_name` doesn't give, such as one put there by hand.
             .filter_map(|key| key.split('/').map(unescape).collect())
             .collect())
-    }
-
-    /// Where the copy `width` pixels wide in `format` of the image at `key` is kept.
-    fn copy_path(&self, key: &[&str], width: u32, format: Format) -> PathBuf {
-        self.copies_path(key).join(format.file_name(width))
-    }
-
-    /// The folder the resized copies of the image at `key`, or of every image under it, are kept
-    /// in.
-    fn copies_path(&self, key: &[&str]) -> PathBuf {
-        under(self.dir.join(RESIZED_DIR), key)
     }
 }
 

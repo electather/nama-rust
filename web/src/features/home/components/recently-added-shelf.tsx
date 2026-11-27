@@ -18,7 +18,11 @@ export function RecentlyAddedShelf({
   }
   return (
     <RecentlyAddedFrame row={row} headingId={headingId}>
-      <PosterShelf titles={newest} setSize={newest.length} />
+      <PosterShelf
+        titles={newest}
+        setSize={newest.length}
+        restoreId={`recently-added/${row.libraryId}`}
+      />
     </RecentlyAddedFrame>
   );
 }

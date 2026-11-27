@@ -1,46 +1,32 @@
 //! Direct Play: serving a Version's file as it is.
 
-use std::{io, net::IpAddr, sync::Arc};
+use std::{io, sync::Arc};
 
 use axum::{
-    Router,
+    Extension, Router,
     body::Body,
-    extract::{Path, Request, State},
+    extract::Request,
     http::{
         StatusCode,
         header::{ETAG, IF_RANGE, LAST_MODIFIED, RANGE},
     },
-    middleware::Next,
     response::{IntoResponse, Response},
     routing::get,
 };
-use futures_util::StreamExt as _;
-use nama_forwarded::RequestSource;
 use tower_http::services::ServeFile;
 
-use super::{WholeFileReads, limits::on_local_network, running::RunningPlans, subtitles};
-use crate::{
-    db::Database,
-    ffmpeg::Ffmpeg,
-    library::Contents,
-    signed_urls::Viewer,
-    users::{Caller, library_access, maximum_age, remote_cap},
-};
+use super::{WholeFileReads, access::FileLease, subtitles};
+use crate::{db::Database, ffmpeg::Ffmpeg};
 
 pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
 }
 
-/// Serves `GET /media/versions/<id>`, and `GET /media/downloads/<id>` as [`download`] says, with
-/// the file of the Version `id` in `db`, and 404 if there is none, marking the caller's Direct
-/// Plays of it in `running` asked for as the request arrives and with each part of the file sent,
-/// and the subtitles plans offer, found in `db`, read with `ffmpeg`, those in a Version's file in a
-/// background pass on `reads`, and cached in `cache`.
-/// A caller off the local network whose User has a cap for remote playback gets 403 unless that
-/// User has a plan on their Device, made off the local network, that Direct Plays the Version.
-/// Whether the caller has a session is up to the layers the router is put behind.
+/// Serves `GET /media/versions/<id>`, and `GET /media/downloads/<id>` to keep, with the file of the
+/// Version `id` as leased by the layers the router is put behind, and the subtitles plans offer,
+/// found in `db`, read with `ffmpeg`, those in a Version's file in a background pass on `reads`,
+/// and cached in `cache`.
 pub(crate) fn router(
-    running: RunningPlans,
     db: &Arc<Database>,
     ffmpeg: Arc<Ffmpeg>,
     cache: subtitles::Cache,
@@ -49,54 +35,19 @@ pub(crate) fn router(
     let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, cache, reads));
     Router::new()
         .route("/media/versions/{id}", get(serve))
-        .route("/media/downloads/{id}", get(download))
-        .with_state((Contents::new(Arc::clone(db)), running, Arc::clone(db)))
+        .route("/media/downloads/{id}", get(serve))
         .merge(subtitles)
 }
 
-async fn serve(
-    State((contents, running, db)): State<(Contents, RunningPlans, Arc<Database>)>,
-    Path(id): Path<i64>,
-    request: Request,
-) -> Response {
-    let viewer = viewer_of(&request);
-    let user = viewer.map(|viewer| viewer.user);
-    let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
-    let planned_under_remote_cap =
-        viewer.is_some_and(|viewer| running.ask_direct_plays(id, viewer));
-    let path = match version_file(&contents, id).await {
-        Ok(path) => path,
-        Err(status) => return status.into_response(),
-    };
-    // A plan made off the local network applied the cap where it could, so one running lets the
-    // file through, even past the cap for a picture of unknown size (ADR 0031, #2134). One made
-    // on the local network never applied the cap (#2130).
-    if !planned_under_remote_cap {
-        match capped_remotely(&db, user, client).await {
-            Ok(false) => {}
-            Ok(true) => return StatusCode::FORBIDDEN.into_response(),
-            Err(err) => {
-                tracing::error!("could not look up a User's cap for remote playback: {err}");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-        }
-    }
-    // Taken once the Version is known to be there, so asking for made-up ids keeps nothing.
-    let (deleted, stopped) = (running.served(id), running.stopped(id, viewer));
+async fn serve(Extension(lease): Extension<FileLease>, request: Request) -> Response {
+    let path = lease.path.clone();
     // `ServeFile` answers `Range` (206 and `Content-Range`), sets `Accept-Ranges`, `ETag` and
     // `Last-Modified`, and takes the `Content-Type` from the extension. It ignores `If-Range`,
     // which `serve_file` answers, and fails with `NotFound` for a file gone since the last scan.
     match serve_file(&path, request).await {
         Ok(response) => {
             let (parts, body) = response.into_parts();
-            let sent = running.ask_direct_plays_while_sending(id, viewer, body.into_data_stream());
-            let cut_off = async move {
-                tokio::select! {
-                    () = deleted.cancelled() => {}
-                    () = stopped.cancelled() => {}
-                }
-            };
-            let sent = sent.take_until(cut_off);
+            let sent = lease.send(body.into_data_stream());
             Response::from_parts(parts, Body::from_stream(sent))
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
@@ -104,111 +55,6 @@ async fn serve(
             tracing::error!("could not serve {path}: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
-    }
-}
-
-/// Answers 404 to a request under `/media/versions/<id>`, for the Version's file, subtitles,
-/// fonts or Preview frames alike, from a caller who may not play the Version `id`, as
-/// [`sees_version`] judges. Put in front of every router serving there.
-pub(crate) async fn seen_versions_only(
-    State(db): State<Arc<Database>>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let version = (request.uri().path().strip_prefix("/media/versions/"))
-        .and_then(|rest| rest.split('/').next())
-        .and_then(|id| id.parse().ok());
-    let user = viewer_of(&request).map(|viewer| viewer.user);
-    if let (Some(version), Some(user)) = (version, user) {
-        match sees_version(&db, user, version).await {
-            Ok(true) => {}
-            Ok(false) => return StatusCode::NOT_FOUND.into_response(),
-            Err(err) => {
-                tracing::error!("could not look up whether a User may play a Version: {err}");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-        }
-    }
-    next.run(request).await
-}
-
-/// Who a media request is for: its session's User and Device, or else those its signed URL was
-/// signed for.
-pub(super) fn viewer_of(request: &Request) -> Option<Viewer> {
-    let extensions = request.extensions();
-    let session = extensions.get::<Caller>().map(viewer_of_caller);
-    session.or_else(|| extensions.get::<Viewer>().copied())
-}
-
-/// The Viewer a request with `caller`'s session acts as.
-pub(crate) fn viewer_of_caller(caller: &Caller) -> Viewer {
-    Viewer {
-        user: caller.user.id,
-        device: caller.device.id,
-    }
-}
-
-/// Whether the User `user` sees the Library of the Version `version`, and their Maximum Age lets
-/// through each title it holds, as they must to play it. One there is no such Version of is for
-/// the caller to refuse.
-pub(super) async fn sees_version(
-    db: &Arc<Database>,
-    user: i64,
-    version: i64,
-) -> Result<bool, sqlx::Error> {
-    let seen = library_access(db, user).await?;
-    let max_age = maximum_age(db, user).await?;
-    let contents = Contents::new(Arc::clone(db));
-    contents.lets_play(version, &seen, max_age).await
-}
-
-/// Serves the Version `id`'s file to keep on the caller's Device as [`serve`] does, but only while
-/// the caller has a plan on that Device Direct Playing it, so it plays offline as it would now;
-/// 409 otherwise (#1422). Whether the caller may download is up to the layers the router is put
-/// behind.
-async fn download(
-    State((contents, running, db)): State<(Contents, RunningPlans, Arc<Database>)>,
-    Path(id): Path<i64>,
-    request: Request,
-) -> Response {
-    let viewer = request.extensions().get::<Caller>().map(viewer_of_caller);
-    if viewer.is_some_and(|viewer| running.has_direct_play(id, viewer)) {
-        return serve(State((contents, running, db)), Path(id), request).await;
-    }
-    match version_file(&contents, id).await {
-        Ok(_) => (
-            StatusCode::CONFLICT,
-            "only a Version the Device has a Direct Play plan for downloads",
-        )
-            .into_response(),
-        Err(status) => status.into_response(),
-    }
-}
-
-/// Where the Version `id`'s file is, or the 404 or 500 to answer with instead.
-async fn version_file(contents: &Contents, id: i64) -> Result<String, StatusCode> {
-    match contents.version_file(id).await {
-        Ok(Some((path, _))) => Ok(path),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(err) => {
-            tracing::error!("could not look up the Version {id}: {err}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-/// Whether the User `user`, asking from `client`, is off the local network with a cap for remote
-/// playback. An unknown address counts as off it.
-async fn capped_remotely(
-    db: &Database,
-    user: Option<i64>,
-    client: Option<IpAddr>,
-) -> Result<bool, sqlx::Error> {
-    match user {
-        Some(user) if !client.is_some_and(on_local_network) => {
-            Ok(remote_cap(db, user).await?.is_some())
-        }
-        _ => Ok(false),
     }
 }
 

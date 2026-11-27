@@ -36,11 +36,24 @@ const popoverContentVariants = cva(
 );
 
 /**
- * Puts `--from-button` on the panel in `positioner`: the middle of the button that opened it, so
- * the panel grows out of it. Base UI's own `--transform-origin` is the middle of the `anchor`, which
- * for the bottom bar's panels is the whole bar.
+ * Keeps `--from-button` on the panel in `positioner` at the middle of the button that opened it, so
+ * the panel grows out of it, until the cleanup it returns. Base UI's own `--transform-origin` is the
+ * middle of the `anchor`, which for the bottom bar's panels is the whole bar.
  */
 function growFromButton(positioner: HTMLDivElement, popup: HTMLElement) {
+  // The positioner mounts at the window's corner and is moved to its button after, by its inline
+  // style; measured only on mount, the panel would grow from far off it.
+  const observer = new MutationObserver(() => {
+    placeOrigin(positioner, popup);
+  });
+  observer.observe(positioner, { attributes: true, attributeFilter: ["style"] });
+  placeOrigin(positioner, popup);
+  return () => {
+    observer.disconnect();
+  };
+}
+
+function placeOrigin(positioner: HTMLDivElement, popup: HTMLElement) {
   const button = document.querySelector(`[aria-controls="${popup.id}"]`);
   if (!button) {
     return;
@@ -122,9 +135,13 @@ function onPositioner(positioner: HTMLDivElement | null) {
 }
 
 function fromButtonAndResizing(positioner: HTMLDivElement, popup: HTMLElement) {
-  growFromButton(positioner, popup);
+  const stopGrowing = growFromButton(positioner, popup);
   // Without a ResizeObserver, a panel changes size at once.
-  return typeof ResizeObserver === "function" ? resizeSmoothly(popup) : undefined;
+  const stopResizing = typeof ResizeObserver === "function" ? resizeSmoothly(popup) : undefined;
+  return () => {
+    stopGrowing();
+    stopResizing?.();
+  };
 }
 
 // Clear of the player's title bar above and its bottom bar below, whichever the panel opens toward.

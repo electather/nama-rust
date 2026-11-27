@@ -66,7 +66,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 
 | Service | Trait and macro | Required | Optional |
 | --- | --- | --- | --- |
-| `MOVIE_FULFILLER`, `SHOW_FULFILLER` | `Fulfiller`, `fulfiller!` | `fulfill`, `progress`; `unfollow` for Shows | `stop_monitoring` |
+| `MOVIE_FULFILLER`, `SHOW_FULFILLER` | `Fulfiller`, `fulfiller!` | `fulfill`, `progress`; `unfollow` for Shows | `stop_monitoring`; `follow` for Shows |
 | `NOTIFIER` | `Notifier`, `notifier!` | `deliver` | |
 | `CONNECTOR` | `Connector`, `connector!` | `start_connection`, `poll_connection` | |
 | `TITLE_SOURCE` | `TitleSource`, `title_source!` | | `search`, `movie`, `show`, `season`, `episode`, `image`, `artwork` |
@@ -113,7 +113,7 @@ fn manifest() -> Manifest {
 
 Asked for a title by an id in a namespace it can't look titles up by, a title source answers with `unsupported_id` set, never a failure: the Server then asks the next source, while a failure means the source couldn't answer and is worth trying again.
 
-A Fulfiller whose service can't act yet, such as Sonarr still adding a Show, returns `nama_pdk::TryAgainIn(duration)` from `fulfill`, `unfollow` or `stop_monitoring` rather than waiting: `fulfiller!` answers with `retry_after_seconds` set, and the Server asks again with the same input after that long, clamped to 1 to 300 seconds, while the Plugin stays enabled.
+A Fulfiller whose service can't act yet, such as Sonarr still adding a Show, returns `nama_pdk::TryAgainIn(duration)` from `fulfill`, `follow`, `unfollow` or `stop_monitoring` rather than waiting: `fulfiller!` answers with `retry_after_seconds` set, and the Server asks again with the same input after that long, clamped to 1 to 300 seconds, while the Plugin stays enabled.
 
 A Segment source past its service's rate limit returns `TryAgainIn` from `search` the same way: `segment_source!` answers with `retry_after_seconds` set, and the Server asks it about no Version until then, and about that Version again after.
 

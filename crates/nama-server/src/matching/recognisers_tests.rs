@@ -14,7 +14,7 @@ use crate::{
     events::EventBus,
     images::ImageStore,
     library::{
-        Artwork, Change, Contents, Item, Libraries, METADATA_VERSION, Recognisers, ScanLocks,
+        Change, Contents, CopiesAhead, Item, Libraries, METADATA_VERSION, Recognisers, ScanLocks,
         TitleSources, UnmatchedReason, fixture,
         scripted::{ScriptedSource, SourcesAsked},
     },
@@ -207,7 +207,7 @@ async fn match_dark_file(answers: Answers) -> (Summary, usize, Asked) {
     let matcher = Matcher::new(
         Arc::clone(&db),
         plugins.extension_points(),
-        Artwork::new(images, plugins.extension_points()),
+        CopiesAhead::for_tests(&db, images, plugins.extension_points()),
         EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
         locks.clone(),
     );

@@ -1,7 +1,7 @@
 //! Web sessions: a random opaque token the browser keeps in a cookie, which the Hub keeps only as
 //! its SHA-256 hash and ends by deleting its row (ADR 0098).
 
-use sqlx::{PgConnection, PgExecutor, PgPool};
+use sqlx::{PgConnection, PgExecutor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use super::{Account, AccountId, AccountSession, Accounts, Error, new_token, token_hash};
@@ -35,8 +35,16 @@ pub(crate) struct ListedSession {
 #[error("this needs a sign-in in the last {RECENT_AUTHENTICATION_MINS} minutes: sign in again")]
 pub(crate) struct RecentAuthenticationRequired;
 
-/// Starts a session for `account` and returns its token.
-pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result<String, Error> {
+/// Ends `replacing`, the browser's session at a sign-in, if any, and starts a session for
+/// `account` in its place, returning its token. Both happen in the caller's transaction.
+pub(super) async fn start_replacing(
+    conn: &mut PgConnection,
+    account: AccountId,
+    replacing: Option<&AccountSession>,
+) -> Result<String, Error> {
+    if let Some(session) = replacing {
+        end(&mut *conn, session).await?;
+    }
     let token = new_token()?;
     sqlx::query!(
         "INSERT INTO account_sessions (account_id, token_hash) VALUES ($1, $2)",
@@ -95,22 +103,26 @@ pub(super) async fn end(
     Ok(())
 }
 
-/// Locks `session`'s Account row until `conn`'s transaction ends, and says whether `session` still
-/// has Recent Authentication.
+/// Opens the transaction of a change that needs Recent Authentication: refuses `session` if it
+/// lacked it when it was looked up, before the database is touched, then locks the Account's row
+/// and checks again, so the change commits only while `session` is still recent.
 // A Sign-in Link's takeover (ADR 0100) locks the same row before it ends the Account's sessions,
-// so a password set while it runs either commits first, and the takeover then removes it, or sees
-// `session` ended. The check is a second statement so it reads what committed while it waited.
-pub(super) async fn lock_while_recent(
-    conn: &mut PgConnection,
+// so a change made while it runs either commits first, and the takeover then undoes it, or sees
+// `session` ended. The check is a second statement so it reads what committed while it waited,
+// which under READ COMMITTED the locking statement would not.
+pub(super) async fn begin_recent(
+    db: &PgPool,
     session: &AccountSession,
-) -> Result<bool, sqlx::Error> {
+) -> Result<Transaction<'static, Postgres>, Error> {
+    session.require_recent_authentication()?;
+    let mut tx = db.begin().await?;
     sqlx::query!(
         "SELECT id FROM accounts WHERE id = $1 FOR UPDATE",
         session.account.id.0,
     )
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await?;
-    sqlx::query_scalar!(
+    let recent = sqlx::query_scalar!(
         r#"SELECT EXISTS (
              SELECT 1 FROM account_sessions
              WHERE id = $1 AND created_at > now() - make_interval(mins => $2)
@@ -118,8 +130,12 @@ pub(super) async fn lock_while_recent(
         session.id,
         RECENT_AUTHENTICATION_MINS,
     )
-    .fetch_one(conn)
-    .await
+    .fetch_one(&mut *tx)
+    .await?;
+    if !recent {
+        return Err(RecentAuthenticationRequired.into());
+    }
+    Ok(tx)
 }
 
 /// Ends every session of `session`'s Account but `session`.
@@ -210,11 +226,7 @@ impl Accounts {
         session: &AccountSession,
         id: Uuid,
     ) -> Result<(), Error> {
-        let mut tx = self.db.begin().await?;
-        // Under the row lock, as every check of Recent Authentication that changes something is.
-        if !lock_while_recent(&mut tx, session).await? {
-            return Err(RecentAuthenticationRequired.into());
-        }
+        let mut tx = begin_recent(&self.db, session).await?;
         if id != session.id {
             sqlx::query!(
                 "DELETE FROM account_sessions WHERE id = $1 AND account_id = $2",
@@ -233,10 +245,7 @@ impl Accounts {
         &self,
         session: &AccountSession,
     ) -> Result<(), Error> {
-        let mut tx = self.db.begin().await?;
-        if !lock_while_recent(&mut tx, session).await? {
-            return Err(RecentAuthenticationRequired.into());
-        }
+        let mut tx = begin_recent(&self.db, session).await?;
         end_others(&mut tx, session).await?;
         tx.commit().await?;
         Ok(())

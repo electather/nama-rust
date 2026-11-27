@@ -2,7 +2,7 @@
 //! everyone then sees in its place until it is removed (ADR 0036), over a real socket with the
 //! TMDB Plugin enabled against a fake TMDB, and a search-only title source of this file's own.
 
-use crate::support::{browsing, copies_ahead::until_exists, custom_images, http, server};
+use crate::support::{browsing, custom_images, http, server};
 
 use std::{fs, future, sync::Arc};
 
@@ -725,6 +725,7 @@ async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan
         .remove(0);
     let info = fx.server_info().await;
     let show = dark.show.into_option().unwrap();
+    fx.server.artwork_settled().await;
     let images = [
         (show.poster_url, &info.poster_widths),
         (season.unwrap().poster_url.clone(), &info.poster_widths),
@@ -736,8 +737,14 @@ async fn custom_images_uploaded_before_copies_were_made_ahead_get_them_on_a_scan
         assert!(url.starts_with("/media/custom-images/"), "{url}");
         let copies = fx.copies_of(&url);
         for width in widths {
-            until_exists(&copies.join(format!("{width}.jpg"))).await;
-            until_exists(&copies.join(format!("{width}.jxl"))).await;
+            assert!(
+                copies.join(format!("{width}.jpg")).exists(),
+                "{url} at {width}"
+            );
+            assert!(
+                copies.join(format!("{width}.jxl")).exists(),
+                "{url} at {width}"
+            );
         }
     }
 }

@@ -22,20 +22,20 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, ShownImages,
-        SimilarSources, TitleKind, TitleSources, artwork_router, custom_images_router,
+        Artwork, Contents, CopiesAhead, CustomImages, ImageSources, Libraries, LocalImages,
+        ShownImages, SimilarSources, TitleKind, TitleSources, artwork_router, custom_images_router,
         local_images_router,
     },
     playback::{
-        Plans, PreviewFrames, Probing, RunningPlans, SubtitleCache, SubtitleDownloads,
-        TrackPreferences, TranscodeDownloads, WholeFileReads, preview_frames_router,
-        running_router, transcode_downloads_router,
+        Plans, PlaybackAccess, PreviewFrames, Probing, RunningPlans, SubtitleCache,
+        SubtitleDownloads, TrackPreferences, TranscodeDownloads, WholeFileReads,
+        preview_frames_router, require_lease, running_router, transcode_downloads_router,
     },
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
     server_settings,
-    signed_urls::{PlanRuns, StillActing, UrlSigner, admit},
+    signed_urls::{UrlSigner, admit},
     sync::Syncing,
     users::{
         Caller, Device, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
@@ -90,6 +90,7 @@ pub(crate) fn router(
     plugin_logos: PluginLogos,
     image_store: ImageStore,
     artwork: Artwork,
+    copies_ahead: CopiesAhead,
     probing: Probing,
     subtitles: SubtitleCache,
     reads: WholeFileReads,
@@ -125,18 +126,14 @@ pub(crate) fn router(
         preferences.clone(),
         Arc::clone(&db),
     );
-    let media =
-        crate::playback::router(running.clone(), &db, Arc::clone(&ffmpeg), subtitles, reads)
-            .merge(running_router(running.clone()))
-            .merge(preview_frames_router(preview_frames))
-            .merge(transcode_downloads_router(
-                plans.clone(),
-                transcode_downloads,
-            ))
-            .layer(middleware::from_fn_with_state(
-                Arc::clone(&db),
-                crate::playback::seen_versions_only,
-            ));
+    let media = crate::playback::router(&db, Arc::clone(&ffmpeg), subtitles, reads)
+        .merge(running_router())
+        .merge(preview_frames_router(preview_frames))
+        .merge(transcode_downloads_router(
+            plans.clone(),
+            transcode_downloads,
+        ));
+    let playback_access = PlaybackAccess::new(running.clone(), Arc::clone(&db));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),
@@ -201,7 +198,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
             browse: Browse::new(Arc::clone(&db), plugins.clone()),
-            running: running.clone(),
+            running,
         }))
         .add_service(Arc::new(inbox::InboxServiceHandler {
             db: Arc::clone(&db),
@@ -267,23 +264,25 @@ pub(crate) fn router(
         .into_axum_service()
         .with_interceptor(RecordFailures);
     let linking = users.linking().clone();
-    let acting_users = users.clone();
-    let still_acting: StillActing = Arc::new(move |viewer| {
-        let acting = acting_users.clone();
-        Box::pin(async move { acting.still_acting_as(viewer.device, viewer.user).await })
-    });
     let routes = axum::Router::new()
         .fallback_service(rpcs)
         .merge(artwork_router)
         .merge(custom_images_router(
             custom_images,
             artwork,
+            copies_ahead,
             image_settings.clone(),
         ))
         .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .merge(browser_spans::router(browser_spans))
+        // On every path, not only the media routes, so one under a Version or plan that no route
+        // serves is judged too.
+        .layer(middleware::from_fn_with_state(
+            playback_access,
+            require_lease,
+        ))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(
@@ -296,11 +295,9 @@ pub(crate) fn router(
         ))
         .layer(middleware::from_fn(diagnostics::trace_call))
         .layer(Extension(signer.clone()));
-    let plan_runs: PlanRuns = Arc::new(move |plan, device| running.runs_for(plan, device));
     // Outside the routes, since a layer on them runs after routing, too late to rewrite the path.
-    axum::Router::new().fallback_service(
-        middleware::from_fn_with_state((signer, plan_runs, still_acting), admit).layer(routes),
-    )
+    axum::Router::new()
+        .fallback_service(middleware::from_fn_with_state(signer, admit).layer(routes))
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.

@@ -54,6 +54,8 @@ pub struct Endpoints {
     pub api: String,
     /// The base URL images are served under, without a trailing `/` or a size.
     pub images: String,
+    /// The base URL `YouTube` serves Trailers' thumbnails under, without a trailing `/`.
+    pub youtube_thumbnails: String,
 }
 
 impl Default for Endpoints {
@@ -61,6 +63,7 @@ impl Default for Endpoints {
         Self {
             api: "https://api.themoviedb.org/3".to_owned(),
             images: "https://image.tmdb.org/t/p".to_owned(),
+            youtube_thumbnails: wire::YOUTUBE_THUMBNAILS.to_owned(),
         }
     }
 }

@@ -4,10 +4,11 @@
 //! A Match stores its title's images as paths a title source handed out, along with the Plugin
 //! whose title source that was. Once a Match is stored, its images are downloaded through that
 //! title source in the background, and kept in the [`ImageStore`] while some Match stores them. One
-//! asked for before it arrived is downloaded on the spot. Images a search or lookup offered and no
-//! Match stores go to a cache of their own, which can be deleted at any time (ADR 0037). Callers
-//! should only ask for images some Match stores, or that a search or lookup offered to clients,
-//! so clients can't use the store to fetch arbitrary images.
+//! asked for before it arrived is downloaded on the spot, except a Trailer thumbnail: its host may
+//! hear only of a Match refresh (GLOSSARY "Trailer"), so until then it is not found. Images a
+//! search or lookup offered and no Match stores go to a cache of their own, which can be deleted
+//! at any time (ADR 0037). Callers should only ask for images some Match stores, or that a search
+//! or lookup offered to clients, so clients can't use the store to fetch arbitrary images.
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
 //! are not RPC), which is served to anyone with a session. A title source's path names bytes that
@@ -34,17 +35,14 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
-use tokio_util::task::{TaskTracker, task_tracker::TaskTrackerToken};
+use tokio_util::task::TaskTracker;
 
 use crate::{
     images::{
-        Asked, BACKDROP_WIDTHS, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR,
-        POSTER_WIDTHS, Resize, SVG, TITLE_LOGO_WIDTHS, clean_svg, file_name, percent_decode,
+        Asked, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR, Resize, SVG,
+        clean_svg, file_name, percent_decode,
     },
-    library::contents::{Contents, ImageRef, StoredTitleImage},
-    library::custom_images::CustomImages,
-    library::local_images::LocalImages,
-    library::shown_images::InPlaceOfDownloaded,
+    library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
@@ -100,26 +98,12 @@ pub struct Artwork {
     offered: Arc<Mutex<HashSet<(String, String)>>>,
     /// Taken by each background download, across every clone.
     downloads: Arc<Semaphore>,
-    /// The background work of [`Self::download_missing`], and what [`Self::working`] marks as
-    /// leading up to it, so a test can wait it out (`Artwork::settled`).
+    /// Each background download, and the copies ahead the Library area runs beside them
+    /// (`CopiesAhead`), so a test can wait them out (`Artwork::settled`).
     tasks: TaskTracker,
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
-    /// What Posters, Backdrops and Title Logos are resized by once kept, so a first visit finds
-    /// them made. `None` until startup hands it over (`Artwork::resizing_ahead`), so tests that
-    /// build their own `Artwork` make copies on request only.
-    ahead: Option<ResizingAhead>,
-}
-
-/// What [`Artwork`] resizes images ahead by.
-#[derive(Debug, Clone)]
-struct ResizingAhead {
-    images: ImageSettings,
-    /// With `local_images`, what titles show in place of their downloaded Posters and
-    /// Backdrops, which so get no copy.
-    custom_images: CustomImages,
-    local_images: LocalImages,
 }
 
 /// What [`Artwork`] tracks its background work in: one tracker per Server, or under the `testing`
@@ -160,48 +144,27 @@ impl Artwork {
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
             tasks: background_tasks(),
             sweeping: Arc::default(),
-            ahead: None,
         }
     }
 
-    /// Marks the caller's sweep and [`Self::download_missing`] after it as under way until the
-    /// token is dropped, so `Artwork::settled` waits for work that hasn't spawned yet. Taken
-    /// before the event that tells clients the change is done, which a test waits on.
-    pub(crate) fn working(&self) -> TaskTrackerToken {
-        self.tasks.token()
+    /// What its background work is tracked in.
+    pub(super) const fn tasks(&self) -> &TaskTracker {
+        &self.tasks
     }
 
-    /// Waits until no artwork work a scan, Matching or a correction began, through
-    /// [`Self::working`] or [`Self::download_missing`], is left, including each download it
-    /// started. Testing only. Process-wide, as every [`Artwork`] shares one tracker under the
-    /// `testing` feature: integration tests run one per process under nextest.
+    /// Waits until no artwork work is left: no download, and no copy ahead a scan, Matching, a
+    /// correction or a Custom Image's change began (`CopiesAhead`). Testing only. Process-wide,
+    /// as every [`Artwork`] shares one tracker under the `testing` feature: integration tests run
+    /// one per process under nextest.
     #[cfg(feature = "testing")]
     pub async fn settled() {
+        // `TaskTracker::wait` never finishes if another caller reopens between `close` and `wait`.
+        static SETTLING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+        let _settling = SETTLING.lock().await;
         let tasks = background_tasks();
         tasks.close();
         tasks.wait().await;
         tasks.reopen();
-    }
-
-    /// This, resizing each Poster, Backdrop and Title Logo of a Library it downloads images for to
-    /// the widths the web app offers as `images` says, so a first visit to the Library finds them
-    /// made, unless a title shows one of `custom_images` or `local_images` in a Poster's or
-    /// Backdrop's place.
-    #[must_use]
-    pub(crate) fn resizing_ahead(
-        self,
-        images: ImageSettings,
-        custom_images: CustomImages,
-        local_images: LocalImages,
-    ) -> Self {
-        Self {
-            ahead: Some(ResizingAhead {
-                images,
-                custom_images,
-                local_images,
-            }),
-            ..self
-        }
     }
 
     /// Where clients fetch the image at `path` from the Plugin `plugin`'s title source, which
@@ -312,111 +275,17 @@ impl Artwork {
         self.store_in(KEPT_DIR, plugin, path).await.map(drop)
     }
 
-    /// Downloads, in the background, each image a Match in the Library `library` stores that
-    /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
-    /// Poster and Backdrop a title of it shows, downloaded before or just now or beside its media,
-    /// and each downloaded titled Backdrop and Title Logo, and each Custom Image of it and its
-    /// titles, is resized to the widths the web app offers it at too, Posters first, where resizing
-    /// is on now, those copies aren't there and the resized cache has room for them. A downloaded
-    /// Poster or Backdrop that a Custom Image or image beside the media stands in for gets none.
-    pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
-        let artwork = self.clone();
-        // Read before any download lands, so a change of settings after the scan has no part in it.
-        let copies = (self.ahead.as_ref()).map_or_else(CopiesAhead::default, CopiesAhead::of);
-        self.tasks.spawn(async move {
-            let listed = tokio::try_join!(
-                contents.images(Some(library)),
-                artwork.shown_downloaded(&contents, library),
-                contents.titled_backdrops_and_title_logos(library)
-            );
-            // The images beside the media and Custom Images are still resized without the list.
-            let (images, (posters, backdrops), (titled_backdrops, title_logos)) = listed
-                .unwrap_or_else(|err| {
-                    tracing::error!(library, "could not list the images to download: {err}");
-                    Default::default()
-                });
-            let (poster_images, others): (Vec<_>, Vec<_>) = images
-                .into_iter()
-                .partition(|image| posters.contains(image));
-            // A Poster that is also a Backdrop is rare enough to get only a Poster's.
-            let ahead = (backdrops.into_iter().chain(titled_backdrops))
-                .map(|image| (image, &*copies.backdrops))
-                .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
-                .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
-                .collect();
-            // Every source's Posters before any Backdrop or Title Logo, so a cache near its limit
-            // holds those a first visit needs (#2253).
-            tokio::join!(
-                artwork.resize_beside_media_and_custom(library, &copies.posters, &[]),
-                artwork.download(poster_images, &ahead)
-            );
-            tokio::join!(
-                artwork.resize_beside_media_and_custom(library, &[], &copies.backdrops),
-                artwork.download(others, &ahead)
-            );
-        });
-    }
-
-    /// Makes `posters` and `backdrops` of the images beside the Library `library`'s media and of
-    /// its Custom Images, as [`LocalImages::resize_shown`] picks them. None while resizing is off.
-    async fn resize_beside_media_and_custom(
-        &self,
-        library: i64,
-        posters: &[Resize],
-        backdrops: &[Resize],
-    ) {
-        if let Some(ahead) = &self.ahead
-            && !(posters.is_empty() && backdrops.is_empty())
-        {
-            (ahead.local_images)
-                .resize_shown(library, &ahead.custom_images, posters, backdrops)
-                .await;
-        }
-    }
-
-    /// Each Poster, then each Backdrop but titled ones, as its Plugin and path, that some title
-    /// of the Library `library` shows, not having a Custom Image or image beside its media in its
-    /// place. None without [`Self::resizing_ahead`]. A Library's Custom Backdrop hides none, since
-    /// the title's own page still shows its Backdrop.
-    async fn shown_downloaded(
-        &self,
-        contents: &Contents,
-        library: i64,
-    ) -> sqlx::Result<(HashSet<(String, String)>, HashSet<(String, String)>)> {
-        let Some(ahead) = &self.ahead else {
-            return Ok(Default::default());
-        };
-        let (posters, backdrops, in_place) = tokio::try_join!(
-            contents.posters(library),
-            contents.backdrops(library),
-            InPlaceOfDownloaded::read(&ahead.custom_images, &ahead.local_images)
-        )?;
-        let shown = |images: Vec<StoredTitleImage>| {
-            (images.into_iter())
-                .filter(|stored| in_place.shows_downloaded(&stored.ids, stored.image))
-                .map(|stored| (stored.plugin, stored.path))
-                .collect()
-        };
-        Ok((shown(posters), shown(backdrops)))
-    }
-
     /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes the
-    /// copies `ahead` lists of each, kept already or not, at most [`DOWNLOADS`] at a time across
-    /// the Server. Returns once the last has finished.
-    async fn download(
-        &self,
-        images: Vec<(String, String)>,
-        ahead: &HashMap<(String, String), &[Resize]>,
-    ) {
+    /// copies listed beside it, kept already or not, at most [`DOWNLOADS`] at a time across the
+    /// Server, logging those that fail, which the Library's next scan tries again. Returns once the
+    /// last has finished.
+    pub(super) async fn download(&self, images: Vec<((String, String), Vec<Resize>)>) {
         let finished = TaskTracker::new();
-        for image in images {
+        for (image, copies) in images {
             // The semaphore is never closed.
             let Ok(permit) = Arc::clone(&self.downloads).acquire_owned().await else {
                 return;
             };
-            let copies = ahead
-                .get(&image)
-                .map_or_else(Vec::new, |copies| copies.to_vec());
             let one = self.clone().download_one(image, copies, permit);
             self.tasks.spawn(finished.track_future(one));
         }
@@ -439,15 +308,12 @@ impl Artwork {
         {
             Err(err) => tracing::warn!(path, "could not download an image: {err}"),
             Ok(sweeping) => {
+                // A sweep deleting the image meanwhile leaves none of its copies: the store sees
+                // to that.
                 drop(sweeping);
-                let key = key(KEPT_DIR, &plugin, &path);
-                for copy in copies {
-                    // Held through each width's copies, as a request's resize holds it, so a sweep
-                    // deleting the image meanwhile can't leave a copy and its thumbhash behind,
-                    // yet waits on one width's, not all of them, with image requests behind it.
-                    let _sweeping = self.sweeping.read().await;
-                    self.store.copy_ahead(&key, &[copy]).await;
-                }
+                (self.store)
+                    .copy_ahead(&kept_key(&plugin, &path), &copies)
+                    .await;
             }
         }
     }
@@ -509,17 +375,25 @@ impl Artwork {
         Ok(sweeping)
     }
 
-    /// The image at `path` from `plugin`'s title source, which handed the path out.
+    /// The image at `path` from `plugin`'s title source, which handed the path out, or for a
+    /// `YouTube` thumbnail's `maxresdefault.jpg` the source doesn't have, its `hqdefault.jpg`.
     async fn fetch(&self, plugin: &PluginId, path: &str) -> Result<title_source::Image, Error> {
-        self.metadata
-            .image(plugin, path)
-            .await
-            .map_err(|err| match err {
-                title_source::Unanswered::NotFound => Error::NotFound,
-                title_source::Unanswered::Unavailable => Error::Unavailable(format!(
-                    "{plugin} isn't enabled, doesn't provide metadata, or failed"
-                )),
-            })
+        let image = self.metadata.image(plugin, path).await;
+        // YouTube has no `maxresdefault.jpg` for a video uploaded below 720p, but always an
+        // `hqdefault.jpg`, which is 4:3 with black bars.
+        let image = match (image, path.strip_suffix("/maxresdefault.jpg")) {
+            (Err(title_source::Unanswered::NotFound), Some(video)) => {
+                let hq = format!("{video}/hqdefault.jpg");
+                self.metadata.image(plugin, &hq).await
+            }
+            (image, _) => image,
+        };
+        image.map_err(|err| match err {
+            title_source::Unanswered::NotFound => Error::NotFound,
+            title_source::Unanswered::Unavailable => Error::Unavailable(format!(
+                "{plugin} isn't enabled, doesn't provide metadata, or failed"
+            )),
+        })
     }
 
     /// The image at `path` from `plugin`'s title source as the answer to `request`, stored first if
@@ -538,25 +412,23 @@ impl Artwork {
             .serve(&key(dir, plugin, path), content_type(path), resize, request)
             .await?)
     }
-}
 
-/// The copies [`Artwork::download_missing`] makes of each kind of image ahead of the web app
-/// asking for them.
-#[derive(Debug, Default)]
-struct CopiesAhead {
-    posters: Vec<Resize>,
-    backdrops: Vec<Resize>,
-    title_logos: Vec<Resize>,
-}
-
-impl CopiesAhead {
-    /// Those `ahead` makes as its settings are now: none while resizing is off.
-    fn of(ahead: &ResizingAhead) -> Self {
-        Self {
-            posters: Resize::each(&POSTER_WIDTHS, &ahead.images),
-            backdrops: Resize::each(&BACKDROP_WIDTHS, &ahead.images),
-            title_logos: Resize::each(&TITLE_LOGO_WIDTHS, &ahead.images),
+    /// `plugin`'s kept image at `path` as the answer to `request`, never downloaded for it.
+    async fn serve_kept(
+        &self,
+        plugin: &str,
+        path: &str,
+        resize: Option<Resize>,
+        request: Request,
+    ) -> Result<Response, Error> {
+        let key = key(KEPT_DIR, plugin, path);
+        let _sweeping = self.sweeping.read().await;
+        if !self.store.contains(&key).await? {
+            return Err(Error::NotFound);
         }
+        Ok((self.store)
+            .serve(&key, content_type(path), resize, request)
+            .await?)
     }
 }
 
@@ -636,6 +508,11 @@ fn key<'a>(dir: &'a str, plugin: &'a str, path: &'a str) -> [&'a str; 3] {
     [dir, plugin, path]
 }
 
+/// Where the store keeps `plugin`'s image at `path` while some Match stores it.
+pub(super) fn kept_key<'a>(plugin: &'a str, path: &'a str) -> [&'a str; 3] {
+    key(KEPT_DIR, plugin, path)
+}
+
 /// Where clients fetch the image the store keeps at `key`, in either folder.
 fn url_of(key: &[String]) -> Option<String> {
     let [_, plugin, path] = key else {
@@ -651,8 +528,8 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
 }
 
 /// Serves `GET` [`url()`]s, 404 unless `artwork` offered the image or `contents` has a Match that
-/// stores it, resized as `images` says. Whether the caller has a session is up to the layers the
-/// router is put behind.
+/// stores it, resized as `images` says. A Trailer thumbnail is 404 until it is kept. Whether the
+/// caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings) -> Router {
     Router::new()
         .route("/media/artwork/{plugin}/{path}", get(serve))
@@ -669,19 +546,18 @@ async fn serve(
         Ok(resize) => resize,
         Err(refused) => return refused.into_response(),
     };
-    let dir = match contents.stores_image(&plugin, &path).await {
-        Ok(true) => KEPT_DIR,
-        Ok(false) if artwork.was_offered(&plugin, &path) => OFFERED_DIR,
-        Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+    let served = match servable(&artwork, &contents, &plugin, &path).await {
+        Ok(Some(Servable::Downloading(dir))) => {
+            (artwork.serve_image((dir, &plugin, &path), resize, request)).await
+        }
+        Ok(Some(Servable::KeptOnly)) => artwork.serve_kept(&plugin, &path, resize, request).await,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
             tracing::error!("could not look up a stored image: {err}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    match artwork
-        .serve_image((dir, &plugin, &path), resize, request)
-        .await
-    {
+    match served {
         Ok(response) => response,
         Err(Error::NotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(err @ Error::Unavailable(_)) => {
@@ -693,6 +569,32 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// How [`serve`] may answer with an image.
+enum Servable {
+    /// From the store's folder, downloaded there first if it isn't yet (ADR 0037).
+    Downloading(&'static str),
+    /// Only once kept: a Trailer thumbnail.
+    KeptOnly,
+}
+
+/// How [`serve`] may answer with `plugin`'s image at `path`, or `None` if it may not.
+async fn servable(
+    artwork: &Artwork,
+    contents: &Contents,
+    plugin: &str,
+    path: &str,
+) -> Result<Option<Servable>, sqlx::Error> {
+    Ok(if contents.stores_image(plugin, path).await? {
+        Some(Servable::Downloading(KEPT_DIR))
+    } else if artwork.was_offered(plugin, path) {
+        Some(Servable::Downloading(OFFERED_DIR))
+    } else if contents.stores_trailer_thumbnail(plugin, path).await? {
+        Some(Servable::KeptOnly)
+    } else {
+        None
+    })
 }
 
 /// `svg` as [`clean_svg`] leaves it, if it is at most [`MAX_SVG_BYTES`] and an SVG document: a
@@ -729,5 +631,13 @@ fn content_type(path: &str) -> &'static str {
 }
 
 #[cfg(test)]
+#[path = "artwork_pick_tests.rs"]
+mod pick_tests;
+
+#[cfg(test)]
 #[path = "artwork_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "artwork_trailers_tests.rs"]
+mod trailers_tests;

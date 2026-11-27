@@ -1,16 +1,15 @@
 use nama_hub_proto::nama::hub::v1::TitleKind;
 
 use super::watchlisted_to_proto;
-use crate::sync::WatchlistedTitle;
+use crate::{sync::WatchlistedTitle, titles::ExternalId};
 
 #[test]
 fn a_watchlisted_show_reaches_a_server_as_its_kind_external_id_and_weight() {
-    let watchlisted = watchlisted_to_proto(&WatchlistedTitle {
+    let watchlisted = watchlisted_to_proto(WatchlistedTitle {
         show: true,
-        external_id: "tvdb-81189".to_owned(),
+        id: ExternalId::parse("tvdb-81189").unwrap(),
         weight: 0.5,
-    })
-    .unwrap();
+    });
 
     assert_eq!(
         watchlisted.kind.as_known(),
@@ -22,15 +21,4 @@ fn a_watchlisted_show_reaches_a_server_as_its_kind_external_id_and_weight() {
         ("tvdb", "81189")
     );
     assert!((watchlisted.weight - 0.5).abs() < f32::EPSILON);
-}
-
-#[test]
-fn a_watchlisted_id_without_a_namespace_is_left_out() {
-    let watchlisted = watchlisted_to_proto(&WatchlistedTitle {
-        show: false,
-        external_id: "603".to_owned(),
-        weight: 1.0,
-    });
-
-    assert!(watchlisted.is_none());
 }

@@ -10,12 +10,12 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use nama_hub::{
+    Handles,
     config::Config,
     db,
     diagnostics::{Backend, Otlp, OtlpError},
     dns::{Cloudflare, DnsError, ServerNames},
     mail::{LogMailer, Mail, MailError, Mailer, Resend},
-    probe::Tcp,
     signing::Keys,
     titles,
 };
@@ -83,10 +83,6 @@ async fn main() -> ExitCode {
 }
 
 /// Runs the Hub until it is told to stop.
-#[expect(
-    clippy::too_many_lines,
-    reason = "each startup step logs its own failure and returns, so it reads straight down"
-)]
 async fn run() -> ExitCode {
     // Listen before announcing startup, so a Ctrl-C right after the log line isn't missed.
     let shutdown = match shutdown_signal() {
@@ -153,19 +149,15 @@ async fn run() -> ExitCode {
         shutdown.await;
         info!("shutting down");
     };
-    let served = nama_hub::serve(
-        listener,
-        db.clone(),
-        keys,
-        &config.trusted_proxies,
+    let handles = Handles {
+        trusted_proxies: config.trusted_proxies,
         mail,
         names,
         diagnostics,
-        config.public_url.as_ref(),
-        Arc::new(Tcp),
-        shutdown,
-    )
-    .await;
+        public_url: config.public_url,
+        ..Handles::new(keys)
+    };
+    let served = nama_hub::serve(listener, db.clone(), handles, shutdown).await;
     db.close().await;
     if let Err(err) = served {
         error!("hub failed: {err}");

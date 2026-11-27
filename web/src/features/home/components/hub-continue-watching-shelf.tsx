@@ -45,6 +45,7 @@ export function HubContinueWatchingShelf({
       tile={backdropTile}
       // ARIA's -1 is "unknown": a Server may yet add cards.
       setSize={complete ? tiles.length : -1}
+      restoreId="continue-watching"
       next={next}
     />
   );

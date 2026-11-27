@@ -2,7 +2,7 @@
 //! kept in a cache with a size limit, or sent as stored where they can't or needn't be resized,
 //! over a real socket.
 
-use crate::support::{browsing, copies_ahead::until_exists, http, server};
+use crate::support::{browsing, http, server};
 
 use std::{
     fs::{self, File, FileTimes},
@@ -58,9 +58,8 @@ async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
     reason = "a test helper fails its test by panicking"
 )]
 async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
-    let stored = fx.server.data_dir().join(key);
-    until_exists(&stored).await;
-    fs::write(&stored, image).unwrap();
+    fx.server.artwork_settled().await;
+    fs::write(fx.server.data_dir().join(key), image).unwrap();
 }
 
 /// `image` encoded as `format`.
@@ -287,7 +286,7 @@ async fn poster_widths(fx: &Fixture) -> Vec<u32> {
 }
 
 /// Checks that the image at `url`, whose copies are kept in `copies`, is sent at each of `widths`
-/// in both formats from copies made ahead, once they are.
+/// in both formats from copies made ahead, once the Server's background work is done.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -298,13 +297,13 @@ async fn assert_sent_from_copies_made_ahead(
     copies: &Path,
     widths: &[u32],
 ) {
+    fx.server.artwork_settled().await;
     for width in widths {
         let (jpeg, jxl) = (
             copies.join(format!("{width}.jpg")),
             copies.join(format!("{width}.jxl")),
         );
-        until_exists(&jpeg).await;
-        until_exists(&jxl).await;
+        assert!(jpeg.exists() && jxl.exists(), "{width} wasn't made ahead");
         // Resizing on request would replace these.
         fs::write(jpeg, b"\xff\xd8ahead").unwrap();
         fs::write(jxl, b"ahead").unwrap();
@@ -394,8 +393,7 @@ async fn images_beside_the_media_recorded_without_copies_get_them_on_a_rescan() 
     let (poster_copies, backdrop_copies) = (fx.copies_of(&poster), fx.copies_of(&backdrop));
     // As a Library scanned before images beside the media were resized ahead (#2152, #2244) has
     // them.
-    until_exists(&poster_copies.join("320.jxl")).await;
-    until_exists(&backdrop_copies.join("2560.jxl")).await;
+    fx.server.artwork_settled().await;
     fs::remove_dir_all(&poster_copies).unwrap();
     fs::remove_dir_all(&backdrop_copies).unwrap();
 
@@ -418,11 +416,9 @@ async fn a_backdrop_beside_the_media_a_custom_backdrop_hides_gets_no_copy_made_a
 
     fx.scan_and_match().await;
 
+    fx.server.artwork_settled().await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let poster_copies = fx.copies_of(movie.poster_url.as_deref().unwrap());
-    // Each scan's pass waits its turn on one lock, so once the Poster has its copies the pass
-    // before, which saw only the Backdrop, has finished.
-    until_exists(&poster_copies.join("320.jxl")).await;
     let library_copies = fs::read_dir(poster_copies.parent().unwrap()).unwrap();
     let copied: Vec<_> = library_copies.map(|copy| copy.unwrap().path()).collect();
     assert_eq!(copied, [poster_copies]);
@@ -444,9 +440,7 @@ async fn a_poster_beside_the_media_a_custom_poster_hides_gets_no_copy_made_ahead
     let seasons = fx.get_dark().await.seasons;
     let season = seasons.iter().find(|season| season.number == 1).unwrap();
     let season_copies = fx.copies_of(season.poster_url.as_deref().unwrap());
-    // Each scan's pass waits its turn on one lock, first come first served, so once the Season's
-    // Poster has its copies the pass before, which saw only the Show's, has finished.
-    until_exists(&season_copies.join("320.jxl")).await;
+    fx.server.artwork_settled().await;
     let library_copies = fs::read_dir(season_copies.parent().unwrap()).unwrap();
     let copied: Vec<_> = library_copies.map(|copy| copy.unwrap().path()).collect();
     assert_eq!(copied, [season_copies]);
@@ -490,6 +484,40 @@ async fn uploaded_custom_backdrops_are_sent_at_the_backdrop_widths_without_resiz
         assert!(backdrop.starts_with("/media/custom-images/"), "{backdrop}");
         assert_sent_from_copies_made_ahead(&fx, &backdrop, &fx.copies_of(&backdrop), &widths).await;
     }
+}
+
+#[tokio::test]
+async fn removing_a_custom_poster_sends_the_poster_beside_the_media_it_brings_back_from_copies_made_ahead()
+ {
+    let fx = Fixture::alien().await;
+    let slot = format!("/custom-images/movie/tmdb-{ALIEN}/poster");
+    assert_eq!(fx.upload(&slot, &jpeg(1000, 1500)).await.status, 204);
+    fx.write("Alien (1979)/poster.jpg", &jpeg(800, 1200));
+    fx.scan_and_match().await;
+
+    assert_eq!(fx.remove(&slot).await.status, 204);
+
+    let poster = fx.get_movie(fx.library, ALIEN).await.unwrap().poster_url;
+    let poster = poster.unwrap();
+    assert!(poster.starts_with("/media/local-images/"), "{poster}");
+    let widths = poster_widths(&fx).await;
+    assert_sent_from_copies_made_ahead(&fx, &poster, &fx.copies_of(&poster), &widths).await;
+}
+
+#[tokio::test]
+async fn removing_a_custom_poster_sends_the_downloaded_poster_it_brings_back_from_copies_made_ahead()
+ {
+    // Downloaded while resizing was off, then hidden from the scan with it on.
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+    let slot = format!("/custom-images/movie/tmdb-{ALIEN}/poster");
+    assert_eq!(fx.upload(&slot, &jpeg(800, 1200)).await.status, 204);
+    fx.scan_and_match().await;
+
+    assert_eq!(fx.remove(&slot).await.status, 204);
+
+    let copies = fx.server.data_dir().join("resized").join(POSTER);
+    let widths = poster_widths(&fx).await;
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies, &widths).await;
 }
 
 #[tokio::test]
