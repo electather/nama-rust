@@ -123,7 +123,7 @@ impl SettingField {
             Some(SettingValue::Texts(default)) => {
                 default.iter().any(|value| !listed.contains(value))
             }
-            // A Choice setting without choices of its own takes its Settings Check's.
+            // A Choice setting without choices of its own takes its settings check's.
             Some(SettingValue::Text(default)) if self.kind == SettingKind::Choice => {
                 !listed.is_empty() && !listed.contains(default)
             }

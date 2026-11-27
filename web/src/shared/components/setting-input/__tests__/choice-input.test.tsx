@@ -6,6 +6,9 @@ import { SettingKind, SettingSchema } from "@/gen/nama/v1/plugin_pb";
 import { SettingInput } from "@/shared/components/setting-input/setting-input";
 import { dropdown } from "@/test-settings";
 
+const text = (value: string) => ({ value: { case: "textValue" as const, value } });
+type SettingText = ReturnType<typeof text>;
+
 const LANGUAGES = [
   { value: "en-US", label: "English (United States)" },
   { value: "en-GB", label: "English (United Kingdom)" },
@@ -20,14 +23,17 @@ const LANGUAGES = [
   { value: "sv-SE", label: "Swedish (Sweden)" },
 ];
 
-/** Renders a Language choice setting listing `choices`, holding en-US, from a Plugin with a check. */
-function renderLanguage(choices: typeof LANGUAGES) {
+/** Renders a Language choice setting listing `choices`, holding `held`, from a Plugin with a check. */
+function renderLanguage(
+  choices: typeof LANGUAGES,
+  held: { value?: SettingText; defaultValue?: SettingText },
+) {
   const setting = create(SettingSchema, {
     key: "language",
     label: "Language",
     kind: SettingKind.CHOICE,
     choices,
-    value: { value: { case: "textValue", value: "en-US" } },
+    ...held,
   });
   return render(
     <form>
@@ -49,32 +55,29 @@ afterEach(cleanup);
 
 describe("a choice setting listing its own choices", () => {
   test("holding nothing starts on its default", () => {
-    render(
-      <SettingInput
-        setting={create(SettingSchema, {
-          key: "language",
-          label: "Language",
-          kind: SettingKind.CHOICE,
-          choices: LANGUAGES,
-          defaultValue: { value: { case: "textValue", value: "de-DE" } },
-        })}
-        error={undefined}
-        checksRequired
-      />,
-    );
+    renderLanguage(LANGUAGES, { defaultValue: text("de-DE") });
 
     expect(dropdown("Language").textContent).toBe("German (Germany)");
   });
 
-  test("can be picked before any test", () => {
-    renderLanguage(LANGUAGES.slice(0, 3));
+  test("keeps a held value it no longer lists, so a save doesn't drop it unseen", () => {
+    const { container } = renderLanguage(LANGUAGES, { value: text("de") });
+
+    expect(dropdown("Language").textContent).toBe("de");
+    expect(container.querySelector('input[name="language"]')?.getAttribute("value")).toBe("de");
+  });
+
+  test("can be picked before any test, from a dropdown without a search up to 10", () => {
+    renderLanguage(LANGUAGES.slice(0, 10), { value: text("en-US") });
+    fireEvent.click(dropdown("Language"));
 
     expect(dropdown("Language").hasAttribute("disabled")).toBe(false);
     expect(dropdown("Language").textContent).toBe("English (United States)");
+    expect(screen.queryByRole("combobox", { name: "Search" })).toBeNull();
   });
 
   test("past 10 choices sends what's chosen as a form value", () => {
-    const { container } = renderLanguage(LANGUAGES);
+    const { container } = renderLanguage(LANGUAGES, { value: text("en-US") });
 
     expect(dropdown("Language").hasAttribute("disabled")).toBe(false);
     expect(dropdown("Language").textContent).toBe("English (United States)");
@@ -82,13 +85,13 @@ describe("a choice setting listing its own choices", () => {
   });
 
   test("past 10 choices narrows them to those whose value has what's typed", () => {
-    renderLanguage(LANGUAGES);
+    renderLanguage(LANGUAGES, { value: text("en-US") });
 
     expect(searched("de-")).toStrictEqual(["German (Germany)", "German (Austria)"]);
   });
 
   test("past 10 choices narrows them to those whose label has what's typed", () => {
-    renderLanguage(LANGUAGES);
+    renderLanguage(LANGUAGES, { value: text("en-US") });
 
     expect(searched("swed")).toStrictEqual(["Swedish (Sweden)"]);
   });

@@ -8,7 +8,7 @@ const SEARCHED_PAST = 10;
 
 /**
  * A choice setting: a dropdown of its `choices`, those its Manifest lists or the Plugin's last
- * passing test offered, with a search past 10 of them. Locked while there are none yet, until a
+ * passing test offered, with a search for a long list. Locked while there are none yet, until a
  * test passes, as only the outside service knows what may be picked.
  */
 export function ChoiceInput({
@@ -41,9 +41,13 @@ export function ChoiceInput({
       />
     );
   }
-  const options = choices.map(({ value, label }) => ({ value, label }));
   // Unset, it starts on the default the Plugin runs with, as a Choices setting does.
   const held = textOf(setting.value ?? setting.defaultValue);
+  const listed = choices.map(({ value, label }) => ({ value, label }));
+  // A held value no longer listed stays an option, so saving another setting never drops it
+  // unseen: the Server refuses it instead, saying why.
+  const unlisted = held === "" || listed.some((choice) => choice.value === held);
+  const options = unlisted ? listed : [...listed, { value: held, label: held }];
   if (options.length > SEARCHED_PAST) {
     return (
       <RowField label={setting.label} hint={setting.description} error={error}>

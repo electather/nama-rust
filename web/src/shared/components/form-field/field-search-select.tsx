@@ -19,10 +19,10 @@ import type { SelectOption } from "@/shared/lib/select-option";
  */
 export function FieldSearchSelect({
   control,
-  choice: { name, options, defaultValue, required = true },
+  choice: { name, options, defaultValue, required },
 }: {
   control: FieldControl;
-  choice: Pick<SelectChoice, "name" | "options" | "defaultValue" | "required">;
+  choice: Pick<SelectChoice, "name" | "options" | "defaultValue"> & { required: boolean };
 }) {
   const [chosen, setChosen] = useState(
     () => options.find((option) => option.value === defaultValue) ?? null,
