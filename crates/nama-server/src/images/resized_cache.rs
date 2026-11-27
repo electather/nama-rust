@@ -5,7 +5,7 @@
 //!
 //! Lock order: a copy is made under the resize lock (`ResizedCache::measured`), then a whole-read
 //! permit, then the image's write lock. A copy, marker or thumbhash is written only while that
-//! write lock is held, with the original read under it. So a [`ImageStore::forget`] made under an
+//! write lock is held, with the original read under it. So an [`ImageStore::forget`] made under an
 //! image's write lock, with the original deleted before the lock goes, is final: a resize after it
 //! finds no original.
 
