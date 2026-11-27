@@ -6,11 +6,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vite
 import { AccountSchema, AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
 import { pickFromMenu } from "@/test-menu";
 import { expectUnderField } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 import { browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
 afterEach(cleanup);
@@ -219,7 +220,7 @@ test("an email that has an Account already is refused under the email", async ()
 });
 
 test("a Server has no page for creating an Account", async () => {
-  openApp("/create-account", fakeServer({ signedIn: newUser }));
+  openApp("/create-account", fakeServer({ signedIn: newUser }).transport);
 
   await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });
@@ -235,7 +236,7 @@ test.each(["/sign-in/code", "/sign-in/code/waiting", "/sign-in/account", "/invit
 );
 
 test("a Server opens its page for signing in with a code", async () => {
-  openApp("/sign-in/code", fakeServer({}));
+  openApp("/sign-in/code", fakeServer().transport);
 
   await expect(screen.findByLabelText("Device name")).resolves.toBeDefined();
 });

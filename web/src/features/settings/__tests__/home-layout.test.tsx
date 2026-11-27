@@ -6,7 +6,8 @@ import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { type HomeLayout, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
 import { rowKey } from "@/shared/lib/home-layout";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -49,33 +50,34 @@ function openSettings(reordered = Promise.resolve()) {
     "/code?settings=home",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        getHomeLayout: () => ({ layout }),
-        setHomeLayout: (request) => {
-          const asked = request.layout ?? defaultLayout();
-          saves.push(asked);
-          const named = new Map(asked.rows.map((row) => [rowKey(row), row]));
-          layout = create(HomeLayoutSchema, {
-            featuredHidden: asked.featuredHidden ?? layout.featuredHidden,
-            rows: layout.rows.map((row) => named.get(rowKey(row)) ?? row),
-          });
-          return { layout };
-        },
-        reorderHomeRows: async (request) => {
-          orders.push(request.rows.map(rowKey));
-          await reordered;
-          const saved = new Map(layout.rows.map((row) => [rowKey(row), row]));
-          const rows = request.rows.flatMap((row) => saved.get(rowKey(row)) ?? []);
-          layout = create(HomeLayoutSchema, { ...layout, rows });
-          return { layout };
-        },
-        resetHomeLayout: () => {
-          layout = defaultLayout();
-          return {};
+        UserService: {
+          getHomeLayout: () => ({ layout }),
+          setHomeLayout: (request) => {
+            const asked = request.layout ?? defaultLayout();
+            saves.push(asked);
+            const named = new Map(asked.rows.map((row) => [rowKey(row), row]));
+            layout = create(HomeLayoutSchema, {
+              featuredHidden: asked.featuredHidden ?? layout.featuredHidden,
+              rows: layout.rows.map((row) => named.get(rowKey(row)) ?? row),
+            });
+            return { layout };
+          },
+          reorderHomeRows: async (request) => {
+            orders.push(request.rows.map(rowKey));
+            await reordered;
+            const saved = new Map(layout.rows.map((row) => [rowKey(row), row]));
+            const rows = request.rows.flatMap((row) => saved.get(rowKey(row)) ?? []);
+            layout = create(HomeLayoutSchema, { ...layout, rows });
+            return { layout };
+          },
+          resetHomeLayout: () => {
+            layout = defaultLayout();
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
   return { saves, orders };
 }

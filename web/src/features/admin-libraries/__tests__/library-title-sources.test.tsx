@@ -1,13 +1,13 @@
-import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { LibraryKind, type LibrarySchema } from "@/gen/nama/v1/library_pb";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, fill } from "@/test-app";
+import { fill } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { admin, fakeServer } from "@/test-server";
 import { openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
@@ -51,33 +51,27 @@ function titleSourcesServer(
     signedIn?: Permission[];
   } = {},
 ) {
-  let library = {
-    id: 1n,
-    name: "Films",
-    kind: LibraryKind.MOVIES,
-    folders: ["/srv/films"],
-    titleSources,
-  };
-  return fakeServer({
-    signedIn,
-    events: new ReadableStream(),
-    libraryService: {
-      listLibraries: () => ({ libraries: [library] }),
-      getLibrary: () => ({ library }),
-      listTitleSources: () => ({ titleSources: listed }),
-      updateLibrary: (request) => {
-        saved(request.titleSources);
-        library = { ...library, titleSources: request.titleSources };
-        return { library };
-      },
-      createLibrary: () => {
-        throw refused(Code.InvalidArgument, "tmdb is named twice", {
-          reason: RefusalReason.TITLE_SOURCES_INVALID,
-          field: "title_sources",
-        });
+  const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
+  const { server, transport } = fakeServer(
+    { signedIn, libraries: [{ ...films, titleSources }] },
+    {
+      LibraryService: {
+        listTitleSources: () => ({ titleSources: listed }),
+        updateLibrary: (request) => {
+          saved(request.titleSources);
+          server.libraries = [{ ...films, titleSources: request.titleSources }];
+          return { library: server.libraries[0] };
+        },
+        createLibrary: () => {
+          throw refused(Code.InvalidArgument, "tmdb is named twice", {
+            reason: RefusalReason.TITLE_SOURCES_INVALID,
+            field: "title_sources",
+          });
+        },
       },
     },
-  });
+  );
+  return transport;
 }
 /** The names the title sources list shows, in order. */
 function titleSourcesShown() {
@@ -145,23 +139,19 @@ test("a refused title source order shows under the field", async () => {
 });
 
 test("a new Library starts with TMDB alone, and creating it opens it", async () => {
-  const libraries: MessageInitShape<typeof LibrarySchema>[] = [];
-  openLibraries(
-    fakeServer({
-      signedIn: admin,
-      events: new ReadableStream(),
-      libraries,
-      libraryService: {
+  const { server, transport } = fakeServer(
+    { signedIn: admin },
+    {
+      LibraryService: {
         listTitleSources: () => ({ titleSources: [tmdb, tvdb] }),
         createLibrary: ({ name, kind, folders }) => {
-          libraries.push({ id: 1n, name, kind, folders });
-          return { library: libraries[0] };
+          server.libraries = [{ id: 1n, name, kind, folders }];
+          return { library: server.libraries[0] };
         },
-        getLibrary: () => ({ library: libraries[0] }),
       },
-    }),
-    "new",
+    },
   );
+  openLibraries(transport, "new");
   await screen.findByRole("button", { name: "Add TVDB" });
   expect(titleSourcesShown()).toStrictEqual(["TMDB"]);
   fill("Name", "Shows");

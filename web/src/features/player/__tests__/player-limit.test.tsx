@@ -1,16 +1,11 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import {
-  type PlanPlaybackRequest,
-  PlaybackLimit,
-  PlaybackMethod,
-  PlaybackService,
-} from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { type PlanPlaybackRequest, PlaybackLimit, PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
 import { openSettingsAt, pickIn, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -65,34 +60,40 @@ function server(
     { codec: "aac", language: "eng", default: true, kind: audio },
     { codec: "aac", language: "eng", title: "Commentary", kind: audio },
   ] as const;
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
-        },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const picked = request.playbackLimit;
-        const applies =
-          picked === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ? remoteDefault : picked;
-        const limit = cantTranscode ? ORIGINAL : applies;
-        const played =
-          limit === ORIGINAL
-            ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
-            : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
-        const audioTrack = request.audioTrack ?? 1;
-        const reasons = cantTranscode ? [{ text: "It can’t be Transcoded here" }] : [];
-        const offers = { playbackLimits: offered, audioTracks: [1, 2], remotePlaybackLimit: cap };
-        return { plan: { ...played, playbackLimit: limit, audioTrack, reasons, ...offers } };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+          },
+        }),
       },
-    });
-  });
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const picked = request.playbackLimit;
+          const applies =
+            picked === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ? remoteDefault : picked;
+          const limit = cantTranscode ? ORIGINAL : applies;
+          const played =
+            limit === ORIGINAL
+              ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
+              : {
+                  method: PlaybackMethod.TRANSCODE,
+                  url: `/media/plans/${asked.length}/index.m3u8`,
+                };
+          const audioTrack = request.audioTrack ?? 1;
+          const reasons = cantTranscode ? [{ text: "It can’t be Transcoded here" }] : [];
+          const offers = { playbackLimits: offered, audioTracks: [1, 2], remotePlaybackLimit: cap };
+          return { plan: { ...played, playbackLimit: limit, audioTrack, reasons, ...offers } };
+        },
+      },
+    },
+  ).transport;
 }
 
 function openLimits() {

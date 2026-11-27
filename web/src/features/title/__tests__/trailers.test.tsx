@@ -2,9 +2,10 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, assert, expect, test } from "vite-plus/test";
 
-import { BrowseService, type MovieSchema } from "@/gen/nama/v1/browse_pb";
+import type { MovieSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -12,10 +13,11 @@ afterEach(cleanup);
 function openMovie(movie: MessageInitShape<typeof MovieSchema>) {
   const parasite = { title: "Parasite", versions: [{ id: 1n, fileName: "Parasite.mkv" }] };
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const server = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, { getMovie: () => ({ movie: { ...parasite, ...movie } }) });
-  });
-  openApp("/libraries/1/movies/tmdb-496243", server);
+  const { transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    { BrowseService: { getMovie: () => ({ movie: { ...parasite, ...movie } }) } },
+  );
+  openApp("/libraries/1/movies/tmdb-496243", transport);
 }
 
 test("a Movie's Trailers load nothing from their host until one is played in a pop-up", async () => {

@@ -1,16 +1,15 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
   PlaybackMethod,
-  PlaybackService,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -67,33 +66,39 @@ function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3], choosing: C
     { track: tracks[1], url: ENGLISH, place: 1, format: SubtitleFormat.WEBVTT },
     { track: tracks[3], url: JAPANESE, place: 3, format: SubtitleFormat.WEBVTT },
   ];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+          },
+        }),
+      },
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const { subtitleTrack, noSubtitles } = request;
+          const plan =
+            subtitleTrack === undefined
+              ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
+              : {
+                  method: PlaybackMethod.TRANSCODE,
+                  url: `/media/plans/${asked.length}/index.m3u8`,
+                };
+          const startingSubtitle = subtitleTrack ?? (noSubtitles ? undefined : choosing.preferred);
+          return { plan: { ...plan, subtitles, subtitleTrack, burnInTracks, startingSubtitle } };
         },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const { subtitleTrack, noSubtitles } = request;
-        const plan =
-          subtitleTrack === undefined
-            ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
-            : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
-        const startingSubtitle = subtitleTrack ?? (noSubtitles ? undefined : choosing.preferred);
-        return { plan: { ...plan, subtitles, subtitleTrack, burnInTracks, startingSubtitle } };
+        reportTrackPick: ({ track }) => {
+          choosing.picked?.push(track);
+          return {};
+        },
       },
-      reportTrackPick: ({ track }) => {
-        choosing.picked?.push(track);
-        return {};
-      },
-    });
-  });
+    },
+  ).transport;
 }
 
 /** Picks the subtitle `name` names, once the player shows its menu. */

@@ -2,13 +2,13 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import type { ReportProgressRequest } from "@/gen/nama/v1/watch_state_pb";
+import { openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { openMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 // The Show page it leaves to has a virtual row of Episodes, which needs a layout to show its cards.
 beforeEach(layOutShelves);
@@ -35,41 +35,44 @@ function server({ failures = 0, held = false } = {}) {
   // A report sent after `landed` isn't held: the page may open before the report reaches here.
   let holdingReports = held;
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => {
-        moviesAsked += 1;
-        return {
-          movie: {
-            id: { namespace: "tmdb", value: "348" },
-            title: "Alien",
-            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
-            watchState: { positionMs: reports.at(-1)?.positionMs ?? 0n, durationMs: 7_000_000n },
-          },
-        };
+  const { transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => {
+          moviesAsked += 1;
+          return {
+            movie: {
+              id: { namespace: "tmdb", value: "348" },
+              title: "Alien",
+              versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
+              watchState: { positionMs: reports.at(-1)?.positionMs ?? 0n, durationMs: 7_000_000n },
+            },
+          };
+        },
       },
-    });
-    router.service(PlaybackService, {
-      planPlayback: () => ({
-        plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" },
-      }),
-    });
-    router.service(WatchStateService, {
-      reportProgress: async (request) => {
-        if (holdingReports) {
-          await new Promise<void>((resolve) => {
-            holding.push(resolve);
-          });
-        }
-        if (failed < failures) {
-          failed += 1;
-          throw new ConnectError("Server unreachable", Code.Unavailable);
-        }
-        reports.push(request);
-        return {};
+      PlaybackService: {
+        planPlayback: () => ({
+          plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" },
+        }),
       },
-    });
-  });
+      WatchStateService: {
+        reportProgress: async (request) => {
+          if (holdingReports) {
+            await new Promise<void>((resolve) => {
+              holding.push(resolve);
+            });
+          }
+          if (failed < failures) {
+            failed += 1;
+            throw new ConnectError("Server unreachable", Code.Unavailable);
+          }
+          reports.push(request);
+          return {};
+        },
+      },
+    },
+  );
   const landed = () => {
     holdingReports = false;
     for (const land of holding) {
@@ -197,37 +200,40 @@ function episodeServer() {
     watchState: { played: reports.at(-1)?.positionMs === 3_000_000n },
   });
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
-  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getShow: () => {
-        asked.getShow += 1;
-        return {
-          show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
-          seasons: [{ number: 1 }],
-        };
+  const { transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getShow: () => {
+          asked.getShow += 1;
+          return {
+            show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
+            seasons: [{ number: 1 }],
+          };
+        },
+        listEpisodes: () => {
+          asked.listEpisodes += 1;
+          return { episodes: [episode()] };
+        },
+        getNextEpisode: () => {
+          asked.getNextEpisode += 1;
+          return {};
+        },
       },
-      listEpisodes: () => {
-        asked.listEpisodes += 1;
-        return { episodes: [episode()] };
+      PlaybackService: {
+        getAutoplay: () => ({ on: false }),
+        planPlayback: () => ({
+          plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/3" },
+        }),
       },
-      getNextEpisode: () => {
-        asked.getNextEpisode += 1;
-        return {};
+      WatchStateService: {
+        reportProgress: (request) => {
+          reports.push(request);
+          return {};
+        },
       },
-    });
-    router.service(PlaybackService, {
-      getAutoplay: () => ({ on: false }),
-      planPlayback: () => ({
-        plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/3" },
-      }),
-    });
-    router.service(WatchStateService, {
-      reportProgress: (request) => {
-        reports.push(request);
-        return {};
-      },
-    });
-  });
+    },
+  );
   return { transport, reports, asked };
 }
 

@@ -3,13 +3,14 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { fakeServer, fill, newUser } from "@/test-app";
+import { fill } from "@/test-app";
 import {
   confirmItsYou,
   expectUnderField,
   recentAuthenticationRequired,
   refused,
 } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -32,28 +33,30 @@ function openSwitchPin() {
     fakeServer(
       { signedIn: newUser },
       {
-        reauthenticate: () => {
-          calls.confirmed = true;
-          return {};
-        },
-        setSwitchPin: ({ switchPin }) => {
-          confirmFirst();
-          if (!/^\d{4,6}$/u.test(switchPin)) {
-            throw refused(Code.InvalidArgument, "a Switch PIN must be 4 to 6 digits", {
-              reason: RefusalReason.SWITCH_PIN_INVALID,
-              field: "switch_pin",
-            });
-          }
-          calls.set.push(switchPin);
-          return {};
-        },
-        clearSwitchPin: ({ userId }) => {
-          confirmFirst();
-          calls.cleared.push(userId);
-          return {};
+        SignInService: {
+          reauthenticate: () => {
+            calls.confirmed = true;
+            return {};
+          },
+          setSwitchPin: ({ switchPin }) => {
+            confirmFirst();
+            if (!/^\d{4,6}$/u.test(switchPin)) {
+              throw refused(Code.InvalidArgument, "a Switch PIN must be 4 to 6 digits", {
+                reason: RefusalReason.SWITCH_PIN_INVALID,
+                field: "switch_pin",
+              });
+            }
+            calls.set.push(switchPin);
+            return {};
+          },
+          clearSwitchPin: ({ userId }) => {
+            confirmFirst();
+            calls.cleared.push(userId);
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
   return calls;
 }

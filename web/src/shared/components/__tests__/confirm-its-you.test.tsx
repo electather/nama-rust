@@ -4,8 +4,9 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -34,27 +35,29 @@ function openSettingsNeedingRecentAuthentication(alwaysRefuse = false) {
     fakeServer(
       { signedIn: newUser },
       {
-        reauthenticate: ({ proof }) => {
-          if (proof.case !== "password" || proof.value !== "correct horse") {
-            throw refused(Code.Unauthenticated, "the password is wrong", {
-              reason: RefusalReason.WRONG_PASSWORD,
-              field: "password",
-            });
-          }
-          confirmations += 1;
-          return {};
+        SignInService: {
+          reauthenticate: ({ proof }) => {
+            if (proof.case !== "password" || proof.value !== "correct horse") {
+              throw refused(Code.Unauthenticated, "the password is wrong", {
+                reason: RefusalReason.WRONG_PASSWORD,
+                field: "password",
+              });
+            }
+            confirmations += 1;
+            return {};
+          },
+        },
+        UserService: {
+          changePassword: ({ newPassword }) => {
+            if (alwaysRefuse || confirmations < 2) {
+              throw recentAuthenticationRequired();
+            }
+            changedTo.push(newPassword);
+            return {};
+          },
         },
       },
-      {
-        changePassword: ({ newPassword }) => {
-          if (alwaysRefuse || confirmations < 2) {
-            throw recentAuthenticationRequired();
-          }
-          changedTo.push(newPassword);
-          return {};
-        },
-      },
-    ),
+    ).transport,
   );
   return changedTo;
 }
@@ -125,36 +128,38 @@ function openUsersNeedingRecentAuthentication(alwaysRefuse = false) {
     fakeServer(
       { signedIn: admin },
       {
-        reauthenticate: () => {
-          reauthenticated = true;
-          return {};
+        SignInService: {
+          reauthenticate: () => {
+            reauthenticated = true;
+            return {};
+          },
+        },
+        UserService: {
+          listUsers: () => ({
+            users: [
+              { id: 1n, name: "Sam", permissions: admin },
+              { id: 2n, name: "Alex", permissions: newUser },
+            ],
+          }),
+          resetPassword: ({ userId, newPassword }) => {
+            if (alwaysRefuse || !reauthenticated) {
+              throw recentAuthenticationRequired();
+            }
+            resets.push([userId, newPassword]);
+            return {};
+          },
+          setPermissions: ({ userId, permissions }) => {
+            if (alwaysRefuse || !reauthenticated) {
+              throw recentAuthenticationRequired();
+            }
+            if (permissions.includes(Permission.ADMIN)) {
+              promoted.push([userId, permissions]);
+            }
+            return {};
+          },
         },
       },
-      {
-        listUsers: () => ({
-          users: [
-            { id: 1n, name: "Sam", permissions: admin },
-            { id: 2n, name: "Alex", permissions: newUser },
-          ],
-        }),
-        resetPassword: ({ userId, newPassword }) => {
-          if (alwaysRefuse || !reauthenticated) {
-            throw recentAuthenticationRequired();
-          }
-          resets.push([userId, newPassword]);
-          return {};
-        },
-        setPermissions: ({ userId, permissions }) => {
-          if (alwaysRefuse || !reauthenticated) {
-            throw recentAuthenticationRequired();
-          }
-          if (permissions.includes(Permission.ADMIN)) {
-            promoted.push([userId, permissions]);
-          }
-          return {};
-        },
-      },
-    ),
+    ).transport,
   );
   return { resets, promoted };
 }
@@ -211,22 +216,24 @@ test("on a Server Linked to the Hub, “Confirm it’s you” offers your Accoun
     fakeServer(
       {
         signedIn: newUser,
-        serverService: { getServerInfo: () => ({ name: "Living Room", accountSignIn: true }) },
+        info: { accountSignIn: true },
       },
       {
-        // The pane's own, with the current password, which isn't enough here.
-        reauthenticate: () => ({}),
-        startAccountSignIn: ({ returnUrl }) => {
-          returnsTo.push(new URL(returnUrl));
-          return { url: "https://hub.example/server-sign-in/1", handle: "secret" };
+        SignInService: {
+          // The pane's own, with the current password, which isn't enough here.
+          reauthenticate: () => ({}),
+          startAccountSignIn: ({ returnUrl }) => {
+            returnsTo.push(new URL(returnUrl));
+            return { url: "https://hub.example/server-sign-in/1", handle: "secret" };
+          },
+        },
+        UserService: {
+          changePassword: () => {
+            throw recentAuthenticationRequired();
+          },
         },
       },
-      {
-        changePassword: () => {
-          throw recentAuthenticationRequired();
-        },
-      },
-    ),
+    ).transport,
   );
 
   await submitPasswordChange();

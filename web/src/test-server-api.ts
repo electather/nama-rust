@@ -25,28 +25,25 @@ import type { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
 import type { WebPushService } from "@/gen/nama/v1/web_push_pb";
 import { traceCallsTo } from "@/shared/lib/diagnostics";
 
-/** The services of the Server's API a test may answer, by name. */
-interface ServerApi {
-  BrowseService: typeof BrowseService;
-  EventService: typeof EventService;
-  InboxService: typeof InboxService;
-  JobService: typeof JobService;
-  LibraryService: typeof LibraryService;
-  MatchService: typeof MatchService;
-  PlaybackService: typeof PlaybackService;
-  PluginService: typeof PluginService;
-  RequestService: typeof RequestService;
-  SearchService: typeof SearchService;
-  ServerService: typeof ServerService;
-  SignInService: typeof SignInService;
-  UserService: typeof UserService;
-  WatchStateService: typeof WatchStateService;
-  WatchlistService: typeof WatchlistService;
-  WebPushService: typeof WebPushService;
-}
-
 /** How a test answers some methods of the Server's API, by service and method name. */
-export type Answers = { [Name in keyof ServerApi]?: Partial<ServiceImpl<ServerApi[Name]>> };
+export interface Answers {
+  BrowseService?: Partial<ServiceImpl<typeof BrowseService>>;
+  EventService?: Partial<ServiceImpl<typeof EventService>>;
+  InboxService?: Partial<ServiceImpl<typeof InboxService>>;
+  JobService?: Partial<ServiceImpl<typeof JobService>>;
+  LibraryService?: Partial<ServiceImpl<typeof LibraryService>>;
+  MatchService?: Partial<ServiceImpl<typeof MatchService>>;
+  PlaybackService?: Partial<ServiceImpl<typeof PlaybackService>>;
+  PluginService?: Partial<ServiceImpl<typeof PluginService>>;
+  RequestService?: Partial<ServiceImpl<typeof RequestService>>;
+  SearchService?: Partial<ServiceImpl<typeof SearchService>>;
+  ServerService?: Partial<ServiceImpl<typeof ServerService>>;
+  SignInService?: Partial<ServiceImpl<typeof SignInService>>;
+  UserService?: Partial<ServiceImpl<typeof UserService>>;
+  WatchStateService?: Partial<ServiceImpl<typeof WatchStateService>>;
+  WatchlistService?: Partial<ServiceImpl<typeof WatchlistService>>;
+  WebPushService?: Partial<ServiceImpl<typeof WebPushService>>;
+}
 
 // Only `nama/v1`: a Server answers the Hub's API as Unimplemented, which is how the app knows it's
 // at a Server (ADR 0105).
@@ -94,8 +91,8 @@ export function serveServerApi(layers: Answers[], strict: boolean): Transport {
 }
 
 function answersOf(layer: Answers, service: string) {
-  // `Answers` types each service's methods by its name, which a runtime name can't index.
-  const byName: Record<string, object | undefined> = layer;
+  // A spread copy, since an interface such as `Answers` can't be indexed by a runtime name.
+  const byName: Record<string, object | undefined> = { ...layer };
   return byName[service] ?? {};
 }
 

@@ -3,13 +3,8 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import {
-  MatchService,
-  TitleKind,
-  type UnmatchedItemSchema,
-  UnmatchedReason,
-} from "@/gen/nama/v1/match_pb";
-import { admin, fakeServer } from "@/test-app";
+import { TitleKind, type UnmatchedItemSchema, UnmatchedReason } from "@/gen/nama/v1/match_pb";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -39,18 +34,21 @@ test.each([
     };
     openSettings(
       "needs-a-match",
-      fakeServer({ signedIn: admin, libraries: [shows] }, {}, {}, (router) => {
-        router.service(MatchService, {
-          listUnmatchedItems: () => ({ items: [listed] }),
-          searchTitles: () => ({
-            candidates: [{ id: { namespace: "tmdb", value: "1" }, title: episode.title }],
-          }),
-          setMatch: () => {
-            listed.reason = UnmatchedReason.NOT_IN_SHOW;
-            return answer;
+      fakeServer(
+        { signedIn: admin, libraries: [shows] },
+        {
+          MatchService: {
+            listUnmatchedItems: () => ({ items: [listed] }),
+            searchTitles: () => ({
+              candidates: [{ id: { namespace: "tmdb", value: "1" }, title: episode.title }],
+            }),
+            setMatch: () => {
+              listed.reason = UnmatchedReason.NOT_IN_SHOW;
+              return answer;
+            },
           },
-        });
-      }),
+        },
+      ).transport,
     );
 
     fireEvent.click(await screen.findByRole("button", { name: /^Find a Match for Bake Off/u }));

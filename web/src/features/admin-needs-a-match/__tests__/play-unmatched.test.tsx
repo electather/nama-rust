@@ -1,9 +1,9 @@
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
-import { MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
-import { admin, fakeServer } from "@/test-app";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { TitleKind } from "@/gen/nama/v1/match_pb";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -20,10 +20,10 @@ test("needs a Match plays each Unmatched Item's Version", async () => {
   };
   openSettings(
     "needs-a-match",
-    fakeServer({ signedIn: admin }, {}, {}, (router) => {
-      router.service(LibraryService, { listLibraries: () => ({ libraries: [films] }) });
-      router.service(MatchService, { listUnmatchedItems: () => ({ items: [item] }) });
-    }),
+    fakeServer(
+      { signedIn: admin, libraries: [films] },
+      { MatchService: { listUnmatchedItems: () => ({ items: [item] }) } },
+    ).transport,
   );
 
   const play = await screen.findByRole("link", { name: "Play Alien (1979)" });

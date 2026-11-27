@@ -4,10 +4,11 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind, type LibrarySchema, type LibraryService } from "@/gen/nama/v1/library_pb";
-import { ExtensionPoint, PluginService, type PluginSummarySchema } from "@/gen/nama/v1/plugin_pb";
+import { ExtensionPoint, type PluginSummarySchema } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { admin, fakeServer, fill } from "@/test-app";
+import { fill } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { admin, fakeServer } from "@/test-server";
 import { openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
@@ -37,28 +38,15 @@ const films: MessageInitShape<typeof LibrarySchema> = {
   titleSources: ["tmdb"],
 };
 
-/** A fake Server with `library`, listing `plugins`, answering Library calls with `calls`. */
+/** A fake Server with `library` and `plugins`, answering Library calls with `calls`. */
 function recognisersServer(
   calls: Partial<ServiceImpl<typeof LibraryService>>,
   plugins: Summary[] = [anime, dates, tvdb],
   library = films,
 ) {
-  return fakeServer(
-    {
-      signedIn: admin,
-      libraries: [library],
-      libraryService: {
-        getLibrary: () => ({ library }),
-        listTitleSources: () => ({}),
-        ...calls,
-      },
-    },
-    {},
-    {},
-    (router) => {
-      router.service(PluginService, { listPlugins: () => ({ summaries: plugins }) });
-    },
-  );
+  const held = plugins.map((summary) => ({ summary }));
+  const facts = { signedIn: admin, libraries: [library], plugins: held };
+  return fakeServer(facts, { LibraryService: calls }).transport;
 }
 
 /** The Recognisers the field's list shows, in order, or none without a list. */

@@ -2,17 +2,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import {
-  type FoundSubtitle,
-  PlaybackMethod,
-  PlaybackService,
-  SubtitleFormat,
-} from "@/gen/nama/v1/playback_pb";
+import { type FoundSubtitle, PlaybackMethod, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -56,8 +51,8 @@ function server(permissions: Permission[], source: Source = {}) {
   };
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const state = { signedIn: permissions, libraries };
-  const transport = fakeServer(state, {}, {}, (router) => {
-    router.service(BrowseService, {
+  const { transport } = fakeServer(state, {
+    BrowseService: {
       getMovie: () => ({
         movie: {
           id: { namespace: "tmdb", value: "348" },
@@ -65,8 +60,8 @@ function server(permissions: Permission[], source: Source = {}) {
           versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
         },
       }),
-    });
-    router.service(PlaybackService, {
+    },
+    PlaybackService: {
       getTrackPreferences: () => ({ subtitle: { language: "fre" } }),
       getSubtitleAppearance: () => ({}),
       getAutoplay: () => ({ on: true }),
@@ -104,7 +99,7 @@ function server(permissions: Permission[], source: Source = {}) {
         }
         return answer;
       },
-    });
+    },
   });
   return { transport, calls };
 }

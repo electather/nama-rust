@@ -1,10 +1,10 @@
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { eventFeed, openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -20,19 +20,17 @@ function matrixServer() {
   let plans = 0;
   let moviesAsked = 0;
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser, libraries, events: events.stream },
-    {},
-    {},
-    (router) => {
-      router.service(PlaybackService, {
+    {
+      PlaybackService: {
         planPlayback: () => {
           plans += 1;
           const plan = { id: BigInt(plans), method: PlaybackMethod.DIRECT_PLAY, url: "/v/7" };
           return { plan };
         },
-      });
-      router.service(BrowseService, {
+      },
+      BrowseService: {
         getMovie: () => {
           moviesAsked += 1;
           const versions = [{ id: 7n, fileName: "Matrix.mkv", size: 1n }];
@@ -40,7 +38,7 @@ function matrixServer() {
           const id = { namespace: "tmdb", value: "603" };
           return { movie: { id, title: "The Matrix", versions, watchState } };
         },
-      });
+      },
     },
   );
   return { transport, events, plans: () => plans, moviesAsked: () => moviesAsked };

@@ -9,12 +9,12 @@ import {
   type Request,
   RequestedQualitySchema,
   RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -90,37 +90,38 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
     Object.assign(request, { state, declineReason });
     return { request };
   };
-  return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: () => ({ requests: [...held.values()] }),
-      countPendingRequests: () => ({}),
-      listOfferedQualities: () => ({ qualities: hdAnd4k }),
-      approveRequest: ({ id, qualityId }) => {
-        const request = held.get(id);
-        if (request?.state === RequestState.PENDING) {
+  return fakeServer(
+    { signedIn: permissions },
+    {
+      RequestService: {
+        listRequests: () => ({ requests: [...held.values()] }),
+        listOfferedQualities: () => ({ qualities: hdAnd4k }),
+        approveRequest: ({ id, qualityId }) => {
+          const request = held.get(id);
+          if (request?.state === RequestState.PENDING) {
+            changeQuality(request, qualityId);
+          }
+          return decide(id, RequestState.APPROVED);
+        },
+        declineRequest: ({ id, reason }) => decide(id, RequestState.DECLINED, reason),
+        cancelRequest: ({ id }) => {
+          held.delete(id);
+          return {};
+        },
+        retryRequest: ({ id, qualityId }) => {
+          const request = held.get(id) ?? create(RequestSchema);
+          if (request.state !== RequestState.FAILED) {
+            throw refused(Code.FailedPrecondition, "it isn't Failed", {
+              reason: RefusalReason.REQUEST_NOT_FAILED,
+            });
+          }
           changeQuality(request, qualityId);
-        }
-        return decide(id, RequestState.APPROVED);
+          Object.assign(request, { state: RequestState.PROCESSING, failureReason: undefined });
+          return { request };
+        },
       },
-      declineRequest: ({ id, reason }) => decide(id, RequestState.DECLINED, reason),
-      cancelRequest: ({ id }) => {
-        held.delete(id);
-        return {};
-      },
-      retryRequest: ({ id, qualityId }) => {
-        const request = held.get(id) ?? create(RequestSchema);
-        if (request.state !== RequestState.FAILED) {
-          throw refused(Code.FailedPrecondition, "it isn't Failed", {
-            reason: RefusalReason.REQUEST_NOT_FAILED,
-          });
-        }
-        changeQuality(request, qualityId);
-        Object.assign(request, { state: RequestState.PROCESSING, failureReason: undefined });
-        return { request };
-      },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("a User without Manage Requests isn't offered Approve, Decline, Cancel or Retry", async () => {
@@ -282,18 +283,19 @@ test("approving a Season at another Quality than its Show's says each Season tak
     field: "quality_id",
     params: { qualityId: "1", showQualityId: "2", showQualityName: "4K" },
   });
-  const server = fakeServer({ signedIn: admin }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: () => ({ requests: [darkSeason2] }),
-      countPendingRequests: () => ({}),
-      listOfferedQualities: () => ({ qualities: hdAnd4k }),
-      approveRequest: () => {
-        throw showHasQuality;
+  const { transport } = fakeServer(
+    { signedIn: admin },
+    {
+      RequestService: {
+        listRequests: () => ({ requests: [darkSeason2] }),
+        listOfferedQualities: () => ({ qualities: hdAnd4k }),
+        approveRequest: () => {
+          throw showHasQuality;
+        },
       },
-    });
-  });
-  openApp("/?settings=requests", server);
+    },
+  );
+  openApp("/?settings=requests", transport);
 
   fireEvent.click(
     await screen.findByRole("button", { name: "Approve Dark Season 2 at another Quality" }),

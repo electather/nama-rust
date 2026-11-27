@@ -1,4 +1,4 @@
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -14,6 +14,7 @@ import {
   toggleIn,
 } from "@/test-plugins";
 import { refused } from "@/test-refusal";
+import type { Answers } from "@/test-server-api";
 
 afterEach(cleanup);
 
@@ -62,18 +63,29 @@ function savedRatings({ settings }: UpdatePluginSettingsRequest) {
   return saved?.case === "texts" ? saved.value.values : undefined;
 }
 
-/** Opens the test Plugin, keeping the Ratings' values each save sends in `sent`. */
+/**
+ * The test Plugin's settings check as it opens, which fails, so the Manifest's choices stand
+ * unmarked: one answered empty would pass, offering none of them.
+ */
+function untested(): never {
+  throw new ConnectError("no settings check here", Code.Unimplemented);
+}
+
+/** Opens the test Plugin, untested, keeping the Ratings' values each save sends in `sent`. */
 function openSaving(sent: unknown[]) {
   openPlugin("test-choices", {
-    updatePluginSettings: (request) => {
-      sent.push(savedRatings(request));
-      return { plugin: { summary: { id: "test-choices", enabled: true } } };
+    PluginService: {
+      testPluginSettings: untested,
+      updatePluginSettings: (request) => {
+        sent.push(savedRatings(request));
+        return { plugin: { summary: { id: "test-choices", enabled: true } } };
+      },
     },
   });
 }
 
 test("before a test, a several-choices setting offers its Manifest’s choices, held ones picked, unmarked", async () => {
-  openPlugin("test-choices");
+  openPlugin("test-choices", { PluginService: { testPluginSettings: untested } });
 
   await expect(shown()).resolves.toStrictEqual({
     offered: ["G", "PG", "R", "nc-17"],
@@ -93,13 +105,17 @@ function openRatings(
   sent: unknown[] = [],
 ) {
   const summary = { id: "test-choices", enabled: true };
-  openPlugin("test-choices", {
-    getPlugin: () => ({ plugin: { summary, settings: [{ ...ratingsSetting, ...held }] } }),
-    updatePluginSettings: (request) => {
-      sent.push(savedRatings(request));
-      return { plugin: { summary } };
+  openPlugin(
+    { summary, settings: [{ ...ratingsSetting, ...held }] },
+    {
+      PluginService: {
+        updatePluginSettings: (request) => {
+          sent.push(savedRatings(request));
+          return { plugin: { summary } };
+        },
+      },
     },
-  });
+  );
 }
 
 test("without a settings check, a held choice the Manifest doesn’t list is no longer offered", async () => {
@@ -112,31 +128,30 @@ test("without a settings check, a held choice the Manifest doesn’t list is no 
 });
 
 /**
- * A fake Server whose test Plugin holds the Ratings it was last sent, none at first, keeping the
- * Ratings' values each save sends in `sent`.
+ * The test Plugin, holding the Ratings it was last sent, none at first, and the answers that keep
+ * the Ratings' values each save sends in `sent`.
  */
-function ratingsServer(sent: unknown[]): Parameters<typeof openPlugin>[1] {
-  let held: string[] = [];
+function ratingsServer(sent: unknown[]) {
   const summary = { id: "test-choices", enabled: true };
-  return {
-    getPlugin: () => ({
-      plugin: {
-        summary,
-        settings: [{ ...ratingsSetting, value: texts(...held) }],
+  const record = { summary, settings: [{ ...ratingsSetting, value: texts() }] };
+  const answers: Answers = {
+    PluginService: {
+      updatePluginSettings: (request) => {
+        const held = savedRatings(request) ?? [];
+        sent.push(held);
+        // Each fake Server holds `record` itself, so a reload's read sees what was saved.
+        record.settings = [{ ...ratingsSetting, value: texts(...held) }];
+        return { plugin: { summary } };
       },
-    }),
-    updatePluginSettings: (request) => {
-      held = savedRatings(request) ?? [];
-      sent.push(held);
-      return { plugin: { summary } };
     },
   };
+  return { record, answers };
 }
 
 test("each choice picked is saved with the rest, and they show picked after a reload", async () => {
   const sent: unknown[] = [];
-  const server = ratingsServer(sent);
-  openPlugin("test-choices", server);
+  const { record, answers } = ratingsServer(sent);
+  openPlugin(record, answers);
   await pick("G", "R");
   // One save a pick, in order, so the last one holds them all.
   await waitFor(() => {
@@ -144,7 +159,7 @@ test("each choice picked is saved with the rest, and they show picked after a re
   });
   cleanup();
 
-  openPlugin("test-choices", server);
+  openPlugin(record, answers);
 
   await expect(shown()).resolves.toStrictEqual({ offered: ["G", "PG", "R"], picked: ["G", "R"] });
 });
@@ -181,12 +196,15 @@ test("a several-choices setting holding nothing saves its picks once they differ
 
 test("a required several-choices setting left with none picked shows as missing", async () => {
   openPlugin("test-choices", {
-    updatePluginSettings: () => {
-      throw refused(Code.InvalidArgument, "the setting ratings is required", {
-        reason: RefusalReason.FIELD_REQUIRED,
-        field: "settings.ratings",
-        params: { pluginId: "test-choices", settingKey: "ratings" },
-      });
+    PluginService: {
+      testPluginSettings: untested,
+      updatePluginSettings: () => {
+        throw refused(Code.InvalidArgument, "the setting ratings is required", {
+          reason: RefusalReason.FIELD_REQUIRED,
+          field: "settings.ratings",
+          params: { pluginId: "test-choices", settingKey: "ratings" },
+        });
+      },
     },
   });
   await pick("PG", "nc-17");
@@ -221,9 +239,11 @@ test("a held choice no longer offered is saved until it’s unpicked", async () 
 
 test("a passing test’s choices replace the Manifest’s, and a held one it drops is no longer offered", async () => {
   openPlugin("test-choices", {
-    testPluginSettings: () => ({
-      choices: { ratings: { choices: [{ value: "tv-14", label: "TV-14" }] } },
-    }),
+    PluginService: {
+      testPluginSettings: () => ({
+        choices: { ratings: { choices: [{ value: "tv-14", label: "TV-14" }] } },
+      }),
+    },
   });
 
   await pressTest();

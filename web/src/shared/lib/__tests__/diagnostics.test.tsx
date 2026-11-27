@@ -1,20 +1,19 @@
 import { expect, test } from "vite-plus/test";
 
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 /** The `traceparent` the app sends with `ListDevices`, which Settings' Devices pane calls, against a Server that exports Diagnostics or not. */
 async function traceparentSent(exportsDiagnostics: boolean) {
   const sent: (string | null)[] = [];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
+    { signedIn: newUser, info: { exportsDiagnostics } },
     {
-      signedIn: newUser,
-      serverService: { getServerInfo: () => ({ name: "Living Room", exportsDiagnostics }) },
-    },
-    {},
-    {
-      listDevices: (_request, context) => {
-        sent.push(context.requestHeader.get("traceparent"));
-        return {};
+      UserService: {
+        listDevices: (_request, context) => {
+          sent.push(context.requestHeader.get("traceparent"));
+          return {};
+        },
       },
     },
   );

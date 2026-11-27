@@ -1,17 +1,16 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   PickedTrackKind,
   type PlanPlaybackRequest,
   PlaybackMethod,
-  PlaybackService,
   type ReportTrackPickRequest,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -53,32 +52,35 @@ function server(
     { codec: "dts", language: "eng", default: true, kind: audio(6) },
     { codec: "aac", language: "eng", title: "Commentary", kind: audio(2) },
   ] as const;
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+          },
+        }),
+      },
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const audioTrack = request.audioTrack ?? 2;
+          const played =
+            audioTrack === 2
+              ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
+              : { method: PlaybackMethod.REMUX, url: `/media/plans/${asked.length}/index.m3u8` };
+          return { plan: { ...played, audioTrack, audioTracks } };
         },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const audioTrack = request.audioTrack ?? 2;
-        const played =
-          audioTrack === 2
-            ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
-            : { method: PlaybackMethod.REMUX, url: `/media/plans/${asked.length}/index.m3u8` };
-        return { plan: { ...played, audioTrack, audioTracks } };
+        reportTrackPick: (request) => {
+          picked.push(request);
+          return {};
+        },
       },
-      reportTrackPick: (request) => {
-        picked.push(request);
-        return {};
-      },
-    });
-  });
+    },
+  ).transport;
 }
 
 function openAudio() {

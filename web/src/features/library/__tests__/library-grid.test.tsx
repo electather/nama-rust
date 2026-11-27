@@ -1,15 +1,11 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import {
-  BrowseService,
-  type ListMoviesRequest,
-  MovieSort,
-  WatchedFilter,
-} from "@/gen/nama/v1/browse_pb";
+import { type ListMoviesRequest, MovieSort, WatchedFilter } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { SortDirection } from "@/gen/nama/v1/page_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -25,26 +21,28 @@ const LIBRARY_SIZE = 1000;
  */
 function thousandMovies(asked: ListMoviesRequest[], genres = ["Crime", "Horror"]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listUnmatched: () => ({}),
-      listGenres: () => ({ genres }),
-      listMovies: (request) => {
-        asked.push(request);
-        const token = Number(request.page?.token ?? "");
-        const first = Number.isNaN(token) ? 0 : token;
-        const size = request.page?.size ?? 50;
-        const count = Math.min(size, LIBRARY_SIZE - first);
-        const movies = Array.from({ length: count }, (_, at) => {
-          const id = String(first + at + 1);
-          return { id: { namespace: "tmdb", value: id }, title: `Movie ${id}` };
-        });
-        const next = first + count < LIBRARY_SIZE ? String(first + count) : "";
-        const total = first === 0 ? { totalSize: LIBRARY_SIZE } : {};
-        return { movies, page: { nextToken: next, ...total } };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        listGenres: () => ({ genres }),
+        listMovies: (request) => {
+          asked.push(request);
+          const token = Number(request.page?.token ?? "");
+          const first = Number.isNaN(token) ? 0 : token;
+          const size = request.page?.size ?? 50;
+          const count = Math.min(size, LIBRARY_SIZE - first);
+          const movies = Array.from({ length: count }, (_, at) => {
+            const id = String(first + at + 1);
+            return { id: { namespace: "tmdb", value: id }, title: `Movie ${id}` };
+          });
+          const next = first + count < LIBRARY_SIZE ? String(first + count) : "";
+          const total = first === 0 ? { totalSize: LIBRARY_SIZE } : {};
+          return { movies, page: { nextToken: next, ...total } };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 /** Stands in for the browser's `IntersectionObserver`, with the end of the grid always in view. */
@@ -186,13 +184,10 @@ test("a Library's posters are images alone, labelled with title and year, naming
     posterUrl: "/media/artwork/tmdb/%2Foffice.jpg",
   };
   const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
-  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listUnmatched: () => ({}),
-      listGenres: () => ({}),
-      listShows: () => ({ shows: [office, dark] }),
-    });
-  });
+  const { transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    { BrowseService: { listShows: () => ({ shows: [office, dark] }) } },
+  );
   openApp("/libraries/2", transport);
 
   const officePoster = await screen.findByRole("link", { name: "The Office, 2005" });

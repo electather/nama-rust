@@ -2,8 +2,9 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { type SearchResponseSchema, SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { type SearchResponseSchema, TitleStatus } from "@/gen/nama/v1/search_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -25,18 +26,21 @@ function server() {
       status: TitleStatus.AVAILABLE,
     },
   ] as const;
-  return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(SearchService, {
-      search: () =>
-        new ReadableStream<MessageInitShape<typeof SearchResponseSchema>>({
-          start(controller) {
-            controller.enqueue({ part: { case: "hits", value: { hits: [...hits] } } });
-            controller.enqueue({ part: { case: "done", value: {} } });
-            controller.close();
-          },
-        }),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser },
+    {
+      SearchService: {
+        search: () =>
+          new ReadableStream<MessageInitShape<typeof SearchResponseSchema>>({
+            start(controller) {
+              controller.enqueue({ part: { case: "hits", value: { hits: [...hits] } } });
+              controller.enqueue({ part: { case: "done", value: {} } });
+              controller.close();
+            },
+          }),
+      },
+    },
+  ).transport;
 }
 
 test("a search lists the People it finds after the titles, and picking one opens their page", async () => {

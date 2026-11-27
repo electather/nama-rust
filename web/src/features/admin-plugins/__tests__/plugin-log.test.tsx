@@ -11,12 +11,14 @@ const LOGGED_AT = Date.UTC(2026, 10, 18, 9, 30);
 
 test("an Admin sees a Plugin's log lines newest first, with when and how much each matters", async () => {
   openPluginAsAdmin("tmdb", {
-    listPluginLogLines: () => ({
-      lines: [
-        { atMs: BigInt(LOGGED_AT + 1000), level: PluginLogLevel.WARN, text: "TMDB said 429" },
-        { atMs: BigInt(LOGGED_AT), level: PluginLogLevel.INFO, text: "fetched Heat" },
-      ],
-    }),
+    PluginService: {
+      listPluginLogLines: () => ({
+        lines: [
+          { atMs: BigInt(LOGGED_AT + 1000), level: PluginLogLevel.WARN, text: "TMDB said 429" },
+          { atMs: BigInt(LOGGED_AT), level: PluginLogLevel.INFO, text: "fetched Heat" },
+        ],
+      }),
+    },
   });
   const page = await plugin("TMDB");
 
@@ -33,13 +35,15 @@ test("an Admin sees a Plugin's log lines newest first, with when and how much ea
 
 test("a level's button hides and shows that level's lines, and says how many show", async () => {
   openPluginAsAdmin("tmdb", {
-    listPluginLogLines: () => ({
-      lines: [
-        { atMs: BigInt(LOGGED_AT + 2000), level: PluginLogLevel.ERROR, text: "TMDB timed out" },
-        { atMs: BigInt(LOGGED_AT + 1000), level: PluginLogLevel.INFO, text: "fetched Ronin" },
-        { atMs: BigInt(LOGGED_AT), level: PluginLogLevel.INFO, text: "fetched Heat" },
-      ],
-    }),
+    PluginService: {
+      listPluginLogLines: () => ({
+        lines: [
+          { atMs: BigInt(LOGGED_AT + 2000), level: PluginLogLevel.ERROR, text: "TMDB timed out" },
+          { atMs: BigInt(LOGGED_AT + 1000), level: PluginLogLevel.INFO, text: "fetched Ronin" },
+          { atMs: BigInt(LOGGED_AT), level: PluginLogLevel.INFO, text: "fetched Heat" },
+        ],
+      }),
+    },
   });
   const page = await plugin("TMDB");
   const log = await page.findByRole("list", { name: "Plugin Log" });
@@ -67,9 +71,11 @@ test("a level's button hides and shows that level's lines, and says how many sho
 test("a Plugin that has logged nothing has no Plugin Log", async () => {
   let listed = false;
   const { queryClient } = openPluginAsAdmin("tmdb", {
-    listPluginLogLines: () => {
-      listed = true;
-      return { lines: [] };
+    PluginService: {
+      listPluginLogLines: () => {
+        listed = true;
+        return { lines: [] };
+      },
     },
   }).options.context;
   const page = await plugin("TMDB");
@@ -84,8 +90,10 @@ test("a Plugin that has logged nothing has no Plugin Log", async () => {
 
 test("a Plugin Log that can't be loaded says so", async () => {
   openPluginAsAdmin("tmdb", {
-    listPluginLogLines: () => {
-      throw new ConnectError("the database is locked", Code.Internal);
+    PluginService: {
+      listPluginLogLines: () => {
+        throw new ConnectError("the database is locked", Code.Internal);
+      },
     },
   });
   const page = await plugin("TMDB");

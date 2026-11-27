@@ -53,7 +53,7 @@ test("a Plugin without a settings check has no Test button", async () => {
 });
 
 test("a passing check on the stored settings fills a choice's dropdown as the Plugin opens", async () => {
-  openPlugin("test-choices", { testPluginSettings: () => profiles });
+  openPlugin("test-choices", { PluginService: { testPluginSettings: () => profiles } });
 
   await waitFor(async () => {
     const found = await profile();
@@ -73,7 +73,7 @@ test("a choice can’t be picked until a check passes, and a passing test fills 
       .mockImplementationOnce(() => {
         throw new ConnectError("no API key", Code.FailedPrecondition);
       });
-    openPlugin("test-choices", { testPluginSettings: check });
+    openPlugin("test-choices", { PluginService: { testPluginSettings: check } });
   });
   const found5 = await profile();
   expect(found5.hasAttribute("disabled")).toBe(true);
@@ -100,10 +100,12 @@ test("a choice can’t be picked until a check passes, and a passing test fills 
 test("a choice is saved as it's picked, and an untested one is saved as it was", async () => {
   const sent: UpdatePluginSettingsRequest[] = [];
   openPlugin("test-choices", {
-    testPluginSettings: () => profiles,
-    updatePluginSettings: (request) => {
-      sent.push(request);
-      return { plugin: { summary: { id: "test-choices", enabled: true } } };
+    PluginService: {
+      testPluginSettings: () => profiles,
+      updatePluginSettings: (request) => {
+        sent.push(request);
+        return { plugin: { summary: { id: "test-choices", enabled: true } } };
+      },
     },
   });
   await saveSettings("test-choices");
@@ -121,12 +123,14 @@ test("a choice is saved as it's picked, and an untested one is saved as it was",
 
 test("a failed test shows the Plugin’s error and leaves the choice locked", async () => {
   openPlugin("test-choices", {
-    testPluginSettings: () => {
-      // A Plugin's message may end its own sentence.
-      throw refused(Code.FailedPrecondition, "the service refused the API key.", {
-        reason: RefusalReason.SETTINGS_CHECK_FAILED,
-        params: { pluginId: "test-choices" },
-      });
+    PluginService: {
+      testPluginSettings: () => {
+        // A Plugin's message may end its own sentence.
+        throw refused(Code.FailedPrecondition, "the service refused the API key.", {
+          reason: RefusalReason.SETTINGS_CHECK_FAILED,
+          params: { pluginId: "test-choices" },
+        });
+      },
     },
   });
 
@@ -139,7 +143,7 @@ test("a failed test shows the Plugin’s error and leaves the choice locked", as
 });
 
 test("a passing test that offers nothing for a choice unlocks it with only the one it holds", async () => {
-  openPlugin("test-choices", { testPluginSettings: () => ({ choices: {} }) });
+  openPlugin("test-choices", { PluginService: { testPluginSettings: () => ({ choices: {} }) } });
 
   await pressTest();
 
@@ -153,12 +157,14 @@ test("a passing test that offers nothing for a choice unlocks it with only the o
 /** Saves the test Plugin's settings, refused for `reason` with `message`, naming its Profile. */
 async function saveRefusedOnProfile(reason: RefusalReason, message: string) {
   openPlugin("test-choices", {
-    updatePluginSettings: () => {
-      throw refused(Code.FailedPrecondition, message, {
-        reason,
-        field: "settings.profile",
-        params: { pluginId: "test-choices", settingKey: "profile" },
-      });
+    PluginService: {
+      updatePluginSettings: () => {
+        throw refused(Code.FailedPrecondition, message, {
+          reason,
+          field: "settings.profile",
+          params: { pluginId: "test-choices", settingKey: "profile" },
+        });
+      },
     },
   });
   await saveSettings("test-choices");

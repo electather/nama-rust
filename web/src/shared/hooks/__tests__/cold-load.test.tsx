@@ -1,10 +1,8 @@
-import type { ConnectRouter } from "@connectrpc/connect";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp, type ServerState } from "@/test-app";
+import { openApp } from "@/test-app";
+import { type ServerModel, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -25,35 +23,31 @@ const episode = {
   versions: [{ id: 8n, fileName: "Breaking Bad S01E01.mkv", size: 1n }],
 };
 
-/** A fake Server in `state` that never lists its Libraries, and the RPCs the app asked it. */
-function withLibrariesHeldBack(state: ServerState) {
+/** A fake Server holding `facts` that never lists its Libraries, and the RPCs the app asked it. */
+function withLibrariesHeldBack(facts: Partial<ServerModel>) {
   const asked: string[] = [];
   const recordedAndHeld = (name: string) => async () => {
     asked.push(name);
     await neverAnswers();
     return {};
   };
-  const transport = fakeServer(
-    { ...state, libraryService: { listLibraries: recordedAndHeld("listLibraries") } },
-    {},
-    {},
-    (router: ConnectRouter) => {
-      router.service(BrowseService, {
-        getMovie: () => {
-          asked.push("getMovie");
-          return { movie };
-        },
-        getShow: recordedAndHeld("getShow"),
-        listEpisodes: () => {
-          asked.push("listEpisodes");
-          return { episodes: [episode] };
-        },
-        listGenres: recordedAndHeld("listGenres"),
-        listUnmatched: recordedAndHeld("listUnmatched"),
-      });
-      router.service(PlaybackService, { planPlayback: recordedAndHeld("planPlayback") });
+  const { transport } = fakeServer(facts, {
+    LibraryService: { listLibraries: recordedAndHeld("listLibraries") },
+    BrowseService: {
+      getMovie: () => {
+        asked.push("getMovie");
+        return { movie };
+      },
+      getShow: recordedAndHeld("getShow"),
+      listEpisodes: () => {
+        asked.push("listEpisodes");
+        return { episodes: [episode] };
+      },
+      listGenres: recordedAndHeld("listGenres"),
+      listUnmatched: recordedAndHeld("listUnmatched"),
     },
-  );
+    PlaybackService: { planPlayback: recordedAndHeld("planPlayback") },
+  });
   return { transport, asked };
 }
 
@@ -64,7 +58,11 @@ test("who is signed in is asked without waiting for the Server's info", async ()
     await neverAnswers();
     return {};
   };
-  openApp("/", fakeServer({ serverService: { getServerInfo: neverAnswers } }, { whoAmI }));
+  openApp(
+    "/",
+    fakeServer({}, { ServerService: { getServerInfo: neverAnswers }, SignInService: { whoAmI } })
+      .transport,
+  );
 
   await waitFor(() => {
     expect(askedWhoAmI).toBe(true);

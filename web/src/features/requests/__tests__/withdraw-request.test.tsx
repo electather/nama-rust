@@ -2,8 +2,9 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { type RequestSchema, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { type RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -23,16 +24,18 @@ const heat = {
 /** A fake Server holding `requests`, where withdrawing leaves Heat to Ada alone. */
 function server(...requests: MessageInitShape<typeof RequestSchema>[]) {
   let held = requests;
-  return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: () => ({ requests: held }),
-      withdrawRequest: () => {
-        held = [{ ...heat, requesters: [ada] }];
-        return {};
+  return fakeServer(
+    { signedIn: newUser },
+    {
+      RequestService: {
+        listRequests: () => ({ requests: held }),
+        withdrawRequest: () => {
+          held = [{ ...heat, requesters: [ada] }];
+          return {};
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("withdrawing from your Pending Request takes you off it", async () => {

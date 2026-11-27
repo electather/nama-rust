@@ -2,9 +2,10 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { type ListUnmatchedItemsRequest, MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
+import { type ListUnmatchedItemsRequest, TitleKind } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings, pick } from "@/test-settings";
 
 afterEach(cleanup);
@@ -16,15 +17,18 @@ const dark = { itemId: 8n, path: "/srv/shows/Dark.mkv", kind: TitleKind.SHOW, ti
 
 /** A fake Server whose `signedIn` User sees `libraries`, with Alien Unmatched in Films and Dark in Shows. */
 function matchServer(signedIn: Permission[], libraries = [films, shows]) {
-  return fakeServer({ signedIn, libraries }, {}, {}, (router) => {
-    router.service(MatchService, {
-      listUnmatchedItems: ({ filter }) => ({
-        items: [alien, dark].filter((item) =>
-          item.path.startsWith(filter?.libraryId === 1n ? "/srv/films" : "/srv/shows"),
-        ),
-      }),
-    });
-  });
+  return fakeServer(
+    { signedIn, libraries },
+    {
+      MatchService: {
+        listUnmatchedItems: ({ filter }) => ({
+          items: [alien, dark].filter((item) =>
+            item.path.startsWith(filter?.libraryId === 1n ? "/srv/films" : "/srv/shows"),
+          ),
+        }),
+      },
+    },
+  ).transport;
 }
 
 describe("where Needs a Match is", () => {
@@ -42,7 +46,7 @@ describe("where Needs a Match is", () => {
   });
 
   test("it's under Media, before Activity, and searching Settings for unmatched finds it", async () => {
-    openSettings("playback", fakeServer({ signedIn: admin }));
+    openSettings("playback", fakeServer({ signedIn: admin }).transport);
 
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
     const nav = within(screen.getByRole("navigation", { name: "Settings" }));
@@ -71,16 +75,19 @@ test("every Library's Items are asked for at once, not after the Library before'
   const asked: ListUnmatchedItemsRequest[] = [];
   openSettings(
     "needs-a-match",
-    fakeServer({ signedIn: admin, libraries: [films, shows] }, {}, {}, (router) => {
-      router.service(MatchService, {
-        listUnmatchedItems: async (request) => {
-          asked.push(request);
-          // Films never answers, so Shows is asked only if it isn't waiting on Films.
-          await new Promise(() => {});
-          return {};
+    fakeServer(
+      { signedIn: admin, libraries: [films, shows] },
+      {
+        MatchService: {
+          listUnmatchedItems: async (request) => {
+            asked.push(request);
+            // Films never answers, so Shows is asked only if it isn't waiting on Films.
+            await new Promise(() => {});
+            return {};
+          },
         },
-      });
-    }),
+      },
+    ).transport,
   );
 
   await waitFor(() => {

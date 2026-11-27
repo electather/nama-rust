@@ -10,9 +10,7 @@ const noAbout = { setupMarkdown: "", license: "" };
 
 /** TMDB's view, its Plugin carrying `about`. */
 async function openTmdbWith(about: Partial<typeof noAbout>) {
-  openPlugin("tmdb", {
-    getPlugin: () => ({ plugin: { summary: { id: "tmdb", name: "TMDB" }, ...about } }),
-  });
+  openPlugin({ summary: { id: "tmdb", name: "TMDB" }, ...about });
   const page = await plugin("TMDB");
   return page;
 }

@@ -2,12 +2,13 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { type ConfigureJobRequest, JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
+import { type ConfigureJobRequest, JobRunOutcome } from "@/gen/nama/v1/job_pb";
 import { PluginLogLevel } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -85,59 +86,62 @@ function openJobs(job?: string, configured: Partial<ConfigureJobRequest>[] = [])
   const jobs = [{ ...forgetHomeRows }, { ...deleteExpired }, { ...cleanUp }];
   return openApp(
     `/code?settings=jobs${job === undefined ? "" : `&job=${job}`}`,
-    fakeServer({ signedIn: admin }, {}, {}, (router) => {
-      router.service(JobService, {
-        listJobs: () => ({
-          jobs: jobs.map((each) =>
-            each.id === "delete-expired" ? { ...each, lastRun: ran } : each,
-          ),
-        }),
-        listJobRuns: ({ jobId }) => {
-          if (jobId === "clean") {
-            throw new ConnectError("the database is locked", Code.Internal);
-          }
-          if (jobId === "delete-expired") {
-            return { runs: ran ? [ran] : [] };
-          }
-          return { runs: jobId === "forget-home-rows" ? runs : [] };
+    fakeServer(
+      { signedIn: admin },
+      {
+        JobService: {
+          listJobs: () => ({
+            jobs: jobs.map((each) =>
+              each.id === "delete-expired" ? { ...each, lastRun: ran } : each,
+            ),
+          }),
+          listJobRuns: ({ jobId }) => {
+            if (jobId === "clean") {
+              throw new ConnectError("the database is locked", Code.Internal);
+            }
+            if (jobId === "delete-expired") {
+              return { runs: ran ? [ran] : [] };
+            }
+            return { runs: jobId === "forget-home-rows" ? runs : [] };
+          },
+          previewJobSchedule: ({ schedule }) => {
+            if (schedule.split(" ").length === 4) {
+              throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
+                reason: RefusalReason.SCHEDULE_INVALID,
+                field: "schedule",
+              });
+            }
+            return { nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY] };
+          },
+          configureJob: ({ pluginId, jobId, enabled, schedule }) => {
+            if (schedule.split(" ").length === 4) {
+              throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
+                reason: RefusalReason.SCHEDULE_INVALID,
+                field: "schedule",
+              });
+            }
+            configured.push({ pluginId, jobId, enabled, schedule });
+            const saved = jobs.find((each) => each.id === jobId);
+            if (saved) {
+              Object.assign(saved, {
+                enabled,
+                schedule: schedule === "" ? saved.schedule : schedule,
+              });
+            }
+            return {};
+          },
+          runJob: ({ jobId }) => {
+            if (jobId === "forget-home-rows") {
+              throw refused(Code.FailedPrecondition, "it is running already", {
+                reason: RefusalReason.JOB_RUNNING,
+              });
+            }
+            ran = ranNow;
+            return {};
+          },
         },
-        previewJobSchedule: ({ schedule }) => {
-          if (schedule.split(" ").length === 4) {
-            throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
-              reason: RefusalReason.SCHEDULE_INVALID,
-              field: "schedule",
-            });
-          }
-          return { nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY] };
-        },
-        configureJob: ({ pluginId, jobId, enabled, schedule }) => {
-          if (schedule.split(" ").length === 4) {
-            throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
-              reason: RefusalReason.SCHEDULE_INVALID,
-              field: "schedule",
-            });
-          }
-          configured.push({ pluginId, jobId, enabled, schedule });
-          const saved = jobs.find((each) => each.id === jobId);
-          if (saved) {
-            Object.assign(saved, {
-              enabled,
-              schedule: schedule === "" ? saved.schedule : schedule,
-            });
-          }
-          return {};
-        },
-        runJob: ({ jobId }) => {
-          if (jobId === "forget-home-rows") {
-            throw refused(Code.FailedPrecondition, "it is running already", {
-              reason: RefusalReason.JOB_RUNNING,
-            });
-          }
-          ran = ranNow;
-          return {};
-        },
-      });
-    }),
+      },
+    ).transport,
   );
 }
 
@@ -350,14 +354,14 @@ describe("configuring a Job", () => {
 
 describe("where Jobs is", () => {
   test("a User who manages Libraries but isn't an Admin has no Jobs section", async () => {
-    openSettings("jobs", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+    openSettings("jobs", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }).transport);
 
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
     expect(screen.queryByRole("link", { name: "Jobs" })).toBeNull();
   });
 
   test("it's under Activity, after Now Playing, and searching Settings for tasks finds it", async () => {
-    openSettings("playback", fakeServer({ signedIn: admin }));
+    openSettings("playback", fakeServer({ signedIn: admin }).transport);
 
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
     const nav = within(screen.getByRole("navigation", { name: "Settings" }));

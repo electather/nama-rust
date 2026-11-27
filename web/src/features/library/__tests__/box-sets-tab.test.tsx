@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -14,18 +14,18 @@ function server() {
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
   const alien = { id: { namespace: "tmdb", value: "348" }, title: "Alien" };
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listUnmatched: () => ({}),
-      listGenres: () => ({}),
-      listMovies: () => ({ movies: [alien], page: { totalSize: 1 } }),
-      listShows: () => ({ page: { totalSize: 0 } }),
-      listBoxSets: () => ({
-        boxSets: [{ id: { namespace: "tmdb", value: "8091" }, name: "Alien Collection" }],
-        page: { totalSize: 1 },
-      }),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        listMovies: () => ({ movies: [alien], page: { totalSize: 1 } }),
+        listBoxSets: () => ({
+          boxSets: [{ id: { namespace: "tmdb", value: "8091" }, name: "Alien Collection" }],
+          page: { totalSize: 1 },
+        }),
+      },
+    },
+  ).transport;
 }
 
 test("a Movies Library's Box Sets tab lists its Box Sets, each opening its page", async () => {

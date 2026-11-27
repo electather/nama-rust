@@ -27,17 +27,16 @@ afterEach(cleanup);
 function openToSave(id: string, library: Partial<ServiceImpl<typeof LibraryService>> = {}) {
   const requests: UpdatePluginSettingsRequest[] = [];
   const sent = new Promise<UpdatePluginSettingsRequest>((resolve) => {
-    openPlugin(
-      id,
-      {
+    openPlugin(id, {
+      PluginService: {
         updatePluginSettings: (request) => {
           requests.push(request);
           resolve(request);
           return { plugin: { summary: { id, enabled: true } } };
         },
       },
-      library,
-    );
+      LibraryService: library,
+    });
   });
   return { sent, requests };
 }
@@ -88,11 +87,7 @@ test("the form checks the schema: an enabled Plugin's required setting is requir
     kind: SettingKind.TEXT,
     required: true,
   };
-  openPlugin("log-events", {
-    getPlugin: () => ({
-      plugin: { summary: { id: "log-events", enabled: true }, settings: [path] },
-    }),
-  });
+  openPlugin({ summary: { id: "log-events", enabled: true }, settings: [path] });
 
   const found9 = await input("log-events", "Path");
   expect(found9.required).toBe(true);
@@ -109,12 +104,14 @@ test("the form checks the schema: a number takes only its bounds", async () => {
 
 test("a number out of its bounds is refused under it, saying the bound", async () => {
   openPlugin("cleanup", {
-    updatePluginSettings: () => {
-      throw refused(Code.InvalidArgument, "the setting days must be at least 0", {
-        reason: RefusalReason.SETTING_OUT_OF_RANGE,
-        field: "settings.days",
-        params: { settingKey: "days", min: "0" },
-      });
+    PluginService: {
+      updatePluginSettings: () => {
+        throw refused(Code.InvalidArgument, "the setting days must be at least 0", {
+          reason: RefusalReason.SETTING_OUT_OF_RANGE,
+          field: "settings.days",
+          params: { settingKey: "days", min: "0" },
+        });
+      },
     },
   });
 
@@ -211,11 +208,13 @@ test("a bool and a number, however it is written, are sent as their kind", async
 
 test("a refusal shows under the setting it names", async () => {
   openPlugin("log-events", {
-    updatePluginSettings: () => {
-      throw refused(Code.InvalidArgument, "the setting path is required", {
-        reason: RefusalReason.FIELD_REQUIRED,
-        field: "settings.path",
-      });
+    PluginService: {
+      updatePluginSettings: () => {
+        throw refused(Code.InvalidArgument, "the setting path is required", {
+          reason: RefusalReason.FIELD_REQUIRED,
+          field: "settings.path",
+        });
+      },
     },
   });
   await typeAndLeave("log-events", "Path", "x");
@@ -225,11 +224,13 @@ test("a refusal shows under the setting it names", async () => {
 
 test("a refusal naming a secret that is set opens its input to show under", async () => {
   openPlugin("tmdb", {
-    updatePluginSettings: () => {
-      throw refused(Code.InvalidArgument, "the setting api_key must be Secret", {
-        reason: RefusalReason.SETTING_WRONG_KIND,
-        field: "settings.api_key",
-      });
+    PluginService: {
+      updatePluginSettings: () => {
+        throw refused(Code.InvalidArgument, "the setting api_key must be Secret", {
+          reason: RefusalReason.SETTING_WRONG_KIND,
+          field: "settings.api_key",
+        });
+      },
     },
   });
 
@@ -240,11 +241,13 @@ test("a refusal naming a secret that is set opens its input to show under", asyn
 
 test("a Plugin no longer on the Server says so for the form", async () => {
   openPlugin("tmdb", {
-    updatePluginSettings: () => {
-      throw refused(Code.NotFound, "there is no Plugin tmdb", {
-        reason: RefusalReason.PLUGIN_NOT_FOUND,
-        field: "id",
-      });
+    PluginService: {
+      updatePluginSettings: () => {
+        throw refused(Code.NotFound, "there is no Plugin tmdb", {
+          reason: RefusalReason.PLUGIN_NOT_FOUND,
+          field: "id",
+        });
+      },
     },
   });
 
@@ -316,12 +319,14 @@ test.each([
 
 test("a refusal naming a Library no longer on the Server shows under the Libraries setting", async () => {
   openPlugin("cleanup", {
-    updatePluginSettings: () => {
-      throw refused(Code.NotFound, "the setting libraries names no Library 9", {
-        reason: RefusalReason.LIBRARY_NOT_FOUND,
-        field: "settings.libraries",
-        params: { libraryId: "9" },
-      });
+    PluginService: {
+      updatePluginSettings: () => {
+        throw refused(Code.NotFound, "the setting libraries names no Library 9", {
+          reason: RefusalReason.LIBRARY_NOT_FOUND,
+          field: "settings.libraries",
+          params: { libraryId: "9" },
+        });
+      },
     },
   });
   await librariesToClean();

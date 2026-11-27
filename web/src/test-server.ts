@@ -37,21 +37,15 @@ export interface ServerModel {
   events: ReadableStream<SubscribeResponse>;
 }
 
-/** What `fakeServer` may be asked, beyond the model and the answers. */
-interface Options {
-  /** Fail each call nothing answers, naming its method, instead of answering it empty. */
-  strict?: boolean;
-}
-
 /**
  * A fake Server holding `facts` over the defaults, whose reads answer from the model and whose
  * other methods answer empty, except where `answers` answers them. An answer may change the model,
- * and later reads see it.
+ * and later reads see it. `strict` fails each call nothing answers, naming its method, instead.
  */
 export function fakeServer(
   facts: Partial<ServerModel> = {},
   answers: Answers = {},
-  options: Options = {},
+  { strict = false } = {},
 ) {
   const server: ServerModel = {
     signedIn: undefined,
@@ -64,7 +58,7 @@ export function fakeServer(
     ...facts,
     info: { name: "Living Room", ...facts.info },
   };
-  return { server, transport: serveServerApi([derived(server), answers], options.strict ?? false) };
+  return { server, transport: serveServerApi([derived(server), answers], strict) };
 }
 
 /** How the model answers the reads it holds, and today's User and Playback defaults. */

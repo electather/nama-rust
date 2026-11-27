@@ -6,11 +6,11 @@ import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import {
   type FollowedShowSchema,
   type RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, eventFeed, fakeServer, newUser, openApp, requestTitles } from "@/test-app";
+import { eventFeed, openApp, requestTitles } from "@/test-app";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -51,24 +51,26 @@ function filteringServer(
   options: { events?: ReadableStream<SubscribeResponse>; signedIn?: Permission[] } = {},
 ) {
   const { events = new ReadableStream<SubscribeResponse>(), signedIn = newUser } = options;
-  return fakeServer({ signedIn, events }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: ({ filter }) => ({
-        requests: requests.filter((row) => isIn(row, filter?.state)),
-        followedShows: followedShows.filter((row) => isIn(row, filter?.state)),
-      }),
-      countPendingRequests: () => ({
-        count: [...requests, ...followedShows].filter((row) => row.state === RequestState.PENDING)
-          .length,
-      }),
-      approveRequest: ({ id }) => {
-        const index = requests.findIndex((row) => row.id === id);
-        requests[index] = { ...requests[index], state: RequestState.APPROVED };
-        return { request: requests[index] };
+  return fakeServer(
+    { signedIn, events },
+    {
+      RequestService: {
+        listRequests: ({ filter }) => ({
+          requests: requests.filter((row) => isIn(row, filter?.state)),
+          followedShows: followedShows.filter((row) => isIn(row, filter?.state)),
+        }),
+        countPendingRequests: () => ({
+          count: [...requests, ...followedShows].filter((row) => row.state === RequestState.PENDING)
+            .length,
+        }),
+        approveRequest: ({ id }) => {
+          const index = requests.findIndex((row) => row.id === id);
+          requests[index] = { ...requests[index], state: RequestState.APPROVED };
+          return { request: requests[index] };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 /** Picks `state` from the filter's menu, which says `from` until then. */

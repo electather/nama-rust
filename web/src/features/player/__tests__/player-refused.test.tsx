@@ -2,27 +2,24 @@ import { Code } from "@connectrpc/connect";
 import { screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 import { atOrigin } from "@/test-server-at";
 
 /** A Server with Alien in Library 1 that refuses to plan it with `refusal`. */
 function refusingToPlan(...refusal: Parameters<typeof refused>) {
   return fakeServer(
     { signedIn: newUser, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
-    {},
-    {},
-    (router) => {
-      router.service(PlaybackService, {
+    {
+      PlaybackService: {
         planPlayback: () => {
           throw refused(...refusal);
         },
-      });
-      router.service(BrowseService, {
+      },
+      BrowseService: {
         getMovie: () => ({
           movie: {
             id: { namespace: "tmdb", value: "603" },
@@ -30,9 +27,9 @@ function refusingToPlan(...refusal: Parameters<typeof refused>) {
             versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
           },
         }),
-      });
+      },
     },
-  );
+  ).transport;
 }
 
 test("a Server too busy to Transcode the Version says so in plain words instead of the player", async () => {

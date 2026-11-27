@@ -3,7 +3,7 @@ import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, type EpisodeSchema } from "@/gen/nama/v1/browse_pb";
+import type { BrowseService, EpisodeSchema } from "@/gen/nama/v1/browse_pb";
 import {
   LibraryKind,
   type LibraryService,
@@ -11,10 +11,11 @@ import {
 } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { eventFeed, openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { openMenu, pickFromMenu } from "@/test-menu";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 import { pick } from "@/test-settings";
 
 // A Show's row of Episodes is virtual, so it needs a layout to show its cards.
@@ -69,12 +70,14 @@ function openDark(
   browse: Partial<ServiceImpl<typeof BrowseService>> = {},
 ) {
   const events = eventFeed();
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     {
       signedIn: permissions,
       events: events.stream,
       libraries: [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }],
-      libraryService: {
+    },
+    {
+      LibraryService: {
         previewDeleteMedia: () => ({
           files: [TWO_EPISODES],
           bytesFreed: TWO_EPISODES.size,
@@ -84,21 +87,14 @@ function openDark(
         }),
         ...library,
       },
-    },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
-        listUnmatched: () => ({}),
+      BrowseService: {
         getShow: () => ({
           show: { id: darkId, title: "Dark" },
           seasons: [{ number: 1 }, { number: 2 }],
         }),
         listEpisodes: withSeasonTwo(() => [secrets, lies]),
-        listShows: () => ({ shows: [] }),
-        listGenres: () => ({}),
         ...browse,
-      });
+      },
     },
   );
   openApp("/libraries/2/shows/tmdb-70523", transport);

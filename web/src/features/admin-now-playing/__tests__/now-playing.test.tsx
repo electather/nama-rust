@@ -9,7 +9,8 @@ import {
   type StopPlayRequest,
 } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, eventFeed, fakeServer, fill } from "@/test-app";
+import { eventFeed, fill } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -55,24 +56,22 @@ function openNowPlaying(plays: Play[], events = eventFeed(), stopped: StopPlayRe
   openSettings(
     "now-playing",
     fakeServer(
+      { signedIn: admin, events: events.stream },
       {
-        signedIn: admin,
-        events: events.stream,
-        serverService: { listPlays: () => ({ plays }), stopPlay },
+        ServerService: { listPlays: () => ({ plays }), stopPlay },
+        UserService: {
+          listUsers: () => ({
+            users: [
+              { id: 1n, name: "Sam" },
+              { id: 2n, name: "Ada" },
+            ],
+          }),
+          listDevices: ({ userId }) => ({
+            devices: userId === 2n ? [{ id: 5n, name: "Living room TV" }] : [],
+          }),
+        },
       },
-      {},
-      {
-        listUsers: () => ({
-          users: [
-            { id: 1n, name: "Sam" },
-            { id: 2n, name: "Ada" },
-          ],
-        }),
-        listDevices: ({ userId }) => ({
-          devices: userId === 2n ? [{ id: 5n, name: "Living room TV" }] : [],
-        }),
-      },
-    ),
+    ).transport,
   );
 }
 
@@ -133,14 +132,14 @@ describe("the Now Playing section", () => {
 
 describe("where Now Playing is", () => {
   test("a User who manages Libraries but isn't an Admin has no Now Playing section", async () => {
-    openSettings("now-playing", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+    openSettings("now-playing", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }).transport);
 
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
     expect(screen.queryByRole("link", { name: "Now Playing" })).toBeNull();
   });
 
   test("it's under Activity, before Admin, and searching Settings for streams finds it", async () => {
-    openSettings("playback", fakeServer({ signedIn: admin }));
+    openSettings("playback", fakeServer({ signedIn: admin }).transport);
 
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
     const nav = within(screen.getByRole("navigation", { name: "Settings" }));

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import {
-  BrowseService,
+  type BrowseService,
   type ContinueWatchingEntrySchema,
   HdrFormat,
   type MovieSchema,
@@ -12,7 +12,8 @@ import {
   type VersionSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -22,9 +23,7 @@ function server(browse: Partial<ServiceImpl<typeof BrowseService>>) {
     { id: 1n, name: "Films", kind: LibraryKind.MOVIES },
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, browse);
-  });
+  return fakeServer({ signedIn: newUser, libraries }, { BrowseService: browse }).transport;
 }
 
 /** Opens the page of `movie`, Parasite with one unprobed Version unless it says otherwise. */
@@ -237,7 +236,6 @@ function openDark(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
   };
   const transport = server({
     getShow: () => ({ show, seasons: [{ number: 1 }] }),
-    listEpisodes: () => ({ episodes: [] }),
     listContinueWatching: () => ({ entries }),
   });
   openApp("/libraries/2/shows/tmdb-70523", transport);
@@ -311,7 +309,6 @@ test("a Show whose Episode has Atmos audio shows Atmos, and marks both Tracks un
   const transport = server({
     getShow: () => ({ show: dark, seasons: [{ number: 1 }] }),
     listEpisodes: () => ({ episodes: [episode] }),
-    listContinueWatching: () => ({ entries: [] }),
   });
   openApp("/libraries/2/shows/tmdb-70523", transport);
 

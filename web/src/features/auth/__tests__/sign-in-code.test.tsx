@@ -5,8 +5,9 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
+import { fakeServer, newUser, type ServerModel } from "@/test-server";
 
 beforeEach(() => {
   // Polling waits seconds between tries; the tests move the clock on instead.
@@ -35,28 +36,32 @@ async function nextPoll() {
  * signing in with a password.
  */
 function serverWaitingForApproval() {
-  const state: ServerState = {};
-  const transport = fakeServer(state, {
-    startSignInCode: ({ deviceName }) => {
-      expect(deviceName).toBe("Living room TV");
-      return { code: "ABCD-EFGH", handle: "secret" };
+  const { server, transport } = fakeServer(
+    {},
+    {
+      SignInService: {
+        startSignInCode: ({ deviceName }) => {
+          expect(deviceName).toBe("Living room TV");
+          return { code: "ABCD-EFGH", handle: "secret" };
+        },
+        pollSignInCode: ({ handle }) => {
+          expect(handle).toBe("secret");
+          if (server.signedIn === undefined) {
+            return { status: SignInCodeStatus.WAITING };
+          }
+          return { status: SignInCodeStatus.SIGNED_IN };
+        },
+        signIn: () => {
+          server.signedIn = newUser;
+          return {};
+        },
+      },
     },
-    pollSignInCode: ({ handle }) => {
-      expect(handle).toBe("secret");
-      if (state.signedIn === undefined) {
-        return { status: SignInCodeStatus.WAITING };
-      }
-      return { status: SignInCodeStatus.SIGNED_IN };
-    },
-    signIn: () => {
-      state.signedIn = newUser;
-      return {};
-    },
-  });
+  );
   return {
     transport,
     approve: () => {
-      state.signedIn = newUser;
+      server.signedIn = newUser;
     },
   };
 }
@@ -141,15 +146,17 @@ function serverWithExpiredCode() {
   return fakeServer(
     {},
     {
-      startSignInCode: () => {
-        const code = codes.shift() ?? "";
-        return { code, handle: code };
+      SignInService: {
+        startSignInCode: () => {
+          const code = codes.shift() ?? "";
+          return { code, handle: code };
+        },
+        pollSignInCode: ({ handle }) => ({
+          status: handle === "ABCD-EFGH" ? SignInCodeStatus.EXPIRED : SignInCodeStatus.WAITING,
+        }),
       },
-      pollSignInCode: ({ handle }) => ({
-        status: handle === "ABCD-EFGH" ? SignInCodeStatus.EXPIRED : SignInCodeStatus.WAITING,
-      }),
     },
-  );
+  ).transport;
 }
 
 test("an expired code offers a new one", async () => {
@@ -163,14 +170,16 @@ test("an expired code offers a new one", async () => {
 });
 
 test("a code the Server forgot, after a restart, counts as expired", async () => {
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     {},
     {
-      startSignInCode: () => ({ code: "ABCD-EFGH", handle: "secret" }),
-      pollSignInCode: () => {
-        throw refused(Code.NotFound, "no sign-in is waiting on that handle", {
-          reason: RefusalReason.HANDLE_NOT_FOUND,
-        });
+      SignInService: {
+        startSignInCode: () => ({ code: "ABCD-EFGH", handle: "secret" }),
+        pollSignInCode: () => {
+          throw refused(Code.NotFound, "no sign-in is waiting on that handle", {
+            reason: RefusalReason.HANDLE_NOT_FOUND,
+          });
+        },
       },
     },
   );
@@ -182,13 +191,15 @@ test("a code the Server forgot, after a restart, counts as expired", async () =>
 });
 
 test("too many waiting sign-ins says so, not that there were too many tries", async () => {
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     {},
     {
-      startSignInCode: () => {
-        throw refused(Code.ResourceExhausted, "too many sign-ins are waiting", {
-          reason: RefusalReason.TOO_MANY_PENDING_SIGN_INS,
-        });
+      SignInService: {
+        startSignInCode: () => {
+          throw refused(Code.ResourceExhausted, "too many sign-ins are waiting", {
+            reason: RefusalReason.TOO_MANY_PENDING_SIGN_INS,
+          });
+        },
       },
     },
   );
@@ -210,25 +221,27 @@ function refuseUnlessShown(code: string) {
 
 /**
  * A Server where "Living room TV" shows `abcdefgh`, approving into `approved`, and anyone signing
- * in becomes a new User. Signed in, unless `given` another state.
+ * in becomes a new User. Signed in, unless `given` other facts.
  */
-function serverWithCode(approved: string[] = [], given?: ServerState) {
-  const state = given ?? { signedIn: newUser };
-  return fakeServer(state, {
-    signIn: () => {
-      state.signedIn = newUser;
-      return {};
-    },
-    lookUpSignInCode: ({ code }) => {
-      refuseUnlessShown(code);
-      return { deviceName: "Living room TV" };
-    },
-    approveSignInCode: ({ code }) => {
-      refuseUnlessShown(code);
-      approved.push(code);
-      return {};
+function serverWithCode(approved: string[] = [], given?: Partial<ServerModel>) {
+  const { server, transport } = fakeServer(given ?? { signedIn: newUser }, {
+    SignInService: {
+      signIn: () => {
+        server.signedIn = newUser;
+        return {};
+      },
+      lookUpSignInCode: ({ code }) => {
+        refuseUnlessShown(code);
+        return { deviceName: "Living room TV" };
+      },
+      approveSignInCode: ({ code }) => {
+        refuseUnlessShown(code);
+        approved.push(code);
+        return {};
+      },
     },
   });
+  return transport;
 }
 
 async function lookUp(code: string) {
@@ -278,19 +291,21 @@ function serverNeedingRecentAuthentication() {
   return fakeServer(
     { signedIn: newUser },
     {
-      lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
-      approveSignInCode: () => {
-        if (!reauthenticated) {
-          throw recentAuthenticationRequired();
-        }
-        return {};
-      },
-      reauthenticate: () => {
-        reauthenticated = true;
-        return {};
+      SignInService: {
+        lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
+        approveSignInCode: () => {
+          if (!reauthenticated) {
+            throw recentAuthenticationRequired();
+          }
+          return {};
+        },
+        reauthenticate: () => {
+          reauthenticated = true;
+          return {};
+        },
       },
     },
-  );
+  ).transport;
 }
 
 test("without Recent Authentication, a code is approved once you confirm it’s you", async () => {
@@ -313,14 +328,16 @@ test("an approval the Server refuses goes back to the code, kept, saying why", a
     fakeServer(
       { signedIn: newUser },
       {
-        lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
-        approveSignInCode: () => {
-          throw refused(Code.FailedPrecondition, "already used", {
-            reason: RefusalReason.SIGN_IN_CODE_ALREADY_APPROVED,
-          });
+        SignInService: {
+          lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
+          approveSignInCode: () => {
+            throw refused(Code.FailedPrecondition, "already used", {
+              reason: RefusalReason.SIGN_IN_CODE_ALREADY_APPROVED,
+            });
+          },
         },
       },
-    ),
+    ).transport,
   );
   await screen.findByRole("heading", { name: "Sign in a Device" });
 

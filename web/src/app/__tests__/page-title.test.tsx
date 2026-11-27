@@ -1,10 +1,10 @@
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { findSettingsLink } from "@/test-settings";
 
 afterEach(cleanup);
@@ -12,22 +12,22 @@ afterEach(cleanup);
 /** A fake Server whose Movies Library, Films (1), has The Matrix (tmdb-603). */
 function server() {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listGenres: () => ({}),
-      listUnmatched: () => ({}),
-      listMovies: () => ({ movies: [] }),
-      getMovie: () => {
-        const versions = [{ id: 7n, fileName: "Matrix.mkv", size: 1n }];
-        return {
-          movie: { id: { namespace: "tmdb", value: "603" }, title: "The Matrix", versions },
-        };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => {
+          const versions = [{ id: 7n, fileName: "Matrix.mkv", size: 1n }];
+          return {
+            movie: { id: { namespace: "tmdb", value: "603" }, title: "The Matrix", versions },
+          };
+        },
       },
-    });
-    router.service(PlaybackService, {
-      planPlayback: () => ({ plan: { id: 1n, method: PlaybackMethod.DIRECT_PLAY, url: "/v/7" } }),
-    });
-  });
+      PlaybackService: {
+        planPlayback: () => ({ plan: { id: 1n, method: PlaybackMethod.DIRECT_PLAY, url: "/v/7" } }),
+      },
+    },
+  ).transport;
 }
 
 test("a Library's tab names it, and a Movie's names it once the app goes there", async () => {
@@ -83,7 +83,7 @@ test("an address with nothing at it says so in the tab", async () => {
 });
 
 test("the sign-in page's tab names the Server", async () => {
-  openApp("/sign-in", fakeServer({}));
+  openApp("/sign-in", fakeServer().transport);
 
   await expect.poll(() => document.title).toBe("Sign in to Living Room – Nama");
 });

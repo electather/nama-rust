@@ -11,8 +11,9 @@ import {
   type ServerService,
   type UpdatePlaybackSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
-import { admin, fakeServer, fill } from "@/test-app";
+import { fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { admin, fakeServer } from "@/test-server";
 import { dropdown, offered, openSettings, pick } from "@/test-settings";
 
 /**
@@ -24,21 +25,20 @@ function openPlayback(
   serverService: Partial<ServiceImpl<typeof ServerService>> = {},
 ) {
   const updates: UpdatePlaybackSettingsRequest[] = [];
-  openSettings(
-    "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({}),
-        getPlaybackSettings: () => ({ settings: updates.at(-1)?.settings ?? settings }),
+  const { server, transport } = fakeServer(
+    { signedIn: admin, playbackSettings: settings },
+    {
+      ServerService: {
         updatePlaybackSettings: (request) => {
           updates.push(request);
+          server.playbackSettings = request.settings ?? settings;
           return { settings: request.settings };
         },
         ...serverService,
       },
-    }),
+    },
   );
+  openSettings("server-playback", transport);
   return updates;
 }
 

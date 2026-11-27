@@ -2,7 +2,8 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -12,7 +13,7 @@ const libraries = [
 ];
 
 test("the action bar lists each Library by its kind, and its name finds it and opens it", async () => {
-  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }));
+  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }).transport);
   await screen.findByRole("button", { name: "Search this Server" });
   fireEvent.keyDown(document.body, { key: "k", metaKey: true });
   const field = await screen.findByRole("combobox", { name: "Command menu" });

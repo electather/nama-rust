@@ -1,16 +1,15 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   PlaybackMethod,
-  PlaybackService,
   type SetSubtitleOffsetRequest,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, pickIn } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -25,47 +24,50 @@ const SUBTITLE = { case: "subtitle", value: {} } as const;
  */
 function server(saved: SetSubtitleOffsetRequest[], burnedIn?: number) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
-        },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: () => ({
-        plan: {
-          method: PlaybackMethod.DIRECT_PLAY,
-          url: "/media/versions/7",
-          subtitles: [
-            {
-              track: { codec: "subrip", language: "eng", kind: SUBTITLE },
-              url: ENGLISH,
-              place: 2,
-              format: SubtitleFormat.WEBVTT,
-              offsetMs: 1500,
-            },
-            {
-              track: { codec: "subrip", language: "fre", kind: SUBTITLE },
-              url: FRENCH,
-              place: 3,
-              format: SubtitleFormat.WEBVTT,
-            },
-          ],
-          burnInTracks: burnedIn === undefined ? [] : [burnedIn],
-          subtitleTrack: burnedIn,
-          startingSubtitle: burnedIn,
-        },
-      }),
-      setSubtitleOffset: (request) => {
-        saved.push(request);
-        return {};
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
+          },
+        }),
       },
-    });
-  });
+      PlaybackService: {
+        planPlayback: () => ({
+          plan: {
+            method: PlaybackMethod.DIRECT_PLAY,
+            url: "/media/versions/7",
+            subtitles: [
+              {
+                track: { codec: "subrip", language: "eng", kind: SUBTITLE },
+                url: ENGLISH,
+                place: 2,
+                format: SubtitleFormat.WEBVTT,
+                offsetMs: 1500,
+              },
+              {
+                track: { codec: "subrip", language: "fre", kind: SUBTITLE },
+                url: FRENCH,
+                place: 3,
+                format: SubtitleFormat.WEBVTT,
+              },
+            ],
+            burnInTracks: burnedIn === undefined ? [] : [burnedIn],
+            subtitleTrack: burnedIn,
+            startingSubtitle: burnedIn,
+          },
+        }),
+        setSubtitleOffset: (request) => {
+          saved.push(request);
+          return {};
+        },
+      },
+    },
+  ).transport;
 }
 
 /**

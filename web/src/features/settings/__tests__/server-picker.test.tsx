@@ -1,15 +1,16 @@
 import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
+import { Code, ConnectError, type Transport } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
-import { PluginService } from "@/gen/nama/v1/plugin_pb";
 import type { UpdateServerSettingsRequest } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
-import { plugins, summaryOf } from "@/test-plugin-list";
+import { plugins } from "@/test-plugin-list";
+import { type ServerModel, fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { findSettingsLink, offered, pick } from "@/test-settings";
 
 afterEach(() => {
@@ -40,24 +41,23 @@ function fakeServerOf(
   return fakeServer(
     {
       signedIn: permissions,
-      serverService: {
-        getServerInfo: () => ({ version: "0.3.0", settingsSections: sections }),
-        getServerSettings: () => ({ settings: { url: "https://media.basement.example" } }),
+      info: { version: "0.3.0", settingsSections: sections },
+      serverSettings: { url: "https://media.basement.example" },
+    },
+    {
+      ServerService: {
         updateServerSettings: (request) => {
           updates.push(request);
           return { settings: request.settings };
         },
       },
+      SignInService: { signInWithHubToken: () => ({ token: "session" }) },
     },
-    { signInWithHubToken: () => ({ token: "session" }) },
-  );
+  ).transport;
 }
 
 /** Opens Settings at the Hub, for an Account on Basement, Cabin or both, each the fake in `at`. */
-function openHubSettings(
-  at: Record<string, ReturnType<typeof fakeServer>>,
-  url = "/?settings=account",
-) {
+function openHubSettings(at: Record<string, Transport>, url = "/?settings=account") {
   const servers = [basement, cabin].filter(({ addresses }) => at[addresses[0] ?? ""]);
   openApp(url, accountHub({ servers }).transport, undefined, (origin) => {
     const server = at[origin];
@@ -110,21 +110,16 @@ test("a Section the picked Server doesn't report says to update it, and offers n
   expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
 });
 
-/** A fake Server whose Admin is signed in, serving only Plugins, which `listPlugins` answers. */
-function fakeServerOfPlugins(listPlugins: ServiceImpl<typeof PluginService>["listPlugins"]) {
+/** A fake Server whose Admin is signed in, serving only Plugins, holding `facts` and answering `answers`. */
+function fakeServerOfPlugins(facts: Partial<ServerModel>, answers: Answers = {}) {
   return fakeServer(
     {
       signedIn: [Permission.ADMIN],
-      serverService: {
-        getServerInfo: () => ({ version: "0.3.0", settingsSections: ["plugins"] }),
-      },
+      info: { version: "0.3.0", settingsSections: ["plugins"] },
+      ...facts,
     },
-    { signInWithHubToken: () => ({ token: "session" }) },
-    {},
-    (router) => {
-      router.service(PluginService, { listPlugins });
-    },
-  );
+    { SignInService: { signInWithHubToken: () => ({ token: "session" }) }, ...answers },
+  ).transport;
 }
 
 test("a crumb that failed on one picked Server shows its name again on the next", async () => {
@@ -134,10 +129,11 @@ test("a crumb that failed on one picked Server shows its name again on the next"
     throw new ConnectError("refused", Code.Internal);
   };
   const servers = {
-    "https://basement.example": fakeServerOfPlugins(refused),
-    "https://cabin.example": fakeServerOfPlugins(() => ({
-      summaries: plugins.map((listed) => summaryOf(listed)),
-    })),
+    "https://basement.example": fakeServerOfPlugins(
+      {},
+      { PluginService: { listPlugins: refused } },
+    ),
+    "https://cabin.example": fakeServerOfPlugins({ plugins }),
   };
   // React logs the error it hands to the boundary.
   vi.spyOn(console, "error").mockReturnValue();

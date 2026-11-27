@@ -1,8 +1,8 @@
-import { Code, type ServiceImpl } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { PluginKind, PluginPermission, type PluginService } from "@/gen/nama/v1/plugin_pb";
+import { PluginKind, PluginPermission } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { openPlugin, plugin } from "@/test-plugins";
 import { refused } from "@/test-refusal";
@@ -14,12 +14,14 @@ test.each([
   ["without a full stop gets one", "the key was turned down"],
 ])("a refused-to-start reason %s", async (_, reason) => {
   openPlugin("test-plugin", {
-    enablePlugin: () => {
-      throw refused(Code.FailedPrecondition, "test-plugin refused to start", {
-        reason: RefusalReason.PLUGIN_REFUSED_TO_START,
-        field: "id",
-        params: { pluginId: "test-plugin", reason },
-      });
+    PluginService: {
+      enablePlugin: () => {
+        throw refused(Code.FailedPrecondition, "test-plugin refused to start", {
+          reason: RefusalReason.PLUGIN_REFUSED_TO_START,
+          field: "id",
+          params: { pluginId: "test-plugin", reason },
+        });
+      },
     },
   });
   const testPlugin = await plugin("test-plugin");
@@ -30,38 +32,36 @@ test.each([
 });
 
 /**
- * The cleanup Plugin requesting `requestedPermissions`, listed alone, Installed and disabled unless
- * `granted` says otherwise.
+ * The cleanup Plugin requesting `requestedPermissions`, Installed and disabled unless `granted`
+ * says otherwise.
  */
 function cleanupPlugin(
   requestedPermissions: PluginPermission[],
   granted: { enabled?: boolean; grantedPermissions?: PluginPermission[]; kind?: PluginKind } = {},
 ) {
-  const summary = {
-    id: "cleanup",
-    version: "0.1.0",
-    kind: PluginKind.INSTALLED,
-    enabled: false,
-    requestedPermissions,
-    ...granted,
-  };
   return {
-    listPlugins: () => ({ summaries: [summary] }),
-    getPlugin: () => ({ plugin: { summary } }),
+    summary: {
+      id: "cleanup",
+      version: "0.1.0",
+      kind: PluginKind.INSTALLED,
+      enabled: false,
+      requestedPermissions,
+      ...granted,
+    },
   };
 }
 
 /** Opens the cleanup Plugin and returns the `GrantedPermissions` each Enable sends. */
 function openWithCleanup(requested: PluginPermission[], kind: PluginKind = PluginKind.INSTALLED) {
   const sent: PluginPermission[][] = [];
-  const changes: Partial<ServiceImpl<typeof PluginService>> = {
-    ...cleanupPlugin(requested, { kind }),
-    enablePlugin: ({ grantedPermissions }) => {
-      sent.push(grantedPermissions);
-      return {};
+  openPlugin(cleanupPlugin(requested, { kind }), {
+    PluginService: {
+      enablePlugin: ({ grantedPermissions }) => {
+        sent.push(grantedPermissions);
+        return {};
+      },
     },
-  };
-  openPlugin("cleanup", changes);
+  });
   return sent;
 }
 
@@ -116,7 +116,6 @@ test("a Plugin requesting no Plugin Permissions enables without a dialog", async
 
 test("an enabled Plugin's view lists the Plugin Permissions granted it", async () => {
   openPlugin(
-    "cleanup",
     cleanupPlugin([PluginPermission.READ_WATCH_STATES, PluginPermission.DELETE_MEDIA], {
       enabled: true,
       grantedPermissions: [PluginPermission.READ_WATCH_STATES],
@@ -142,7 +141,6 @@ test.each([true, false])(
   "a Built-in Plugin's view lists the Plugin Permissions it holds, enabled %s",
   async (enabled) => {
     openPlugin(
-      "cleanup",
       cleanupPlugin([PluginPermission.STORE, PluginPermission.READ_LIBRARIES], {
         enabled,
         kind: PluginKind.BUILT_IN,

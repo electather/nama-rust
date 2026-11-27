@@ -3,9 +3,10 @@ import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
-import { RequestService, RequestState } from "@/gen/nama/v1/request_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { RequestState } from "@/gen/nama/v1/request_pb";
+import { openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
+import { admin, fakeServer } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -32,23 +33,12 @@ const darkSeason = {
 
 function requestsServer() {
   return fakeServer(
+    { signedIn: admin, info: { version: "0.3.0", settingsSections: ["requests"] } },
     {
-      signedIn: admin,
-      serverService: {
-        getServerInfo: () => ({ version: "0.3.0", settingsSections: ["requests"] }),
-      },
+      SignInService: { signInWithHubToken: () => ({ token: "basement session" }) },
+      RequestService: { listRequests: () => ({ requests: [heat, darkSeason] }) },
     },
-    { signInWithHubToken: () => ({ token: "basement session" }) },
-    {},
-    (router) => {
-      router.service(RequestService, {
-        listDefaultQualities: () => ({}),
-        listRequests: () => ({ requests: [heat, darkSeason] }),
-        countPendingRequests: () => ({}),
-        listOfferedQualities: () => ({}),
-      });
-    },
-  );
+  ).transport;
 }
 
 /** Opens `path` at the Hub, for an Account that is an Admin on Basement. */

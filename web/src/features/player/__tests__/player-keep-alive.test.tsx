@@ -2,11 +2,11 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackLimit, PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackLimit, PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
 import { pickIn } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 // oxlint-disable-next-line vitest/prefer-import-in-mock -- the fake has only what the player calls, so it can't be typed as the module.
 vi.mock("hls.js", () => ({
@@ -43,10 +43,8 @@ const planning = (
 ) =>
   fakeServer(
     { signedIn: newUser, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
-    {},
-    {},
-    (router) => {
-      router.service(PlaybackService, {
+    {
+      PlaybackService: {
         planPlayback: ({ failedRecipes }) => {
           stoppedWhenAsked.push([...stopped]);
           const id = BigInt(stoppedWhenAsked.length);
@@ -60,8 +58,8 @@ const planning = (
           stopped.push(planId);
           return {};
         },
-      });
-      router.service(BrowseService, {
+      },
+      BrowseService: {
         getMovie: () => ({
           movie: {
             id: { namespace: "tmdb", value: "603" },
@@ -69,9 +67,9 @@ const planning = (
             versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
           },
         }),
-      });
+      },
     },
-  );
+  ).transport;
 
 /** Waits long enough for a stop or a new ask the player sent to reach the Server. */
 async function afterAWhile() {

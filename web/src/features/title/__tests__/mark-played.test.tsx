@@ -1,12 +1,11 @@
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { pickFromMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 // A Show's row of Episodes is virtual, so it needs a layout to show its cards.
 beforeEach(layOutShelves);
@@ -26,27 +25,22 @@ function openDark() {
   const asked = new Promise<true>((resolve) => {
     answer = resolve;
   });
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser, libraries: [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }] },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
-        listUnmatched: () => ({}),
+    {
+      BrowseService: {
         getShow: () => ({
           show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
           seasons: [{ number: 1 }],
         }),
         listEpisodes: () => ({ episodes: [lies] }),
-        listShows: () => ({ shows: [] }),
-        listGenres: () => ({}),
-      });
-      router.service(WatchStateService, {
+      },
+      WatchStateService: {
         setPlayed: async () => {
           await asked;
           return {};
         },
-      });
+      },
     },
   );
   openApp("/libraries/2/shows/tmdb-70523", transport);

@@ -3,9 +3,10 @@ import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { ExtensionPoint, type QualitySchema } from "@/gen/nama/v1/plugin_pb";
-import { RequestService, type SetDefaultQualityRequest } from "@/gen/nama/v1/request_pb";
+import type { SetDefaultQualityRequest } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings, pick } from "@/test-settings";
 
 afterEach(cleanup);
@@ -27,16 +28,18 @@ function server(
     qualities: [hd, fourK],
     ...movies,
   };
-  return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({ defaults: [radarr] }),
-      listRequests: () => ({}),
-      setDefaultQuality: (request) => {
-        set.push(request);
-        return {};
+  return fakeServer(
+    { signedIn: permissions },
+    {
+      RequestService: {
+        listDefaultQualities: () => ({ defaults: [radarr] }),
+        setDefaultQuality: (request) => {
+          set.push(request);
+          return {};
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("a User who may choose sets their default Quality for Movies, the default picked to start with", async () => {
@@ -79,18 +82,20 @@ test("saving a default for Shows reads the Show Quality menu's Qualities again",
     title: "Dark",
     seasons: [{ seasonNumber: 1, episodes: [{ episodeNumber: 1 }] }],
   };
-  const transport = fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpShow: () => ({ show: dark }),
-      listShowQualities: () => ({ qualities: [hd, fourK], personalDefault }),
-      listDefaultQualities: () => ({ defaults: [{ ...sonarr, quality: personalDefault }] }),
-      setDefaultQuality: ({ quality }) => {
-        personalDefault = quality;
-        return {};
+  const { transport } = fakeServer(
+    { signedIn: mayChoose },
+    {
+      RequestService: {
+        lookUpShow: () => ({ show: dark }),
+        listShowQualities: () => ({ qualities: [hd, fourK], personalDefault }),
+        listDefaultQualities: () => ({ defaults: [{ ...sonarr, quality: personalDefault }] }),
+        setDefaultQuality: ({ quality }) => {
+          personalDefault = quality;
+          return {};
+        },
       },
-    });
-  });
+    },
+  );
   const router = openApp("/shows/tmdb-70523", transport);
   const chevron = "Request Season 1 of Dark at a Quality";
   await waitFor(() => {

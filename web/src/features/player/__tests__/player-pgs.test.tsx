@@ -2,16 +2,16 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
+import type { TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
   PlaybackMethod,
-  PlaybackService,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 import { atOrigin } from "@/test-server-at";
 
 /**
@@ -100,31 +100,34 @@ function server(asked: PlanPlaybackRequest[], twins = 0) {
     offsetMs: 500,
   }));
   const burnInTracks = signs.map((_, turn) => turn + 2);
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks }],
-        },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const { subtitleTrack, deviceDecoding } = request;
-        const draws = deviceDecoding?.subtitleFormats.includes(SubtitleFormat.PGS) ?? false;
-        const plan =
-          subtitleTrack === undefined
-            ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
-            : { method: PlaybackMethod.TRANSCODE, url: "/media/plans/1/index.m3u8" };
-        return draws
-          ? { plan: { ...plan, subtitles: [english, ...signs] } }
-          : { plan: { ...plan, subtitles: [english], burnInTracks, subtitleTrack } };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks }],
+          },
+        }),
       },
-    });
-  });
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const { subtitleTrack, deviceDecoding } = request;
+          const draws = deviceDecoding?.subtitleFormats.includes(SubtitleFormat.PGS) ?? false;
+          const plan =
+            subtitleTrack === undefined
+              ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
+              : { method: PlaybackMethod.TRANSCODE, url: "/media/plans/1/index.m3u8" };
+          return draws
+            ? { plan: { ...plan, subtitles: [english, ...signs] } }
+            : { plan: { ...plan, subtitles: [english], burnInTracks, subtitleTrack } };
+        },
+      },
+    },
+  ).transport;
 }
 
 /**

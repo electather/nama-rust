@@ -3,18 +3,15 @@ import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, HdrFormat, type MovieSummarySchema } from "@/gen/nama/v1/browse_pb";
-import {
-  EventService,
-  type SubscribeResponse,
-  SubscribeResponseSchema,
-} from "@/gen/nama/v1/event_pb";
+import { type BrowseService, HdrFormat, type MovieSummarySchema } from "@/gen/nama/v1/browse_pb";
+import { type SubscribeResponse, SubscribeResponseSchema } from "@/gen/nama/v1/event_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { externalIdFromParam } from "@/shared/hooks/browse";
 import { titleParam } from "@/shared/lib/title-param";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { openMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 // A Show's row of Episodes is virtual, so it needs a layout to show its cards.
 beforeEach(layOutShelves);
@@ -33,12 +30,10 @@ function serverToBrowse(
     { id: 1n, name: "Films", kind: LibraryKind.MOVIES },
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, { listGenres: () => ({}), listUnmatched: () => ({}), ...browse });
-    if (events) {
-      router.service(EventService, { subscribe: () => events });
-    }
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    { BrowseService: browse, ...(events && { EventService: { subscribe: () => events } }) },
+  ).transport;
 }
 
 test("a title's id round-trips through its URL form, the value percent-encoded", () => {
