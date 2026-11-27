@@ -1,7 +1,8 @@
 //! A Linked Server's Server Addresses, the one owner of what counts as one: storing those it
-//! reports, probing its public port, listing them best first, and whether a sign-in may return to
-//! one. Every check parses with WHATWG's parser, as browsers read the Hub's links to them and the
-//! address its page sends a person back to.
+//! reports, probing its public port, and [`ServerAddresses`], which alone lists them best first,
+//! says whether a sign-in may return to one, and names them. Two addresses are the same when they
+//! have the same origin, as WHATWG's parser reads them, since browsers read the Hub's links to them
+//! and the address its page sends a person back to that way.
 //!
 //! A sign-in never returns to the public address, though the list offers it: the Server refuses
 //! such a return address itself before it asks the Hub (`nama-server`'s
@@ -9,12 +10,16 @@
 //! the HTTPS names the Hub gave those and its Relay's address are return addresses; the Hub makes
 //! the last two itself, so a Server can't widen them by reporting anything.
 
-use std::net::{IpAddr, SocketAddr};
+use std::{
+    collections::{BTreeSet, HashSet},
+    iter,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 
 use reqwest::Url;
 
 use super::{Error, LinkedServer, LinkedServerId, Links, ListedServer, names};
-use crate::accounts::AccountId;
+use crate::{accounts::AccountId, dns::Record};
 
 /// The most characters a Server Address may have.
 pub(crate) const ADDRESS_LENGTH: usize = 2000;
@@ -62,7 +67,7 @@ impl Links {
     pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
         // Floored, not cast: `crates/nama-hub/AGENTS.md`, "Data".
         let servers = sqlx::query!(
-            r#"SELECT id, name, server_url, public_address, relay_address, lan_addresses,
+            r#"SELECT id, name, server_url, public_address, relay, lan_addresses,
              floor(extract(epoch FROM created_at))::bigint AS "linked_at!"
              FROM linked_servers WHERE account_id = $1
              OR id IN (SELECT linked_server_id FROM user_links WHERE account_id = $1)
@@ -73,26 +78,24 @@ impl Links {
         .await?;
         Ok(servers
             .into_iter()
-            .map(|server| ListedServer {
-                id: LinkedServerId(server.id),
-                name: server.name,
-                linked_at: server.linked_at,
-                addresses: [
-                    // Clients add `/` and a path to an address, and a Server URL may end in one.
-                    server.server_url.trim_end_matches('/').to_owned(),
-                    server.public_address,
-                    // A Server the Hub can't reach may have its Relay's as its Server URL too.
-                    if server.relay_address == server.server_url {
-                        String::new()
-                    } else {
-                        server.relay_address
-                    },
-                ]
-                .into_iter()
-                .filter(|address| !address.is_empty())
-                .chain(server.lan_addresses)
-                .collect(),
-                url: server.server_url,
+            .map(|server| {
+                let id = LinkedServerId(server.id);
+                let addresses = ServerAddresses::new(
+                    id,
+                    self.zone(),
+                    &server.server_url,
+                    &server.lan_addresses,
+                    stored_public(&server.public_address),
+                    stored_relay(&server.relay),
+                )
+                .listed();
+                ListedServer {
+                    id,
+                    name: server.name,
+                    linked_at: server.linked_at,
+                    addresses,
+                    url: server.server_url,
+                }
             })
             .collect())
     }
@@ -113,11 +116,11 @@ impl Links {
         // Stored before the probe, which can take seconds, so a sign-in returning to the new
         // Server URL meanwhile isn't refused by `is_return_address`.
         sqlx::query!(
-            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, relay_address = $3
+            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, relay = $3
              WHERE id = $4",
             url,
             lan_addresses,
-            self.relay_address(server.id, relay),
+            reported.relay,
             server.id.0,
         )
         .execute(&self.db)
@@ -129,66 +132,58 @@ impl Links {
         let reached = probed
             .filter(|&(_, reachable)| reachable)
             .map(|(address, _)| address);
-        let public_address =
-            reached.map_or_else(String::new, |address| format!("http://{address}"));
+        let public_as_stored = reached.map_or_else(String::new, public_address);
         // Stored before naming too, so a DNS provider that is down holds back only the names.
-        self.store_public_address(server.id, &public_address)
+        self.store_public_address(server.id, &public_as_stored)
             .await?;
-        let names = self
-            .write_names(
-                server.id,
-                reached.map(|address| address.ip()),
-                lan_addresses,
-                relay.map(|relay| relay.ip()),
-            )
-            .await?;
+        let addresses =
+            ServerAddresses::new(server.id, self.zone(), url, lan_addresses, reached, relay);
+        let names = self.write_names(server.id, &addresses).await?;
         // Stored again after naming, so a Server Unlinked meanwhile is found gone here and its
         // names go again; no transaction waits on the DNS provider holding one of the pool's
         // connections.
         if !self
-            .store_public_address(server.id, &public_address)
+            .store_public_address(server.id, &public_as_stored)
             .await?
         {
             self.forget_names(server.id).await?;
         }
         Ok(Checked {
             public: probed.map(|(address, reachable)| PublicAddress {
-                address: format!("http://{address}"),
+                address: public_address(address),
                 reachable,
             }),
             names,
         })
     }
 
-    /// Whether `return_url` may be where a sign-in to `server` returns: on its Server URL, one of
-    /// its LAN addresses or their names, or its Relay's address, never its public address (module
-    /// docs).
+    /// Whether `return_url` may be where a sign-in to `server` returns (module docs).
     pub(super) async fn is_return_address(
         &self,
         server: LinkedServerId,
         return_url: &str,
     ) -> Result<bool, sqlx::Error> {
-        let addresses = sqlx::query!(
-            "SELECT server_url, lan_addresses, relay_address FROM linked_servers WHERE id = $1",
+        let stored = sqlx::query!(
+            "SELECT server_url, lan_addresses, public_address, relay FROM linked_servers
+             WHERE id = $1",
             server.0,
         )
         .fetch_one(&self.db)
         .await?;
-        let lan_names: Vec<String> = match &self.names {
-            Some(server_names) => {
-                let own = names::own_name(server, &server_names.zone);
-                (addresses.lan_addresses.iter())
-                    .filter_map(|address| names::lan_name_address(&own, address))
-                    .collect()
-            }
-            None => Vec::new(),
-        };
-        let return_addresses = [&addresses.server_url, &addresses.relay_address]
-            .into_iter()
-            .chain(&addresses.lan_addresses)
-            .chain(&lan_names)
-            .map(String::as_str);
-        Ok(is_on_server(return_url, return_addresses))
+        let addresses = ServerAddresses::new(
+            server,
+            self.zone(),
+            &stored.server_url,
+            &stored.lan_addresses,
+            stored_public(&stored.public_address),
+            stored_relay(&stored.relay),
+        );
+        Ok(addresses.is_return_address(return_url))
+    }
+
+    /// The Server-names zone, or none while the Hub names no Server.
+    fn zone(&self) -> Option<&str> {
+        self.names.as_ref().map(|names| names.zone.as_str())
     }
 
     /// Stores `address` as `server`'s public address, and answers whether it is still Linked.
@@ -206,19 +201,169 @@ impl Links {
         .await?;
         Ok(stored.rows_affected() > 0)
     }
+}
 
-    /// Where clients reach `server` through `relay`, the Relay it dials out to, such as
-    /// `https://relay.<own name>:443`: empty without one, or while the Hub names no Server, since
-    /// only a name its certificate covers passes through the Relay.
-    fn relay_address(&self, server: LinkedServerId, relay: Option<SocketAddr>) -> String {
-        match (&self.names, relay) {
-            (Some(server_names), Some(relay)) => {
-                let own = names::own_name(server, &server_names.zone);
-                format!("https://{}:{}", names::relay_name(&own), relay.port())
-            }
-            _ => String::new(),
+/// A Linked Server's Server Addresses, made from the facts of its last report and nothing else, so
+/// that its list, its return addresses and its names can't disagree (module docs).
+pub(super) struct ServerAddresses<'a> {
+    /// Its own name, or none while the Hub names no Server.
+    own: Option<String>,
+    /// The Server URL as sent, or empty for none.
+    url: &'a str,
+    /// As sent.
+    lan_addresses: &'a [String],
+    /// Where the Hub reached it from outside, if it did.
+    public: Option<SocketAddr>,
+    /// The Relay it dials out to, if any (ADR 0057).
+    relay: Option<SocketAddr>,
+}
+
+impl<'a> ServerAddresses<'a> {
+    /// `server`'s Server Addresses, named in `zone` unless it is none. A report makes them from
+    /// what it just checked, and a read from one row, so the two can't differ.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the facts the Server Addresses are made from, each one of a different kind"
+    )]
+    pub(super) fn new(
+        server: LinkedServerId,
+        zone: Option<&str>,
+        url: &'a str,
+        lan_addresses: &'a [String],
+        public: Option<SocketAddr>,
+        relay: Option<SocketAddr>,
+    ) -> Self {
+        Self {
+            own: zone.map(|zone| names::own_name(server, zone)),
+            url,
+            lan_addresses,
+            public,
+            relay,
         }
     }
+
+    /// The addresses a client tries, best first: the Server URL, the public address, the Relay's
+    /// address, then the LAN addresses, each kept only when no earlier one has its origin.
+    pub(super) fn listed(&self) -> Vec<String> {
+        // Clients add `/` and a path to an address, and a Server URL may end in one.
+        let url = Some(self.url.trim_end_matches('/')).filter(|url| !url.is_empty());
+        let mut origins = HashSet::new();
+        (url.map(str::to_owned).into_iter())
+            .chain(self.public.map(public_address))
+            .chain(self.relay_address())
+            .chain(self.lan_addresses.iter().cloned())
+            .filter(|address| {
+                Url::parse(address).is_ok_and(|parsed| origins.insert(parsed.origin()))
+            })
+            .collect()
+    }
+
+    /// Whether `return_url` has the origin of the Server URL, a LAN address, a LAN address's HTTPS
+    /// name on its port or the Relay's address, never the public address (module docs).
+    pub(super) fn is_return_address(&self, return_url: &str) -> bool {
+        let made: Vec<String> = (self.relay_address().into_iter())
+            .chain(self.lan_name_addresses())
+            .collect();
+        let sent = iter::once(self.url).chain(self.lan_addresses.iter().map(String::as_str));
+        is_on_server(return_url, sent.chain(made.iter().map(String::as_str)))
+    }
+
+    /// The records under the Server's own name: the own name at the public IP the Hub reached, one
+    /// name per private IPv4 LAN address, carrying it, and the Relay's name at the Relay's IP.
+    pub(super) fn records(&self) -> Vec<Record> {
+        let Some(own) = &self.own else {
+            return Vec::new();
+        };
+        // A set, as two LAN addresses may differ only in their port.
+        let lan: BTreeSet<Ipv4Addr> = (self.lan_addresses.iter())
+            .filter_map(|address| lan_ip(&Url::parse(address).ok()?))
+            .collect();
+        let own_record = self.public.map(|public| Record {
+            name: own.clone(),
+            address: public.ip(),
+        });
+        let lan_records = lan.into_iter().map(|ip| Record {
+            name: lan_name(own, ip),
+            address: IpAddr::V4(ip),
+        });
+        let relay_record = self.relay.map(|relay| Record {
+            name: relay_name(own),
+            address: relay.ip(),
+        });
+        own_record
+            .into_iter()
+            .chain(lan_records)
+            .chain(relay_record)
+            .collect()
+    }
+
+    /// The names the Server is told, its own first: none while the Hub names no Server.
+    pub(super) fn names(&self) -> Vec<String> {
+        let Some(own) = &self.own else {
+            return Vec::new();
+        };
+        let under = (self.records().into_iter())
+            .map(|record| record.name)
+            .filter(|name| name != own);
+        iter::once(own.clone()).chain(under).collect()
+    }
+
+    /// Where clients reach the Server through its Relay, such as `https://relay.<own name>:443`:
+    /// none while the Hub names no Server, since only a name its certificate covers passes through
+    /// the Relay.
+    fn relay_address(&self) -> Option<String> {
+        let (own, relay) = (self.own.as_deref()?, self.relay?);
+        Some(format!("https://{}:{}", relay_name(own), relay.port()))
+    }
+
+    /// Where clients reach each named LAN address over HTTPS: at the name [`Self::records`] give
+    /// it, on its port.
+    fn lan_name_addresses(&self) -> impl Iterator<Item = String> {
+        let own = self.own.as_deref();
+        self.lan_addresses.iter().filter_map(move |address| {
+            let address = Url::parse(address).ok()?;
+            let name = lan_name(own?, lan_ip(&address)?);
+            Some(format!(
+                "https://{name}:{}",
+                address.port_or_known_default()?
+            ))
+        })
+    }
+}
+
+/// How the Hub lists `public`, the public IP and port it reached, such as
+/// `http://203.0.113.7:7980`.
+fn public_address(public: SocketAddr) -> String {
+    format!("http://{public}")
+}
+
+/// The public IP and port a row keeps as [`public_address`] wrote them, or none for empty.
+fn stored_public(stored: &str) -> Option<SocketAddr> {
+    stored.strip_prefix("http://")?.parse().ok()
+}
+
+/// The Relay a row keeps as the Server sent it, which [`parse_relay`] checked, or none for empty.
+fn stored_relay(stored: &str) -> Option<SocketAddr> {
+    stored.parse().ok()
+}
+
+/// The name under `own`, a Server's own name, at which clients reach it through its Relay (ADR
+/// 0057). The certificate for the wildcard under `own` covers it, so the Relay passes TLS through.
+fn relay_name(own: &str) -> String {
+    format!("relay.{own}")
+}
+
+/// The name under `own`, a Server's own name, carrying `ip`, such as `192-168-1-10.<own>`.
+fn lan_name(own: &str, ip: Ipv4Addr) -> String {
+    format!("{}.{own}", ip.to_string().replace('.', "-"))
+}
+
+/// The host of the LAN address `address`, if it is a private IPv4 address: a public one could
+/// point a name at someone else's host.
+// ponytail: IPv6 LAN addresses get no name; add unique local ones once Servers report them.
+fn lan_ip(address: &Url) -> Option<Ipv4Addr> {
+    let ip = address.host_str()?.parse::<Ipv4Addr>().ok()?;
+    ip.is_private().then_some(ip)
 }
 
 /// The public address to probe and the Relay `reported` holds, or [`Error::AddressInvalid`] for

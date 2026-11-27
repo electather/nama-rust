@@ -1,7 +1,8 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
-//! Server's opaque credential, the Server Addresses it reports and whether its public port can be
-//! reached (`server_addresses.rs`), its names in the Server-names zone (`names.rs`), Unlinking,
-//! and the tokens signed for a Server once it is Linked and for the Relay it dials out to.
+//! Server's opaque credential, the Server Addresses it reports, whether its public port can be
+//! reached and its names under its own (`server_addresses.rs`), its own name in the Server-names
+//! zone (`names.rs`), Unlinking, and the tokens signed for a Server once it is Linked and for the
+//! Relay it dials out to.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
@@ -13,7 +14,6 @@ mod users;
 
 use std::{
     fmt::{self, Write as _},
-    net::IpAddr,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -23,6 +23,7 @@ use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use self::server_addresses::ServerAddresses;
 use crate::{
     accounts::{self, AccountId, AccountSession, Accounts, RecentAuthenticationRequired},
     dns::{DnsError, ServerNames},
@@ -108,7 +109,8 @@ pub(crate) struct ListedServer {
     /// The Server URL its Admin set, or empty for none.
     pub(crate) url: String,
     /// The Server Addresses a client tries, best first: the Server URL, then the public address
-    /// the Hub reached, then its Relay, then the LAN addresses, plain `http://<lan-ip>` (ADR 0057).
+    /// the Hub reached, then its Relay, then the LAN addresses, plain `http://<lan-ip>` (ADR 0057),
+    /// each origin once.
     pub(crate) addresses: Vec<String>,
 }
 
@@ -360,24 +362,22 @@ impl Links {
         Ok(Polled::Linked { credential, token })
     }
 
-    /// Points `server`'s own name at `public`, if any, a name under it at each private IPv4
-    /// address among its `lan_addresses`, and its Relay's name at `relay`, if any, and answers its
-    /// names: none while the Hub names no Server.
+    /// Makes the records of `addresses` the only ones under `server`'s own name, and answers the
+    /// names it is told: none while the Hub names no Server.
     async fn write_names(
         &self,
         server: LinkedServerId,
-        public: Option<IpAddr>,
-        lan_addresses: &[String],
-        relay: Option<IpAddr>,
+        addresses: &ServerAddresses<'_>,
     ) -> Result<Vec<String>, DnsError> {
         let Some(server_names) = &self.names else {
             return Ok(Vec::new());
         };
         let own = names::own_name(server, &server_names.zone);
-        let records = names::records(&own, public, lan_addresses, relay);
-        let shown = names::shown(&own, &records);
-        server_names.records.replace(&own, records).await?;
-        Ok(shown)
+        server_names
+            .records
+            .replace(&own, addresses.records())
+            .await?;
+        Ok(addresses.names())
     }
 
     /// A token proving to a Relay that `server` holds its own name, which the Relay then routes
