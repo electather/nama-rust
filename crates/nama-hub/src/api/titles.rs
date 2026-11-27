@@ -105,7 +105,7 @@ fn id_to_proto(id: ExternalId) -> proto::ExternalId {
 
 /// `trending` as a Server reads it, or `None` for an External ID not written `namespace-value`,
 /// which no Server sends.
-pub(super) fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
+fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
     let (namespace, value) = trending.external_id.split_once('-')?;
     Some(proto::TrendingTitle {
         id: proto::ExternalId {

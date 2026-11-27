@@ -1,5 +1,5 @@
 //! Registering a Server through the device flow, listing an Account's Servers, Unlinking one,
-//! Linking a Linked Server's Users to Accounts, against a real PostgreSQL.
+//! and Linking a Linked Server's Users to Accounts, against a real PostgreSQL.
 
 use crate::support::hub::TestHub;
 use crate::support::linking::*;
