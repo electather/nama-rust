@@ -4,8 +4,8 @@ import { useId, useState } from "react";
 import { FormField } from "@/shared/components/form-field/form-field";
 
 /**
- * The sign-in password field, with "Forgot your password?" opening `remedy`, what to do instead,
- * where there is one.
+ * The sign-in password field. "Forgot your password?" opens `remedy`, what to do instead, and is
+ * left out where there's none.
  */
 export function CurrentPasswordField({
   error,

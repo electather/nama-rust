@@ -236,6 +236,19 @@ test("a Sign-in Link is emailed, to continue where signing in was going", async 
   expect(hub.sent).toStrictEqual([{ email: ada.email, continueTo: "/history" }]);
 });
 
+test("after a Sign-in Link is emailed, signing in with a password keeps where it was going", async () => {
+  const router = openApp("/send-sign-in-link?redirect=%2Fhistory", fakeHub().transport);
+  await screen.findByRole("heading", { name: "Email a Sign-in Link" });
+  fill("Email", ada.email);
+  fireEvent.click(screen.getByRole("button", { name: "Email me a Sign-in Link" }));
+  await screen.findByRole("heading", { name: "Check your email" });
+
+  fireEvent.click(screen.getByRole("link", { name: "Sign in with a password" }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  expect(router.state.location.href).toBe("/sign-in?redirect=%2Fhistory");
+});
+
 test("a Sign-in Link signs its Account in", async () => {
   openApp("/sign-in-link#link-token", fakeHub().transport);
 

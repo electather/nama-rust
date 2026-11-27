@@ -7,7 +7,7 @@ import { formText } from "@/shared/lib/forms";
 
 /** Asking the Hub to email a Sign-in Link, which goes on to `redirect` once used. */
 export function SendSignInLink({ redirect }: { redirect: string | undefined }) {
-  const send = useSendSignInLink();
+  const send = useSendSignInLink(redirect);
   const errors = send.error ? hubErrors(send.error) : {};
   return (
     <SignInLayout
