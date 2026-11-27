@@ -46,8 +46,8 @@ export function ChoiceInput({
   const listed = choices.map(({ value, label }) => ({ value, label }));
   // A held value no longer listed stays an option, so saving another setting never drops it
   // unseen: the Server refuses it instead, saying why.
-  const unlisted = held === "" || listed.some((choice) => choice.value === held);
-  const options = unlisted ? listed : [...listed, { value: held, label: held }];
+  const shown = held === "" || listed.some((choice) => choice.value === held);
+  const options = shown ? listed : [...listed, { value: held, label: held }];
   if (options.length > SEARCHED_PAST) {
     return (
       <RowField label={setting.label} hint={setting.description} error={error}>

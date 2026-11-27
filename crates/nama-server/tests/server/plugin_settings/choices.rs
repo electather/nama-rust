@@ -18,7 +18,7 @@ use nama_server::plugins::Registry;
 use crate::support::{refused::assert_refused, server::TestServer};
 
 /// The Built-in Plugin `rater`, with the Choices setting `ratings` and the Choice setting `rating`
-/// both offering G, PG and PG-13, and, if `checks`, a settings check offering only R for `ratings`.
+/// both offering G, PG and PG-13, and, if `checks`, a settings check offering only R for each.
 struct Rater {
     checks: bool,
 }
@@ -62,7 +62,11 @@ impl Plugin for Rater {
 
 impl SettingsCheck for Rater {
     fn check<'a>(&'a self, _settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
-        Box::pin(async { Ok([("ratings".to_owned(), vec![choice("R")])].into()) })
+        Box::pin(async {
+            Ok(["ratings", "rating"]
+                .map(|key| (key.to_owned(), vec![choice("R")]))
+                .into())
+        })
     }
 }
 
@@ -226,4 +230,24 @@ async fn a_choice_setting_refuses_a_value_its_choices_dont_list_naming_both_and_
         Some("R isn't one of the choices for the setting rating")
     );
     assert_eq!(held(&server, "rating").await, None);
+}
+
+#[tokio::test]
+async fn a_settings_checks_choices_replace_a_choice_settings_own() {
+    let server = with_rater(true).await;
+
+    let refused = assert_refused(
+        save(&server, "rating", Value::TextValue("G".to_owned())).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    save(&server, "rating", Value::TextValue("R".to_owned()))
+        .await
+        .unwrap();
+
+    assert_eq!(refused.field, "settings.rating");
+    assert_eq!(
+        held(&server, "rating").await,
+        Some(Value::TextValue("R".to_owned()))
+    );
 }
