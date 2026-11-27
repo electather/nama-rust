@@ -22,21 +22,23 @@ export type RequestStanding = Extract<Standing, { request: Request }>;
 /**
  * What a title's standing is worked out from: its open Request the User may see, if any; whether a
  * Library has it or, for a Season or Episode, its Season; the signed-in User `you`; an Episode's
- * `airDate`; and, for the command menu, whether a Followed Show asks for it.
+ * `airDate` and `now`, the clock's by default; and, for the command menu, whether a Followed Show
+ * asks for it.
  */
 export interface TitleFacts {
   request: Request | undefined;
   inLibrary: boolean;
   you?: bigint | undefined;
   airDate?: string | undefined;
+  now?: number;
   followed?: boolean;
 }
 
 /** Where the title `facts` tells of stands, and what the signed-in User can do about it. */
 export function titleStanding(facts: TitleFacts): Standing {
   const standing = asIfAired(facts);
-  const { airDate } = facts;
-  return airDate !== undefined && isLaterDay(airDate)
+  const { airDate, now } = facts;
+  return airDate !== undefined && isLaterDay(airDate, now)
     ? { kind: "notAired", airDate, season: standing, can: standing.can }
     : standing;
 }

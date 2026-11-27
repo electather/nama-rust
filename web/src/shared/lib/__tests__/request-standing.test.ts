@@ -1,10 +1,11 @@
 import { create, fromJson } from "@bufbuild/protobuf";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
 import { type TitleFacts, titleStanding } from "@/shared/lib/request-standing";
 
 const you = 1n;
+const now = new Date("2026-11-27T12:00:00").getTime();
 const asked = (state: RequestState, by = 2n, downloads: { percent: number }[] = []) =>
   create(RequestSchema, { id: 5n, state, requesters: [{ userId: by }], downloads });
 /** A Request in a state this app doesn't know, as only a Server newer than it sends. */
@@ -12,21 +13,13 @@ const fromANewerServer = fromJson(RequestSchema, { state: 99, requesters: [{ use
 
 /** The standing's kind and what you can do, with the Season's beneath one not aired yet. */
 function read(facts: TitleFacts) {
-  const standing = titleStanding({ you, ...facts });
+  const standing = titleStanding({ you, now, ...facts });
   return standing.kind === "notAired"
     ? `notAired ${standing.airDate} (${standing.season.kind}): ${standing.can}`
     : `${standing.kind}: ${standing.can}`;
 }
 
 describe("where a missing title stands with its Request", () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-11-27T12:00:00"));
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   test.each<{ case: string; facts: TitleFacts; reads: string }>([
     {
       case: "nobody asked opens a Request",

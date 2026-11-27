@@ -93,16 +93,13 @@ function missingMovieLink(movie: MovieHit): LinkOptions {
 }
 
 /**
- * Where a missing Movie stands on a shelf: its Request's state while it's on its way or Failed,
- * none once any of it is here, else `notHere`.
+ * Where a missing Movie stands on a shelf: its open Request's state, none once any of it is here,
+ * else `notHere`.
  */
 function missingMovieBadge({ request, libraryId }: MovieHit): TileBadgeShown | undefined {
   const standing = titleStanding({ request, inLibrary: libraryId !== undefined });
   if (standing.kind === "inLibrary" || standing.kind === "partlyArrived") {
     return undefined;
   }
-  if (standing.kind === "unknown" || !("request" in standing)) {
-    return notHere;
-  }
-  return shownRequestState(standing.request.state);
+  return "request" in standing ? shownRequestState(standing.request.state) : notHere;
 }

@@ -1,7 +1,7 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { describe, expect, test } from "vite-plus/test";
 
-import { heroTarget } from "@/features/title/lib/hero-target";
+import { heroTarget, targetAsk } from "@/features/title/lib/hero-target";
 import { unwatchedToAsk } from "@/features/title/lib/seasons-to-ask";
 import { showRow } from "@/features/title/lib/show-row";
 import { EpisodeSchema } from "@/gen/nama/v1/browse_pb";
@@ -67,7 +67,7 @@ describe("a Show's row", () => {
 
   test("leads to Requesting the next Season once the one before is watched", () => {
     const row = showRow([here(1, 1, true), here(1, 2, true)], twoSeasons([1]));
-    expect(heroTarget(row, undefined, false)).toMatchObject({ kind: "ask", season: 2 });
+    expect(targetAsk(heroTarget(row, undefined, false))?.season).toBe(2);
   });
 
   test("plays the next Episode on the Server, or the Episode Continue Watching has", () => {
@@ -93,11 +93,9 @@ describe("a Show's row", () => {
     ]);
     const row = showRow([], show, you);
     expect(heroTarget(row, undefined, false)).toBeUndefined();
-    expect(heroTarget(row, undefined, true)).toMatchObject({
-      kind: "ask",
-      season: 2,
-      standing: { kind: "stalled", request: { id: 8n } },
-    });
+    const retried = targetAsk(heroTarget(row, undefined, true));
+    expect(retried?.season).toBe(2);
+    expect(retried?.standing.kind).toBe("stalled");
   });
 
   test("asks for only the Seasons you haven't watched any of", () => {

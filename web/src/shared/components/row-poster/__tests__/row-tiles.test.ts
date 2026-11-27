@@ -22,16 +22,20 @@ test.each([
     badge: "Not on this Server",
   },
   {
-    case: "Partially Available",
-    movie: arrival({ request: { state: RequestState.PARTIALLY_AVAILABLE } }),
-    badge: undefined,
-  },
-  {
     case: "from a newer Server",
-    movie: create(MovieHitSchema, { request: fromJson(RequestSchema, { state: 99 }) }),
-    badge: "Not on this Server",
+    movie: arrival({ request: fromJson(RequestSchema, { state: 99 }) }),
+    badge: "Unknown",
   },
-  { case: "in a Library", movie: arrival({ libraryId: 1n }), badge: undefined },
 ])("a missing Movie $case is badged $badge", ({ movie, badge }) => {
   expect(rowTile({ case: "missingMovie", value: movie }).badge?.label).toBe(badge);
+});
+
+test.each([
+  {
+    case: "Partially Available",
+    movie: arrival({ request: { state: RequestState.PARTIALLY_AVAILABLE } }),
+  },
+  { case: "in a Library", movie: arrival({ libraryId: 1n }) },
+])("a missing Movie $case has no badge", ({ movie }) => {
+  expect(rowTile({ case: "missingMovie", value: movie }).badge).toBeUndefined();
 });
