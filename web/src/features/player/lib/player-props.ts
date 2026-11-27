@@ -7,6 +7,7 @@ import type { NowPlaying } from "@/features/player/lib/lock-screen";
 import type { NextEpisode } from "@/features/player/lib/next-episode";
 import type { Track, Version } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /** What the player plays, and where "back" goes. */
 export interface PlayerProps extends NowPlaying {
@@ -24,7 +25,7 @@ export interface PlayerProps extends NowPlaying {
   /** Your Watch State of the Movie or Episode: where playing resumes. */
   watchState: WatchState | undefined;
   /** The picture behind the player until its first frame: a Movie's Backdrop, an Episode's Still. */
-  backdropUrl?: string | undefined;
+  art?: ServerImage | undefined;
   /** The title page to go back to. */
   back: LinkOptions;
   /** The Episode to count down to and play after this one, if there is one. */

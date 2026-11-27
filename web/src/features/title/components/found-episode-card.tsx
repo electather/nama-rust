@@ -1,10 +1,11 @@
 import { FoundEpisodeCaption } from "@/features/title/components/found-episode-caption";
 import { MissingShade } from "@/features/title/components/missing-shade";
 import { foundEpisodeLabel } from "@/features/title/lib/found-episode-label";
-import { type RowLook, cardArt } from "@/features/title/lib/row-look";
+import type { RowLook } from "@/features/title/lib/row-look";
 import type { FoundRowEpisode } from "@/features/title/lib/show-row";
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
 import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
+import { stillOf } from "@/shared/lib/server-image";
 
 /**
  * An Episode from the title source that the page's Library doesn't have, by its Still, which plays
@@ -31,11 +32,7 @@ export function FoundEpisodeCard({
       className="w-tile-backdrop shrink-0 snap-start"
     >
       <BackdropFrame
-        art={{
-          ...cardArt({ url: episode.stillUrl, thumbhash: undefined }, look),
-          sizes: backdropTileSizes,
-          widths: "imageWidths",
-        }}
+        art={{ images: [stillOf(episode), look.backdrop], sizes: backdropTileSizes }}
         tall={look.tall}
         caption={<FoundEpisodeCaption item={item} />}
         menu={null}

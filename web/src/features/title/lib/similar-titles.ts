@@ -1,6 +1,7 @@
 import type { LinkOptions } from "@tanstack/react-router";
 
 import type { MovieHit, ShowHit } from "@/gen/nama/v1/request_pb";
+import { type ServerImage, posterOf } from "@/shared/lib/server-image";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** A Similar title as a title page's row shows it: a poster that opens it in its Library. */
@@ -8,8 +9,7 @@ export interface SimilarTitle {
   key: string;
   title: string;
   year: string | undefined;
-  posterUrl: string | undefined;
-  posterThumbhash: Uint8Array | undefined;
+  poster: ServerImage | undefined;
   link: LinkOptions;
 }
 
@@ -35,7 +35,6 @@ function art(hit: MovieHit | ShowHit) {
     key: `${hit.libraryId}/${titleParam(hit.id)}`,
     title: hit.title,
     year: hit.year?.toString(),
-    posterUrl: hit.posterUrl,
-    posterThumbhash: hit.posterThumbhash,
+    poster: posterOf(hit),
   };
 }

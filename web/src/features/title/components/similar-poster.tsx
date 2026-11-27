@@ -5,12 +5,7 @@ import { Poster } from "@/shared/components/poster/poster";
 export function SimilarPoster({ title }: { title: SimilarTitle }) {
   return (
     <li className="w-tile-poster shrink-0 snap-start">
-      <Poster
-        link={title.link}
-        title={title.title}
-        detail={title.year}
-        art={{ url: title.posterUrl, thumbhash: title.posterThumbhash }}
-      />
+      <Poster link={title.link} title={title.title} detail={title.year} art={title.poster} />
     </li>
   );
 }

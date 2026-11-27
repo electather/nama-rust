@@ -13,6 +13,7 @@ import { crewWithJob } from "@/features/title/lib/people";
 import { similarMovies } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { FoundMovieState } from "@/shared/components/found-movie-state/found-movie-state";
+import { backdropOf } from "@/shared/lib/server-image";
 import { runtimeOf } from "@/shared/lib/title-facts";
 
 /**
@@ -38,10 +39,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
         />
       }
     >
-      <TitleTrailers
-        trailers={movie.trailers}
-        art={{ url: movie.backdropUrl, thumbhash: movie.backdropThumbhash }}
-      />
+      <TitleTrailers trailers={movie.trailers} art={backdropOf(movie)} />
       <SimilarTitles heading="On this Server" titles={similarMovies(movie.similar)} />
       <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <TitleDetails

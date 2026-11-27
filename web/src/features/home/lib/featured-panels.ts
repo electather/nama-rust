@@ -3,6 +3,7 @@ import type { LinkOptions } from "@tanstack/react-router";
 import type { Episode, FeaturedTitle, Movie, Show } from "@/gen/nama/v1/browse_pb";
 import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import { type ServerImage, backdropOf, titleLogoOf } from "@/shared/lib/server-image";
 import { metadataLine, runtimeOf, yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 import type { TitleServer } from "@/shared/lib/title-server";
@@ -20,9 +21,8 @@ export interface Panel {
   key: string;
   title: string;
   /** Its Title Logo, shown in place of its title, if it has one. */
-  logoUrl: string | undefined;
-  backdropUrl: string | undefined;
-  backdropThumbhash: Uint8Array | undefined;
+  logo: ServerImage | undefined;
+  backdrop: ServerImage | undefined;
   rating: string | undefined;
   facts: string;
   overview: string | undefined;
@@ -103,9 +103,8 @@ function shared(title: Movie | Show, key: string) {
   return {
     key,
     title: title.title,
-    logoUrl: title.titleLogoUrl,
-    backdropUrl: title.backdropUrl,
-    backdropThumbhash: title.backdropThumbhash,
+    logo: titleLogoOf(title),
+    backdrop: backdropOf(title),
     rating: title.contentRating,
     overview: title.overview,
   };

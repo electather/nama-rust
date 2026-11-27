@@ -3,12 +3,13 @@ import { PersonTitles } from "@/features/title/components/person-titles";
 import { usePerson } from "@/features/title/data/use-person";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Page } from "@/shared/components/page";
+import { headshotOf } from "@/shared/lib/server-image";
 
 /** A Person: their headshot and name, over the titles on this Server they play in, then work on. */
 export function PersonPage({ personId }: { personId: ExternalId }) {
   const person = usePerson({ personId });
   return (
-    <Page heading={person.name} art={<Headshot url={person.headshotUrl} />}>
+    <Page heading={person.name} art={<Headshot headshot={headshotOf(person)} />}>
       <PersonTitles heading="Cast" roles={person.cast} />
       <PersonTitles heading="Crew" roles={person.crew} />
     </Page>

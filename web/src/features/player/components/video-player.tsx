@@ -32,7 +32,7 @@ export function VideoPlayer({
   back,
   artist,
   posterUrl,
-  backdropUrl,
+  art,
   autoplay,
   planned,
   topBar,
@@ -101,8 +101,8 @@ export function VideoPlayer({
       >
         <SubtitleTracks subtitles={plan.subtitles} />
       </video>
-      <FirstFrameCover backdropUrl={backdropUrl} framed={video.state.framed} />
-      <PictureInPictureCover backdropUrl={backdropUrl} />
+      <FirstFrameCover art={art} framed={video.state.framed} />
+      <PictureInPictureCover art={art} />
       <BufferingRing buffering={video.state.buffering} />
       <PlayerControls
         topBar={topBar}

@@ -1,4 +1,5 @@
 import { TitleOrLogo } from "@/shared/components/title-or-logo";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 const pageLogo = {
   className: "max-h-28 max-w-4/5 sm:max-h-36 sm:max-w-md",
@@ -6,10 +7,10 @@ const pageLogo = {
 };
 
 /** The page's heading: the Title Logo, or else the title as text. */
-export function TitleName({ title, logoUrl }: { title: string; logoUrl: string | undefined }) {
+export function TitleName({ title, logo }: { title: string; logo: ServerImage | undefined }) {
   return (
     <h1 className="text-display font-medium text-balance">
-      <TitleOrLogo title={title} logoUrl={logoUrl} logo={pageLogo} />
+      <TitleOrLogo title={title} logo={logo} look={pageLogo} />
     </h1>
   );
 }

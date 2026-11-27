@@ -8,6 +8,7 @@ import { usePlayFrom } from "@/features/title/hooks/use-play-from";
 import { titleBadges } from "@/features/title/lib/title-badges";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { titleLogoOf } from "@/shared/lib/server-image";
 import { runtimeOf, yearOf } from "@/shared/lib/title-facts";
 import { versionToPlay } from "@/shared/lib/version-to-play";
 
@@ -39,7 +40,7 @@ export function MovieHero({
       title={movie}
       kind="Movie"
       id={movieId}
-      logoUrl={movie.titleLogoUrl}
+      logo={titleLogoOf(movie)}
       facts={[yearOf(movie.releaseDate), runtimeOf(movie.runtimeMinutes, "short")]}
       boxed={titleBadges(movie.versions)}
       actions={<Play movieId={params.movieId} choice={choice} version={version} />}

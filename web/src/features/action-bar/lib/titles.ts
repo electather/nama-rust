@@ -1,18 +1,13 @@
 import type { MovieHit, Request, ShowHit } from "@/gen/nama/v1/request_pb";
 import type { EpisodeHit, SearchResponse, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { hitsIn, searchNote, type StreamedHit } from "@/shared/lib/search-hits";
+import { type ServerImage, headshotOf, posterOf, stillOf } from "@/shared/lib/server-image";
 import { metadataLine, seasonName } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
-/** An Episode's Still, and its thumbhash. */
-export interface StillArt {
-  url: string;
-  thumbhash: Uint8Array | undefined;
-}
-
 /**
  * A Movie, Show or Episode, as the action bar lists it, opens it and remembers it. One in a Library
- * is plain data, so Recent can keep it in `localStorage`, all but its Still's thumbhash.
+ * is plain data, so Recent can keep it in `localStorage`, all but its images' thumbhashes.
  */
 export interface FoundTitle {
   /** Unique among titles: the same title in two Libraries is two of these. */
@@ -35,9 +30,9 @@ export interface FoundTitle {
   label: string;
   hint: string;
   /** A Movie's or Show's Poster, or an Episode's Show's. */
-  poster?: string | undefined;
+  poster?: ServerImage | undefined;
   /** An Episode's Still. */
-  still?: StillArt | undefined;
+  still?: ServerImage | undefined;
 }
 
 /** A Person a search found, as the action bar lists them and opens their page. */
@@ -47,7 +42,7 @@ export interface FoundPerson {
   /** At the Hub, the Linked Server they were found on. */
   server?: string | undefined;
   name: string;
-  headshot: string | undefined;
+  headshot: ServerImage | undefined;
 }
 
 /** What a search found, each kind in the order to list it. */
@@ -73,7 +68,7 @@ function movieFound(movie: MovieHit, status: TitleStatus): FoundTitle {
     titleId,
     label: movie.title,
     hint: metadataLine(movie.year?.toString()),
-    poster: movie.posterUrl,
+    poster: posterOf(movie),
   };
 }
 
@@ -89,7 +84,7 @@ function showFound(show: ShowHit, status: TitleStatus): FoundTitle {
     titleId,
     label: show.title,
     hint: "",
-    poster: show.posterUrl,
+    poster: posterOf(show),
   };
 }
 
@@ -102,11 +97,11 @@ function episodeFound(episode: EpisodeHit): FoundTitle {
     season: episode.seasonNumber,
     label: `${episode.episodeNumber}. ${episode.title}`,
     hint: metadataLine(episode.showTitle, seasonName(episode.seasonNumber)),
-    poster: episode.showPosterUrl,
-    still:
-      episode.stillUrl === undefined
-        ? undefined
-        : { url: episode.stillUrl, thumbhash: episode.stillThumbhash },
+    poster: posterOf({
+      posterUrl: episode.showPosterUrl,
+      posterThumbhash: episode.showPosterThumbhash,
+    }),
+    still: stillOf(episode),
   };
 }
 
@@ -172,7 +167,7 @@ function foundOf(hits: readonly ServerHit[], note: string): Found {
               personId: titleParam(title.value.id),
               server,
               name: title.value.name,
-              headshot: title.value.headshotUrl,
+              headshot: headshotOf(title.value),
             },
           ]
         : [],

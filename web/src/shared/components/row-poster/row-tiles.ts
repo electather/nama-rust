@@ -5,6 +5,7 @@ import { type MovieHit, RequestState } from "@/gen/nama/v1/request_pb";
 import { shownRequestState } from "@/shared/components/request-state/request-states";
 import type { Shown } from "@/shared/components/state-label";
 import type { RowTitle } from "@/shared/lib/row-titles";
+import { type ServerImage, posterOf } from "@/shared/lib/server-image";
 import { yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -15,8 +16,7 @@ export type TileBadgeShown = Shown & { short?: string };
 export interface RowTile {
   title: string;
   year: string | undefined;
-  posterUrl: string | undefined;
-  posterThumbhash: Uint8Array | undefined;
+  poster: ServerImage | undefined;
   link: LinkOptions;
   /** Where a title missing from the Server stands; none for one you can watch. */
   badge: TileBadgeShown | undefined;
@@ -43,8 +43,7 @@ export function rowTile(title: RowTitle): RowTile {
   const art = {
     title: value.title,
     year: yearOfRowTitle(title),
-    posterUrl: value.posterUrl,
-    posterThumbhash: value.posterThumbhash,
+    poster: posterOf(value),
   };
   if (title.case === "missingMovie") {
     return { ...art, link: missingMovieLink(title.value), badge: missingMovieBadge(title.value) };
