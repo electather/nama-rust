@@ -675,7 +675,6 @@ async fn the_sweep_deletes_plan_folders_in_the_set_and_default_folders_and_nothi
     assert!(others.exists());
 }
 
-/// A plan Direct Playing the Version `version`.
 pub(super) fn ripley() -> crate::users::Caller {
     use crate::users::{Caller, Device, Permissions, User};
 

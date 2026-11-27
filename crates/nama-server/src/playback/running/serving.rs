@@ -14,7 +14,7 @@ use crate::signed_urls::Viewer;
 
 /// The HLS files of a plan, leased to its Viewer.
 #[derive(Clone)]
-pub(crate) struct PlanFiles(Arc<Running>);
+pub(in crate::playback) struct PlanFiles(Arc<Running>);
 
 impl RunningPlans {
     /// The HLS files of the plan `id`, if it runs any for `viewer`, marked asked for as

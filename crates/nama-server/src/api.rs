@@ -131,11 +131,8 @@ pub(crate) fn router(
         .merge(transcode_downloads_router(
             plans.clone(),
             transcode_downloads,
-        ))
-        .layer(middleware::from_fn_with_state(
-            PlaybackAccess::new(running.clone(), Arc::clone(&db)),
-            require_lease,
         ));
+    let playback_access = PlaybackAccess::new(running.clone(), Arc::clone(&db));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),
@@ -278,6 +275,12 @@ pub(crate) fn router(
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .merge(browser_spans::router(browser_spans))
+        // On every path, not only the media routes, so one under a Version or plan that no route
+        // serves is judged too.
+        .layer(middleware::from_fn_with_state(
+            playback_access,
+            require_lease,
+        ))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(

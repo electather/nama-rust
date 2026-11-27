@@ -69,7 +69,8 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 pub(crate) use plays::{MessageTooLong, PlayNow, ReportedProgress, STOP_MESSAGE_LENGTH};
 use run::{Fallback, Running, Runs, Start};
-pub(crate) use serving::{PlanFiles, router};
+pub(in crate::playback) use serving::PlanFiles;
+pub(crate) use serving::router;
 pub(crate) use sweeping::sweep_leftovers;
 use sweeping::tidy_plans;
 use timeline::Timeline;
