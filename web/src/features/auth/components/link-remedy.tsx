@@ -29,7 +29,7 @@ export function LinkRemedy({ error, redirect }: { error: unknown; redirect?: str
         variant="ghost"
         disabled={signOut.isPending}
         onClick={() => {
-          signOut.mutate({});
+          signOut.mutate();
         }}
       >
         Sign in again

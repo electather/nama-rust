@@ -133,7 +133,7 @@ export async function signedInAccount({ queryClient, transport }: RouterContext)
 /** The query behind `signedInAccount`, which also says whether the Account has a password. */
 export function signedInAccountQuery(transport: Transport) {
   return queryOptions({
-    queryKey: signedInAccountKey,
+    queryKey: ["signed-in-account"],
     // The Hub refuses with `SIGN_IN_REQUIRED`, the only refusal `GetAccount` has.
     queryFn: async () => {
       const answer = await nullWhen(
@@ -146,14 +146,42 @@ export function signedInAccountQuery(transport: Transport) {
 }
 
 /**
- * Forgets which Account is signed in at the Hub, for when a page finds its session ended, so the
- * next access check asks the Hub again.
+ * Asks again who is signed in, joining a fetch in flight that removing the answer would cancel,
+ * and calls `rerunAccessChecks` if `answer` changed elsewhere: the acting User or their
+ * Permissions, which decide the pages they see, with the Device's Users, whom the User picker
+ * offers, or the Account at the Hub.
  */
-export function forgetSignedInAccount(queryClient: QueryClient) {
-  queryClient.removeQueries({ queryKey: signedInAccountKey });
+export async function askAgainWhoIsSignedIn(
+  context: RouterContext,
+  answer: "user" | "device users" | "account",
+  rerunAccessChecks: () => Promise<void>,
+) {
+  if (answer === "account" ? await accountChanged(context) : await usersChanged(context, answer)) {
+    await rerunAccessChecks();
+  }
 }
 
-const signedInAccountKey = ["signed-in-account"];
+async function accountChanged({ queryClient, transport }: RouterContext) {
+  const query = signedInAccountQuery(transport);
+  const before = queryClient.getQueryData(query.queryKey)?.account?.id;
+  const now = await queryClient.query({ ...query, staleTime: 0 });
+  return now?.account?.id !== before;
+}
+
+async function usersChanged(
+  { queryClient, transport }: RouterContext,
+  answer: "user" | "device users",
+) {
+  const query = signedInQuery(transport);
+  const users = (signedIn: WhoAmIResponse | null | undefined) =>
+    [signedIn?.user, ...(answer === "device users" ? (signedIn?.deviceUsers ?? []) : [])]
+      // The Server lists Permissions in one order, so the same set joins the same.
+      .map((user) => `${user?.id}:${user?.permissions.join(",")}`)
+      .join(" ");
+  const before = users(queryClient.getQueryData(query.queryKey));
+  const now = users(await queryClient.query({ ...query, staleTime: 0 }));
+  return now !== before;
+}
 
 /** The Account signed in at the Hub; without one, sends the visitor to sign in, then to `href`. */
 export async function accountOrSignIn(context: RouterContext, href: string) {

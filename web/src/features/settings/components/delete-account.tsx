@@ -21,7 +21,7 @@ export function DeleteAccount() {
         title="Delete your Account?"
         description={`${DELETED_WITH_IT} A User who signs in only with your Account can’t sign in until their Server’s Admin gives them a password. Counts of what everyone finished, which don’t name you, stay. This can’t be undone.`}
         onConfirm={async () => {
-          await remove.mutateAsync({});
+          await remove.mutateAsync();
         }}
         refusal={deleteRefusal}
       />

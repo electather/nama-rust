@@ -26,6 +26,11 @@
         "reason": "A sentence for each Playback Reason kind, a table that grows with the schema's `PlaybackReasonKind`.",
       },
       {
+        "files": ["src/shared/hooks/access.ts"],
+        "maxFileLines": 210,
+        "reason": "Every route's access checks, and asking again who is signed in, which reads the same signed-in queries.",
+      },
+      {
         "files": ["vite.config.ts"],
         "maxFileLines": 0,
         "reason": "All format, lint and test config lives in it (web/AGENTS.md, \"Only `vp`\").",
@@ -123,7 +128,8 @@
       },
       {
         "from": "invites",
-        "allow": ["invites", "shared-components", "shared-hooks", "shared-lib"],
+        // Joining with an Invite signs the new User in, as any sign-in does, through auth.
+        "allow": ["invites", "auth", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "requests",

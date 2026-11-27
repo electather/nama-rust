@@ -2,7 +2,6 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button, buttonVariants } from "nama-ui/components/button";
 
 import { DeviceUserItem } from "@/features/auth/components/device-user-item";
-import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 import { useSignOutDevice } from "@/features/auth/data/use-sign-out-device";
 import { useSwitchUser } from "@/features/auth/data/use-switch-user";
 import { needsSwitchPin, switchErrors } from "@/features/auth/lib/switch-errors";
@@ -26,8 +25,7 @@ export function UserPicker({
 }) {
   const navigate = useNavigate();
   const here = useLocation({ select: (location) => location.href });
-  const finish = useFinishSignIn(redirect);
-  const switchUser = useSwitchUser(finish);
+  const switchUser = useSwitchUser(redirect);
   const signOut = useSignOutDevice();
   const pick = (user: User) => {
     if (user.id === current) {
@@ -82,7 +80,7 @@ export function UserPicker({
           size="link"
           disabled={signOut.isPending}
           onClick={() => {
-            signOut.mutate({});
+            signOut.mutate();
           }}
         >
           Sign everyone out

@@ -79,6 +79,7 @@ test("setting up creates the first Admin and lands on the home page", async () =
   await submitSetup("ABCD-EFGH");
   await expect(screen.findByRole("button", { name: /’s menu$/u })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
+  expect(router.history.canGoBack()).toBe(false);
 });
 
 test("a wrong Setup Code is shown next to its field", async () => {

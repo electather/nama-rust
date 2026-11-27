@@ -1,7 +1,6 @@
 import { NewCodeButton } from "@/features/auth/components/new-code-button";
 import { SwitchSignInWay } from "@/features/auth/components/switch-sign-in-way";
 import { WaitForApproval } from "@/features/auth/components/wait-for-approval";
-import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 import { useStartSignInCode } from "@/features/auth/data/use-start-sign-in-code";
 import type { WaitingCode } from "@/features/auth/lib/history-state";
 import { startErrors } from "@/features/auth/lib/sign-in-errors";
@@ -27,7 +26,7 @@ export function CodeWaiting({
   const notices = errors.deviceName === undefined ? errors : { form: errors.deviceName };
   return (
     <SignInCard heading="Sign in with a code">
-      <WaitForApproval key={shown.handle} shown={shown} onSignedIn={useFinishSignIn(redirect)}>
+      <WaitForApproval key={shown.handle} shown={shown} redirect={redirect}>
         <FormNotices errors={notices} />
         <NewCodeButton
           pending={start.isPending}
