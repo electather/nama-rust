@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { type Interceptor, createRouterTransport } from "@connectrpc/connect";
+import { Code, ConnectError, type Interceptor, createRouterTransport } from "@connectrpc/connect";
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
@@ -26,11 +26,23 @@ const cabin = create(LinkedServerSchema, {
   addresses: ["https://cabin.example"],
 });
 
-/** A fake Server that signs the Hub's Account in as Ada and has one Library, "Series". */
-function fakeServerAt(_origin: string, interceptors: Interceptor[]) {
+const cabinOffline = "https://cabin-offline.example";
+
+/**
+ * A fake Server that signs the Hub's Account in as Ada and has one Library, "Series", except at
+ * Cabin's address, which can't be reached.
+ */
+function fakeServerAt(origin: string, interceptors: Interceptor[]) {
   return createRouterTransport(
     (router) => {
-      router.service(ServerService, { getServerInfo: () => ({ version: "0.3.0" }) });
+      router.service(ServerService, {
+        getServerInfo: () => {
+          if (origin === cabinOffline) {
+            throw new ConnectError("offline", Code.Unavailable);
+          }
+          return { version: "0.3.0" };
+        },
+      });
       router.service(SignInService, {
         signInWithHubToken: () => ({ token: "session" }),
         whoAmI: () => ({ user: { id: 1n, name: "Ada" } }),
@@ -50,6 +62,15 @@ function openHub(path: string, servers = [basement]) {
 
 test("a Library's URL without a Server opens on the Account's only one", async () => {
   const router = openHub("/libraries/2");
+
+  await vi.waitFor(() => {
+    expect(router.state.location.href).toBe("/libraries/2?server=basement");
+  });
+});
+
+test("a Library's URL without a Server opens on the only one of two the Account reaches", async () => {
+  const offline = create(LinkedServerSchema, { ...cabin, addresses: [cabinOffline] });
+  const router = openHub("/libraries/2", [basement, offline]);
 
   await vi.waitFor(() => {
     expect(router.state.location.href).toBe("/libraries/2?server=basement");
