@@ -59,7 +59,8 @@ async fn artwork_on(data: &TempDir, images: Router) -> Artwork {
     let plugins = Registry::new();
     let tmdb = Tmdb::with_endpoints(Endpoints {
         api: url.clone(),
-        images: url,
+        images: url.clone(),
+        youtube_thumbnails: url,
     });
     let key = BTreeMap::from([("api_key".to_owned(), SettingValue::Text(API_KEY.to_owned()))]);
     (plugins.enable_with_settings(Arc::new(tmdb), Settings::new(key))).unwrap();
@@ -162,6 +163,21 @@ async fn served(artwork: &Artwork, path: &str) -> Result<Vec<u8>, Error> {
     let response = (artwork.serve_image((KEPT_DIR, "aa", path), None, request)).await?;
     let body = axum::body::to_bytes(response.into_body(), usize::MAX);
     Ok(body.await.unwrap().to_vec())
+}
+
+#[tokio::test]
+async fn a_youtube_thumbnail_without_a_maxresdefault_is_kept_from_its_hqdefault() {
+    let data = tempfile::tempdir().unwrap();
+    let hq = "https://i.ytimg.com/vi/LjLamj-b0I8/hqdefault.jpg";
+    let artwork = artwork_answering(&data, hq, b"\xff\xd8hq").await;
+
+    let body = served(
+        &artwork,
+        "https://i.ytimg.com/vi/LjLamj-b0I8/maxresdefault.jpg",
+    )
+    .await;
+
+    assert_eq!(body.unwrap(), b"\xff\xd8hq");
 }
 
 #[tokio::test]

@@ -5,9 +5,9 @@ import type { Trailer } from "@/gen/nama/v1/request_pb";
 import { shelfBleed } from "@/shared/lib/shelf-bleed";
 
 /**
- * A title's Trailers, in one row of cards over the title's own `art` that scrolls sideways past the
- * page's column. Each plays in its host's player in a pop-up, loaded only once a User opens one, so
- * showing the page tells the host nothing (GLOSSARY.md, "Trailer").
+ * A title's Trailers, in one row of cards, each over its thumbnail or else the title's own `art`,
+ * that scrolls sideways past the page's column. Each plays in its host's player in a pop-up, loaded
+ * only once a User opens one, so showing the page tells the host nothing (GLOSSARY.md, "Trailer").
  */
 export function TitleTrailers({
   trailers,

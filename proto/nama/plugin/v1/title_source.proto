@@ -314,6 +314,10 @@ message Trailer {
   string name = 3;
   // Whether the title's makers released it.
   bool official = 4;
+  // Its thumbnail's URL, which the Kernel downloads through the `title_image` export as it does
+  // a path, so a client never fetches it from the site. A YouTube one ending
+  // `/maxresdefault.jpg` falls back to `/hqdefault.jpg` where the site has none.
+  optional string thumbnail_url = 5;
 }
 
 // A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew).

@@ -7095,6 +7095,12 @@ pub struct TrailerView<'a> {
     ///
     /// Field 4: `official`
     pub official: bool,
+    /// Its thumbnail's URL, which the Kernel downloads through the `title_image` export as it does
+    /// a path, so a client never fetches it from the site. A YouTube one ending
+    /// `/maxresdefault.jpg` falls back to `/hqdefault.jpg` where the site has none.
+    ///
+    /// Field 5: `thumbnail_url`
+    pub thumbnail_url: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
@@ -7155,6 +7161,13 @@ impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
                 )?;
                 view.official = ::buffa::types::decode_bool(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.thumbnail_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -7181,6 +7194,7 @@ impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
             key: self.key.to_string(),
             name: self.name.to_string(),
             official: self.official,
+            thumbnail_url: self.thumbnail_url.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -7204,6 +7218,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TrailerView<'a> {
         if self.official {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if let Some(ref v) = self.thumbnail_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7226,6 +7243,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TrailerView<'a> {
         }
         if self.official {
             ::buffa::types::put_bool_field(4u32, self.official, buf);
+        }
+        if let Some(ref v) = self.thumbnail_url {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7259,6 +7279,9 @@ impl<'__a> ::serde::Serialize for TrailerView<'__a> {
         }
         if self.official {
             __map.serialize_entry("official", &self.official)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.thumbnail_url {
+            __map.serialize_entry("thumbnailUrl", __v)?;
         }
         __map.end()
     }
@@ -7376,6 +7399,15 @@ impl TrailerOwnedView {
     #[must_use]
     pub fn official(&self) -> bool {
         self.0.reborrow().official
+    }
+    /// Its thumbnail's URL, which the Kernel downloads through the `title_image` export as it does
+    /// a path, so a client never fetches it from the site. A YouTube one ending
+    /// `/maxresdefault.jpg` falls back to `/hqdefault.jpg` where the site has none.
+    ///
+    /// Field 5: `thumbnail_url`
+    #[must_use]
+    pub fn thumbnail_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().thumbnail_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TrailerView<'static>>>

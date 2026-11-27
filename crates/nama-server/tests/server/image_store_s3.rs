@@ -140,7 +140,7 @@ impl Fixture {
     }
 
     /// The URLs of every image a scan downloads for `movie`: the Poster, Backdrop and Title Logo
-    /// it was Matched with, in that order, then its Cast's headshots.
+    /// it was Matched with, in that order, then its Cast's headshots and its Trailers' thumbnails.
     fn artwork_urls(movie: &Movie) -> Vec<String> {
         [
             &movie.poster_url,
@@ -150,6 +150,7 @@ impl Fixture {
         .map(|url| url.clone().unwrap())
         .into_iter()
         .chain((movie.cast.iter()).filter_map(|role| role.headshot_url.clone()))
+        .chain((movie.trailers.iter()).filter_map(|trailer| trailer.thumbnail_url.clone()))
         .collect()
     }
 

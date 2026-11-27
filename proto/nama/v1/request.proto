@@ -637,6 +637,11 @@ message Trailer {
   string name = 1;
   // Where it is hosted: a `https` URL on YouTube or Vimeo.
   string url = 2;
+  // Its thumbnail's URL on this Server, which stored it when the title's Matches were last
+  // refreshed. Unset if it has none, when a client shows the title's Backdrop in its place.
+  optional string thumbnail_url = 3;
+  // As `nama.v1.Movie.poster_thumbhash`, for the thumbnail.
+  optional bytes thumbhash = 4;
 }
 
 message LookUpMovieRequest {
