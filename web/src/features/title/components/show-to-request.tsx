@@ -12,6 +12,7 @@ import { SeasonAskingContext, usePageSeasonAsking } from "@/features/title/hooks
 import { showRow } from "@/features/title/lib/show-row";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { backdropOf } from "@/shared/lib/server-image";
 
 /**
  * A Show from the title source, to Request: its top, with "Request Season N" for the first Season
@@ -28,16 +29,8 @@ export function ShowToRequest({ showId }: { showId: ExternalId }) {
   return (
     <SeasonAskingContext value={asking}>
       <TitlePage name={show.title} hero={<FoundShowHero show={show} showId={showId} row={row} />}>
-        {row.length > 0 && (
-          <FoundShowEpisodes
-            row={row}
-            backdrop={{ url: show.backdropUrl, thumbhash: show.backdropThumbhash }}
-          />
-        )}
-        <TitleTrailers
-          trailers={show.trailers}
-          art={{ url: show.backdropUrl, thumbhash: show.backdropThumbhash }}
-        />
+        {row.length > 0 && <FoundShowEpisodes row={row} backdrop={backdropOf(show)} />}
+        <TitleTrailers trailers={show.trailers} art={backdropOf(show)} />
         <SimilarTitles heading="On this Server" titles={similarShows(show.similar)} />
         <CastAndCrew cast={show.cast} crew={show.crew} />
         <FoundShowDetails show={show} />

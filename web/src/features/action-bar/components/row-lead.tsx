@@ -15,12 +15,12 @@ export function RowLead({ row, on }: { row: Row; on: TitleServer | undefined }) 
     return (
       <OnServer on={on}>
         <span className="w-25 shrink-0">
-          <Still url={row.still.url} thumbhash={row.still.thumbhash} sizes="100px" />
+          <Still still={row.still} sizes="100px" />
         </span>
       </OnServer>
     );
   }
-  if (on !== undefined && typeof row.poster === "string") {
+  if (on !== undefined && row.poster) {
     return (
       <OnServer on={on}>
         <RowArt poster={row.poster} />

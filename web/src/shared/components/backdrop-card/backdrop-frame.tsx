@@ -2,15 +2,15 @@ import { ContextMenu, ContextMenuTrigger } from "nama-ui/components/context-menu
 import type { ReactNode } from "react";
 
 import { CardCaption } from "@/shared/components/backdrop-card/card-caption";
-import { TileArt } from "@/shared/components/tile-art";
-import type { OfferedWidths } from "@/shared/hooks/use-src-set";
+import { ServerImg } from "@/shared/components/server-img";
 import { backdropRadius } from "@/shared/lib/backdrop-card-classes";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
- * A card's box: its art, 4:3, or square when `tall`, with `caption` and `menu` at its bottom, over
- * `children`, the link that covers it and names it. A right-click opens the context menu `menu`
- * puts in it, the same items as its "…" (`ContextMenuContent`). `onArtError` hears when its art
- * fails to load.
+ * A card's box: its art, the first of `art.images` that loads, 4:3, or square when `tall`, with
+ * `caption` and `menu` at its bottom, over `children`, the link that covers it and names it. A
+ * right-click opens the context menu `menu` puts in it, the same items as its "…"
+ * (`ContextMenuContent`).
  */
 export function BackdropFrame({
   art,
@@ -18,19 +18,12 @@ export function BackdropFrame({
   caption,
   menu,
   children,
-  onArtError,
 }: {
-  art: {
-    url: string | undefined;
-    thumbhash: Uint8Array | undefined;
-    sizes: string;
-    widths: OfferedWidths;
-  };
+  art: { images: (ServerImage | undefined)[]; sizes: string };
   tall?: boolean;
   caption: ReactNode;
   menu: ReactNode;
   children: ReactNode;
-  onArtError?: () => void;
 }) {
   return (
     <ContextMenu>
@@ -41,11 +34,10 @@ export function BackdropFrame({
           />
         }
       >
-        <TileArt
-          url={art.url}
-          thumbhash={art.thumbhash}
-          look={{ sizes: art.sizes, radius: backdropRadius, widths: art.widths }}
-          onError={onArtError}
+        <ServerImg {...art} className="absolute inset-0 size-full object-cover" />
+        <span
+          aria-hidden
+          className={`absolute inset-0 inset-ring inset-ring-border ${backdropRadius}`}
         />
         {children}
         <CardCaption caption={caption} menu={menu} />

@@ -9,6 +9,7 @@ import { useShowForLockScreen } from "@/features/player/hooks/use-show-for-lock-
 import { nextEpisode, playLink } from "@/features/player/lib/next-episode";
 import type { PlayedSeason } from "@/features/player/lib/played-season";
 import { isGone } from "@/shared/hooks/browse";
+import { stillOf } from "@/shared/lib/server-image";
 import { versionToPlay } from "@/shared/lib/version-to-play";
 
 /**
@@ -52,7 +53,7 @@ export function EpisodePlayer({
       tracks={tracks}
       versions={episode.versions}
       watchState={episode.watchState}
-      backdropUrl={episode.stillUrl}
+      art={stillOf(episode)}
       {...lockScreen}
       back={{
         to: "/libraries/$libraryId/shows/$showId",

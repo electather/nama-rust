@@ -11,17 +11,17 @@ import { isStarted } from "@/shared/lib/watch-progress";
  * it), how far in you are and what's left over the art, and its menu to mark it watched or remove it.
  */
 export function ContinueWatchingCard({ card, actions }: { card: Card; actions: CardActions }) {
-  const { url, thumbhash, title, logoUrl, titled, detail, shownDetail, watchState } = card.backdrop;
+  const { art, title, logo, titled, detail, shownDetail, watchState } = card.backdrop;
   const verb = isStarted(watchState) ? "Resume" : "Play";
   return (
     <BackdropCard
-      art={{ url, thumbhash, sizes: backdropTileSizes, widths: "backdropWidths" }}
+      art={{ images: [art], sizes: backdropTileSizes }}
       link={card.link}
       label={[`${verb} ${title}`, detail].filter(Boolean).join(", ")}
       caption={
         <ContinueWatchingCaption
           title={title}
-          logoUrl={logoUrl}
+          logo={logo}
           titled={titled}
           detail={shownDetail}
           state={watchState}

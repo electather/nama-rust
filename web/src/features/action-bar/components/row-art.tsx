@@ -1,21 +1,14 @@
-import { useServerUrl } from "@/shared/hooks/use-server-url";
-import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { ServerImg } from "@/shared/components/server-img";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /** A title's whole poster, 2:3 and uncropped, as wide as the slot an icon row leads with. */
-export function RowArt({ poster }: { poster: string }) {
-  const src = useServerUrl(poster);
-  const srcSet = useSrcSet(poster);
+export function RowArt({ poster }: { poster: ServerImage }) {
   return (
     <span className="flex w-10 shrink-0 justify-center">
-      {/* The row's label names the title, so the image says nothing more. */}
-      <img
-        src={src}
-        srcSet={srcSet}
-        sizes="38px"
-        alt=""
-        loading="lazy"
-        className="aspect-2/3 h-14 rounded-xs bg-muted object-cover outline -outline-offset-1 outline-border"
-      />
+      <span className="relative isolate aspect-2/3 h-14 overflow-hidden rounded-xs bg-muted outline -outline-offset-1 outline-border">
+        {/* The row's label names the title, so the image says nothing more. */}
+        <ServerImg images={[poster]} sizes="38px" className="size-full object-cover" />
+      </span>
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { firstPageOf } from "@/features/library/lib/title-listing";
 import type { TitlesProps } from "@/features/library/lib/titles-props";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { usePaged } from "@/shared/hooks/use-paged";
+import { posterOf } from "@/shared/lib/server-image";
 import { yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
 
@@ -25,7 +26,7 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
           }}
           title={show.title}
           detail={yearOf(show.firstAirDate)}
-          art={{ url: show.posterUrl, thumbhash: show.posterThumbhash }}
+          art={posterOf(show)}
         />
       ),
     }));

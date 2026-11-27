@@ -10,6 +10,7 @@ import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useMovie } from "@/features/title/data/use-movie";
 import { similarMovies } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { backdropOf } from "@/shared/lib/server-image";
 
 /**
  * A Movie of a Library: its top, with Play and what else may be done, its Trailers, its Box Set,
@@ -33,10 +34,7 @@ export function MoviePage({
       name={movie.title}
       hero={<MovieHero {...{ libraryId, movieId, movie, readOnlyFolder, params }} />}
     >
-      <TitleTrailers
-        trailers={movie.trailers}
-        art={{ url: movie.backdropUrl, thumbhash: movie.backdropThumbhash }}
-      />
+      <TitleTrailers trailers={movie.trailers} art={backdropOf(movie)} />
       <BoxSetRow boxSet={boxSet} current={movie.id} />
       <SimilarTitles heading="Similar titles" titles={similarMovies(similar)} />
       <CastAndCrew cast={movie.cast} crew={movie.crew} />

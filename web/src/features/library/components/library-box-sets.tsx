@@ -4,6 +4,7 @@ import { TitleGrid } from "@/features/library/components/title-grid";
 import { firstBoxSetPage } from "@/features/library/lib/library-view";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { usePaged } from "@/shared/hooks/use-paged";
+import { posterOf } from "@/shared/lib/server-image";
 import { titleParam } from "@/shared/lib/title-param";
 
 const titles = { one: "Box Set", many: "Box Sets" };
@@ -19,7 +20,7 @@ export function LibraryBoxSets({ libraryId }: { libraryId: bigint }) {
         <PosterTile
           link={{ to: "/box-sets/$boxSetId", params: { boxSetId: titleParam(boxSet.id) } }}
           title={boxSet.name}
-          art={{ url: boxSet.posterUrl, thumbhash: undefined }}
+          art={posterOf(boxSet)}
         />
       ),
     }));

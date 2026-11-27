@@ -5,6 +5,7 @@ import { Player } from "@/features/player/components/player";
 import { useMovieToPlay } from "@/features/player/data/use-movie-to-play";
 import type { GetMovieRequestSchema } from "@/gen/nama/v1/browse_pb";
 import { isGone } from "@/shared/hooks/browse";
+import { backdropOf } from "@/shared/lib/server-image";
 import { metadataLine, yearOf } from "@/shared/lib/title-facts";
 import { versionToPlay } from "@/shared/lib/version-to-play";
 
@@ -34,7 +35,7 @@ export function MoviePlayer({
       versions={movie.versions}
       watchState={movie.watchState}
       posterUrl={movie.posterUrl}
-      backdropUrl={movie.backdropUrl}
+      art={backdropOf(movie)}
       back={{ to: "/libraries/$libraryId/movies/$movieId", params }}
     />
   );

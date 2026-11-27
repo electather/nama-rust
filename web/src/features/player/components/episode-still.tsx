@@ -2,6 +2,7 @@ import { StillProgress } from "@/features/player/components/still-progress";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { Still } from "@/shared/components/still";
 import { PlayedMark } from "@/shared/components/watch-state/played-mark";
+import { stillOf } from "@/shared/lib/server-image";
 import { watchedPercent } from "@/shared/lib/watch-progress";
 
 /**
@@ -17,7 +18,7 @@ export function EpisodeStill({
 }) {
   return (
     <span className="w-28 flex-none">
-      <Still url={episode.stillUrl} thumbhash={episode.stillThumbhash} sizes="112px">
+      <Still still={stillOf(episode)} sizes="112px">
         <PlayedMark state={played === undefined ? episode.watchState : undefined} />
         <StillProgress
           percent={played === undefined ? watchedPercent(episode.watchState) : played * 100}

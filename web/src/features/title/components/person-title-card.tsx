@@ -17,7 +17,7 @@ export function PersonTitleCard({
         link={title.link}
         title={title.title}
         detail={metadataLine(title.year, parts)}
-        art={{ url: title.posterUrl, thumbhash: title.posterThumbhash }}
+        art={title.poster}
         sizes={posterGridSizes}
       />
     </li>

@@ -17,7 +17,7 @@ export function RowPoster({ tile, current = false }: { tile: RowTile; current?: 
       title={tile.title}
       detail={tile.year}
       describedBy={tile.badge && badgeId}
-      art={{ url: tile.posterUrl, thumbhash: tile.posterThumbhash }}
+      art={tile.poster}
     >
       {tile.badge && <TileBadge id={badgeId} badge={tile.badge} />}
     </Poster>

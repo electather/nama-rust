@@ -1,11 +1,11 @@
 import { TrailerCaption } from "@/features/title/components/trailer-caption";
 import { TrailerMenu } from "@/features/title/components/trailer-menu";
-import { useThumbnailOr } from "@/features/title/hooks/use-thumbnail-or";
 import { trailerHost } from "@/features/title/lib/trailer-player";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
 import { backdropLink } from "@/shared/lib/backdrop-card-classes";
 import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
+import { type ServerImage, thumbnailOf } from "@/shared/lib/server-image";
 
 /**
  * A Trailer's card, drawn as an Episode's: its thumbnail, or the title's `art` without one or once it
@@ -18,16 +18,16 @@ export function TrailerTile({
   onPlay,
 }: {
   trailer: Trailer;
-  art: { url: string | undefined; thumbhash: Uint8Array | undefined };
+  art: ServerImage | undefined;
   onPlay: (() => void) | undefined;
 }) {
-  const { shown, onError } = useThumbnailOr(trailer, art);
   return (
     <BackdropFrame
-      art={{ ...shown, sizes: backdropTileSizes, widths: "backdropWidths" }}
+      // The Server serves only a thumbnail it stored, so showing it tells the Trailer's host
+      // nothing; one not stored yet isn't found.
+      art={{ images: [thumbnailOf(trailer), art], sizes: backdropTileSizes }}
       caption={<TrailerCaption name={trailer.name} host={trailerHost(trailer.url)} />}
       menu={<TrailerMenu trailer={trailer} />}
-      onArtError={onError}
     >
       <a
         href={trailer.url}

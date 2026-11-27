@@ -1,5 +1,5 @@
-import type { StillArt } from "@/features/action-bar/lib/titles";
 import type { RequestStanding } from "@/shared/lib/request-standing";
+import type { ServerImage } from "@/shared/lib/server-image";
 
 /** Where the action bar is: its root, a search of one kind of title, or the keyboard shortcuts. */
 export type Frame = "root" | "movie" | "show" | "shortcuts";
@@ -22,9 +22,9 @@ export interface Row {
   hint: string;
   icon?: IconName;
   /** A title's poster, or `null` for a title without one: its `icon` then fills the poster's box. */
-  poster?: string | null;
+  poster?: ServerImage | null;
   /** An Episode's Still, which it leads with in place of its `poster`. */
-  still?: StillArt | undefined;
+  still?: ServerImage | undefined;
   /** At the Hub, the Linked Server its art is drawn from, by id. */
   server?: string | undefined;
   /** What it is or is set to, in a pill beside the label. */

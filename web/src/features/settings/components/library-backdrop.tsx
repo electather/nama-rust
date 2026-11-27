@@ -1,6 +1,7 @@
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { ImageChoice } from "@/shared/components/image-choice/image-choice";
+import { imageToEditOf } from "@/shared/lib/server-image";
 
 /** The Backdrop `library`'s own page shows it by, to upload one in its place or remove it. */
 export function LibraryBackdrop({ library }: { library: Library }) {
@@ -14,7 +15,7 @@ export function LibraryBackdrop({ library }: { library: Library }) {
         <ImageChoice
           image={{
             name: "Backdrop",
-            url: library.backdropUrl,
+            shown: imageToEditOf(library.backdropUrl),
             custom: library.customBackdrop,
             path: `/custom-images/library/${String(library.id)}/backdrop`,
             shape: "backdrop",

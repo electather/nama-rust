@@ -7,6 +7,7 @@ import type { TitleListing } from "@/features/library/lib/title-listing";
 import { LibraryKind, type Library } from "@/gen/nama/v1/library_pb";
 import { MayDownloadAgain } from "@/shared/components/delete-media/may-download-again";
 import { useLibraries } from "@/shared/hooks/use-libraries";
+import { backdropOf } from "@/shared/lib/server-image";
 
 /**
  * A Library: its name and how many titles it lists, on its Backdrop if it has one, then the bar to
@@ -37,7 +38,7 @@ export function LibraryPage({
     <>
       <LibraryHeader
         name={live.name}
-        backdrop={{ url: live.backdropUrl, thumbhash: live.backdropThumbhash }}
+        backdrop={backdropOf(live)}
         count={<LibraryCountLine library={library} listing={listing} view={view} />}
       />
       <main className="mx-auto flex w-full max-w-350 flex-col gap-7.5 px-5 pt-7.5 pb-16">
