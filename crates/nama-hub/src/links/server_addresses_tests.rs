@@ -9,8 +9,8 @@ const OWN: &str = "0193b6f2c4d87a1e9f3c5b2a1d0e4f67.zone";
 
 const RELAY: &str = "198.51.100.4:443";
 
-/// The facts of one report: the Server URL, the LAN addresses, the public endpoint reached and the
-/// Relay.
+/// The facts of one report: the Server URL, the LAN addresses, the public IP and port reached and
+/// the Relay.
 struct Report {
     url: &'static str,
     lan: Vec<String>,
@@ -313,18 +313,81 @@ fn the_own_name_points_at_the_public_ip_reached_and_the_relay_name_at_the_relay(
 
 #[test]
 fn a_server_is_told_its_own_name_first_reached_or_not() {
-    let report = Report {
+    let unreached = Report {
         lan: lan(&["http://10.0.0.5:7980"]),
         relay: Some(RELAY),
         ..NOTHING
     };
+    let reached = Report {
+        lan: unreached.lan.clone(),
+        public: Some("203.0.113.7:7980"),
+        ..unreached
+    };
+    let told = [
+        OWN.to_owned(),
+        format!("10-0-0-5.{OWN}"),
+        format!("relay.{OWN}"),
+    ];
 
-    assert_eq!(
-        report.addresses(Some("zone")).names(),
-        [
-            OWN.to_owned(),
-            format!("10-0-0-5.{OWN}"),
-            format!("relay.{OWN}"),
-        ]
+    assert_eq!(unreached.addresses(Some("zone")).names(), told);
+    assert_eq!(reached.addresses(Some("zone")).names(), told);
+}
+
+/// A Server URL at the Relay's origin, as a Server behind CGNAT sends it.
+const AT_RELAY: &str = "https://relay.0193b6f2c4d87a1e9f3c5b2a1d0e4f67.zone/";
+
+/// A Server URL at the origin of its public LAN address.
+const AT_LAN: &str = "http://8.8.8.8:7980/";
+
+#[test]
+fn each_combination_lists_each_origin_once_and_returns_where_it_lists() {
+    let relay_origin = format!("https://relay.{OWN}");
+    let relay_address = format!("https://relay.{OWN}:443");
+    let (public, private, public_lan, hostname) = (
+        "http://[2001:db8::7]:7980",
+        "http://192.168.1.10:7980",
+        "http://8.8.8.8:7980",
+        "http://nama.local:7980",
     );
+    let combinations = [AT_RELAY, AT_LAN].into_iter().flat_map(|url| {
+        [(true, true), (true, false), (false, true), (false, false)]
+            .map(|(named, relay)| (named, relay, url))
+    });
+
+    for (named, relay, url) in combinations {
+        let listed = match (url, named && relay) {
+            (AT_RELAY, _) => vec![relay_origin.as_str(), public, private, public_lan, hostname],
+            (_, true) => vec![
+                public_lan,
+                public,
+                relay_address.as_str(),
+                private,
+                hostname,
+            ],
+            (_, false) => vec![public_lan, public, private, hostname],
+        };
+        let report = Report {
+            url,
+            lan: lan(&[private, public_lan, hostname]),
+            public: Some("[2001:db8::7]:7980"),
+            relay: relay.then_some(RELAY),
+        };
+        let addresses = report.addresses(named.then_some("zone"));
+        let case = format!("named {named}, Relay {relay}, Server URL {url}");
+        let returns = |return_url: &str| addresses.is_return_address(return_url);
+
+        assert_eq!(addresses.listed(), listed, "{case}");
+        assert_eq!(
+            returns(&format!("{relay_origin}/sign-in")),
+            url == AT_RELAY || (named && relay),
+            "{case}"
+        );
+        assert_eq!(
+            returns(&format!("https://192-168-1-10.{OWN}:7980/sign-in")),
+            named,
+            "{case}"
+        );
+        assert!(returns(&format!("{hostname}/sign-in")), "{case}");
+        assert!(!returns(&format!("{public}/sign-in")), "{case}");
+    }
 }

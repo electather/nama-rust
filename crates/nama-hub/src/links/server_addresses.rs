@@ -331,12 +331,13 @@ impl<'a> ServerAddresses<'a> {
     }
 }
 
-/// How the Hub lists the public `endpoint` it reached, such as `http://203.0.113.7:7980`.
-fn public_address(endpoint: SocketAddr) -> String {
-    format!("http://{endpoint}")
+/// How the Hub lists `public`, the public IP and port it reached, such as
+/// `http://203.0.113.7:7980`.
+fn public_address(public: SocketAddr) -> String {
+    format!("http://{public}")
 }
 
-/// The public endpoint a row keeps as [`public_address`] wrote it, or none for empty.
+/// The public IP and port a row keeps as [`public_address`] wrote them, or none for empty.
 fn stored_public(stored: &str) -> Option<SocketAddr> {
     stored.strip_prefix("http://")?.parse().ok()
 }
