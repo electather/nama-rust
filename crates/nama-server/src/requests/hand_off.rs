@@ -1,5 +1,5 @@
 //! What Requests does with a Fulfiller: the Hand-off of each Approved Request, and telling the
-//! Shows Fulfiller to stop following a Show. Asking how the Requests it took are progressing is
+//! Shows Fulfiller to follow a Show or stop following it. Asking how the Requests it took are progressing is
 //! [`super::progress`]'s.
 //!
 //! It holds no SQL: it calls Requests' functions to read Requests, and settles a Hand-off through
@@ -13,7 +13,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
+    fulfiller::{FollowShow, Fulfilled, Fulfiller, Movies, Shows},
 };
 use nama_proto::nama::v1::{ExternalId, Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
@@ -287,6 +287,23 @@ impl HandOff {
             FulfillerOutcome::Gone { .. } => return None,
         };
         Some((Answer { plugin, result }, try_again))
+    }
+
+    /// Tells the Shows Fulfiller, if one is enabled, to follow `show`, whose Followed Show became
+    /// Approved, as [`Self::unfollow`] tells it to stop: a failure is only logged, since the
+    /// Followed Show stays Approved either way, and one that says to try again is asked again.
+    pub(super) async fn follow(&self, show: &FollowShow) {
+        let namespaces = show.show_ids.iter().map(|id| id.namespace.as_str());
+        let about = AskedAbout::new("Show", namespaces);
+        let named = (show.show_ids.first()).map(|id| format!("{}-{}", id.namespace, id.value));
+        let not_followed = move |_: &PluginId, reason: &str| {
+            warn!(
+                show = named.as_deref(),
+                reason, "the Shows Fulfiller didn't follow the Show"
+            );
+        };
+        let follow = <dyn Fulfiller<Shows>>::follow;
+        tell_fulfiller(&self.plugins, &about, follow, show, not_followed).await;
     }
 
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the

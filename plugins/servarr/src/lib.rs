@@ -4,10 +4,9 @@
 use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
-    CheckedSettings, Download, Fulfilled, OutsideService, Request, Response, SettingField,
-    SettingKind,
+    CheckedSettings, Download, Fulfilled, OutsideService, Response, SettingField, SettingKind,
     extism_pdk::{Error, HttpRequest, Json, json},
-    nama_plugin_proto::nama::plugin::v1::DownloadStatus,
+    nama_plugin_proto::nama::plugin::v1::{DownloadStatus, RequestedQuality},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -60,12 +59,12 @@ pub fn root_folder() -> Result<String, Error> {
     nama_pdk::required_setting(ROOT_FOLDER)
 }
 
-/// The quality profile id `request` asks for: its Quality's, else the setting's.
+/// The quality profile id `quality` names, such as a Request's Quality, else the setting's.
 ///
 /// # Errors
 /// If neither is set, or it isn't an id.
-pub fn quality_profile(request: &Request) -> Result<i64, Error> {
-    let profile = match request.quality.as_option() {
+pub fn quality_profile(quality: Option<&RequestedQuality>) -> Result<i64, Error> {
+    let profile = match quality {
         Some(quality) => quality.profile_id.clone(),
         None => nama_pdk::required_setting(QUALITY_PROFILE)?,
     };
@@ -168,14 +167,15 @@ impl Servarr {
         ]))
     }
 
-    /// Why `request` can't go to the service, which has no quality profile `id`.
+    /// Why a title at the Quality `quality` can't go to the service, which has no quality profile
+    /// `id`.
     #[must_use]
-    pub fn no_such_profile(&self, request: &Request, id: i64) -> Error {
+    pub fn no_such_profile(&self, quality: Option<&RequestedQuality>, id: i64) -> Error {
         let reason = format!(
             "{} has no quality profile with the id {id}",
             self.service.name()
         );
-        Error::msg(match request.quality.as_option() {
+        Error::msg(match quality {
             Some(quality) => format!("{reason}, which {} uses", quality.name),
             None => reason,
         })
@@ -463,8 +463,6 @@ struct ValidationFailure {
 
 #[cfg(test)]
 mod tests {
-    use nama_pdk::nama_plugin_proto::nama::plugin::v1::RequestedQuality;
-
     use super::*;
 
     const FAILURES: &[u8] = br#"[
@@ -514,15 +512,11 @@ mod tests {
         }
     }
 
-    /// A Request at the Quality `name`.
-    fn requested_at(name: &str) -> Request {
-        Request {
-            quality: RequestedQuality {
-                name: name.to_owned(),
-                ..RequestedQuality::default()
-            }
-            .into(),
-            ..Request::default()
+    /// The Quality `name`.
+    fn quality_named(name: &str) -> RequestedQuality {
+        RequestedQuality {
+            name: name.to_owned(),
+            ..RequestedQuality::default()
         }
     }
 
@@ -588,7 +582,7 @@ mod tests {
     #[test]
     fn no_such_profile_without_a_quality_names_only_the_id() {
         assert_eq!(
-            sonarr().no_such_profile(&Request::default(), 4).to_string(),
+            sonarr().no_such_profile(None, 4).to_string(),
             "Sonarr has no quality profile with the id 4"
         );
     }
@@ -596,7 +590,9 @@ mod tests {
     #[test]
     fn no_such_profile_names_the_quality_that_uses_it() {
         assert_eq!(
-            sonarr().no_such_profile(&requested_at("HD"), 4).to_string(),
+            sonarr()
+                .no_such_profile(Some(&quality_named("HD")), 4)
+                .to_string(),
             "Sonarr has no quality profile with the id 4, which HD uses"
         );
     }

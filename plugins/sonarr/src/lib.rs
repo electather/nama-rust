@@ -1,5 +1,6 @@
-//! The Sonarr Installed Plugin: hands Approved Season Requests to Sonarr (ADR 0003), says how
-//! their downloads are progressing, and has Sonarr stop monitoring deleted Episodes (ADR 0038).
+//! The Sonarr Installed Plugin: hands Approved Season Requests to Sonarr (ADR 0003), follows the
+//! Shows of Approved Followed Shows, says how their downloads are progressing, and has Sonarr stop
+//! monitoring deleted Episodes (ADR 0038).
 //! The Server builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{Manifest, services};
@@ -14,12 +15,12 @@ mod exports {
     use std::{collections::HashMap, time::Duration};
 
     use nama_pdk::{
-        Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        StopMonitoring, TitleId, TryAgainIn,
+        Buffa, CheckedSettings, Download, FnResult, FollowShow, Fulfilled, Fulfiller, Manifest,
+        Request, StopMonitoring, TitleId, TryAgainIn,
         extism_pdk::{self, Error},
         nama_plugin_proto::nama::plugin::v1::{
-            EpisodeNumbers, RequestedSeason, request::MovieOrSeason, show_deleted::Deleted,
-            stop_monitoring::Title,
+            EpisodeNumbers, RequestedQuality, RequestedSeason, request::MovieOrSeason,
+            show_deleted::Deleted, stop_monitoring::Title,
         },
         plugin_fn, title_id,
     };
@@ -52,7 +53,7 @@ mod exports {
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let tvdb_id = show_tvdb_id(&request)?;
             let season_number = asked_season(&request)?.season_number;
-            let asked = nama_servarr::quality_profile(&request)?;
+            let asked = nama_servarr::quality_profile(request.quality.as_option())?;
             let sonarr = Sonarr::from_config()?;
             let profiles = sonarr.api.quality_profiles()?;
             let had = match sonarr.find(tvdb_id)? {
@@ -69,6 +70,19 @@ mod exports {
             sonarr.monitor_and_search(show.id, season_number)?;
             let kept = show.quality_profile_id;
             Ok(fulfilled(tvdb_id, season_number, kept, profiles))
+        }
+
+        /// Has Sonarr monitor the Show's new Seasons, adding it with none of the Seasons out now
+        /// monitored if Sonarr doesn't have it, and searches for nothing.
+        fn follow(show: FollowShow) -> Result<(), Error> {
+            let tvdb_id = needed_tvdb_id(&show.show_ids)?;
+            let sonarr = Sonarr::from_config()?;
+            let Some(had) = sonarr.find(tvdb_id)? else {
+                return sonarr.add_followed(tvdb_id, show.quality.as_option());
+            };
+            // A refresh saves the whole Show as it read it, so would undo the change too.
+            sonarr.not_refreshing(had.id)?;
+            sonarr.monitor_new_seasons(had.id, true)
         }
 
         fn unfollow(request: Request) -> Result<(), Error> {
@@ -168,14 +182,12 @@ mod exports {
             asked: i64,
             profiles: &[QualityProfile],
         ) -> Result<Option<Added>, Error> {
-            // Checked first, as Sonarr may add a Show with a profile it no longer has.
-            if !profiles.iter().any(|profile| profile.id == asked) {
-                return Err(self.api.no_such_profile(request, asked));
-            }
+            check_profile(&self.api, profiles, request.quality.as_option(), asked)?;
             let tvdb_id = show_tvdb_id(request)?;
             let follow = request.followed_show_id.is_some();
             let show = self.look_up(tvdb_id)?;
-            if self.add(show, asked_season(request)?.season_number, follow, asked)? {
+            let season_number = asked_season(request)?.season_number;
+            if self.add(show, Some(season_number), follow, asked)? {
                 return Ok(None);
             }
             // Another hand-off for the Show added it since `find`.
@@ -184,13 +196,30 @@ mod exports {
                 .map(Some)
         }
 
+        /// Adds the Show `tvdb_id` with none of its Seasons out now monitored but its new ones, at
+        /// the quality profile `quality` names, else the setting's, searching for nothing. Says to
+        /// try again if a hand-off added it since `find`, so the next ask follows it as Sonarr has
+        /// it.
+        fn add_followed(
+            &self,
+            tvdb_id: i64,
+            quality: Option<&RequestedQuality>,
+        ) -> Result<(), Error> {
+            let asked = nama_servarr::quality_profile(quality)?;
+            check_profile(&self.api, &self.api.quality_profiles()?, quality, asked)?;
+            if self.add(self.look_up(tvdb_id)?, None, true, asked)? {
+                return Ok(());
+            }
+            Err(TryAgainIn(REFRESH_RETRY).into())
+        }
+
         /// Adds `show` at the quality profile `profile` with only the Season `season_number`
-        /// monitored, and its new Seasons too if `follow`, and has Sonarr search for it. Returns
-        /// `false` if Sonarr already has the Show.
+        /// monitored, if any, and has Sonarr search for it, and its new Seasons too if `follow`.
+        /// Returns `false` if Sonarr already has the Show.
         fn add(
             &self,
             show: Show,
-            season_number: u32,
+            season_number: Option<u32>,
             follow: bool,
             profile: i64,
         ) -> Result<bool, Error> {
@@ -198,7 +227,7 @@ mod exports {
                 .seasons
                 .into_iter()
                 .map(|season| Season {
-                    monitored: season.season_number == season_number,
+                    monitored: Some(season.season_number) == season_number,
                     ..season
                 })
                 .collect();
@@ -213,7 +242,7 @@ mod exports {
                 seasons,
                 add_options: AddOptions {
                     monitor: "skip",
-                    search_for_missing_episodes: true,
+                    search_for_missing_episodes: season_number.is_some(),
                 },
             };
             self.api.add("series", new_show, SERIES_EXISTS)
@@ -326,6 +355,20 @@ mod exports {
         nama_servarr::fulfilled(reference, Some(profile_id), profiles)
     }
 
+    /// Fails unless `profiles` has the quality profile `asked`, which `quality` names if any.
+    /// Checked before adding a Show, as Sonarr may add one with a profile it no longer has.
+    fn check_profile(
+        api: &Servarr,
+        profiles: &[QualityProfile],
+        quality: Option<&RequestedQuality>,
+        asked: i64,
+    ) -> Result<(), Error> {
+        if profiles.iter().any(|profile| profile.id == asked) {
+            return Ok(());
+        }
+        Err(api.no_such_profile(quality, asked))
+    }
+
     /// The Season `request` asks for. The Server hands Sonarr only Season Requests.
     fn asked_season(request: &Request) -> Result<&RequestedSeason, Error> {
         match &request.movie_or_season {
@@ -429,7 +472,7 @@ mod exports {
         /// `skip` keeps the Seasons' monitoring as sent. Left out, Sonarr rewrites it after its
         /// first scan, from the Seasons as it read them, and so drops a later hand-off's Season.
         monitor: &'static str,
-        /// Searches the monitored Episodes, which are only the requested Season's.
+        /// Searches the monitored Episodes, which are only the requested Season's, if any.
         search_for_missing_episodes: bool,
     }
 

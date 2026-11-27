@@ -693,11 +693,10 @@ pub(super) async fn follow_as(
             let followed = follow_new_seasons(tx, user, watchlisted, latest, state).await?;
             let asked = ask_seasons(tx, user, show, state).await?;
             Ok::<_, super::Error>(Applied {
-                value: (followed.value, asked.value),
                 events: followed.events.into_iter().chain(asked.events).collect(),
                 hand_off: asked.hand_off,
-                unfollow: None,
-                removed: Vec::new(),
+                follow: followed.follow,
+                ..Applied::quiet((followed.value, asked.value))
             })
         })
     })

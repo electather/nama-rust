@@ -14,7 +14,7 @@ use std::{
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, TryAgainIn,
     contract::Request,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, StopMonitoring},
+    fulfiller::{Download, FollowShow, Fulfilled, Fulfiller, Movies, Shows, StopMonitoring},
 };
 use tokio::sync::Notify;
 
@@ -25,6 +25,8 @@ use super::Registry;
 pub(crate) enum Told {
     /// Handed the Request with this id.
     Fulfill(i64),
+    /// Told to follow a Show.
+    Follow(FollowShow),
     /// Told to stop following the Show of the Request with this id.
     Unfollow(i64),
     /// Told to stop monitoring a deleted title.
@@ -113,7 +115,7 @@ impl ScriptedFulfiller {
         let told = self.told().into_iter();
         told.filter_map(|told| match told {
             Told::Fulfill(id) => Some(id),
-            Told::Unfollow(_) | Told::StopMonitoring(_) => None,
+            Told::Follow(_) | Told::Unfollow(_) | Told::StopMonitoring(_) => None,
         })
         .collect()
     }
@@ -123,7 +125,17 @@ impl ScriptedFulfiller {
         let told = self.told().into_iter();
         told.filter_map(|told| match told {
             Told::Unfollow(id) => Some(id),
-            Told::Fulfill(_) | Told::StopMonitoring(_) => None,
+            Told::Fulfill(_) | Told::Follow(_) | Told::StopMonitoring(_) => None,
+        })
+        .collect()
+    }
+
+    /// The Shows it was told to follow.
+    pub(crate) fn followed(&self) -> Vec<FollowShow> {
+        let told = self.told().into_iter();
+        told.filter_map(|told| match told {
+            Told::Follow(show) => Some(show),
+            Told::Fulfill(_) | Told::Unfollow(_) | Told::StopMonitoring(_) => None,
         })
         .collect()
     }
@@ -187,6 +199,10 @@ impl<Kind: 'static> Fulfiller<Kind> for ScriptedFulfiller {
             ..Fulfilled::default()
         };
         self.answer(Told::Fulfill(request.id), taken)
+    }
+
+    fn follow<'a>(&'a self, show: &'a FollowShow) -> BoxFuture<'a, Result<(), PluginError>> {
+        self.answer(Told::Follow(show.clone()), ())
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {

@@ -17,7 +17,7 @@ use buffa::{DecodeError, Message};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar, TryAgainIn,
     connector::{ConnectionStarted, Connector},
-    fulfiller::{Download, Fulfiller, Request},
+    fulfiller::{Download, FollowShow, Fulfiller, Request},
     job::{JobRunner, RunJob},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
@@ -27,8 +27,8 @@ use nama_plugin_proto::{
     CONTRACT_VERSION, SERVICES,
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
-        Delivered, Delivery, EventsObserved, Fulfilled, JobRan, PersonalSettingsChecked, Progress,
-        ProgressAsked, StopMonitoring, StoppedMonitoring, Unfollowed, UserRecipient,
+        Delivered, Delivery, EventsObserved, Followed, Fulfilled, JobRan, PersonalSettingsChecked,
+        Progress, ProgressAsked, StopMonitoring, StoppedMonitoring, Unfollowed, UserRecipient,
     },
 };
 use semver::{Version, VersionReq};
@@ -507,6 +507,17 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
                 Some(wait) => Err(wait.into()),
                 None => Ok(fulfilled),
             }
+        })
+    }
+
+    fn follow<'a>(&'a self, show: &'a FollowShow) -> BoxFuture<'a, Result<(), PluginError>> {
+        // Only a Show Fulfiller's service has the method, and a Plugin built before lacks it.
+        let Some(follow) = Kind::FOLLOW.filter(|follow| self.serves(follow)) else {
+            return Box::pin(async { Ok(()) });
+        };
+        Box::pin(async move {
+            let followed: Followed = self.call_method(follow, show).await?;
+            try_again(followed.retry_after_seconds).map_or(Ok(()), |wait| Err(wait.into()))
         })
     }
 
