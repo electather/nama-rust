@@ -12,6 +12,13 @@ import {
 import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
 import { type ViewingEvent, ViewingEventService } from "@/gen/nama/hub/v1/viewing_pb";
 
+/** A Connect error as the Hub refuses with one. */
+export function hubRefused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
+  return new ConnectError("refused", code, undefined, [
+    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
+  ]);
+}
+
 /** What a fake Hub holds about the Account's Servers and plays, which a test may read and change. */
 export interface LinksHub {
   servers: LinkedServer[];
@@ -19,7 +26,7 @@ export interface LinksHub {
   /** The Users Admins created from the Account, waiting for it to accept them. */
   invites: UserInvite[];
   /** The Linked Servers, by id, the Account has no User on, so the Hub gives no token for. */
-  noUserOn?: string[] | undefined;
+  noUserOn: string[];
   /** What the Hub refuses accepting an Invite with, if it does. */
   acceptRefusal?: Error | undefined;
   events: ViewingEvent[];
@@ -35,13 +42,8 @@ export function serveLinks(service: ConnectRouter["service"], hub: LinksHub) {
   service(LinkService, {
     listLinkedServers: () => ({ servers: hub.servers }),
     createServerToken: ({ linkedServerId }) => {
-      if ((hub.noUserOn ?? []).includes(linkedServerId)) {
-        throw new ConnectError("no User", Code.FailedPrecondition, undefined, [
-          {
-            desc: RefusalSchema,
-            value: create(RefusalSchema, { reason: RefusalReason.NO_USER_ON_SERVER }),
-          },
-        ]);
+      if (hub.noUserOn.includes(linkedServerId)) {
+        throw hubRefused(Code.FailedPrecondition, RefusalReason.NO_USER_ON_SERVER);
       }
       return { token: `hub-token-${linkedServerId}` };
     },

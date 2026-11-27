@@ -15,12 +15,11 @@ export function ReachNotice({ server }: { server: LinkedServer }) {
   if (reached.kind === "signed-in") {
     return null;
   }
-  if (reached.kind === "no-user") {
-    return <Notice kind="info">Your Account has no User on {server.name}.</Notice>;
-  }
   return (
     <Notice kind="info">
-      {server.name} {whyAlone[reached.why]}{" "}
+      {reached.kind === "no-user"
+        ? `Your Account has no User on ${server.name}.`
+        : `${server.name} ${whyAlone[reached.why]}`}{" "}
       {/* Its first address is the one the page tried, so its own web app is there. */}
       <ExternalTextLink href={server.addresses[0] ?? ""}>Open {server.name}</ExternalTextLink>
     </Notice>

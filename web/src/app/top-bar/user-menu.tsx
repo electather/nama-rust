@@ -9,7 +9,7 @@ import {
 } from "nama-ui/components/dropdown-menu";
 
 import { useSignOut } from "@/app/data/use-sign-out";
-import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
+import { AccountSignOutItem } from "@/app/top-bar/account-sign-out-item";
 import { sectionSearch } from "@/features/settings/lib/sections";
 
 const watchlistLink = <Link to="/watchlist" />;
@@ -22,9 +22,7 @@ const watchlistLink = <Link to="/watchlist" />;
 export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean }) {
   const navigate = useNavigate();
   const here = useLocation({ select: (location) => location.href });
-  const signOutUser = useSignOut();
-  const signOutAccount = useSignOutAccount();
-  const signingOut = signOutUser.isPending || signOutAccount.isPending;
+  const signOut = useSignOut();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -63,18 +61,18 @@ export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean
         >
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={signingOut}
-          onClick={() => {
-            if (atHub) {
-              signOutAccount.mutate({});
-            } else {
-              signOutUser.mutate();
-            }
-          }}
-        >
-          Sign out
-        </DropdownMenuItem>
+        {atHub ? (
+          <AccountSignOutItem />
+        ) : (
+          <DropdownMenuItem
+            disabled={signOut.isPending}
+            onClick={() => {
+              signOut.mutate();
+            }}
+          >
+            Sign out
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -169,13 +169,13 @@ test("a Server that answers but not to the Hub's origin, as before 0.2.1, needs 
   await expect(screen.findByText("Cabin needs an update.")).resolves.toBeDefined();
 });
 
-test("a Server the Account has no User on is noticed as such", async () => {
+test("a Server the Account has no User on is noticed as such, linking its own web app", async () => {
   const served: Served = { trades: [] };
   const at = { "https://cabin.example": fakeServerAt("https://cabin.example", "0.3.0", served) };
   openHub(at, [cabin], { noUserOn: ["cabin"] });
 
-  await expect(screen.findByText("Your Account has no User on Cabin.")).resolves.toBeDefined();
-  expect(screen.queryByRole("link", { name: "Open Cabin" })).toBeNull();
+  const open = await linkInNotice("Your Account has no User on Cabin.");
+  expect(open.getAttribute("href")).toBe("https://cabin.example");
 });
 
 test("on the Hub's HTTPS page, a Server with only a plain-HTTP address links to its own web app", async () => {

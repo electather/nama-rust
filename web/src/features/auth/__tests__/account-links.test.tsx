@@ -6,7 +6,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { UserInviteSchema } from "@/gen/nama/hub/v1/link_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { openApp } from "@/test-app";
-import { accountHub, hubRefused } from "@/test-hub";
+import { accountHub } from "@/test-hub";
+import { hubRefused } from "@/test-hub-links";
 
 afterEach(cleanup);
 
