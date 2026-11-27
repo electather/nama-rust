@@ -15,13 +15,14 @@ use nama_proto::nama::v1::{
     GetServerInfoRequest, GetServerInfoResponse, GetServerLinkRequest, GetServerLinkResponse,
     GetServerSettingsRequest, GetServerSettingsResponse,
     HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
-    ListPlaysRequest, ListPlaysResponse, RefusalReason, ServerService, ServerSettings,
-    SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse, StartServerLinkRequest,
-    StartServerLinkResponse, StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest,
-    SwitchImageStoreResponse, ToneMapping, UnlinkServerRequest, UnlinkServerResponse,
-    UpdateBackupSettingsRequest, UpdateBackupSettingsResponse, UpdateImageSettingsRequest,
-    UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
-    UpdateServerSettingsRequest, UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
+    ListPlaysRequest, ListPlaysResponse, ListServerFoldersRequest, ListServerFoldersResponse,
+    RefusalReason, ServerService, ServerSettings, SetDefaultHomeLayoutRequest,
+    SetDefaultHomeLayoutResponse, StartServerLinkRequest, StartServerLinkResponse, StopPlayRequest,
+    StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping,
+    UnlinkServerRequest, UnlinkServerResponse, UpdateBackupSettingsRequest,
+    UpdateBackupSettingsResponse, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
+    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
+    UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
 };
 
 use crate::{
@@ -44,7 +45,7 @@ use crate::{
 use super::{
     BrowserSpans,
     browse::recently_added_rows,
-    database_failed,
+    database_failed, libraries,
     playback::{limit_from_proto, play_to_proto},
     refuse, server_link, unknown_enum_value,
 };
@@ -406,6 +407,14 @@ impl ServerService for ServerServiceHandler {
             plays: plays.into_iter().map(play_to_proto).collect(),
             ..Default::default()
         })
+    }
+
+    async fn list_server_folders(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListServerFoldersRequest>,
+    ) -> ServiceResult<ListServerFoldersResponse> {
+        libraries::list_server_folders(request.path).await
     }
 
     async fn stop_play(

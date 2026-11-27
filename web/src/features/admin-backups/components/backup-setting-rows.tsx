@@ -3,6 +3,7 @@ import {
   type BackupValues,
   keepProblem,
 } from "@/features/admin-backups/lib/backup-settings";
+import { FolderPicker } from "@/shared/components/folder-picker";
 import { TypedSettingRow } from "@/shared/components/typed-setting-row";
 import type { FormErrors } from "@/shared/lib/forms";
 import { rowText } from "@/shared/lib/setting-text";
@@ -28,6 +29,9 @@ export function BackupSettingRows({
         saved={values.folder}
         error={refused.backupFolder}
         input={{ autoComplete: "off", spellCheck: false, placeholder: inUse }}
+        renderBeside={(fill) => (
+          <FolderPicker path={values.folder === "" ? inUse : values.folder} onPick={fill} />
+        )}
         onSave={(folder) => {
           onEdit({ folder });
         }}

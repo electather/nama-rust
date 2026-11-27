@@ -12,17 +12,17 @@ use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
     FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryService, ListArtworkRequest,
-    ListArtworkResponse, ListLibrariesRequest, ListLibrariesResponse, ListTitleSourcesRequest,
-    ListTitleSourcesResponse, MediaFile, MediaToDelete, Permission, PreviewDeleteMediaRequest,
-    PreviewDeleteMediaResponse, RefusalReason, Request, RequestToCancel, ScanLibraryRequest,
-    ScanLibraryResponse, TitleSource, UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete,
-    request::MovieOrSeason,
+    ListArtworkResponse, ListLibrariesRequest, ListLibrariesResponse, ListServerFoldersResponse,
+    ListTitleSourcesRequest, ListTitleSourcesResponse, MediaFile, MediaToDelete, Permission,
+    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, Request, RequestToCancel,
+    ScanLibraryRequest, ScanLibraryResponse, ServerFolder, TitleSource, UpdateLibraryRequest,
+    UpdateLibraryResponse, media_to_delete, request::MovieOrSeason,
 };
 
 use crate::{
     db::Database,
     library::{
-        Contents, FolderProblem, ImageSources, LastScan, Libraries, Library, LibraryError,
+        self, Contents, FolderProblem, ImageSources, LastScan, Libraries, Library, LibraryError,
         LibraryKind, NewestBackdrop, Order, ShownImages, TitleSources, TitleTarget as Target,
     },
     plugin_settings::PluginSettings,
@@ -520,6 +520,38 @@ fn last_scan_to_proto(last: LastScan) -> proto::LastScan {
     }
 }
 
+/// `ServerService.ListServerFolders`: the folders directly inside `path`, to pick one from.
+pub(super) async fn list_server_folders(path: &str) -> ServiceResult<ListServerFoldersResponse> {
+    let folders = library::list_server_folders(path)
+        .await
+        .map_err(|problem| {
+            refuse(folder_refusal(&problem), format!("{path} {problem}"))
+                .field("path")
+                .param("folder", &path)
+        })?;
+    Response::ok(ListServerFoldersResponse {
+        folders: (folders.into_iter())
+            .map(|folder| ServerFolder {
+                name: folder.name,
+                path: folder.path,
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    })
+}
+
+const fn folder_refusal(problem: &FolderProblem) -> RefusalReason {
+    use RefusalReason as R;
+    match problem {
+        FolderProblem::NotAbsolute => R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+        FolderProblem::NotFound(_) => R::REFUSAL_REASON_FOLDER_NOT_FOUND,
+        FolderProblem::NotReadable(_) => R::REFUSAL_REASON_FOLDER_NOT_READABLE,
+        FolderProblem::NotUtf8(_) => R::REFUSAL_REASON_FOLDER_NOT_UTF8,
+        FolderProblem::Repeated => R::REFUSAL_REASON_FOLDER_REPEATED,
+    }
+}
+
 /// The Connect error a client gets for a Library request that failed. Database failures are
 /// logged, not sent: they say nothing the client can act on.
 impl From<LibraryError> for ConnectError {
@@ -538,14 +570,7 @@ impl From<LibraryError> for ConnectError {
                 folder,
                 problem,
             } => {
-                let reason = match problem {
-                    FolderProblem::NotAbsolute => R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
-                    FolderProblem::NotFound(_) => R::REFUSAL_REASON_FOLDER_NOT_FOUND,
-                    FolderProblem::NotReadable(_) => R::REFUSAL_REASON_FOLDER_NOT_READABLE,
-                    FolderProblem::NotUtf8(_) => R::REFUSAL_REASON_FOLDER_NOT_UTF8,
-                    FolderProblem::Repeated => R::REFUSAL_REASON_FOLDER_REPEATED,
-                };
-                let refused = refuse(reason, message)
+                let refused = refuse(folder_refusal(&problem), message)
                     .field(&format!("folders[{index}]"))
                     .param("folder", &folder);
                 if let FolderProblem::NotUtf8(resolved) = problem {

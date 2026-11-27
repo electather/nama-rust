@@ -93,6 +93,16 @@ service ServerService {
   rpc UpdateBackupSettings(UpdateBackupSettingsRequest) returns (UpdateBackupSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Lists the folders directly inside `path` on the Server, sorted by name ignoring case, to pick
+  // one from: one level per call. Needs `PERMISSION_MANAGE_LIBRARIES`. It leaves out
+  // files, dot-folders, on Windows folders marked hidden or system, folders the Server can't
+  // stat, symlinks to files and broken symlinks; a symlink to a folder is listed at its own path.
+  // A `path` that isn't absolute is refused with `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE`, one that
+  // doesn't exist or isn't a folder with `REFUSAL_REASON_FOLDER_NOT_FOUND`, and one the Server
+  // can't read with `REFUSAL_REASON_FOLDER_NOT_READABLE`, each naming it.
+  rpc ListServerFolders(ListServerFoldersRequest) returns (ListServerFoldersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Lists every plan playing now, on every User's Device, oldest first. Needs `PERMISSION_ADMIN`.
   // The Playback events follow each from here on, by plan id.
   rpc ListPlays(ListPlaysRequest) returns (ListPlaysResponse) {
@@ -505,6 +515,23 @@ message Backup {
   uint64 size_bytes = 2;
   // When it was last written, in milliseconds since the Unix epoch.
   int64 modified_at_ms = 3;
+}
+
+message ListServerFoldersRequest {
+  // The folder to list. Empty for `/`, or on Windows the drives that exist, such as `C:\`.
+  string path = 1;
+}
+
+message ListServerFoldersResponse {
+  repeated ServerFolder folders = 1;
+}
+
+// A folder on the Server.
+message ServerFolder {
+  // Its own name, such as `movies`, or a drive's root, such as `C:\`.
+  string name = 1;
+  // Its full path, such as `/media/movies`, to list next or to pick.
+  string path = 2;
 }
 
 message UpdateBackupSettingsRequest {

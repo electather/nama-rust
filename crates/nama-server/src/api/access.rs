@@ -73,6 +73,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_BACKUPS_SPEC.procedure,            ADMIN),
     (proto::SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SERVER_SERVICE_LIST_PLAYS_SPEC.procedure,             ADMIN),
+    (proto::SERVER_SERVICE_LIST_SERVER_FOLDERS_SPEC.procedure,    MANAGE_LIBRARIES),
     (proto::SERVER_SERVICE_STOP_PLAY_SPEC.procedure,              ADMIN),
     (proto::SERVER_SERVICE_GET_SERVER_LINK_SPEC.procedure,        MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_START_SERVER_LINK_SPEC.procedure,      MANAGE_SETTINGS),

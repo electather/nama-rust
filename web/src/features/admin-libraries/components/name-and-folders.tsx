@@ -1,4 +1,11 @@
-import { foldersHint } from "@/features/admin-libraries/lib/library-form";
+import { useState } from "react";
+
+import {
+  foldersHint,
+  foldersTyped,
+  foldersWith,
+} from "@/features/admin-libraries/lib/library-form";
+import { FolderPicker } from "@/shared/components/folder-picker";
 import { Choices } from "@/shared/components/form-field/choices";
 import { FormField } from "@/shared/components/form-field/form-field";
 import { FormTextarea } from "@/shared/components/form-field/form-textarea";
@@ -9,8 +16,13 @@ const kinds: [value: string, label: string][] = [
   ["shows", "Shows"],
 ];
 
-/** A new Library's name, what it holds, which can't change after, and its folders. */
+/**
+ * A new Library's name, what it holds, which can't change after, and its folders, where a folder
+ * picked beside them is added as a new line unless it's listed already.
+ */
 export function NameAndFolders({ errors }: { errors: FormErrors }) {
+  const [folders, setFolders] = useState("");
+  const typed = foldersTyped(folders);
   return (
     <>
       <FormField label="Name" name="name" autoComplete="off" error={errors.name} />
@@ -21,6 +33,18 @@ export function NameAndFolders({ errors }: { errors: FormErrors }) {
         spellCheck={false}
         hint={foldersHint}
         error={errors.folders}
+        value={folders}
+        onChange={(event) => {
+          setFolders(event.currentTarget.value);
+        }}
+        aside={
+          <FolderPicker
+            path={typed.at(-1) ?? ""}
+            onPick={(picked) => {
+              setFolders(foldersWith(typed, picked).join("\n"));
+            }}
+          />
+        }
       />
     </>
   );
