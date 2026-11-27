@@ -578,25 +578,30 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-/// `planned` as the API sends it, its URLs signed by `signing`'s signer for its Viewer, if there is
-/// one.
+/// `planned` as the API sends it, its URLs signed by `signing`'s signer, if there is one, for the
+/// Viewer a started plan records, or else for `signing`'s, the caller's.
 fn planned_to_proto(
     planned: Planned,
     can_search_subtitles: bool,
     signing: Option<(&UrlSigner, Viewer)>,
 ) -> PlanPlaybackResponse {
-    let (id, url, plan, playable_versions) = match planned {
-        Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan, vec![]),
+    let (id, url, viewer, plan, playable_versions) = match planned {
+        Planned::Started(StartedPlan {
+            id,
+            url,
+            viewer,
+            plan,
+        }) => (id, url, Some(viewer), plan, vec![]),
         // The API's plan id 0 is no plan.
         Planned::Unplayable {
             plan,
             playable_versions,
-        } => (0, String::new(), plan, playable_versions),
+        } => (0, String::new(), None, plan, playable_versions),
     };
     let sign = |unsigned: &String| match signing {
-        Some((signer, viewer)) => {
+        Some((signer, caller)) => {
             let grant = PlaybackGrant {
-                viewer,
+                viewer: viewer.unwrap_or(caller),
                 version: plan.version,
                 plan: id,
             };

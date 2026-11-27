@@ -2,14 +2,14 @@
 //! Remuxes and Transcodes, played over HLS with fMP4 segments. Each plan's start and end are
 //! published as `PlaybackStarted` and `PlaybackEnded`.
 //!
-//! A plan belongs to the User and Device it was planned for, and only that Device, while it acts
-//! as that User (ADR 0106), is served its files, at `/media/plans/<id>/`: the playlist
-//! `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`. The playlist lists the whole Version
-//! up front, cut at keyframes where it will be cut, so HLS time is the file's time and Watch State
-//! needs no conversion. ffmpeg writes a file per keyframe to `nama-plan-<id>/` in the segment
-//! folder, and the plan joins those starting from each listed keyframe up to the next into that
-//! keyframe's file, by the times ffmpeg's own playlist gives, as the Version's index may list only
-//! some (ADR 0066). A segment joins its keyframes' files. A Remux keeps the Version's own
+//! A plan belongs to the Viewer it was planned for, and only that Device, while it acts as that
+//! User (ADR 0106), is served its files, as Playback access judges, at `/media/plans/<id>/`: the
+//! playlist `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`. The playlist lists the whole
+//! Version up front, cut at keyframes where it will be cut, so HLS time is the file's time and
+//! Watch State needs no conversion. ffmpeg writes a file per keyframe to `nama-plan-<id>/` in the
+//! segment folder, and the plan joins those starting from each listed keyframe up to the next into
+//! that keyframe's file, by the times ffmpeg's own playlist gives, as the Version's index may list
+//! only some (ADR 0066). A segment joins its keyframes' files. A Remux keeps the Version's own
 //! keyframes; a Transcode forces one every [`SEGMENT_MS`], so each of its segments is one file.
 //!
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
@@ -47,7 +47,7 @@ mod run;
 mod serving;
 mod sweeping;
 #[cfg(test)]
-mod testing;
+pub(super) mod testing;
 mod timeline;
 
 use std::{
@@ -69,6 +69,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 pub(crate) use plays::{MessageTooLong, PlayNow, ReportedProgress, STOP_MESSAGE_LENGTH};
 use run::{Fallback, Running, Runs, Start};
+pub(in crate::playback) use serving::PlanFiles;
 pub(crate) use serving::router;
 pub(crate) use sweeping::sweep_leftovers;
 use sweeping::tidy_plans;
@@ -90,7 +91,6 @@ use crate::{
     library::Contents,
     server_settings::PlaybackSettings,
     signed_urls::Viewer,
-    users::Caller,
 };
 
 const PLAYLIST: &str = "index.m3u8";
@@ -287,13 +287,13 @@ impl RunningPlans {
         }
     }
 
-    /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
-    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, from the
+    /// Starts `plan` for `viewer`, telling Observers so, and returns it with its id and where to
+    /// play it from. A Remux or a Transcode runs ffmpeg over the Version's file, from the
     /// segment playing at `start_ms`. `None` if there is no such Version, it's being deleted, or
     /// `plan` can't be played.
     pub(crate) async fn start(
         &self,
-        caller: &Caller,
+        viewer: Viewer,
         plan: super::Plan,
         start_ms: i64,
     ) -> Result<Option<StartedPlan>, StartError> {
@@ -304,7 +304,7 @@ impl RunningPlans {
         else {
             return Ok(None);
         };
-        let playback = playback(caller, &plan);
+        let playback = playback(viewer, &plan);
         let started = match playing {
             Playing::DirectPlay => {
                 let id = self.direct_play(playback, plan.offers.cap.is_some());
@@ -322,7 +322,12 @@ impl RunningPlans {
                     .await?
             }
         };
-        Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
+        Ok(started.map(|(id, url)| StartedPlan {
+            id,
+            url,
+            viewer,
+            plan,
+        }))
     }
 
     /// Starts Remuxing the Version `playback` plays, `duration_ms` long, for the Device it plays
@@ -581,7 +586,7 @@ impl RunningPlans {
 
     /// Marks `viewer`'s Direct Plays of the Version `version` asked for now, which keeps them
     /// another [`STOP_UNUSED_AFTER`], and says whether any was planned under a remote cap.
-    pub(crate) fn ask_direct_plays(&self, version: i64, viewer: Viewer) -> bool {
+    pub(super) fn ask_direct_plays(&self, version: i64, viewer: Viewer) -> bool {
         let plans = lock(&self.inner.plans);
         let direct_plays = (plans.values()).filter(|plan| plan.direct_plays(version, viewer));
         direct_plays.fold(false, |any_kept, plan| {
@@ -596,18 +601,16 @@ impl RunningPlans {
     }
 
     /// `file`, the parts of the Version `version`'s file sent to `viewer`, marking their Direct
-    /// Plays of it asked for with each part, so they're kept while it's sent; none without one.
+    /// Plays of it asked for with each part, so they're kept while it's sent.
     pub(super) fn ask_direct_plays_while_sending<S: Stream>(
         &self,
         version: i64,
-        viewer: Option<Viewer>,
+        viewer: Viewer,
         file: S,
     ) -> impl Stream<Item = S::Item> + use<S> {
         let plans = self.clone();
         file.inspect(move |_| {
-            if let Some(viewer) = viewer {
-                plans.ask_direct_plays(version, viewer);
-            }
+            plans.ask_direct_plays(version, viewer);
         })
     }
 
@@ -660,7 +663,7 @@ impl RunningPlans {
 
     /// Cancelled once the Version `version` is being deleted, to cut off a response serving its
     /// file.
-    pub(crate) fn served(&self, version: i64) -> CancellationToken {
+    pub(super) fn served(&self, version: i64) -> CancellationToken {
         let mut served = lock(&self.inner.served);
         served.entry(version).or_default().child_token()
     }
@@ -766,11 +769,11 @@ async fn in_sidecar_charset(mut transcode: Transcode) -> Transcode {
     transcode
 }
 
-/// What Observers are told of `caller` playing by `plan`.
-fn playback(caller: &Caller, plan: &super::Plan) -> Playback {
+/// What Observers are told of `viewer` playing by `plan`.
+fn playback(viewer: Viewer, plan: &super::Plan) -> Playback {
     Playback {
-        user_id: caller.user.id,
-        device_id: caller.device.id,
+        user_id: viewer.user,
+        device_id: viewer.device,
         version_id: plan.version,
         method: method_to_proto(plan.method()).into(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),

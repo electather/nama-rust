@@ -317,7 +317,7 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
 pub(super) async fn require_access(request: Request, next: Next) -> axum::response::Response {
     let device = request.extensions().get::<Device>();
     // Its signature, which `admit` checked, names this path, or the Version or plan it is under,
-    // so it needs no session.
+    // so it needs no session; whether a playback URL's grant still stands is Playback access's.
     if request.extensions().get::<SignedUrl>().is_some() {
         return next.run(request).await;
     }

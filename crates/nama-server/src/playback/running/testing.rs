@@ -10,18 +10,20 @@ use std::{
     time::Duration,
 };
 
+use nama_proto::nama::v1::{Playback, PlaybackMethod};
 use tokio::sync::{oneshot, watch};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    Contents, EventBus, Ffmpeg, Probing, RunningPlans, lock,
-    run::{Outcome, Start},
+    Contents, EventBus, Ffmpeg, Method, Probing, RunningPlans, lock,
+    run::{Outcome, Runs, Start},
     subtitles,
     timeline::Timeline,
 };
 use crate::{
     ffmpeg::Keyframe,
-    playback::{ProbePasses, WholeFileReads},
+    playback::{Offers, Plan, Playing, ProbePasses, SubtitleOffsets, WholeFileReads},
+    signed_urls::Viewer,
 };
 
 /// Runs a test starts, ends and watches being dropped, as a plan starts them.
@@ -152,7 +154,54 @@ pub(super) fn every_two_seconds() -> Timeline {
     Timeline::new((0..500).map(|n| n * 2000).collect(), 1_000_000)
 }
 
+/// A plan that Direct Plays the Version `version`, planned on the local network.
+pub(in crate::playback) fn direct_play_of(version: i64) -> Plan {
+    Plan {
+        version,
+        playing: Some(Playing::DirectPlay),
+        tracks: vec![],
+        reasons: vec![],
+        subtitles: vec![],
+        limit: None,
+        audio: None,
+        burn_in: None,
+        starting_subtitle: None,
+        offers: Offers::default(),
+        chapters: vec![],
+        segments: vec![],
+        preview_frames: None,
+        subtitle_offsets: SubtitleOffsets::default(),
+    }
+}
+
 impl RunningPlans {
+    /// How many cut-offs it keeps, by Version and by Version and Viewer.
+    pub(in crate::playback) fn cut_offs_kept(&self) -> usize {
+        lock(&self.inner.served).len() + lock(&self.inner.stopped).len()
+    }
+
+    /// Starts a Remux of the Version `version` for `viewer` whose runs write nothing, on paused
+    /// time so the wait for its first file ends at once, and returns its id.
+    pub(in crate::playback) async fn start_faked_remux(&self, viewer: Viewer, version: i64) -> u64 {
+        let playback = Playback {
+            user_id: viewer.user,
+            device_id: viewer.device,
+            version_id: version,
+            method: PlaybackMethod::PLAYBACK_METHOD_REMUX.into(),
+            ..Default::default()
+        };
+        let runs = Runs {
+            method: Method::Remux,
+            start: FakeRuns::default().start(),
+            cpu_bound: false,
+            fallback: None,
+        };
+        tokio::time::pause();
+        let started = (self.start_hls(playback, every_two_seconds(), 0, runs, None)).await;
+        tokio::time::resume();
+        started.unwrap()
+    }
+
     /// Plans on `db` publishing on `events`, with the default playback settings and their files
     /// under `folder`, for a test that only asks what plays and ends it.
     pub(crate) fn for_tests(
