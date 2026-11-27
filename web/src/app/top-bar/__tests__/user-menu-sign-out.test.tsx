@@ -1,9 +1,12 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { SignOutToast } from "@/app/top-bar/sign-out-toast";
+import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
+import { hubRefused } from "@/test-hub-links";
 import { pickFromMenu } from "@/test-menu";
 
 afterEach(cleanup);
@@ -102,5 +105,13 @@ test("at the Hub, a sign-out refused for want of sign-in opens sign-in without a
   await pickFromMenu(`${ada.email}’s menu`, "Sign out");
 
   await expect(screen.findByRole("heading", { name: "Sign in to the Hub" })).resolves.toBeDefined();
+  expect(screen.queryByText("Not signed out")).toBeNull();
+});
+
+test("a Hub refusal for want of sign-in gets no toast, even before sign-in opens", () => {
+  const refusal = hubRefused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
+
+  render(<SignOutToast error={refusal} atHub onDismiss={() => {}} />);
+
   expect(screen.queryByText("Not signed out")).toBeNull();
 });
