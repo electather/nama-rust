@@ -5,7 +5,7 @@ touches the network. `routes.json` maps each request (path, then its query param
 name, leaving out `api_key`, `language` and `include_adult`) to the file under `api/` that
 answers it. Images lists (`/movie/{id}/images`, `/tv/{id}/images`,
 `/tv/{id}/season/{n}/images`) are asked in every language, so their routes have no query. A request with no route gets TMDB's own 404 body. `images/` holds stand-in image
-bytes, served under `/t/p/<size>/`.
+bytes, served under `/t/p/<size>/`, and under `/vi/<key>/` as YouTube serves a Trailer's thumbnail.
 
 The bodies follow TMDB's documented response shapes and are trimmed to a realistic subset of
 fields. They were written by hand rather than captured, because the factory that built the

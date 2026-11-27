@@ -457,6 +457,26 @@ async fn a_title_has_only_its_trailers_on_youtube_or_vimeo_official_first_and_at
 }
 
 #[tokio::test]
+async fn a_youtube_trailer_has_its_thumbnail_and_a_vimeo_one_has_none() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let dark = dark.show.unwrap();
+
+    let thumbnails: Vec<Option<&str>> = (dark.trailers.iter())
+        .map(|trailer| trailer.thumbnail_url.as_deref())
+        .collect();
+    assert_eq!(
+        (thumbnails[0], thumbnails[4]),
+        (
+            Some("https://i.ytimg.com/vi/darkS1trail/maxresdefault.jpg"),
+            None
+        )
+    );
+}
+
+#[tokio::test]
 async fn a_title_nobody_has_voted_on_has_no_score() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
@@ -690,6 +710,35 @@ async fn an_image_is_fetched_by_the_path_tmdb_gave() {
     assert_eq!(
         fake.requests(),
         ["/t/p/original/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg"]
+    );
+}
+
+#[tokio::test]
+async fn a_trailers_thumbnail_is_fetched_from_youtube_and_no_other_url_is() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+    let image = |path: &str| {
+        let asked = ImageAsked {
+            path: path.to_owned(),
+            ..Default::default()
+        };
+        let tmdb = &tmdb;
+        async move { tmdb.image(&asked).await.unwrap().image.into_option() }
+    };
+
+    let hq = image("https://i.ytimg.com/vi/LjLamj-b0I8/hqdefault.jpg").await;
+    let maxres = image("https://i.ytimg.com/vi/LjLamj-b0I8/maxresdefault.jpg").await;
+    let elsewhere = image("https://example.com/vi/LjLamj-b0I8/hqdefault.jpg").await;
+    let climbing = image("https://i.ytimg.com/vi/../t/p/hqdefault.jpg").await;
+
+    assert!(hq.unwrap().bytes.starts_with(b"\xff\xd8"));
+    assert!(maxres.is_none() && elsewhere.is_none() && climbing.is_none());
+    assert_eq!(
+        fake.requests(),
+        [
+            "/vi/LjLamj-b0I8/hqdefault.jpg",
+            "/vi/LjLamj-b0I8/maxresdefault.jpg"
+        ]
     );
 }
 

@@ -12,6 +12,7 @@ fn unreachable() -> Client {
     let endpoints = Endpoints {
         api: "http://127.0.0.1:9/3".to_owned(),
         images: "http://127.0.0.1:9/t/p".to_owned(),
+        youtube_thumbnails: "http://127.0.0.1:9/vi".to_owned(),
     };
     Client::new(endpoints, "key", "en-US", true).unwrap()
 }

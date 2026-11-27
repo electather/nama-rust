@@ -43,7 +43,7 @@ pub(crate) use libraries::{
 pub(crate) use local_images::{FoundImages, LocalImages, router as local_images_router};
 pub(crate) use recognisers::{RecogniserFailed, Recognisers};
 pub(crate) use scan_locks::{ScanLock, ScanLocks};
-pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage};
+pub(crate) use shown_images::{Downloaded, ImageSources, ShownImage, ShownImages, TitleImage};
 pub(crate) use similar_sources::{
     Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar,
 };

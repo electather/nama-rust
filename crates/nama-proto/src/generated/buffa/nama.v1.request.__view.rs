@@ -16583,6 +16583,15 @@ pub struct TrailerView<'a> {
     ///
     /// Field 2: `url`
     pub url: &'a str,
+    /// Its thumbnail's URL on this Server, which stored it when the title's Matches were last
+    /// refreshed. Unset if it has none, when a client shows the title's Backdrop in its place.
+    ///
+    /// Field 3: `thumbnail_url`
+    pub thumbnail_url: ::core::option::Option<&'a str>,
+    /// As `nama.v1.Movie.poster_thumbhash`, for the thumbnail.
+    ///
+    /// Field 4: `thumbhash`
+    pub thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
@@ -16629,6 +16638,20 @@ impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
                 )?;
                 view.url = ::buffa::types::borrow_str(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.thumbnail_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -16653,6 +16676,8 @@ impl<'a> ::buffa::MessageView<'a> for TrailerView<'a> {
         ::core::result::Result::Ok(super::super::Trailer {
             name: self.name.to_string(),
             url: self.url.to_string(),
+            thumbnail_url: self.thumbnail_url.map(|s| s.to_string()),
+            thumbhash: self.thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -16670,6 +16695,12 @@ impl<'a> ::buffa::ViewEncode<'a> for TrailerView<'a> {
         if !self.url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
         }
+        if let Some(ref v) = self.thumbnail_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -16686,6 +16717,12 @@ impl<'a> ::buffa::ViewEncode<'a> for TrailerView<'a> {
         }
         if !self.url.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.url, buf);
+        }
+        if let Some(ref v) = self.thumbnail_url {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if let Some(ref v) = self.thumbhash {
+            ::buffa::types::put_shared_bytes_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -16713,6 +16750,16 @@ impl<'__a> ::serde::Serialize for TrailerView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.url) {
             __map.serialize_entry("url", self.url)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.thumbnail_url {
+            __map.serialize_entry("thumbnailUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.thumbhash {
+            __map
+                .serialize_entry(
+                    "thumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -16816,6 +16863,21 @@ impl TrailerOwnedView {
     #[must_use]
     pub fn url(&self) -> &'_ str {
         self.0.reborrow().url
+    }
+    /// Its thumbnail's URL on this Server, which stored it when the title's Matches were last
+    /// refreshed. Unset if it has none, when a client shows the title's Backdrop in its place.
+    ///
+    /// Field 3: `thumbnail_url`
+    #[must_use]
+    pub fn thumbnail_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().thumbnail_url
+    }
+    /// As `nama.v1.Movie.poster_thumbhash`, for the thumbnail.
+    ///
+    /// Field 4: `thumbhash`
+    #[must_use]
+    pub fn thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TrailerView<'static>>>

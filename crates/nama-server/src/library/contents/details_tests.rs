@@ -24,6 +24,7 @@ fn trailer() -> Trailer {
     Trailer {
         name: "Official Trailer".to_owned(),
         url: "https://www.youtube.com/watch?v=ESEUoa-mz2c".to_owned(),
+        thumbnail: None,
     }
 }
 
@@ -103,4 +104,33 @@ async fn a_title_matched_again_through_another_source_has_only_that_sources_scor
     let movies = fx.contents.movies(fx.library, None).await.unwrap();
 
     assert_eq!(movies[0].score, None);
+}
+
+#[tokio::test]
+async fn a_trailers_thumbnail_is_stored_only_while_a_match_stores_its_title() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let thumbnail = "https://i.ytimg.com/vi/ESEUoa-mz2c/maxresdefault.jpg";
+    let alien = Metadata {
+        trailers: vec![Trailer {
+            thumbnail: Some(thumbnail.to_owned()),
+            ..trailer()
+        }],
+        ..tmdb_movie(348, "Alien")
+    };
+    record(&fx, ALIEN, alien).await;
+    let stored = || async {
+        let images = fx.contents.images(Some(fx.library)).await.unwrap();
+        let listed = images.contains(&("tmdb".to_owned(), thumbnail.to_owned()));
+        let served = fx.contents.stores_image("tmdb", thumbnail).await.unwrap();
+        (listed, served)
+    };
+    let matched = stored().await;
+    let item = fx.item(ALIEN).await;
+    fx.contents
+        .record(vec![(item, Decided::Unmatched(None))])
+        .await
+        .unwrap();
+
+    assert_eq!((matched, stored().await), ((true, true), (false, false)));
 }

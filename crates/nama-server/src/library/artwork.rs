@@ -489,17 +489,25 @@ impl Artwork {
         Ok(sweeping)
     }
 
-    /// The image at `path` from `plugin`'s title source, which handed the path out.
+    /// The image at `path` from `plugin`'s title source, which handed the path out, or for a
+    /// `YouTube` thumbnail's `maxresdefault.jpg` the source doesn't have, its `hqdefault.jpg`.
     async fn fetch(&self, plugin: &PluginId, path: &str) -> Result<title_source::Image, Error> {
-        self.metadata
-            .image(plugin, path)
-            .await
-            .map_err(|err| match err {
-                title_source::Unanswered::NotFound => Error::NotFound,
-                title_source::Unanswered::Unavailable => Error::Unavailable(format!(
-                    "{plugin} isn't enabled, doesn't provide metadata, or failed"
-                )),
-            })
+        let image = self.metadata.image(plugin, path).await;
+        // YouTube has no `maxresdefault.jpg` for a video uploaded below 720p, but always an
+        // `hqdefault.jpg`, which is 4:3 with black bars.
+        let image = match (image, path.strip_suffix("/maxresdefault.jpg")) {
+            (Err(title_source::Unanswered::NotFound), Some(video)) => {
+                let hq = format!("{video}/hqdefault.jpg");
+                self.metadata.image(plugin, &hq).await
+            }
+            (image, _) => image,
+        };
+        image.map_err(|err| match err {
+            title_source::Unanswered::NotFound => Error::NotFound,
+            title_source::Unanswered::Unavailable => Error::Unavailable(format!(
+                "{plugin} isn't enabled, doesn't provide metadata, or failed"
+            )),
+        })
     }
 
     /// The image at `path` from `plugin`'s title source as the answer to `request`, stored first if

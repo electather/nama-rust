@@ -489,6 +489,9 @@ impl Videos {
         trailers.sort_by_key(|video| !video.official);
         (trailers.into_iter().take(MAX_TRAILERS))
             .map(|video| Trailer {
+                // Vimeo's needs an oEmbed request to find, so its Trailers go without.
+                thumbnail_url: (video.site == "YouTube")
+                    .then(|| format!("{YOUTUBE_THUMBNAILS}/{}/maxresdefault.jpg", video.key)),
                 site: video.site,
                 key: video.key,
                 name: video.name,
@@ -498,6 +501,9 @@ impl Videos {
             .collect()
     }
 }
+
+/// Where `YouTube` serves its videos' thumbnails, under `/{key}/{name}.jpg`.
+pub(crate) const YOUTUBE_THUMBNAILS: &str = "https://i.ytimg.com/vi";
 
 #[derive(Debug, Deserialize)]
 struct Genre {

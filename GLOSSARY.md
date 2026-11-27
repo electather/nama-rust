@@ -322,7 +322,7 @@ A title's Roles that are jobs, such as Director or Creator.
 _Avoid_: staff, credits
 
 **Trailer**:
-A video advertising a Movie or Show, kept as a link to where it is hosted. Nama plays it only in its host's own player, loaded once a User opens it.
+A video advertising a Movie or Show, kept as a link to where it is hosted, with the thumbnail the Server stores from there when the title's Matches are refreshed. Nama plays it only in its host's own player, loaded once a User opens it.
 _Avoid_: clip, teaser, preview
 
 **Similar titles**:

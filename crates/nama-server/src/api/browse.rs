@@ -25,7 +25,7 @@ use crate::{
     db::Database,
     home_rows::HomeRows,
     library::{
-        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
+        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role, ShownImage,
         ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
@@ -614,7 +614,7 @@ fn movie_to_proto(
         content_rating: movie.content_rating,
         score: movie.score,
         original_language: movie.original_language,
-        trailers: trailers_to_proto(movie.trailers),
+        trailers: trailers_to_proto(movie.trailers, stored_image(&movie.plugin, images)),
         custom_poster: poster.custom,
         custom_backdrop: backdrop.custom,
         poster_url: poster.url,
@@ -651,11 +651,12 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 
 /// Where clients fetch an image a Match of `plugin`'s stores, by its path.
 fn stored_by<'a>(plugin: &'a str, images: &'a ShownImages) -> impl Fn(&str) -> Option<String> + 'a {
-    move |path| {
-        images
-            .downloaded(Some(Downloaded::Stored { plugin, path }))
-            .url
-    }
+    move |path| stored_image(plugin, images)(path).url
+}
+
+/// How `images` shows an image a Match of `plugin`'s stores, by its path.
+fn stored_image<'a>(plugin: &'a str, images: &'a ShownImages) -> impl Fn(&str) -> ShownImage + 'a {
+    move |path| images.downloaded(Some(Downloaded::Stored { plugin, path }))
 }
 
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
@@ -685,7 +686,11 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         content_rating: show.content_rating.clone(),
         score: show.score,
         original_language: show.original_language.clone(),
-        trailers: trailers_to_proto(show.trailers.clone()),
+        // Without a Plugin it has no Matches, so no Trailers.
+        trailers: trailers_to_proto(
+            show.trailers.clone(),
+            stored_image(show.plugin().unwrap_or_default(), images),
+        ),
         overview: show.overview.clone(),
         first_air_date: show.first_air_date.clone(),
         season_count: u32::try_from(season_count(show)).unwrap_or(u32::MAX),

@@ -1,5 +1,5 @@
-//! The images Matches store, with the headshots of the Roles of the titles they Match, which
-//! artwork serves and keeps while some Match stores them.
+//! The images Matches store, with the headshots of the Roles and the thumbnails of the Trailers
+//! of the titles they Match, which artwork serves and keeps while some Match stores them.
 
 use nama_plugin_api::metadata::ExternalIds;
 
@@ -44,6 +44,21 @@ impl Contents {
                                                                     'title', 'show')
                                               AND keyed.namespace = title_roles.namespace
                                               AND keyed.value = title_roles.value))
+                   -- ponytail: reads every Trailer of `plugin`'s titles; index the thumbnails in a
+                   -- table of their own if serving them gets slow.
+                   OR EXISTS (SELECT 1 FROM title_details, json_each(title_details.trailers) AS trailer
+                              WHERE title_details.plugin = ?1
+                                AND json_extract(trailer.value, '$.thumbnail') = ?2
+                                -- As a headshot is kept.
+                                AND EXISTS (SELECT 1 FROM item_match_ids AS keyed
+                                            JOIN item_matches
+                                              ON item_matches.item_id = keyed.item_id
+                                            WHERE item_matches.state = 'matched'
+                                              AND item_matches.plugin = title_details.plugin
+                                              AND keyed.scope = iif(title_details.kind = 'movie',
+                                                                    'title', 'show')
+                                              AND keyed.namespace = title_details.namespace
+                                              AND keyed.value = title_details.value))
                AS "stored!: bool""#,
             plugin,
             image
@@ -52,8 +67,8 @@ impl Contents {
         .await
     }
 
-    /// Each image a Match stores, and each headshot of the Roles of the titles they Match, as its
-    /// Plugin and path, in the Library `library` or else in every Library.
+    /// Each image a Match stores, and each headshot and Trailer thumbnail of the titles they
+    /// Match, as its Plugin and path, in the Library `library` or else in every Library.
     pub(crate) async fn images(
         &self,
         library: Option<i64>,
@@ -93,7 +108,17 @@ impl Contents {
                              WHERE matched.plugin = title_roles.plugin
                                AND keyed.scope = iif(title_roles.kind = 'movie', 'title', 'show')
                                AND keyed.namespace = title_roles.namespace
-                               AND keyed.value = title_roles.value)"#,
+                               AND keyed.value = title_roles.value)
+               UNION
+               SELECT title_details.plugin, json_extract(trailer.value, '$.thumbnail')
+               FROM title_details, json_each(title_details.trailers) AS trailer
+               WHERE json_extract(trailer.value, '$.thumbnail') IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM matched
+                             JOIN item_match_ids AS keyed ON keyed.item_id = matched.item_id
+                             WHERE matched.plugin = title_details.plugin
+                               AND keyed.scope = iif(title_details.kind = 'movie', 'title', 'show')
+                               AND keyed.namespace = title_details.namespace
+                               AND keyed.value = title_details.value)"#,
             library
         )
         .fetch_all(self.db.reader())

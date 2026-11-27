@@ -186,9 +186,13 @@ fn a_role_without_a_valid_person_id_is_dropped_and_at_most_50_are_kept() {
 }
 
 #[test]
-fn a_trailer_becomes_a_link_to_youtube_or_vimeo() {
+fn a_trailer_becomes_a_link_to_youtube_or_vimeo_with_its_thumbnail() {
+    let thumbnail = "https://i.ytimg.com/vi/LjLamj-b0I8/maxresdefault.jpg";
     let trailers = vec![
-        trailer("YouTube", "LjLamj-b0I8", "Official Trailer"),
+        wire::Trailer {
+            thumbnail_url: Some(thumbnail.to_owned()),
+            ..trailer("YouTube", "LjLamj-b0I8", "Official Trailer")
+        },
         trailer("Vimeo", "123456789", "Teaser"),
     ];
 
@@ -203,10 +207,12 @@ fn a_trailer_becomes_a_link_to_youtube_or_vimeo() {
             Trailer {
                 name: "Official Trailer".to_owned(),
                 url: "https://www.youtube.com/watch?v=LjLamj-b0I8".to_owned(),
+                thumbnail: Some(thumbnail.to_owned()),
             },
             Trailer {
                 name: "Teaser".to_owned(),
                 url: "https://vimeo.com/123456789".to_owned(),
+                thumbnail: None,
             },
         ]
     );
