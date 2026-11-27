@@ -35,8 +35,9 @@ message ViewingEvent {
   string id = 1;
   // Whether it played an Episode rather than a Movie, whose External IDs are separate id spaces.
   bool episode = 2;
-  // The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
-  // `tmdb-603`: 1 to 100 characters.
+  // The Movie or Episode, by the External ID its Server keeps its Watch State under, written
+  // `namespace-value` (ADR 0042): a Namespace of lowercase `a-z` and `0-9`, a `-`, then a
+  // non-empty value, such as `tmdb-603`. 1 to 100 characters.
   string external_id = 3;
   // When it started, in seconds since the Unix epoch.
   int64 started_at = 4;
@@ -50,7 +51,7 @@ message ViewingEvent {
   bool finished = 8;
   // What kind of Device played it. Unspecified when its Server couldn't tell.
   DeviceKind device_kind = 9;
-  // An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+  // An Episode's Show, by its External ID written as `external_id` is, such as `tmdb-1399`: 1 to
   // 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
   // took it.
   string show_external_id = 10;

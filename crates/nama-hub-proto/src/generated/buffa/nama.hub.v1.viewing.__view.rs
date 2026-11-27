@@ -13,8 +13,9 @@ pub struct ViewingEventView<'a> {
     ///
     /// Field 2: `episode`
     pub episode: bool,
-    /// The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
-    /// `tmdb-603`: 1 to 100 characters.
+    /// The Movie or Episode, by the External ID its Server keeps its Watch State under, written
+    /// `namespace-value` (ADR 0042): a Namespace of lowercase `a-z` and `0-9`, a `-`, then a
+    /// non-empty value, such as `tmdb-603`. 1 to 100 characters.
     ///
     /// Field 3: `external_id`
     pub external_id: &'a str,
@@ -42,7 +43,7 @@ pub struct ViewingEventView<'a> {
     ///
     /// Field 9: `device_kind`
     pub device_kind: ::buffa::EnumValue<super::super::DeviceKind>,
-    /// An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+    /// An Episode's Show, by its External ID written as `external_id` is, such as `tmdb-1399`: 1 to
     /// 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
     /// took it.
     ///
@@ -450,8 +451,9 @@ impl ViewingEventOwnedView {
     pub fn episode(&self) -> bool {
         self.0.reborrow().episode
     }
-    /// The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
-    /// `tmdb-603`: 1 to 100 characters.
+    /// The Movie or Episode, by the External ID its Server keeps its Watch State under, written
+    /// `namespace-value` (ADR 0042): a Namespace of lowercase `a-z` and `0-9`, a `-`, then a
+    /// non-empty value, such as `tmdb-603`. 1 to 100 characters.
     ///
     /// Field 3: `external_id`
     #[must_use]
@@ -500,7 +502,7 @@ impl ViewingEventOwnedView {
     pub fn device_kind(&self) -> ::buffa::EnumValue<super::super::DeviceKind> {
         self.0.reborrow().device_kind
     }
-    /// An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+    /// An Episode's Show, by its External ID written as `external_id` is, such as `tmdb-1399`: 1 to
     /// 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
     /// took it.
     ///
