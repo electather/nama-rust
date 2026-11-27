@@ -95,6 +95,7 @@ export function accountHub(state: Partial<AccountHub> = {}) {
         return {};
       },
       signOut: () => {
+        signedInOnly();
         if (hub.signOutFails) {
           throw new ConnectError("unreachable", Code.Unavailable);
         }
