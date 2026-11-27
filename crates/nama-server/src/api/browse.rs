@@ -365,6 +365,9 @@ impl BrowseService for BrowseServiceHandler {
         let caller = &caller(&ctx)?.user;
         let featured = self.home_layouts.featured(caller).await;
         let featured = featured.map_err(home_layout_refused)?;
+        if featured.is_empty() {
+            return Response::ok(ListFeaturedResponse::default());
+        }
         let images = shown_images(&self.images, &ctx).await?;
         let mut titles = Vec::with_capacity(featured.len());
         // ponytail: one query per title, as Continue Watching asks; Featured lists a handful.

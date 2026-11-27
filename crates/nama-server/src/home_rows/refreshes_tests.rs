@@ -21,7 +21,8 @@ use crate::{
     db::{self, Database},
     home_rows::{
         HomeRows,
-        tests::{Calls, SHARED, handle, recorded, set_handle, started},
+        scripted::Calls,
+        tests::{SHARED, handle, recorded, set_handle, started},
     },
     library::{MovieOrEpisode, WatchStates},
     plugins::ExtensionPoints,

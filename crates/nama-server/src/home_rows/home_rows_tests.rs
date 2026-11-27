@@ -7,7 +7,7 @@ use std::{
 use nama_plugin_api::{PluginId, home_row::HomeRowMethod, metadata::ExternalId};
 use tempfile::TempDir;
 
-pub(super) use super::scripted::{Calls, given, movie, row, titled};
+use super::scripted::Calls;
 use super::{
     HomeRows as Kept, Kind, OnServer, Row, ScriptedRows, Title, forget_unvisited, rows::Rows, shown,
 };

@@ -19,11 +19,13 @@ pub(crate) type HomeRow = (HomeRowId, ShownRow);
 /// What shows of a Home row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ShownRow {
+    /// Continue Watching, which shows nothing beyond what places it.
     ContinueWatching,
     /// The newest titles of this Library.
     RecentlyAdded(Library),
     /// A Plugin's row, linked to the Library `library` only if its User sees that one.
     Plugin {
+        /// What its Plugin names it by, as `ListHomeRowTitles` asks for it.
         key: String,
         heading: String,
         library: Option<i64>,
@@ -36,6 +38,7 @@ pub(crate) enum ShownRow {
 /// A Home layout as its editor sees it.
 #[derive(Debug)]
 pub(crate) struct SeenHomeLayout {
+    /// Whether Featured shows, at the top of Home.
     pub(crate) featured_shown: bool,
     /// Every row in its order, each with whether it shows.
     pub(crate) rows: Vec<(HomeRow, bool)>,
@@ -44,10 +47,18 @@ pub(crate) struct SeenHomeLayout {
 /// Why a User's Home couldn't be read or saved.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum HomeLayoutError {
+    /// Listing the Plugins' rows or their Featured suggestions failed.
     #[error(transparent)]
     HomeRows(#[from] crate::home_rows::Error),
+    /// Reading the Libraries, the titles or a Home layout failed.
     #[error(transparent)]
     Browse(#[from] Error),
+}
+
+impl From<sqlx::Error> for HomeLayoutError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::Browse(err.into())
+    }
 }
 
 /// Composes each User's Home, and the default Home layout.
@@ -62,6 +73,8 @@ pub(crate) struct HomeLayouts {
 }
 
 impl HomeLayouts {
+    /// Composes Home from what `db` holds, through `browsing` and `home_rows`, under the default
+    /// Home layout `settings` holds.
     pub(crate) fn new(
         db: Arc<Database>,
         browsing: Browsing,
@@ -93,14 +106,12 @@ impl HomeLayouts {
     /// `user`'s Featured, none when their Home layout hides it: what Browse picks from the
     /// Kernel's suggestions and the Plugins' (ADR 0072).
     pub(crate) async fn featured(&self, user: &User) -> Result<Vec<Featured>, HomeLayoutError> {
-        let own = UserHomeLayout::of(&self.db, user.id)
-            .await
-            .map_err(Error::from)?;
+        let own = UserHomeLayout::of(&self.db, user.id).await?;
         if !own.shows_featured(&self.settings.now().default_home_layout) {
             return Ok(Vec::new());
         }
         let suggested = self.home_rows.featured(user.id).await?;
-        let browse = self.browsing.seen_by(user.id).await.map_err(Error::from)?;
+        let browse = self.browsing.seen_by(user.id).await?;
         Ok(browse.featured(user.id, &suggested).await?)
     }
 
@@ -113,9 +124,7 @@ impl HomeLayouts {
     ) -> Result<SeenHomeLayout, HomeLayoutError> {
         let seen = self.seen_rows(user).await?;
         let default = self.settings.now().default_home_layout;
-        UserHomeLayout::save(&self.db, user.id, asked, ids(&seen), default)
-            .await
-            .map_err(Error::from)?;
+        UserHomeLayout::save(&self.db, user.id, asked, ids(&seen), default).await?;
         self.arranged(user.id, seen).await
     }
 
@@ -128,16 +137,14 @@ impl HomeLayouts {
     ) -> Result<SeenHomeLayout, HomeLayoutError> {
         let seen = self.seen_rows(user).await?;
         let default = self.settings.now().default_home_layout;
-        UserHomeLayout::reorder(&self.db, user.id, asked, ids(&seen), default)
-            .await
-            .map_err(Error::from)?;
+        UserHomeLayout::reorder(&self.db, user.id, asked, ids(&seen), default).await?;
         self.arranged(user.id, seen).await
     }
 
     /// The default Home layout, with every Home row it could place: each Library's, each row a
     /// Plugin shares, and each Plugin's Users' own rows as one entry.
     pub(crate) async fn default_layout(&self) -> Result<SeenHomeLayout, HomeLayoutError> {
-        let placeable = self.home_rows.placeable().await.map_err(Error::from)?;
+        let placeable = self.home_rows.placeable().await?;
         let libraries = self.browsing.everything().libraries().await?;
         let plugin_rows = placeable.into_iter().map(|(id, heading)| {
             // `placeable` gives each shared row with its heading, and the entry for Users' own.
@@ -165,7 +172,7 @@ impl HomeLayouts {
     /// it. Lists their Plugin rows as Home does, which records a visit to home.
     async fn seen_rows(&self, user: &User) -> Result<Vec<HomeRow>, HomeLayoutError> {
         let plugin_rows = self.home_rows.list(user).await?;
-        let browse = self.browsing.seen_by(user.id).await.map_err(Error::from)?;
+        let browse = self.browsing.seen_by(user.id).await?;
         let libraries = browse.libraries().await?;
         let sees = |id: &i64| libraries.iter().any(|library| library.id == *id);
         let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
@@ -186,9 +193,7 @@ impl HomeLayouts {
         user: i64,
         rows: Vec<HomeRow>,
     ) -> Result<SeenHomeLayout, HomeLayoutError> {
-        let own = UserHomeLayout::of(&self.db, user)
-            .await
-            .map_err(Error::from)?;
+        let own = UserHomeLayout::of(&self.db, user).await?;
         let default = self.settings.now().default_home_layout;
         Ok(SeenHomeLayout {
             featured_shown: own.shows_featured(&default),
