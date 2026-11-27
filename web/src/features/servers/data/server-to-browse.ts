@@ -35,3 +35,28 @@ export async function serverToBrowse(
   const elsewhere = servers.filter((server) => server !== here).map((server) => reach(server));
   return { transport: reached.transport, signedIn: reached.signedIn, here, elsewhere };
 }
+
+/**
+ * The Account's only Server the page reaches signed in, or `undefined` when it reaches none or
+ * more than one.
+ */
+export async function onlyReachedServer(
+  context: RouterContext & { serverAt: ServerAt; account: Account },
+) {
+  const { queryClient, transport: hub, serverAt, account } = context;
+  const { servers } = await queryClient.query(linkedServersQuery(hub));
+  // A Server that can't be reached fails its query, so it counts as not reached.
+  const reaches = await Promise.allSettled(
+    servers.map(async (server) => {
+      const reach = await queryClient.query(
+        serverReachQuery({ hub, accountId: account.id, server, serverAt }),
+      );
+      return reach;
+    }),
+  );
+  const reached = servers.filter((_, at) => {
+    const reach = reaches[at];
+    return reach?.status === "fulfilled" && reach.value.kind === "signed-in";
+  });
+  return reached.length === 1 ? reached[0] : undefined;
+}

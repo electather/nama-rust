@@ -1,9 +1,9 @@
 import { TransportProvider } from "@connectrpc/connect-query";
-import { createFileRoute, notFound, retainSearchParams } from "@tanstack/react-router";
+import { createFileRoute, redirect, retainSearchParams } from "@tanstack/react-router";
 
 import { ServerLayout } from "@/app/server-layout";
 import type { ServerToReach } from "@/features/servers/data/server-reach";
-import { serverToBrowse } from "@/features/servers/data/server-to-browse";
+import { onlyReachedServer, serverToBrowse } from "@/features/servers/data/server-to-browse";
 import { idParam } from "@/features/settings/lib/sections";
 
 const noOtherServers: ServerToReach[] = [];
@@ -21,14 +21,22 @@ export const Route = createFileRoute("/_member/_server")({
     server: idParam(search["server"]),
   }),
   search: { middlewares: [retainSearchParams(["server"])] },
-  beforeLoad: ({ context, search }) => {
+  beforeLoad: async ({ context, location, search }) => {
     const { account } = context;
     if (!account) {
       return { here: undefined, elsewhere: noOtherServers };
     }
-    // The Hub has no content of its own to show on a Server's page.
     if (search.server === undefined) {
-      throw notFound();
+      // A Library's id means something only on one Server, so the Hub guesses only when there's one.
+      const only = await onlyReachedServer({ ...context, account });
+      if (!only) {
+        throw redirect({ to: "/", replace: true });
+      }
+      throw redirect({
+        to: location.pathname,
+        search: { ...location.search, server: only.id },
+        replace: true,
+      });
     }
     return serverToBrowse({ ...context, account }, search.server);
   },
