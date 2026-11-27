@@ -66,9 +66,9 @@ impl PluginSettings {
 
     /// Refuses `settings` for the Plugin `manifest` describes unless each value a choice or
     /// Choices setting holds is offered: among the choices its settings check offers for it, or
-    /// else a Choices setting's own. Keeps each Choices setting's values once, in the order its
-    /// choices are listed. The check runs only when a choice setting has a value, or the Plugin
-    /// `checks_settings` and a Choices setting holds some.
+    /// else the setting's own. Keeps each Choices setting's values once, in the order its choices
+    /// are listed. The check runs only when the Plugin `checks_settings` and a choice or Choices
+    /// setting holds some, or a choice setting listing no choices of its own has a value.
     pub(super) async fn check_choices(
         &self,
         manifest: &Manifest,
@@ -76,8 +76,9 @@ impl PluginSettings {
         settings: &mut BTreeMap<String, SettingValue>,
     ) -> Result<(), ChangeError> {
         let picked = picked(&manifest.settings.fields, settings);
-        let needs_check =
-            (picked.iter()).any(|(field, _)| checks_settings || field.kind == SettingKind::Choice);
+        let needs_check = (picked.iter()).any(|(field, _)| {
+            checks_settings || (field.kind == SettingKind::Choice && field.choices.is_empty())
+        });
         let offered = match picked.first() {
             Some((first, _)) if needs_check => {
                 self.run_check(&manifest.id, settings.clone(), Some(&first.key))

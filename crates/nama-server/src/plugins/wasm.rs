@@ -115,7 +115,7 @@ pub(super) enum Refused {
     BoundsCrossed { key: String, min: i64, max: i64 },
     #[error("its setting {key}'s default is outside its bounds")]
     DefaultOutOfBounds { key: String },
-    #[error("its setting {key} has choices, which only a Choices setting may")]
+    #[error("its setting {key} has choices, which only a Choice or Choices setting may")]
     ChoicesOnAnotherKind { key: String },
     #[error("its setting {key} lists the choice {value:?} twice")]
     ChoiceRepeated { key: String, value: String },

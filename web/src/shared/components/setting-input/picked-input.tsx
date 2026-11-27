@@ -20,7 +20,7 @@ export function PickedInput({
 }) {
   if (setting.kind === SettingKind.CHOICE) {
     const required = checksRequired && setting.required;
-    const choices = offeredByTest(setting, offered);
+    const choices = choicesOf(setting, offered);
     // A new element once the choices come, so it starts on the stored one.
     return (
       <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error, required }} />
@@ -39,9 +39,13 @@ export function PickedInput({
   return <LibraryPicker setting={setting} hint={hint(setting)} error={error} />;
 }
 
-/** A CHOICE setting's choices: none before a passing test, which unlocks it even offering none. */
-function offeredByTest({ key }: Setting, offered: Record<string, SettingChoices> | undefined) {
-  return offered && (offered[key]?.choices ?? []);
+/**
+ * A CHOICE setting's choices: a passing test's for it, else its Manifest's. With neither, none
+ * before a passing test, which unlocks it even offering none.
+ */
+function choicesOf({ key, choices }: Setting, offered: Record<string, SettingChoices> | undefined) {
+  const listed = choices.length > 0 ? choices : undefined;
+  return offered?.[key]?.choices ?? listed ?? (offered && []);
 }
 
 /** A CHOICES setting's choices: a passing test's for it, which replace its Manifest's. */

@@ -400,9 +400,10 @@ async fn getting_an_unknown_plugin_is_refused() {
 async fn a_plugins_settings_come_with_their_schema_and_stored_values() {
     let mut settings = tmdb_with_key();
     if let Some(tmdb) = settings.get_mut("tmdb") {
+        // As a Server saved it before Language was a choice setting.
         tmdb.settings.insert(
             "language".to_owned(),
-            SettingValue::Text("de-DE".to_owned()),
+            SettingValue::Text("en-US".to_owned()),
         );
     }
 
@@ -415,11 +416,11 @@ async fn a_plugins_settings_come_with_their_schema_and_stored_values() {
     assert_eq!(api_key.label, "API key");
     assert!(api_key.secret_set);
     let language = setting(&tmdb, "language");
-    assert_eq!(language.kind, SettingKind::SETTING_KIND_TEXT);
+    assert_eq!(language.kind, SettingKind::SETTING_KIND_CHOICE);
     assert!(!language.secret_set);
     assert_eq!(
         language.value.as_option().and_then(|v| v.value.clone()),
-        Some(Value::TextValue("de-DE".to_owned()))
+        Some(Value::TextValue("en-US".to_owned()))
     );
     assert_eq!(
         language
@@ -575,11 +576,11 @@ async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
     assert_eq!(refusal.field, "settings.language");
     assert_eq!(
         refusal.params.get("settingKind").map(String::as_str),
-        Some("SETTING_KIND_TEXT")
+        Some("SETTING_KIND_CHOICE")
     );
     assert_eq!(
         message.as_deref(),
-        Some("the setting language must be text")
+        Some("the setting language must be one of its choices")
     );
     assert_eq!(started.stored().await, tmdb_with_key());
 }

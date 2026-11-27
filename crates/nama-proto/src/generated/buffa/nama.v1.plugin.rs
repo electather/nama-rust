@@ -975,8 +975,9 @@ pub enum SettingKind {
     SETTING_KIND_BOOL = 3i32,
     /// A whole number.
     SETTING_KIND_INTEGER = 4i32,
-    /// Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`), which
-    /// for an Installed Plugin is its `check_settings()` export.
+    /// Text picked from `Setting.choices`, or from the choices the Plugin's settings check offers
+    /// (`TestPluginSettings`), which for an Installed Plugin is its `check_settings()` export, and
+    /// which replace them.
     SETTING_KIND_CHOICE = 5i32,
     /// An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
     /// to its host, as if its Manifest's `allowed_hosts` named it.
@@ -2500,8 +2501,9 @@ pub const __TEST_PLUGIN_SETTINGS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonA
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct TestPluginSettingsResponse {
-    /// The choices for each `SETTING_KIND_CHOICE` setting, and each `SETTING_KIND_CHOICES` setting
-    /// the check offers its own for, by key.
+    /// The choices for each `SETTING_KIND_CHOICE` setting listing no `Setting.choices`, and each
+    /// `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting listing some that the check offers its
+    /// own for, by key.
     ///
     /// Field 1: `choices`
     #[serde(
@@ -5846,8 +5848,9 @@ pub struct Setting {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub max_value: ::core::option::Option<i64>,
-    /// The choices a SETTING_KIND_CHOICES setting offers, in the order a form shows them, unless
-    /// `TestPluginSettings` offers others for it. Empty for other kinds.
+    /// The choices a SETTING_KIND_CHOICE or SETTING_KIND_CHOICES setting offers, in the order a form
+    /// shows them, unless `TestPluginSettings` offers others for it. Empty for other kinds, and for a
+    /// SETTING_KIND_CHOICE setting whose choices only its settings check offers.
     ///
     /// Field 11: `choices`
     #[serde(
