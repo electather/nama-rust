@@ -23,7 +23,7 @@ use std::{
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use axum::{
@@ -51,7 +51,7 @@ use super::{
     tracks::{PROBE_VERSION, Probe, Track, TrackKind},
 };
 use crate::{
-    db::Database,
+    db::{self, Database},
     ffmpeg::{BurnIn, Ffmpeg, RunError, TextSubtitle, Transcode},
     images::write_atomically,
     library::{Contents, Stored},
@@ -156,6 +156,22 @@ impl Subtitles {
         }
         Ok(served)
     }
+
+    /// What a text pass reads out to `key` for the Version `probed` is of, as
+    /// [`Self::serve_cached`] serves it, in a task of its own: a fetch given up on, as by a reverse
+    /// proxy, leaves the pass it started reading into the cache, so it still evicts once that's done.
+    async fn serve_by_text_pass(
+        &self,
+        key: PathBuf,
+        probed: (String, Stored, Probe),
+    ) -> Result<Vec<u8>, Error> {
+        let subtitles = self.clone();
+        let serving = tokio::spawn(async move {
+            let read = subtitles.read_by_text_pass(&key, &probed);
+            subtitles.serve_cached(&key, read).await
+        });
+        serving.await.map_err(io::Error::from)?
+    }
 }
 
 /// Serves `GET` [`url()`]s, 404 unless the Track is a subtitle of a Version served in that format,
@@ -196,10 +212,7 @@ async fn serve(
     let served = match source.reading {
         // Already what's served for PGS, so neither ffmpeg nor the cache needs to copy it.
         Reading::Sup => tokio::fs::read(&source.path).await.map_err(Error::from),
-        Reading::TextPass => {
-            let read = subtitles.read_by_text_pass(&key, &probed);
-            subtitles.serve_cached(&key, read).await
-        }
+        Reading::TextPass => subtitles.serve_by_text_pass(key, probed).await,
         Reading::Ffmpeg => {
             let read = subtitles
                 .cache
@@ -235,8 +248,7 @@ async fn serve_font(
         return StatusCode::NOT_FOUND.into_response();
     }
     let key = cache_key(*file, &font_name(font));
-    let read = subtitles.read_by_text_pass(&key, &probed);
-    match subtitles.serve_cached(&key, read).await {
+    match subtitles.serve_by_text_pass(key, probed).await {
         // The renderer reads a font's bytes whatever its type, and nothing should guess one.
         Ok(bytes) => (
             [
@@ -599,16 +611,43 @@ impl Cache {
     // cached file; keep a running total if a cache of tens of thousands of files makes that slow.
     async fn evict(&self, limit: u64, served: &Path) -> io::Result<()> {
         let versions = self.dir.join("versions");
-        let mut kept: Vec<PathBuf> = self.making_locks().keys().cloned().collect();
-        kept.push(served.to_owned());
+        let (cache, served) = (self.clone(), served.to_owned());
         tokio::task::spawn_blocking(move || {
             let folders = version_folders(&versions)?;
             evict_listed(folders, limit, |folder| {
-                kept.iter().any(|kept| kept.starts_with(folder))
-                    || folder.join(text_pass::FAILED).exists()
+                cache.delete_unless_kept(folder, &served)
             })
         })
         .await?
+    }
+
+    /// Deletes the Version's `folder` unless it holds `served`, a failed pass's mark or anything
+    /// being made, and returns whether it did. It holds the folder's lock meanwhile, so a text pass
+    /// starting then waits and runs after, rather than have its folder deleted midway, which would
+    /// fail as if the file couldn't be read.
+    fn delete_unless_kept(&self, folder: &Path, served: &Path) -> io::Result<bool> {
+        if served.starts_with(folder) || folder.join(text_pass::FAILED).exists() {
+            return Ok(false);
+        }
+        let making_lock = {
+            let mut locks = self.making_locks();
+            if (locks.keys()).any(|making| making != folder && making.starts_with(folder)) {
+                return Ok(false);
+            }
+            Arc::clone(locks.entry(folder.to_owned()).or_default())
+        };
+        let deleted = match Arc::clone(&making_lock).try_lock_owned() {
+            Ok(_deleting) => match std::fs::remove_dir_all(folder) {
+                // Deleted meanwhile, as by `keep_only` or another fetch's eviction.
+                Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
+                _ => Ok(true),
+            },
+            Err(_) => Ok(false),
+        };
+        drop(making_lock);
+        self.making_locks()
+            .retain(|_, lock| Arc::strong_count(lock) > 1);
+        deleted
     }
 
     fn making_locks(&self) -> MutexGuard<'_, HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>> {
@@ -637,11 +676,16 @@ fn touch(path: &Path) -> io::Result<()> {
     let touched = File::options()
         .write(true)
         .open(path)
-        .and_then(|file| file.set_times(FileTimes::new().set_accessed(SystemTime::now())));
+        .and_then(|file| file.set_times(FileTimes::new().set_accessed(served_now())));
     match touched {
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         touched => touched,
     }
+}
+
+/// Now, by the Server's clock (`AGENTS.md`), as a file's times are set.
+fn served_now() -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_millis(u64::try_from(db::now_ms()).unwrap_or_default())
 }
 
 /// A Version's folder in the cache, as when any of it was last served, the bytes it takes and its
@@ -679,12 +723,12 @@ fn version_folders(versions: &Path) -> io::Result<Vec<Listed>> {
     Ok(folders)
 }
 
-/// [`Cache::evict`] from `folders`, the cache as listed, deleting none that `kept` says to keep.
-/// A folder already gone counts as deleted.
+/// [`Cache::evict`] from `folders`, the cache as listed, with `delete`, which says whether it
+/// deleted the folder it's given or keeps it.
 fn evict_listed(
     mut folders: Vec<Listed>,
     limit: u64,
-    kept: impl Fn(&Path) -> bool,
+    mut delete: impl FnMut(&Path) -> io::Result<bool>,
 ) -> io::Result<()> {
     let mut total: u64 = folders.iter().map(|(_, size, _)| size).sum();
     folders.sort_unstable();
@@ -692,12 +736,8 @@ fn evict_listed(
         if total <= limit {
             break;
         }
-        if kept(&folder) {
-            continue;
-        }
-        match std::fs::remove_dir_all(&folder) {
-            Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
-            _ => total -= size,
+        if delete(&folder)? {
+            total -= size;
         }
     }
     Ok(())

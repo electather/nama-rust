@@ -492,13 +492,16 @@ async fn a_pass_that_couldnt_write_its_cache_is_tried_again() {
     assert_eq!(ffmpeg_runs(bin.path()).len(), 3);
 }
 
-// The fake ffmpeg and ffprobe are shell scripts.
+/// Starts a Server with `ffmpeg` and a subtitle cache of 1 MiB, whose Movies Library holds Alien
+/// in 4K, its subtitles read out and filling the cache as if it had picture ones, then Alien in
+/// 1080p, scanned. Returns it with the 4K Version's cache folder and the 1080p Version's id.
 #[cfg(unix)]
-#[tokio::test]
-async fn reading_ahead_stops_at_a_nearly_full_cache_and_a_fetch_deletes_the_least_recently_served()
-{
-    let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = ffmpeg_reading_subtitles_after(bin.path(), "");
+#[expect(
+    clippy::unwrap_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn alien_after_a_full_cache(ffmpeg: Ffmpeg) -> (Fixture, PathBuf, i64) {
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
     let one_mib = PlaybackSettings {
@@ -520,13 +523,24 @@ async fn reading_ahead_stops_at_a_nearly_full_cache_and_a_fetch_deletes_the_leas
     let [earlier] = &fx.cached_subtitles()[..] else {
         panic!("not one Version cached: {:?}", fx.cached_subtitles());
     };
-    // As if Alien in 4K had picture subtitles taking all the cache's limit.
+    let earlier = earlier.clone();
     fs::write(earlier.join(format!("{PGS}.sup")), vec![0; 1024 * 1024]).unwrap();
     fx.write(ALIEN_1080P, b"video");
     fx.scan_and_match().await;
     let version = (fx.version_ids(ALIEN).await.into_iter())
         .find(|&version| version != earlier_version)
         .unwrap();
+    (fx, earlier, version)
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn reading_ahead_stops_at_a_nearly_full_cache_and_a_fetch_deletes_the_least_recently_served()
+{
+    let bin = tempfile::tempdir().unwrap();
+    let ffmpeg = ffmpeg_reading_subtitles_after(bin.path(), "");
+    let (fx, earlier, version) = alien_after_a_full_cache(ffmpeg).await;
     // Longer than the background work takes to see the probe pass.
     tokio::time::sleep(Duration::from_secs(2)).await;
     let runs_ahead = ffmpeg_runs(bin.path()).len();
@@ -536,10 +550,42 @@ async fn reading_ahead_stops_at_a_nearly_full_cache_and_a_fetch_deletes_the_leas
     assert_eq!(runs_ahead, 1);
     assert_eq!(srt, (200, "WEBVTT".to_owned()));
     assert!(!earlier.exists(), "the earlier Version's subtitles stayed");
+    let client = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
     let measured = (client.get_playback_settings(GetPlaybackSettingsRequest::default()))
         .await
         .unwrap()
         .into_owned()
         .subtitle_cache_bytes;
     assert!((1..1024).contains(&measured), "{measured} bytes");
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_fetch_given_up_on_still_deletes_the_least_recently_served_once_its_pass_is_done() {
+    let bin = tempfile::tempdir().unwrap();
+    let go = bin.path().join("go");
+    let wait_for_go = format!("while [ ! -e '{}' ]; do sleep 0.05; done", go.display());
+    // The 4K Version's pass runs at once.
+    fs::write(&go, "").unwrap();
+    let ffmpeg = ffmpeg_reading_subtitles_after(bin.path(), &wait_for_go);
+    let (fx, earlier, version) = alien_after_a_full_cache(ffmpeg).await;
+    fs::remove_file(&go).unwrap();
+    let srt = subtitle_url(version, SRT);
+
+    tokio::select! {
+        given_up_on = fx.fetched(&srt) => {
+            panic!("answered before ffmpeg finished: {given_up_on:?}");
+        }
+        () = until_runs(bin.path(), 2) => {}
+    }
+    fs::write(&go, "").unwrap();
+    let deleted = async {
+        while earlier.exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    };
+    let waited = tokio::time::timeout(WAIT, deleted).await;
+
+    assert!(waited.is_ok(), "the earlier Version's subtitles stayed");
 }

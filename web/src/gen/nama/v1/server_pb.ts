@@ -896,7 +896,7 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
    * The most disk, in MiB, the subtitle cache takes, at least 1: each Version's subtitles and fonts,
    * read out of its file ahead of time or when first fetched. Once a fetch adds to it past this,
    * the Versions' subtitles served least recently are deleted until it fits. Reading ahead stops
-   * while it holds 80% of this, so it never deletes what was read before. Unset for the default,
+   * while it holds 80% of this, so it doesn't read again what was deleted. Unset for the default,
    * 5120.
    *
    * @generated from field: optional uint32 subtitle_cache_mib = 7;

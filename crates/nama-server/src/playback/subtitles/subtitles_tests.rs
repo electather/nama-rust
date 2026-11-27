@@ -153,12 +153,27 @@ async fn a_version_being_made_stays() {
     let cache = Cache::new(dir.path());
     let [a, b, _] = three_versions(&cache).await;
     // As a text pass over `b` holds it.
-    let making = Arc::clone(
+    let lock = Arc::clone(
         cache
             .making_locks()
             .entry(b.parent().unwrap().to_owned())
             .or_default(),
     );
+    let making = lock.try_lock_owned().unwrap();
+
+    cache.evict(13, &a).await.unwrap();
+    drop(making);
+
+    assert_eq!(cached_versions(&cache), ["a", "b"]);
+}
+
+#[tokio::test]
+async fn a_version_with_a_subtitle_being_made_on_its_own_stays() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [a, b, _] = three_versions(&cache).await;
+    // As `get_or_make` holds it while ffmpeg reads one image Track out.
+    let making = Arc::clone(cache.making_locks().entry(b).or_default());
 
     cache.evict(13, &a).await.unwrap();
     drop(making);
