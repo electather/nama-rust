@@ -1,6 +1,7 @@
 //! A Hub serving the API on a random local port, on a database `#[sqlx::test]` made for the test,
 //! for tests that call it the way clients do, forwarding what Servers share to a fake backend and
-//! naming Servers in a fake zone.
+//! naming Servers in a fake zone, and trying public ports over TCP, or with a fake the test
+//! answers.
 
 use std::{
     collections::BTreeMap,
@@ -19,10 +20,14 @@ use nama_hub::{
     diagnostics::{Backend, Forwarding, Signal},
     dns::{DnsError, Record, Records, ServerNames, Writing},
     mail::Mail,
+    probe::{Probe, Probing, Tcp},
     signing::Keys,
 };
 use sqlx::PgPool;
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, oneshot},
+};
 
 /// The Hub's one signing key, made with `openssl genpkey -algorithm ed25519`.
 const SIGNING_KEY: &str = "-----BEGIN PRIVATE KEY-----
@@ -105,6 +110,20 @@ impl Backend for SharedBatches {
     }
 }
 
+/// A probe of a public port the fake holds pending, until the test answers whether it was reached.
+pub(crate) type HeldProbe = oneshot::Sender<bool>;
+
+/// The fake probe: hands each probe to the test, and answers it unreached if the test drops it.
+struct HeldProbes(mpsc::UnboundedSender<HeldProbe>);
+
+impl Probe for HeldProbes {
+    fn reaches(&self, _public: SocketAddr) -> Probing<'_> {
+        let (answer, answered) = oneshot::channel();
+        let _test_gone = self.0.send(answer);
+        Box::pin(async { answered.await.unwrap_or(false) })
+    }
+}
+
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -114,15 +133,34 @@ impl TestHub {
     /// [`PUBLIC_URL`], sending mail through `mail`, if any, and trusting this machine as its
     /// reverse proxy, so a test can say in `X-Forwarded-For` which client a request is from.
     pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
-        Self::start_at(db, mail, Some(PUBLIC_URL)).await
+        Self::start_at(db, mail, Some(PUBLIC_URL), Arc::new(Tcp)).await
     }
 
     /// As [`TestHub::start`], but with no public address, as without `NAMA_HUB_PUBLIC_URL`.
     pub(crate) async fn start_without_public_address(db: PgPool) -> Self {
-        Self::start_at(db, None, None).await
+        Self::start_at(db, None, None, Arc::new(Tcp)).await
     }
 
-    async fn start_at(db: PgPool, mail: Option<Mail>, public_url: Option<&str>) -> Self {
+    /// As [`TestHub::start`], but each probe of a public port arrives on the receiver, pending
+    /// until the test answers it.
+    pub(crate) async fn start_holding_probes(
+        db: PgPool,
+        mail: Option<Mail>,
+    ) -> (Self, mpsc::UnboundedReceiver<HeldProbe>) {
+        let (held, probes) = mpsc::unbounded_channel();
+        let probe = Arc::new(HeldProbes(held));
+        (
+            Self::start_at(db, mail, Some(PUBLIC_URL), probe).await,
+            probes,
+        )
+    }
+
+    async fn start_at(
+        db: PgPool,
+        mail: Option<Mail>,
+        public_url: Option<&str>,
+        probe: Arc<dyn Probe>,
+    ) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -145,6 +183,7 @@ impl TestHub {
             Some(names),
             Some(backend),
             public_url.as_ref(),
+            probe,
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },

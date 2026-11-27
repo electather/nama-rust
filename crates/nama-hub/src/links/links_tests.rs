@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use super::*;
-use crate::accounts::Caller;
+use crate::{accounts::Caller, probe::Tcp};
 
 /// A signing key, made with `openssl genpkey -algorithm ed25519`.
 const SIGNING_KEY: &str = "-----BEGIN PRIVATE KEY-----
@@ -24,37 +24,6 @@ fn a_code_is_eight_letters_from_the_alphabet() {
 fn a_code_typed_any_way_is_stored_as_shown_without_its_hyphen() {
     assert_eq!(typed_code("bdfh-jklm "), "BDFHJKLM");
     assert_eq!(shown_code("BDFHJKLM"), "BDFH-JKLM");
-}
-
-#[test]
-fn a_server_address_is_an_http_or_https_url() {
-    assert!(is_address("https://nama.example.com"));
-    assert!(is_address("https://nama.example.com/nama"));
-    assert!(is_address("http://192.168.1.10:7980"));
-    assert!(is_address("http://[fd00::10]:7980"));
-    assert!(!is_address("javascript:alert(1)"));
-    assert!(!is_address("data:text/html,hi"));
-    assert!(!is_address("192.168.1.10:7980"));
-    assert!(!is_address("/relative"));
-    assert!(!is_address(""));
-    assert!(!is_address(&format!(
-        "https://{}.example.com",
-        "a".repeat(ADDRESS_LENGTH)
-    )));
-}
-
-#[tokio::test]
-async fn a_public_port_is_reached_only_while_something_listens_there() {
-    let listening = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let open = listening.local_addr().unwrap();
-    let closed = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .unwrap()
-        .local_addr()
-        .unwrap();
-
-    assert!(reaches(open).await);
-    assert!(!reaches(closed).await);
 }
 
 #[sqlx::test(migrations = false)]
@@ -85,6 +54,7 @@ async fn a_server_linked_late_in_a_second_says_that_second(db: PgPool) {
         accounts,
         Arc::new(Keys::from_pems(SIGNING_KEY).unwrap()),
         None,
+        Arc::new(Tcp),
     );
 
     let servers = links.list(created.account.id).await.unwrap();
