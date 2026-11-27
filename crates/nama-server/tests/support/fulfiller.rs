@@ -15,8 +15,8 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{RequestedMovie, RequestedSeason, request::MovieOrSeason},
     fulfiller::{
-        Download, Fulfilled, Fulfiller, Movies, Request, ShowDeleted, Shows, StopMonitoring,
-        TitleId, stop_monitoring,
+        Download, FollowShow, Fulfilled, Fulfiller, Movies, Request, ShowDeleted, Shows,
+        StopMonitoring, TitleId, stop_monitoring,
     },
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
@@ -85,6 +85,8 @@ pub(crate) struct FakeFulfiller {
     stalls: Arc<AtomicBool>,
     /// Whether it refuses the hand-offs that ask it to follow a Show.
     refuses_following: Arc<AtomicBool>,
+    /// The TMDB id of each Show it was told to follow, in order.
+    followed: Arc<Mutex<Vec<i64>>>,
     unfollowed: Arc<Mutex<Vec<i64>>>,
     /// The TMDB id of each Movie it was told to stop monitoring, in order.
     stopped_monitoring: Arc<Mutex<Vec<i64>>>,
@@ -251,6 +253,14 @@ impl FakeFulfiller {
             .clone()
     }
 
+    /// The TMDB id of each Show it was told to follow, in order.
+    pub(crate) fn followed(&self) -> Vec<i64> {
+        self.followed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     /// The TMDB id of each Show it was told to stop following, in order.
     pub(crate) fn unfollowed(&self) -> Vec<i64> {
         self.unfollowed
@@ -412,6 +422,14 @@ impl Fulfiller<Shows> for FakeFulfiller {
             }
             Ok(fulfilled)
         })
+    }
+
+    fn follow<'a>(&'a self, show: &'a FollowShow) -> BoxFuture<'a, Result<(), PluginError>> {
+        self.followed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(tmdb_number(&show.show_ids));
+        Box::pin(async { Ok(()) })
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {

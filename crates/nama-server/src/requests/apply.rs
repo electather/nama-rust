@@ -1,6 +1,7 @@
 //! Applying a write to Requests: the one path every change to a Request or Followed Show takes
 //! (ADR 0029).
 
+use nama_plugin_api::fulfiller::FollowShow;
 use nama_proto::nama::v1::{Event, FollowedShow, Request};
 use sqlx::{Sqlite, Transaction};
 
@@ -11,14 +12,15 @@ use crate::events::Removed;
 
 /// What a write to Requests did: its `value`, the events it built for what happened, the Requests
 /// it approved, which [`Requests::apply`] hands off, the Season Request of a Followed Show it
-/// ended, whose Show the Shows Fulfiller stops following, and the Requests and Followed Shows it
-/// removed.
+/// ended, whose Show the Shows Fulfiller stops following, the Show of a Followed Show it approved,
+/// which the Shows Fulfiller follows, and the Requests and Followed Shows it removed.
 #[derive(Debug)]
 pub(super) struct Applied<T> {
     pub(super) value: T,
     pub(super) events: Vec<Event>,
     pub(super) hand_off: Vec<Request>,
     pub(super) unfollow: Option<Request>,
+    pub(super) follow: Option<FollowShow>,
     pub(super) removed: Vec<Removed>,
 }
 
@@ -30,6 +32,7 @@ impl<T> Applied<T> {
             events: Vec::new(),
             hand_off: Vec::new(),
             unfollow: None,
+            follow: None,
             removed: Vec::new(),
         }
     }
@@ -100,9 +103,10 @@ impl HandedBack for Vec<Request> {
 
 impl Requests {
     /// Runs `write`, publishes the events it built, has the Shows Fulfiller stop following the
-    /// Show of a Followed Show it ended, then hands off the Requests it approved, and returns its
-    /// value with those Requests as they are after the Hand-off. A failure to stop following is
-    /// only logged: the Followed Show ended either way.
+    /// Show of a Followed Show it ended, then hands off the Requests it approved, then has the
+    /// Shows Fulfiller follow the Show of a Followed Show it approved, and returns its value with
+    /// those Requests as they are after the Hand-off. A failure to follow or stop following is
+    /// only logged: the Followed Show is approved or ended either way.
     ///
     /// The one path for Request changes (`src/requests/AGENTS.md`).
     ///
@@ -157,6 +161,7 @@ impl Requests {
             events,
             hand_off,
             unfollow,
+            follow,
             ..
         } = applied;
         self.events.publish(events);
@@ -177,6 +182,10 @@ impl Requests {
                 Ok(request) => handed.push(request),
                 Err(err) => _ = failed.get_or_insert(err),
             }
+        }
+        // After the hand-offs, which are what the Requesters are waiting on.
+        if let Some(show) = follow {
+            self.hand_off.follow(&show).await;
         }
         if let Some(err) = failed {
             return Err(err);

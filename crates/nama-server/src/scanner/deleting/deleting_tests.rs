@@ -233,7 +233,7 @@ fn stopped(fulfiller: &ScriptedFulfiller) -> Vec<Title> {
     let told = fulfiller.told().into_iter();
     told.filter_map(|told| match told {
         Told::StopMonitoring(stop) => stop.title,
-        Told::Fulfill(_) | Told::Unfollow(_) => None,
+        Told::Fulfill(_) | Told::Follow(_) | Told::Unfollow(_) => None,
     })
     .collect()
 }

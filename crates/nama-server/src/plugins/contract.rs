@@ -2,6 +2,7 @@
 //! calls a Plugin, so Built-in and Installed Plugins see the same messages.
 
 use buffa::EnumValue;
+use nama_plugin_api::metadata::ExternalIds;
 use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_proto::nama::v1::{self as api, request::MovieOrSeason};
 
@@ -73,15 +74,7 @@ pub(crate) fn request(request: &api::Request) -> wire::Request {
         requested_at: requester.requested_at,
         ..Default::default()
     });
-    let quality = request
-        .quality
-        .as_option()
-        .map(|quality| wire::RequestedQuality {
-            id: quality.id,
-            name: quality.name.clone(),
-            profile_id: quality.profile_id.clone(),
-            ..Default::default()
-        });
+    let quality = request.quality.as_option().map(requested_quality);
     let quality_change = request
         .quality_change
         .as_option()
@@ -102,6 +95,31 @@ pub(crate) fn request(request: &api::Request) -> wire::Request {
         followed_show_id: request.followed_show_id,
         quality: quality.into(),
         quality_change: quality_change.into(),
+        ..Default::default()
+    }
+}
+
+/// The Show of the Followed Show `followed`, known by every id in `ids`, as its Fulfiller is asked
+/// to follow it.
+pub(crate) fn follow_show(followed: &api::FollowedShow, ids: &ExternalIds) -> wire::FollowShow {
+    let show_ids = ids.iter().map(|id| wire::TitleId {
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
+        ..Default::default()
+    });
+    wire::FollowShow {
+        show_title: followed.show_title.clone(),
+        show_ids: show_ids.collect(),
+        quality: followed.quality.as_option().map(requested_quality).into(),
+        ..Default::default()
+    }
+}
+
+fn requested_quality(quality: &api::RequestedQuality) -> wire::RequestedQuality {
+    wire::RequestedQuality {
+        id: quality.id,
+        name: quality.name.clone(),
+        profile_id: quality.profile_id.clone(),
         ..Default::default()
     }
 }

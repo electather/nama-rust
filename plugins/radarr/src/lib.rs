@@ -47,7 +47,7 @@ mod exports {
             let radarr = radarr()?;
             let movie = asked_movie(&request)?;
             let tmdb_id = tmdb_id(&movie.ids)?;
-            let asked = nama_servarr::quality_profile(&request)?;
+            let asked = nama_servarr::quality_profile(request.quality.as_option())?;
             // Checked first, as Radarr may add a Movie with a profile it no longer has.
             let profiles = radarr.quality_profiles()?;
             let used_id = if profiles.iter().any(|profile| profile.id == asked) {
@@ -55,7 +55,9 @@ mod exports {
             } else {
                 // A Movie Radarr already has keeps its own profile, so the asked one needn't exist.
                 let kept = profile_of(&radarr, tmdb_id)?;
-                Some(kept.ok_or_else(|| radarr.no_such_profile(&request, asked))?)
+                Some(
+                    kept.ok_or_else(|| radarr.no_such_profile(request.quality.as_option(), asked))?,
+                )
             };
             Ok(nama_servarr::fulfilled(
                 tmdb_id.to_string(),

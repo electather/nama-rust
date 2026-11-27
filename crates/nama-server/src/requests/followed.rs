@@ -4,11 +4,11 @@
 use std::iter;
 
 use nama_plugin_api::{
-    fulfiller::Shows,
+    fulfiller::{FollowShow, Shows},
     metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
+    FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, Permission,
     Request, RequestState,
 };
@@ -25,6 +25,7 @@ use super::{Error, Requests};
 use crate::{
     db::now,
     events::event,
+    plugins,
     users::{User, may_see},
 };
 
@@ -235,7 +236,8 @@ pub(super) async fn covers(
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
 /// is none, and covers the Season `latest` with it, so a scan asks only for later ones. Returns the
-/// Followed Show, with its event if it opened or `user` joined it.
+/// Followed Show, with its event if it opened or `user` joined it, and its Show to follow if it
+/// opened Approved.
 pub(super) async fn follow_new_seasons(
     conn: &mut SqliteConnection,
     user: i64,
@@ -244,24 +246,22 @@ pub(super) async fn follow_new_seasons(
     state: RequestState,
 ) -> Result<Applied<FollowedShow>, Error> {
     let asking = SeasonsToAsk::read(conn, show).await?;
-    let (followed, happened) = open_or_join(conn, user, &asking, state).await?;
+    let followed = open_or_join(conn, user, &asking, state).await?;
     if let Some(latest) = latest {
-        cover(conn, followed.id, latest).await?;
+        cover(conn, followed.value.id, latest).await?;
     }
-    Ok(Applied {
-        events: happened,
-        ..Applied::quiet(followed)
-    })
+    Ok(followed)
 }
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
-/// is none. Returns it with its event if it opened or `user` joined it.
+/// is none. Returns it with its event if it opened or `user` joined it, and its Show to follow if
+/// it opened Approved.
 async fn open_or_join(
     conn: &mut SqliteConnection,
     user: i64,
     show: &SeasonsToAsk,
     state: RequestState,
-) -> Result<(FollowedShow, Vec<Event>), sqlx::Error> {
+) -> Result<Applied<FollowedShow>, sqlx::Error> {
     let now = now();
     let already_open = open_followed_show_by_any(conn, &show.show_ids).await?;
     let id = if let Some(id) = already_open {
@@ -274,11 +274,15 @@ async fn open_or_join(
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
     let mut happened = Vec::new();
+    let mut follow = None;
     if already_open.is_none() {
         happened.push(event(FollowedShowCreated {
             followed_show: followed.clone().into(),
             ..Default::default()
         }));
+        if state == RequestState::Approved {
+            follow = Some(show_to_follow(conn, &followed).await?);
+        }
     } else if joined {
         happened.push(event(FollowedShowRequesterAdded {
             followed_show: followed.clone().into(),
@@ -286,7 +290,11 @@ async fn open_or_join(
             ..Default::default()
         }));
     }
-    Ok((followed, happened))
+    Ok(Applied {
+        events: happened,
+        follow,
+        ..Applied::quiet(followed)
+    })
 }
 
 /// The open Followed Show of the Show with the ids `show`, found by any of them, if `user` is one
@@ -403,8 +411,8 @@ pub(super) async fn open_followed_show_by_any(
 
 /// Moves the Pending Followed Show `id`, and each Pending Season Request it opened, to `state`
 /// with `reason`, first changing its Show's Quality to `new_quality` if given, and names those
-/// Requests for a Hand-off if it approved them. Returns the Followed Show as it is now, with its
-/// event first.
+/// Requests for a Hand-off, and its Show to follow, if it approved them. Returns the Followed Show
+/// as it is now, with its event first.
 pub(super) async fn decide_followed(
     conn: &mut SqliteConnection,
     id: i64,
@@ -438,26 +446,33 @@ pub(super) async fn decide_followed(
     let events = iter::once(followed_changed)
         .chain(seasons_changed)
         .collect();
-    let hand_off = if state == RequestState::Approved {
-        requests
+    let (hand_off, follow) = if state == RequestState::Approved {
+        (requests, Some(show_to_follow(conn, &followed).await?))
     } else {
-        Vec::new()
+        (Vec::new(), None)
     };
     Ok(Applied {
         value: followed,
         events,
         hand_off,
         unfollow: None,
+        follow,
         removed: Vec::new(),
     })
 }
 
+/// The Show of the Followed Show `followed`, with every id it stores, as the Shows Fulfiller is
+/// asked to follow it.
+async fn show_to_follow(
+    conn: &mut SqliteConnection,
+    followed: &FollowedShow,
+) -> Result<FollowShow, sqlx::Error> {
+    let ids = followed_show_ids(conn, followed.id).await?;
+    Ok(plugins::follow_show(followed, &ids))
+}
+
 /// `request` as its Fulfiller is handed it: naming its Followed Show only while that is Approved,
 /// which asks the Fulfiller to follow the Show.
-// ponytail: only a hand-off asks to follow, so a Followed Show that hands nothing off, one whose
-// Requesters asked for no Season through it, as when its aired Seasons are all in a Library or
-// already have open Requests, isn't followed until a Fulfiller contract call asks to follow
-// without a hand-off.
 pub(super) async fn as_handed_off(
     conn: &mut SqliteConnection,
     mut request: Request,
