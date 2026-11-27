@@ -16,10 +16,10 @@ use nama_proto::nama::v1::{PageRequest, PageResponse, SortDirection, UnmatchedIt
 use crate::{
     db::Database,
     library::{
-        Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listed, Listing, NotFound,
-        OnServer, Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState,
-        WatchStateKind, WatchStates, Whereabouts,
+        Contents, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind, LibraryMovie,
+        LibrarySeason, LibraryShow, LibraryVersion, Listed, Listing, NotFound, OnServer, Stored,
+        TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
+        WatchStates, Whereabouts,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -31,6 +31,7 @@ use crate::{
 mod box_sets;
 mod featured;
 mod people;
+mod search;
 mod title_pages;
 mod watching;
 
@@ -266,18 +267,6 @@ impl Browse {
         Ok((episodes.into_iter())
             .map(|episode| episode.map_versions(with_tracks(&probes)))
             .collect())
-    }
-
-    /// The best `limit` Movies, Shows and Episodes of the Libraries it sees that a search for
-    /// `query` finds, of `kind` only if it's set: see [`Contents::search`].
-    pub(crate) async fn search(
-        &self,
-        query: &str,
-        kind: Option<TitleKind>,
-        limit: usize,
-    ) -> Result<Vec<Found>, sqlx::Error> {
-        let seen = |found: &Found| self.reach.reaches(found.library(), found.content_rating());
-        self.contents.search(query, kind, limit, seen).await
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most

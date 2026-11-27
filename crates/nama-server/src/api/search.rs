@@ -50,12 +50,6 @@ pub(super) struct SearchServiceHandler {
     pub(super) images: ImageSources,
 }
 
-/// One search, as its viewer sees it.
-struct Searching {
-    browse: Browse,
-    requests: Requests,
-}
-
 #[expect(
     refining_impl_trait,
     reason = "plain `async fn` returning the owned stream is the form the generated trait \
@@ -75,13 +69,10 @@ impl SearchService for SearchServiceHandler {
             .ok()
             .filter(|&limit| limit > 0)
             .map_or(DEFAULT_LIMIT, |limit| limit.min(MAX_LIMIT));
-        let seen = Searching {
-            browse: seen_by(&self.browse, viewer.id).await?,
-            requests: self.requests.clone(),
-        };
-        let found = seen.browse.search(query, kind, limit).await;
-        let found = found.map_err(database_failed)?;
-        let people = seen.browse.people_named(query, kind).await;
+        let browse = seen_by(&self.browse, viewer.id).await?;
+        let found = browse.search(query, kind, limit).await;
+        let found = found.map_err(refused(Fields::NONE))?;
+        let people = browse.people_named(query, kind).await;
         let people = people.map_err(refused(Fields::NONE))?;
         let images = shown_images(&self.images, &ctx).await?;
         let sent = Sent {
@@ -101,6 +92,7 @@ impl SearchService for SearchServiceHandler {
             ..Default::default()
         };
         let searched = Searched {
+            browse,
             viewer,
             query: query.to_owned(),
             kind,
@@ -110,7 +102,8 @@ impl SearchService for SearchServiceHandler {
         // source's without waiting for the Search sources asked beside it. The work is polled with
         // the stream rather than spawned, so a client that leaves stops the sources being asked.
         let (parts, received) = mpsc::unbounded_channel();
-        let sending = async move { seen.after_library(searched, sent, images, &parts).await };
+        let handler = self.clone();
+        let sending = async move { handler.after_library(searched, sent, images, &parts).await };
         let sending =
             stream::once(sending.instrument(Span::current())).filter_map(|()| future::ready(None));
         let received = stream::unfold(received, |mut received| async move {
@@ -124,8 +117,9 @@ impl SearchService for SearchServiceHandler {
     }
 }
 
-/// What a search asks, which every batch after the Libraries' answers.
+/// What a search asks, as its viewer sees it, which every batch after the Libraries' answers.
 struct Searched {
+    browse: Browse,
     viewer: User,
     query: String,
     kind: Option<TitleKind>,
@@ -161,7 +155,7 @@ impl Sent {
 /// gone, when nobody needs the rest.
 type Parts = UnboundedSender<Result<SearchResponse, ConnectError>>;
 
-impl Searching {
+impl SearchServiceHandler {
     /// Sends what the stream sends after the Libraries' batch to `parts`: the title source's batch
     /// of each kind, then each Search source's, then `Done`. A failure other than those `Done`
     /// names ends it with its error, after the batches before it.
@@ -222,6 +216,7 @@ impl Searching {
             query,
             kind,
             limit,
+            ..
         } = searched;
         let asks_for = |of| kind.is_none_or(|kind| kind == of);
         let movies = OptionFuture::from(
@@ -258,10 +253,9 @@ impl Searching {
 
 /// What each Search source's batch in one search reads, read once.
 struct SourceBatches<'a> {
-    search: &'a Searching,
-    viewer: &'a User,
+    handler: &'a SearchServiceHandler,
+    searched: &'a Searched,
     images: &'a ShownImages,
-    limit: usize,
     /// The namespaces the viewer may request a Movie under.
     movie_namespaces: Vec<String>,
     /// The namespaces the viewer may request a Show under.
@@ -269,19 +263,22 @@ struct SourceBatches<'a> {
 }
 
 impl<'a> SourceBatches<'a> {
-    async fn new(search: &'a Searching, searched: &'a Searched, images: &'a ShownImages) -> Self {
+    async fn new(
+        handler: &'a SearchServiceHandler,
+        searched: &'a Searched,
+        images: &'a ShownImages,
+    ) -> Self {
         let viewer = &searched.viewer;
-        let requests = &search.requests;
+        let requests = &handler.requests;
         let (movie_namespaces, show_namespaces) = future::join(
             requests.requestable_namespaces(viewer, TitleKind::Movie),
             requests.requestable_namespaces(viewer, TitleKind::Show),
         )
         .await;
         Self {
-            search,
-            viewer,
+            handler,
+            searched,
             images,
-            limit: searched.limit,
             movie_namespaces,
             show_namespaces,
         }
@@ -318,7 +315,7 @@ impl<'a> SourceBatches<'a> {
             }
         }
         shown.sort_by_key(|(hit, ..)| hit.status.to_i32());
-        shown.truncate(self.limit);
+        shown.truncate(self.searched.limit);
         for (_, kind, ids) in &shown {
             sent.of(*kind).extend(ids.iter().cloned());
         }
@@ -338,7 +335,7 @@ impl<'a> SourceBatches<'a> {
         title: Sourced,
         mut ids: Vec<ExternalId>,
     ) -> Result<Option<(proto::Hit, Vec<ExternalId>)>, ConnectError> {
-        let on_server = self.search.browse.in_libraries(title.kind, &ids).await;
+        let on_server = self.searched.browse.in_libraries(title.kind, &ids).await;
         if let Some(on_server) = on_server.map_err(refused(Fields::NONE))?.into_iter().next() {
             let (id, known) = match &on_server {
                 OnServer::Movie(movie) => (&movie.id, &movie.ids),
@@ -348,7 +345,7 @@ impl<'a> SourceBatches<'a> {
             return Ok(Some((available_hit(on_server, self.images), ids)));
         }
         // As a Plugin's Home row does, rather than offer it to Request.
-        let hidden = self.search.browse.hides(title.kind, &ids).await;
+        let hidden = self.searched.browse.hides(title.kind, &ids).await;
         if hidden.map_err(refused(Fields::NONE))? {
             return Ok(None);
         }
@@ -356,7 +353,8 @@ impl<'a> SourceBatches<'a> {
             TitleKind::Movie => &self.movie_namespaces,
             TitleKind::Show => &self.show_namespaces,
         };
-        let unavailable = (self.search.requests).unavailable(self.viewer, &title, requestable);
+        let unavailable =
+            (self.handler.requests).unavailable(&self.searched.viewer, &title, requestable);
         let unavailable = unavailable.await.map_err(database_failed)?;
         Ok(unavailable
             .map(|unavailable| (sourced_hit(plugin, title, unavailable, self.images), ids)))

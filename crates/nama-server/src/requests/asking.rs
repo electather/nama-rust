@@ -29,7 +29,7 @@ use crate::{
         DEFAULT_ORDER, Metadata, SourceSeason, TitleKind, Whereabouts, library_with_movie,
         matched_episodes, primary_id,
     },
-    users::{User, reach},
+    users::{Reach, User, reach},
 };
 
 /// What a new Request asks for, as the title source gave it.
@@ -83,9 +83,9 @@ impl Requests {
         id: &ExternalId,
         chosen: Option<i64>,
     ) -> Result<Request, Error> {
-        // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
-        // that Matched the Movie meanwhile. One kept from `asker` is no Movie to them, as looking
-        // it up says.
+        // Refuses before asking TMDB, which may be down or slow; the write places it again for a
+        // scan that Matched the Movie meanwhile. One kept from `asker` is no Movie to them, as
+        // looking it up says.
         let reach = reach(&self.db, asker.id).await?;
         match self.placed(&reach, TitleKind::Movie, id).await? {
             Whereabouts::In(_) => return Err(Error::InLibrary(id.clone())),
@@ -102,7 +102,8 @@ impl Requests {
         let wanted = Wanted::movie(id, movie, quality);
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
-        let made = self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)));
+        let made =
+            self.apply(move |tx| Box::pin(ask_movie_reached(tx, user, reach, wanted, state)));
         made.await
             .inspect(|_| diagnostics::record(Usage::RequestMade))
     }
@@ -210,6 +211,22 @@ pub(super) async fn ask_movie(
         return Err(Error::InLibrary(wanted.id));
     }
     ask_approving(conn, user, wanted, state).await
+}
+
+/// [`ask_movie`], unless the Movie `wanted` is kept from `reach`, `user`'s, placed again on `conn`
+/// for a scan that Matched it since they asked.
+async fn ask_movie_reached(
+    conn: &mut SqliteConnection,
+    user: i64,
+    reach: Reach,
+    wanted: Wanted,
+    state: RequestState,
+) -> Result<Applied<Request>, Error> {
+    let placed = Whereabouts::of_title(conn, &reach, TitleKind::Movie, &wanted.id).await?;
+    if matches!(placed, Whereabouts::KeptFrom) {
+        return Err(Error::NoSuchMovie(wanted.id));
+    }
+    ask_movie(conn, user, wanted, state).await
 }
 
 /// Asks for each of the Seasons `show` as `user`, whose new Requests open in `state`, unless a
