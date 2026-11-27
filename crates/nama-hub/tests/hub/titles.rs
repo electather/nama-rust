@@ -1,10 +1,12 @@
 //! Importing Wikidata's dump, the External ID crosswalk it serves, and the similar titles its
 //! vectors find, against a real PostgreSQL.
 
+use crate::support::linking::*;
 use nama_hub::{
     db,
     titles::{self, ExternalId, ImportError, PooledCount, SimilarTitle, TitleKind},
 };
+use nama_hub_proto::nama::hub::v1 as proto;
 use sqlx::PgPool;
 
 /// Three films and two series with External IDs, and two people. The Matrix and its sequel share
@@ -286,4 +288,35 @@ async fn a_movie_wikidata_lacks_gets_a_vector_from_behaviour_alone(db: PgPool) {
     // Only Movies are pooled, so it isn't a Show.
     let as_a_show = titles::similar(&db, TitleKind::Show, &lacking).await;
     assert_eq!(as_a_show.unwrap(), []);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db.clone()).await;
+    titles::import(&db, &include_bytes!("../fixtures/wikidata-dump.json")[..])
+        .await
+        .unwrap();
+    nama_hub::train_vectors(&db).await.unwrap();
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let credential = linked(&hub, &ada, "Living room").await;
+    let the_matrix = proto::ListSimilarTitlesRequest {
+        kind: proto::TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: vec![proto::ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: "603".to_owned(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let similar = linked_server(&hub, &credential)
+        .list_similar_titles(the_matrix.clone())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let ids: Vec<&str> = (similar.titles.iter())
+        .map(|title| title.id.value.as_str())
+        .collect();
+    assert_eq!(ids, ["604", "348"]);
 }

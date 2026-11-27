@@ -1,13 +1,53 @@
-//! The Watchlist's wire form: `LinkedServerService.SyncWatchlist`'s entries to and from the
-//! Hub's, the refusal of one that breaks a limit, and `ListMostWatchlistedTitles`' titles.
+//! Watchlists for a Linked Server: `LinkedServerService.SyncWatchlist` and
+//! `ListMostWatchlistedTitles`, the entries and titles they convert, and the refusal of an entry
+//! that breaks a limit.
 
-use connectrpc::ConnectError;
-use nama_hub_proto::nama::hub::v1::{self as proto, RefusalReason};
+use connectrpc::{ConnectError, RequestContext, Response, ServiceResult};
+use nama_hub_proto::nama::hub::v1::{
+    self as proto, ListMostWatchlistedTitlesResponse, RefusalReason, SyncWatchlistRequest,
+    SyncWatchlistResponse,
+};
 
-use super::refuse;
+use super::{
+    hub_failed,
+    links::{LinkedServerServiceHandler, linked_server},
+    refuse,
+};
 use crate::sync::{
     MAX_CHANGED_AT_MS, MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle,
 };
+
+pub(super) async fn sync_watchlist(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: SyncWatchlistRequest,
+) -> ServiceResult<SyncWatchlistResponse> {
+    let server = linked_server(ctx)?;
+    let entries = watchlist_from_proto(request.entries)?;
+    let merged = handler
+        .watchlists
+        .sync(&handler.links, server, request.user_id, entries)
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(SyncWatchlistResponse {
+        entries: merged.into_iter().map(watchlist_entry_to_proto).collect(),
+        ..Default::default()
+    })
+}
+
+pub(super) async fn list_most_watchlisted_titles(
+    handler: &LinkedServerServiceHandler,
+) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
+    let watchlisted = (handler.watchlists.most_watchlisted())
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(ListMostWatchlistedTitlesResponse {
+        titles: (watchlisted.iter())
+            .filter_map(watchlisted_to_proto)
+            .collect(),
+        ..Default::default()
+    })
+}
 
 /// `entries` as `sync` takes them, or the refusal of the first limit they break.
 pub(super) fn watchlist_from_proto(
