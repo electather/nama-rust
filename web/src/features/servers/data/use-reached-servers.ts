@@ -4,6 +4,7 @@ import { useRouteContext } from "@tanstack/react-router";
 
 import { serverReachQuery } from "@/features/servers/data/server-reach";
 import type { LinkedServer } from "@/gen/nama/hub/v1/link_pb";
+import { useHubAccount } from "@/shared/hooks/use-hub-account";
 
 /**
  * Each of `servers`, the signed-in Account's, signed in there, as it's reached, and whether any is
@@ -12,7 +13,8 @@ import type { LinkedServer } from "@/gen/nama/hub/v1/link_pb";
  */
 export function useReachedServers(servers: readonly LinkedServer[]) {
   const hub = useTransport();
-  const { account, serverAt } = useRouteContext({ from: "/_member" });
+  const account = useHubAccount();
+  const serverAt = useRouteContext({ from: "__root__", select: (context) => context.serverAt });
   // Not suspended: a Server that's off fails only once its `fetch` gives up.
   return useQueries({
     queries: servers.map((server) =>

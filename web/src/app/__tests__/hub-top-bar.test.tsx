@@ -153,12 +153,30 @@ test("a Server's page at the Hub keeps the Hub's bar", async () => {
   expect(linksIn(screen.getByRole("navigation", { name: "Main" }))).toStrictEqual([["Home", "/"]]);
 });
 
-test("the Watchlist and the Hub's own pages sit under the bar, out of the signed-out frame", async () => {
+test("the Watchlist, the Hub's own pages and a Sign-in Link's sit under the bar, out of the signed-out frame", async () => {
   const router = openHub("/watchlist");
 
   await screen.findByRole("navigation", { name: "Main" });
   await router.navigate({ to: "/link-server/$code", params: { code: "ABC" } });
   await screen.findByRole("heading", { name: "Link a Server" });
   expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
+  await router.navigate({ to: "/send-sign-in-link" });
+  await screen.findByRole("heading", { name: "Email a Sign-in Link" });
+  expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
   expect(document.querySelector("canvas")).toBeNull();
+});
+
+test("the Account's Settings open over a Sign-in Link's page, its Servers and all", async () => {
+  openHub("/send-sign-in-link?settings=account-servers");
+
+  await screen.findByRole("heading", { name: "Email a Sign-in Link" });
+  await expect(screen.findByText("Basement")).resolves.toBeDefined();
+});
+
+test("a Sign-in Link's page signed out sits in the signed-out frame, with no bar", async () => {
+  const { transport } = accountHub({ signedIn: false });
+  openApp("/send-sign-in-link", transport, undefined, fakeServerAt);
+
+  await screen.findByRole("heading", { name: "Email a Sign-in Link" });
+  expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
 });
