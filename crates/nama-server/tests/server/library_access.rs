@@ -2,7 +2,7 @@
 //! an Admin chose, everywhere the Server hands out titles, over a real socket with the fake TMDB,
 //! whose Similar source answers Alien's as Aliens and Heat.
 
-use crate::support::{browsing, http, refused, server};
+use crate::support::{browsing, http, permissions::set_permissions, refused, server};
 
 use std::time::{Duration, Instant};
 
@@ -94,6 +94,22 @@ async fn set_access(
         ..Default::default()
     };
     users.set_library_access(request).await.map(drop)
+}
+
+/// The Permissions the User `user` holds, as the Admin lists them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn permissions_of(server: &TestServer, user: i64) -> Vec<Permission> {
+    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let listed = users.list_users(ListUsersRequest::default()).await;
+    let listed = listed.unwrap().into_owned().users;
+    let user = listed.into_iter().find(|each| each.id == user).unwrap();
+    user.permissions
+        .iter()
+        .map(|p| p.as_known().unwrap())
+        .collect()
 }
 
 fn browse(who: &ClientConfig) -> BrowseServiceClient<HttpClient> {
@@ -412,6 +428,52 @@ async fn only_manage_users_changes_library_access_and_not_on_themself() {
     assert_refused(hudsons_own, ErrorCode::PermissionDenied, required);
     hudsons_for_bishop.unwrap();
     assert_eq!(libraries(&fx.bishop.client_config()).await, [fx.heat.id]);
+}
+
+#[tokio::test]
+async fn manage_users_is_refused_to_a_user_on_a_chosen_list_unless_they_see_every_library() {
+    let fx = Fixture::start().await;
+    let admin = fx.server.client_config();
+    let held = permissions_of(&fx.server, fx.bishop.id).await;
+    let manage_users = Permission::PERMISSION_MANAGE_USERS;
+    let manage_libraries = Permission::PERMISSION_MANAGE_LIBRARIES;
+
+    let alone = set_permissions(&admin, fx.bishop.id, &[manage_users]).await;
+    let held_after = permissions_of(&fx.server, fx.bishop.id).await;
+    let with_libraries = [manage_users, manage_libraries];
+    let vasquezs = set_permissions(&admin, fx.vasquez.id, &with_libraries).await;
+    let made_admin = set_permissions(&admin, fx.bishop.id, &[Permission::PERMISSION_ADMIN]).await;
+
+    let needs_every = RefusalReason::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY;
+    assert_refused(alone, ErrorCode::FailedPrecondition, needs_every);
+    assert_eq!(held_after, held);
+    vasquezs.unwrap();
+    made_admin.unwrap();
+}
+
+#[tokio::test]
+async fn a_chosen_list_is_refused_to_a_manage_users_holder_unless_they_see_every_library() {
+    let fx = Fixture::start().await;
+    let admin = fx.server.client_config();
+    let manage_users = Permission::PERMISSION_MANAGE_USERS;
+    let hudson = fx.server.user("Hudson", &[manage_users]).await;
+    let with_libraries = [manage_users, Permission::PERMISSION_MANAGE_LIBRARIES];
+    let ripley = fx.server.user("Ripley", &with_libraries).await;
+    let gorman = (fx.server)
+        .user("Gorman", &[Permission::PERMISSION_ADMIN])
+        .await;
+    let alien = [fx.alien.id];
+
+    let hudsons = set_access(&admin, hudson.id, Some(&alien)).await;
+    let ripleys = set_access(&admin, ripley.id, Some(&alien)).await;
+    let gormans = set_access(&admin, gorman.id, Some(&alien)).await;
+
+    let needs_every = RefusalReason::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY;
+    assert_refused(hudsons, ErrorCode::FailedPrecondition, needs_every);
+    let every = [fx.alien.id, fx.heat.id];
+    assert_eq!(libraries(&hudson.client_config()).await, every);
+    ripleys.unwrap();
+    gormans.unwrap();
 }
 
 #[tokio::test]

@@ -1,10 +1,12 @@
+import { manageUsersOnChosenLibraries } from "@/features/admin-users/lib/user-refusals";
 import { LibraryAccessField } from "@/features/settings/components/library-access-field";
 import { MaximumAgeField } from "@/features/settings/components/maximum-age-field";
 import { PermissionsFieldset } from "@/features/settings/components/permissions-fieldset";
 import { RemoteCapField } from "@/features/settings/components/remote-cap-field";
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import type { useUserSettings } from "@/features/settings/hooks/use-user-settings";
-import type { User } from "@/gen/nama/v1/sign_in_pb";
+import { needsEveryLibrary } from "@/features/settings/lib/needs-every-library";
+import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
 import { DeviceList } from "@/shared/components/device-list/device-list";
 import { mayChangePermissions } from "@/shared/lib/permissions";
 
@@ -24,6 +26,11 @@ export function UserGroups({
   onChange: ReturnType<typeof useUserSettings>["edit"];
 }) {
   const mayChange = mayChangePermissions(you, user);
+  // The Server refuses to leave a User on Chosen Libraries with Manage Users alone.
+  const refuses = (permissions: Permission[]) =>
+    values.libraryAccess && needsEveryLibrary(permissions)
+      ? manageUsersOnChosenLibraries(user.name)
+      : undefined;
   return (
     <div className="flex flex-col gap-4">
       {mayChange && (
@@ -33,6 +40,7 @@ export function UserGroups({
             you={you}
             held={values.permissions}
             onChange={onChange}
+            refuses={refuses}
           />
           <RemoteCapField cap={values.cap} onChange={onChange} />
         </SettingGroup>
@@ -40,7 +48,11 @@ export function UserGroups({
       {mayChange && (
         <SettingGroup title="What they see">
           <MaximumAgeField maximumAge={values.maximumAge} onChange={onChange} />
-          <LibraryAccessField libraryAccess={values.libraryAccess} onChange={onChange} />
+          <LibraryAccessField
+            libraryAccess={values.libraryAccess}
+            permissions={values.permissions}
+            onChange={onChange}
+          />
         </SettingGroup>
       )}
       <SettingGroup title="Devices">
