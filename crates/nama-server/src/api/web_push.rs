@@ -45,7 +45,7 @@ impl WebPushService for WebPushServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SubscribeWebPushRequest>,
     ) -> ServiceResult<SubscribeWebPushResponse> {
-        let user = caller(&ctx)?.user.id;
+        let caller = caller(&ctx)?;
         let request = request.to_owned_message();
         let subscription = Subscription::new(request.endpoint, request.p256dh, request.auth)
             .map_err(|invalid| {
@@ -57,7 +57,8 @@ impl WebPushService for WebPushServiceHandler {
                 let reason = RefusalReason::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID;
                 ConnectError::from(refuse(reason, invalid.to_string()).field(field))
             })?;
-        (subscribe(&self.db, user, subscription).await).map_err(database_failed)?;
+        (subscribe(&self.db, caller.user.id, caller.device.id, subscription).await)
+            .map_err(database_failed)?;
         Response::ok(SubscribeWebPushResponse::default())
     }
 
