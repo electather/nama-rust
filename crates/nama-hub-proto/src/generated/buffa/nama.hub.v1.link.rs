@@ -5188,8 +5188,10 @@ pub struct WatchStateChange {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub episode: bool,
-    /// Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
-    /// characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+    /// Every External ID it is known by (ADR 0013), each written `namespace-value` (ADR 0042): a
+    /// Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`.
+    /// 1 to 20, each up to 100 characters. An Unmatched Item has none, so its Watch State never
+    /// leaves its Server.
     ///
     /// Field 3: `ids`
     #[serde(
@@ -6002,8 +6004,9 @@ pub struct TrackPreferenceChange {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub title_kind: ::buffa::EnumValue<TitleKind>,
-    /// The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
-    /// User's own.
+    /// The Movie's or Show's External ID, written `namespace-value` (ADR 0042): a Namespace of
+    /// lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`. 1 to 100
+    /// characters; empty for the User's own.
     ///
     /// Field 4: `title_id`
     #[serde(
@@ -6679,7 +6682,9 @@ pub struct WatchlistEntry {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub kind: ::buffa::EnumValue<TitleKind>,
-    /// The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+    /// The External ID it was added under (ADR 0013), written `namespace-value` (ADR 0042): a
+    /// Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-603`.
+    /// 1 to 100 characters.
     ///
     /// Field 2: `id`
     #[serde(

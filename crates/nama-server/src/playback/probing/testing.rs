@@ -1,6 +1,6 @@
-//! An in-memory stand-in for ffprobe, which Probing's unit tests read files with. A test says in
-//! Rust what a probe or a listing of a file answers, rather than write a program that poses as
-//! ffprobe, or has it forward to the real ffprobe while counting what it reads.
+//! An in-memory stand-in for ffprobe, which Probing's and playback's unit tests read files with. A
+//! test says in Rust what a probe or a listing of a file answers, rather than write a program that
+//! poses as ffprobe, or has it forward to the real ffprobe while counting what it reads.
 
 use std::{
     collections::VecDeque,
@@ -14,13 +14,17 @@ use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    ProbeError,
+    ProbeError, Probing,
     ffprobe::{Ffprobe, Reader, Starts},
     lock,
 };
 use crate::{
+    db::Database,
     ffmpeg::{Ffmpeg, Program, RunError},
-    playback::tracks::{ListedKeyframes, Probe, Track, TrackKind},
+    playback::{
+        ProbePasses, WholeFileReads,
+        tracks::{ListedKeyframes, Probe, Track, TrackKind},
+    },
 };
 
 /// What a probe of the file at a path answers.
@@ -32,7 +36,7 @@ type Listing = dyn Fn(&str) -> Result<ListedKeyframes, ProbeError> + Send + Sync
 /// Answers each probe and listing as the test says, or forwards it to ffprobe, holds it until the
 /// test releases it if told to, and counts the probes and listings it started and the most reads
 /// running at once.
-pub(super) struct FakeReader {
+pub(in crate::playback) struct FakeReader {
     answer: Mutex<Box<Answer>>,
     listing: Mutex<Box<Listing>>,
     /// Reads with ffprobe instead of answering, for tests that need a real file's index read.
@@ -70,7 +74,7 @@ impl Drop for Running {
 
 impl FakeReader {
     /// Answers a probe of each path with what `answer` returns for it.
-    pub(super) fn answering(
+    pub(in crate::playback) fn answering(
         answer: impl Fn(&str) -> Result<Probe, ProbeError> + Send + Sync + 'static,
     ) -> Arc<Self> {
         Arc::new(Self::new(true, answer))
@@ -128,7 +132,7 @@ impl FakeReader {
     }
 
     /// Answers the listings it starts from now on with `listing`.
-    pub(super) fn list(
+    pub(in crate::playback) fn list(
         &self,
         listing: impl Fn(&str) -> Result<ListedKeyframes, ProbeError> + Send + Sync + 'static,
     ) {
@@ -136,7 +140,7 @@ impl FakeReader {
     }
 
     /// Keeps the reads it starts from now on pending until [`Self::release`].
-    pub(super) fn hold(&self) {
+    pub(in crate::playback) fn hold(&self) {
         let mut hold = lock(&self.hold);
         // A token still pending is kept, so `release` frees the reads held before this too.
         if hold.all.is_cancelled() {
@@ -145,7 +149,7 @@ impl FakeReader {
     }
 
     /// Lets every held read finish, and holds no more.
-    pub(super) fn release(&self) {
+    pub(in crate::playback) fn release(&self) {
         let mut hold = lock(&self.hold);
         hold.all.cancel();
         hold.reads.clear();
@@ -179,7 +183,7 @@ impl FakeReader {
     }
 
     /// Waits until it started `count` listings, failing the test after 10 seconds.
-    pub(super) async fn until_listed(&self, count: usize) {
+    pub(in crate::playback) async fn until_listed(&self, count: usize) {
         self.until(|seen| seen.listings >= count).await;
     }
 
@@ -218,6 +222,18 @@ impl FakeReader {
             released.cancelled().await;
             answered.await
         })
+    }
+}
+
+impl Probing {
+    /// Probing on `db` that reads files with `reader`, for playback's tests.
+    pub(in crate::playback) fn reading_with(db: Arc<Database>, reader: Arc<FakeReader>) -> Self {
+        Self::with_reader(
+            db,
+            reader,
+            ProbePasses::default(),
+            WholeFileReads::default(),
+        )
     }
 }
 
@@ -260,7 +276,7 @@ impl Reader for FakeReader {
 }
 
 /// What ffprobe failing on a file answers.
-pub(super) fn failed() -> ProbeError {
+pub(in crate::playback) fn failed() -> ProbeError {
     ProbeError::Run(RunError::Failed(Program::Ffprobe, String::new()))
 }
 

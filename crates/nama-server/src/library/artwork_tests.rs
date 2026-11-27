@@ -252,3 +252,26 @@ async fn a_png_is_stored_as_the_title_source_gave_it() {
 
     assert_eq!(served(&artwork, "/poster.png").await.unwrap(), png);
 }
+
+// The hang needs one call to reopen between another's `close` and `wait`, so it takes threads and
+// many rounds to show.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn settled_calls_made_at_once_all_finish() {
+    let rounds = async {
+        for _ in 0..500 {
+            settle_four_at_once().await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(60), rounds)
+        .await
+        .expect("a settled call hung");
+}
+
+async fn settle_four_at_once() {
+    let working = super::background_tasks().token();
+    let calls: Vec<_> = (0..4).map(|_| tokio::spawn(Artwork::settled())).collect();
+    drop(working);
+    for call in calls {
+        call.await.unwrap();
+    }
+}

@@ -463,6 +463,10 @@ _Avoid_: direct stream, repackage
 Playing a Version with its video re-encoded, such as when the client can't decode it, a Playback Limit asks for less, or a subtitle needs Burn-in.
 _Avoid_: convert, encode
 
+**Transcode limit**:
+The most Transcodes an Admin lets the Server run at once. A Device whose Version only a Transcode would play while the Server runs that many is told the Server is busy.
+_Avoid_: max streams, concurrent transcodes
+
 **Burn-in**:
 The Server drawing a subtitle Track into the picture as it Transcodes, for a Device that can't show that Track itself.
 _Avoid_: hardsub, hardcoded subtitles, overlay

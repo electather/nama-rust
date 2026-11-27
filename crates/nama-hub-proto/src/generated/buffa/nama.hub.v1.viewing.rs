@@ -194,8 +194,9 @@ pub struct ViewingEvent {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub episode: bool,
-    /// The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
-    /// `tmdb-603`: 1 to 100 characters.
+    /// The Movie or Episode, by the External ID its Server keeps its Watch State under, written
+    /// `namespace-value` (ADR 0042): a Namespace of lowercase `a-z` and `0-9`, a `-`, then a
+    /// non-empty value, such as `tmdb-603`. 1 to 100 characters.
     ///
     /// Field 3: `external_id`
     #[serde(
@@ -264,7 +265,7 @@ pub struct ViewingEvent {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub device_kind: ::buffa::EnumValue<DeviceKind>,
-    /// An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+    /// An Episode's Show, by its External ID written as `external_id` is, such as `tmdb-1399`: 1 to
     /// 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
     /// took it.
     ///

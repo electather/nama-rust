@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM item_matches\n                              WHERE state = 'matched'\n                                AND ((poster_plugin = ?1 AND poster = ?2)\n                                     OR (backdrop_plugin = ?1 AND backdrop = ?2)\n                                     OR (titled_backdrop_plugin = ?1 AND titled_backdrop = ?2)\n                                     OR (logo_plugin = ?1 AND logo = ?2)\n                                     OR (show_poster_plugin = ?1 AND show_poster = ?2)\n                                     OR (plugin = ?1 AND still = ?2)))\n                   OR EXISTS (SELECT 1 FROM title_roles\n                              WHERE plugin = ?1 AND headshot = ?2\n                                -- Kept while a Match stores the title it's keyed by.\n                                AND EXISTS (SELECT 1 FROM item_match_ids AS keyed\n                                            JOIN item_matches\n                                              ON item_matches.item_id = keyed.item_id\n                                            WHERE item_matches.state = 'matched'\n                                              AND item_matches.plugin = title_roles.plugin\n                                              AND keyed.scope = iif(title_roles.kind = 'movie',\n                                                                    'title', 'show')\n                                              AND keyed.namespace = title_roles.namespace\n                                              AND keyed.value = title_roles.value))\n               AS \"stored!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "stored!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c6ec8d296d0391fafa4b44b0a2292a1d7f4b806a8236c2ce83a54b5148007dee"
+}

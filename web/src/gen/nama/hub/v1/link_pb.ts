@@ -822,8 +822,10 @@ export type WatchStateChange = Message<"nama.hub.v1.WatchStateChange"> & {
   episode: boolean;
 
   /**
-   * Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
-   * characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+   * Every External ID it is known by (ADR 0013), each written `namespace-value` (ADR 0042): a
+   * Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`.
+   * 1 to 20, each up to 100 characters. An Unmatched Item has none, so its Watch State never
+   * leaves its Server.
    *
    * @generated from field: repeated string ids = 3;
    */
@@ -967,8 +969,9 @@ export type TrackPreferenceChange = Message<"nama.hub.v1.TrackPreferenceChange">
   titleKind: TitleKind;
 
   /**
-   * The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
-   * User's own.
+   * The Movie's or Show's External ID, written `namespace-value` (ADR 0042): a Namespace of
+   * lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-348`. 1 to 100
+   * characters; empty for the User's own.
    *
    * @generated from field: string title_id = 4;
    */
@@ -1095,7 +1098,9 @@ export type WatchlistEntry = Message<"nama.hub.v1.WatchlistEntry"> & {
   kind: TitleKind;
 
   /**
-   * The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+   * The External ID it was added under (ADR 0013), written `namespace-value` (ADR 0042): a
+   * Namespace of lowercase `a-z` and `0-9`, a `-`, then a non-empty value, such as `tmdb-603`.
+   * 1 to 100 characters.
    *
    * @generated from field: string id = 2;
    */

@@ -18,7 +18,7 @@ use super::{
     tracks::segments_of,
 };
 use crate::{
-    db::{Database, detached},
+    db::Database,
     diagnostics::{self, Usage},
     ffmpeg::{Abilities, RunError},
     server_settings::{PlaybackLimit, PlaybackSettings},
@@ -390,9 +390,10 @@ impl Plans {
                 playable_versions,
             }));
         }
-        let (running, viewer) = (self.running.clone(), viewer_of_caller(caller));
-        // A Device giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).
-        let started = detached(async move { running.start(viewer, plan, start_ms).await }).await?;
+        let started = self
+            .running
+            .start(viewer_of_caller(caller), plan, start_ms)
+            .await?;
         Ok(started.map(Planned::Started))
     }
 
