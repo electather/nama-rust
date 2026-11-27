@@ -247,41 +247,20 @@ impl LocalImages {
             .await
     }
 
-    /// Makes, in the background, `posters` of each Poster and `backdrops` of each Backdrop beside
-    /// the Library `library`'s media that a title shows, having none of `custom_images` in its
-    /// place, then of each of `custom_images` of the Library and its titles, where they aren't
-    /// there, every Poster before any Backdrop. Each one, not only those a scan just copied in or an admin just uploaded, so a
-    /// Library recorded before they were resized ahead gets its copies too (#2152, #2244, #2372).
-    pub(super) fn resize_shown(
-        &self,
-        library: i64,
-        custom_images: CustomImages,
-        posters: Vec<Resize>,
-        backdrops: Vec<Resize>,
-    ) {
-        let local_images = self.clone();
-        tokio::spawn(async move {
-            let _resizing = local_images.resizing.lock().await;
-            // Posters first, as Artwork's, so a cache near its limit holds those a first visit
-            // needs (#2253).
-            (local_images)
-                .copy_all_ahead(library, &custom_images, &posters, &[])
-                .await;
-            (local_images)
-                .copy_all_ahead(library, &custom_images, &[], &backdrops)
-                .await;
-        });
-    }
-
-    /// Makes `posters` and `backdrops` of the images beside the media and then of `custom_images`
-    /// for [`Self::resize_shown`], logging a failure to list them.
-    async fn copy_all_ahead(
+    /// Makes `posters` of each Poster and `backdrops` of each Backdrop beside the Library
+    /// `library`'s media that a title shows, having none of `custom_images` in its place, then of
+    /// each of `custom_images` of the Library and its titles, where they aren't there, logging a
+    /// failure to list them. Each one, not only those a scan just copied in or an admin just
+    /// uploaded, so a Library recorded before they were resized ahead gets its copies too (#2152,
+    /// #2244, #2372).
+    pub(super) async fn resize_shown(
         &self,
         library: i64,
         custom_images: &CustomImages,
         posters: &[Resize],
         backdrops: &[Resize],
     ) {
+        let _resizing = self.resizing.lock().await;
         let beside_media = (self.copy_ahead(library, custom_images, posters, backdrops)).await;
         if let Err(err) = beside_media {
             tracing::error!(library, "could not list the images to resize: {err}");

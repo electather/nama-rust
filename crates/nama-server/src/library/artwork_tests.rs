@@ -679,12 +679,16 @@ async fn only_the_backdrops_titles_show_and_every_titled_backdrop_get_copies_mad
 }
 
 #[tokio::test]
-async fn posters_get_copies_ahead_first_until_the_cache_is_nearly_full_and_rescans_make_none() {
+async fn posters_of_every_source_get_copies_ahead_first_until_the_cache_is_nearly_full_and_rescans_make_none()
+ {
     let data = tempfile::tempdir().unwrap();
     let media = tempfile::tempdir().unwrap();
     let mut wide = Cursor::new(Vec::new());
     (RgbImage::new(1000, 1500).write_to(&mut wide, ImageFormat::Png)).unwrap();
     let wide = wide.into_inner();
+    // A Backdrop beside the media, which isn't waiting on a download, still waits for Posters.
+    let beside = media.path().join("fanart.png");
+    std::fs::write(&beside, &wide).unwrap();
     let artwork = artwork_on(&data, Router::new().fallback(|| async { wide })).await;
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     // Named so the Library lists its Backdrops before its Posters.
@@ -713,6 +717,16 @@ async fn posters_get_copies_ahead_first_until_the_cache_is_nearly_full_and_resca
     filler.set_len(1024 * 1024 / 100 * 80 - 1).unwrap();
     let custom_images = CustomImages::new(Arc::clone(&db), artwork.store.clone());
     let local_images = LocalImages::new(Arc::clone(&db), artwork.store.clone());
+    let backdrop = LocalImageFile {
+        path: beside.to_str().unwrap().to_owned(),
+        size: 1,
+        modified_ns: 0,
+    };
+    let found = FoundImages::from([((alien.version, LocalRole::Title(Role::Backdrop)), backdrop)]);
+    (local_images
+        .keep(alien.library, &[alien.version], &found)
+        .await)
+        .unwrap();
     let artwork = artwork.resizing_ahead(settings.images(), custom_images, local_images);
 
     artwork.download_missing(contents.clone(), alien.library);
@@ -729,9 +743,14 @@ async fn posters_get_copies_ahead_first_until_the_cache_is_nearly_full_and_resca
     artwork.download_missing(contents, alien.library);
     Artwork::settled().await;
 
-    let copied: Vec<_> = (std::fs::read_dir(cache.join("artwork/tmdb")).unwrap())
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .collect();
+    let listed = |dir: &Path| -> Vec<_> {
+        (std::fs::read_dir(dir).unwrap())
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect()
+    };
+    let top = listed(&cache);
+    assert_eq!(top.len(), 2, "only the filler and artwork: {top:?}");
+    let copied = listed(&cache.join("artwork/tmdb"));
     assert!(
         matches!(copied.as_slice(), [poster] if poster.starts_with("%2Fz-")),
         "{copied:?}"
