@@ -69,17 +69,51 @@ pub(crate) fn keep_telling(
     })
 }
 
-/// Whether `address` has the scheme, host and port of one of the Server Addresses the Hub is told
-/// but the public one: the Server URL `url` holds, or the LAN address of `listening`. The Hub
-/// sends a sign-in with an Account back only to those, as `nama-hub`'s `is_on_server` checks.
-pub(crate) fn is_reported(address: &str, url: &ServerUrl, listening: SocketAddr) -> bool {
+/// Whether `address` has the scheme, host and port of an address the Hub sends a sign-in with an
+/// Account back to, as `nama-hub`'s `is_on_server` checks: the Server URL `url` holds, the LAN
+/// address of `listening`, or, at the `names` the Hub gave the Server (`Reachability::names`), a
+/// LAN name on that port and the Relay's on the port of `relay`. Never the public address, as the
+/// Server can't know its public IP.
+pub(crate) fn is_reported(
+    address: &str,
+    url: &ServerUrl,
+    listening: SocketAddr,
+    relay: Option<SocketAddr>,
+    names: &[String],
+) -> bool {
     let Ok(address) = Url::parse(address) else {
         return false;
     };
-    let ServerAddresses { url, lan, .. } = addresses(url, lan_address(listening), None, None);
-    std::iter::once(url).chain(lan).any(|reported| {
-        Url::parse(&reported).is_ok_and(|reported| reported.origin() == address.origin())
-    })
+    let lan = lan_address(listening);
+    let ServerAddresses { url, lan: told, .. } = addresses(url, lan, None, None);
+    let at_names = named_addresses(names, lan, relay);
+    std::iter::once(url)
+        .chain(told)
+        .chain(at_names)
+        .any(|reported| {
+            Url::parse(&reported).is_ok_and(|reported| reported.origin() == address.origin())
+        })
+}
+
+/// The HTTPS addresses at the Server's `names`, its own first: each LAN name on the port of `lan`,
+/// and `relay.<own name>` on the port of `relay`. Its own name points at its public IP, so it is
+/// left out.
+fn named_addresses(
+    names: &[String],
+    lan: Option<SocketAddr>,
+    relay: Option<SocketAddr>,
+) -> Vec<String> {
+    let Some((own, under)) = names.split_first() else {
+        return Vec::new();
+    };
+    let relay_name = format!("relay.{own}");
+    under
+        .iter()
+        .filter_map(|name| {
+            let port = if *name == relay_name { relay } else { lan }?.port();
+            Some(format!("https://{name}:{port}"))
+        })
+        .collect()
 }
 
 /// The Server Addresses the Hub is told: the Server URL `url` holds, the LAN address `lan`, the

@@ -49,8 +49,9 @@ pub(super) async fn start(
     listening: SocketAddr,
 ) -> ServiceResult<StartServerLinkResponse> {
     if !return_url.is_empty() {
-        // Only the Server can check it: the Hub has no Server Addresses of a Server not Linked.
-        refuse_unless_own_address(return_url, server_url, listening)?;
+        // Only the Server can check it: the Hub has no Server Addresses of a Server not Linked, and
+        // has given it no names.
+        refuse_unless_own_address(return_url, server_url, listening, None, &[])?;
     }
     let link = linking.start_server_link(name, return_url).await?;
     Response::ok(StartServerLinkResponse {
@@ -87,16 +88,24 @@ pub(super) async fn start_user(
     })
 }
 
-/// Starts signing in with an Account, which the Hub sends back to `return_url`, one of the
-/// Server Addresses the Server reports given its Server URL `server_url` and `listening`.
+/// Starts signing in with an Account, which the Hub sends back to `return_url`, an address the
+/// Server reports given its Server URL `server_url`, `listening` and `relay`, or one at its names.
 pub(super) async fn start_account_sign_in(
     linking: &Linking,
     return_url: &str,
     server_url: &ServerUrl,
     listening: SocketAddr,
+    relay: Option<SocketAddr>,
 ) -> ServiceResult<StartAccountSignInResponse> {
+    let names = match linking.server_link().await {
+        Ok(Link::Linked {
+            reachability: Some(found),
+            ..
+        }) => found.names,
+        _ => Vec::new(),
+    };
     // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
-    refuse_unless_own_address(return_url, server_url, listening)?;
+    refuse_unless_own_address(return_url, server_url, listening, relay, &names)?;
     let started =
         (linking.start_account_sign_in(return_url).await).map_err(account_sign_in_failed)?;
     Response::ok(StartAccountSignInResponse {
@@ -106,12 +115,15 @@ pub(super) async fn start_account_sign_in(
     })
 }
 
-/// Refuses a `return_url` that isn't one of the Server Addresses the Server reports given its
-/// Server URL `server_url` and `listening`, saying which address to open, as the Hub can't.
+/// Refuses a `return_url` that isn't an address the Hub sends a sign-in back to, given the Server
+/// URL `server_url`, `listening`, `relay` and the Server's `names`, saying which address to open,
+/// as the Hub can't.
 fn refuse_unless_own_address(
     return_url: &str,
     server_url: &ServerUrl,
     listening: SocketAddr,
+    relay: Option<SocketAddr>,
+    names: &[String],
 ) -> Result<(), ConnectError> {
     if !is_web_address(return_url) {
         return Err(refuse(
@@ -121,7 +133,7 @@ fn refuse_unless_own_address(
         .field("return_url")
         .into());
     }
-    if !server_addresses::is_reported(return_url, server_url, listening) {
+    if !server_addresses::is_reported(return_url, server_url, listening, relay, names) {
         return Err(refuse(
             RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
             "open the Server at its Server URL, where the Hub can send you back",

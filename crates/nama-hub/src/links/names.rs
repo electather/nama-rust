@@ -49,7 +49,7 @@ pub(super) fn records(
     own_record
         .into_iter()
         .chain(lan.into_iter().map(|ip| Record {
-            name: format!("{}.{own}", ip.to_string().replace('.', "-")),
+            name: lan_name(own, ip),
             address: IpAddr::V4(ip),
         }))
         .chain(relay.map(|address| Record {
@@ -66,6 +66,19 @@ pub(super) fn shown(own: &str, records: &[Record]) -> Vec<String> {
         .chain(under.map(|record| record.name.as_str()))
         .map(str::to_owned)
         .collect()
+}
+
+/// Where clients reach the LAN address `address` of the Server whose own name is `own` over
+/// HTTPS: at the name [`records`] give it, on its port, if it gets one.
+pub(super) fn lan_name_address(own: &str, address: &str) -> Option<String> {
+    let ip = lan_ip(address)?;
+    let port = Url::parse(address).ok()?.port_or_known_default()?;
+    Some(format!("https://{}:{port}", lan_name(own, ip)))
+}
+
+/// The name under `own` carrying `ip`, such as `192-168-1-10.<own>`.
+fn lan_name(own: &str, ip: Ipv4Addr) -> String {
+    format!("{}.{own}", ip.to_string().replace('.', "-"))
 }
 
 /// The host of the LAN address `address`, if it is a private IPv4 address: a public one could

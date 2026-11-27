@@ -42,11 +42,50 @@ fn the_server_url_is_sent_in_ascii_as_typed_otherwise() {
 fn a_reported_address_matches_the_lan_one_by_scheme_host_and_port() {
     // No Server URL set, so the LAN address is the one reported.
     let url = ServerUrl::default();
-    let reported = |address| is_reported(address, &url, "192.168.1.2:7980".parse().unwrap());
+    let reported = |address| {
+        is_reported(
+            address,
+            &url,
+            "192.168.1.2:7980".parse().unwrap(),
+            None,
+            &[],
+        )
+    };
 
     assert!(reported("HTTP://192.168.1.2:7980/sign-in"));
     assert!(!reported("https://192.168.1.2:7980/sign-in"));
     assert!(!reported("http://192.168.1.2/sign-in"));
     assert!(!reported("http://localhost:7980/sign-in"));
     assert!(!reported("/sign-in"));
+}
+
+#[test]
+fn a_reported_address_may_be_at_the_servers_lan_name_or_relay_and_never_another_servers() {
+    let own = "0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net";
+    let names = [
+        own.to_owned(),
+        format!("192-168-1-2.{own}"),
+        format!("relay.{own}"),
+    ];
+    let url = ServerUrl::default();
+    let reported = |address: &str| {
+        is_reported(
+            address,
+            &url,
+            "192.168.1.2:7980".parse().unwrap(),
+            Some("198.51.100.4:443".parse().unwrap()),
+            &names,
+        )
+    };
+
+    assert!(reported(&format!("https://192-168-1-2.{own}:7980/sign-in")));
+    assert!(reported(&format!("https://relay.{own}/sign-in")));
+    assert!(!reported(&format!(
+        "https://192-168-1-2.{own}:8443/sign-in"
+    )));
+    assert!(!reported(&format!("https://relay.{own}:7980/sign-in")));
+    assert!(!reported(&format!("https://{own}:7980/sign-in")));
+    assert!(!reported(
+        "https://192-168-1-2.0193b6f2c4d87a1e9f3c5b2a1d0e4f68.namadirect.net:7980/sign-in"
+    ));
 }
