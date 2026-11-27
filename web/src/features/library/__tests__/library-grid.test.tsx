@@ -95,7 +95,7 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   await screen.findByRole("button", { name: "Sort: Recently Added" });
   fireEvent.click(screen.getByRole("button", { name: "Filter" }));
   fireEvent.click(await screen.findByRole("radio", { name: "Not started" }));
-  await screen.findByRole("button", { name: "Filter, 1 on" });
+  await screen.findByRole("button", { name: "Filter: Not started" });
 
   await waitFor(() => {
     expect(asked.some(({ filter }) => filter?.watched === WatchedFilter.NOT_STARTED)).toBe(true);
@@ -122,29 +122,29 @@ test("the sort menu says which way it runs in words, and picking the other turns
   expect(asked.at(-1)?.sort).toBe(MovieSort.TITLE);
 });
 
-test("choosing two genres asks for the titles with either, and each shows as a chip", async () => {
+test("choosing two genres asks for the titles with either, and the Filter button names them", async () => {
   const asked: ListMoviesRequest[] = [];
   openApp("/libraries/1", thousandMovies(asked));
   await screen.findByText("1,000 Movies");
 
   fireEvent.click(screen.getByRole("button", { name: "Filter" }));
   fireEvent.click(await screen.findByRole("button", { name: "Crime", pressed: false }));
-  await screen.findByRole("button", { name: "Filter, 1 on" });
+  await screen.findByRole("button", { name: "Filter: Crime" });
   fireEvent.click(await screen.findByRole("button", { name: "Horror", pressed: false }));
-  await screen.findByRole("button", { name: "Filter, 2 on" });
+  const filter = await screen.findByRole("button", { name: "Filter: Crime, Horror" });
 
   await waitFor(() => {
     expect(asked.at(-1)?.filter?.genres).toStrictEqual(["Crime", "Horror"]);
   });
   expect(asked.at(-1)?.page?.token).toBe("");
-  expect(screen.getByRole("button", { name: "Remove Crime" })).toBeDefined();
+  expect(filter.textContent).toBe("Filter: Crime +1");
 });
 
 test("the Filter panel shows 5 genres, Show more the rest, and always one that's on", async () => {
   const genres = ["Action", "Comedy", "Crime", "Drama", "Horror", "Romance", "War"];
   openApp("/libraries/1?genres=%5B%22War%22%5D", thousandMovies([], genres));
 
-  fireEvent.click(await screen.findByRole("button", { name: "Filter, 1 on" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Filter: War" }));
   const group = await screen.findByRole("group", { name: "Genre" });
   const chips = () =>
     within(group)
@@ -164,34 +164,15 @@ test("the Filter panel shows 5 genres, Show more the rest, and always one that's
   expect(chips()).toStrictEqual(genres);
 });
 
-test("the Filter panel's corner button clears every filter, and shows only while one is on", async () => {
-  openApp("/libraries/1?watched=played", thousandMovies([]));
+test("the ✕ beside the Filter button clears every filter, and shows only while one is on", async () => {
+  const asked: ListMoviesRequest[] = [];
+  openApp("/libraries/1?genres=%5B%22Crime%22%5D&watched=played", thousandMovies(asked));
 
-  fireEvent.click(await screen.findByRole("button", { name: "Filter, 1 on" }));
   fireEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
 
   await screen.findByRole("button", { name: "Filter" });
   expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
-  expect(screen.queryByRole("button", { name: /^Remove/u })).toBeNull();
-});
-
-test("a filter's chip turns it off, and Clear all turns them all off", async () => {
-  const asked: ListMoviesRequest[] = [];
-  openApp("/libraries/1?genres=%5B%22Crime%22%5D&watched=played&from=1990", thousandMovies(asked));
-
-  fireEvent.click(await screen.findByRole("button", { name: "Remove Crime" }));
-  await waitFor(() => {
-    expect(asked.at(-1)?.filter?.genres).toStrictEqual([]);
-  });
-  expect(screen.getByRole("button", { name: "Remove From 1990" })).toBeDefined();
-  fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
-
-  // The header's count already asked for every title, so clearing shows that page again.
-  await waitFor(() => {
-    expect(screen.queryByRole("button", { name: /^Remove/u })).toBeNull();
-  });
   const everyTitle = asked.find(({ filter }) => filter?.watched === WatchedFilter.UNSPECIFIED);
-  expect(everyTitle?.filter?.minYear).toBeUndefined();
   expect(everyTitle?.filter?.genres).toStrictEqual([]);
 });
 

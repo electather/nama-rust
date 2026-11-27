@@ -85,27 +85,24 @@ function yearsName({ from, to }: TitleListing) {
   return to === undefined ? `From ${from}` : `${from}–${to}`;
 }
 
-/** Each filter `listing` has on, by name, and `listing` with it off. */
-export function filterTokens(listing: TitleListing) {
+/** The name of each filter `listing` has on: its genres, its years, then its Watch State. */
+export function filterNames(listing: TitleListing) {
   const { genres = [], watched } = listing;
-  const tokens: { name: string; without: TitleListing }[] = genres.map((genre) => {
-    const left = genres.filter((other) => other !== genre);
-    return { name: genre, without: { ...listing, genres: left.length === 0 ? undefined : left } };
-  });
   const years = yearsName(listing);
-  if (years !== undefined) {
-    tokens.push({ name: years, without: { ...listing, from: undefined, to: undefined } });
-  }
-  if (watched !== undefined) {
-    tokens.push({ name: watchedStates[watched], without: { ...listing, watched: undefined } });
-  }
-  return tokens;
+  return [
+    ...genres,
+    ...(years === undefined ? [] : [years]),
+    ...(watched === undefined ? [] : [watchedStates[watched]]),
+  ];
 }
 
-/** How many of the filters `listing` keeps titles by: each genre, the years and the Watch State. */
-export function filterCount({ genres = [], from, to, watched }: TitleListing) {
-  const years = from !== undefined || to !== undefined ? 1 : 0;
-  return genres.length + years + (watched === undefined ? 0 : 1);
+/** "Filter", or "Filter: Crime", "Filter: Crime +2": what the Filter button says is on. */
+export function filterLabel(listing: TitleListing) {
+  const [first, ...more] = filterNames(listing);
+  if (first === undefined) {
+    return "Filter";
+  }
+  return more.length === 0 ? `Filter: ${first}` : `Filter: ${first} +${more.length}`;
 }
 
 /** Which way `listing` runs: as its URL says, else up by title and newest first otherwise. */
