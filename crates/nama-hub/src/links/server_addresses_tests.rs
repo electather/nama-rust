@@ -185,6 +185,15 @@ fn a_relay_has_no_address_while_the_hub_names_no_server() {
         report.addresses(Some("zone")).listed(),
         [format!("https://relay.{OWN}:443")]
     );
+    // A Server URL at the Relay's origin is kept, as sent, all the same.
+    let at_relays_origin = Report {
+        url: "https://relay.0193b6f2c4d87a1e9f3c5b2a1d0e4f67.zone/",
+        ..report
+    };
+    assert_eq!(
+        at_relays_origin.addresses(None).listed(),
+        [format!("https://relay.{OWN}")]
+    );
 }
 
 #[test]

@@ -132,16 +132,20 @@ impl Links {
         let reached = probed
             .filter(|&(_, reachable)| reachable)
             .map(|(address, _)| address);
-        let stored_public = reached.map_or_else(String::new, public_address);
+        let public_as_stored = reached.map_or_else(String::new, public_address);
         // Stored before naming too, so a DNS provider that is down holds back only the names.
-        self.store_public_address(server.id, &stored_public).await?;
+        self.store_public_address(server.id, &public_as_stored)
+            .await?;
         let addresses =
             ServerAddresses::new(server.id, self.zone(), url, lan_addresses, reached, relay);
         let names = self.write_names(server.id, &addresses).await?;
         // Stored again after naming, so a Server Unlinked meanwhile is found gone here and its
         // names go again; no transaction waits on the DNS provider holding one of the pool's
         // connections.
-        if !self.store_public_address(server.id, &stored_public).await? {
+        if !self
+            .store_public_address(server.id, &public_as_stored)
+            .await?
+        {
             self.forget_names(server.id).await?;
         }
         Ok(Checked {
