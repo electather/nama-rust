@@ -78,6 +78,9 @@ pub(crate) struct Abilities {
 
 struct AbilitiesInner {
     ffmpeg: Arc<Ffmpeg>,
+    /// What a test says ffmpeg can do, asking it nothing.
+    #[cfg(test)]
+    fixed: Option<CanDo>,
     zscale: tokio::sync::OnceCell<bool>,
     tonemapx: tokio::sync::OnceCell<bool>,
     subtitle_layer: tokio::sync::OnceCell<bool>,
@@ -96,6 +99,8 @@ impl Abilities {
         let abilities = Self {
             inner: Arc::new(AbilitiesInner {
                 ffmpeg,
+                #[cfg(test)]
+                fixed: None,
                 zscale: tokio::sync::OnceCell::new(),
                 tonemapx: tokio::sync::OnceCell::new(),
                 subtitle_layer: tokio::sync::OnceCell::new(),
@@ -117,6 +122,24 @@ impl Abilities {
         abilities
     }
 
+    /// Abilities that hand back `can_do` and ask ffmpeg nothing, for tests.
+    #[cfg(test)]
+    pub(crate) fn fixed(can_do: CanDo) -> Self {
+        Self {
+            inner: Arc::new(AbilitiesInner {
+                ffmpeg: Arc::new(Ffmpeg::default()),
+                fixed: Some(can_do),
+                zscale: tokio::sync::OnceCell::new(),
+                tonemapx: tokio::sync::OnceCell::new(),
+                subtitle_layer: tokio::sync::OnceCell::new(),
+                libx264: tokio::sync::OnceCell::new(),
+                hardware: tokio::sync::OnceCell::new(),
+                tasks: TaskTracker::new(),
+                cancel: CancellationToken::new(),
+            }),
+        }
+    }
+
     /// Cancels the hardware test if it still runs, killing its test encode, and waits for it to
     /// stop.
     pub(crate) async fn shutdown(&self) {
@@ -128,6 +151,10 @@ impl Abilities {
     /// What ffmpeg can do. An answer ffmpeg couldn't give, such as on a busy host whose listing
     /// timed out, counts as `false` or no hardware and is asked again next time.
     pub(crate) async fn can_do(&self) -> CanDo {
+        #[cfg(test)]
+        if let Some(fixed) = &self.inner.fixed {
+            return fixed.clone();
+        }
         let ffmpeg = &self.inner.ffmpeg;
         // Together, so a busy host waits out one listing's timeout, not two.
         let (zscale, tonemapx, subtitle_layer, libx264, hardware) = tokio::join!(

@@ -41,6 +41,7 @@
 //!
 //! [`SEGMENT_MS`]: timeline::SEGMENT_MS
 
+mod deleting;
 mod plays;
 mod process;
 mod run;
@@ -68,7 +69,7 @@ use nama_proto::nama::v1::{
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 pub(crate) use plays::{MessageTooLong, PlayNow, ReportedProgress, STOP_MESSAGE_LENGTH};
-use run::{Fallback, Running, Runs, Start};
+use run::{Converts, Fallback, Runner, Running, Runs, Start};
 pub(in crate::playback) use serving::PlanFiles;
 pub(crate) use serving::router;
 pub(crate) use sweeping::sweep_leftovers;
@@ -82,12 +83,9 @@ use super::{
     tracks::track_to_proto,
 };
 use crate::{
-    db,
+    db::{self, detached},
     events::{EventBus, event},
-    ffmpeg::{
-        BurnIn, Ffmpeg, FromCut, Hardware, Keyframe, Remux, TextSubtitle, Transcode,
-        sidecar_charset,
-    },
+    ffmpeg::{BurnIn, Ffmpeg, Hardware, Keyframe, Remux, TextSubtitle, Transcode, sidecar_charset},
     library::Contents,
     server_settings::PlaybackSettings,
     signed_urls::Viewer,
@@ -170,7 +168,7 @@ pub(crate) struct RunningPlans {
 struct Inner {
     /// For the segment folder each plan's files go in, in a folder named by its id.
     settings: PlaybackSettings,
-    ffmpeg: Arc<Ffmpeg>,
+    runner: Arc<Runner>,
     contents: Contents,
     probing: Probing,
     subtitles: subtitles::Cache,
@@ -193,23 +191,6 @@ struct Inner {
 impl fmt::Debug for RunningPlans {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RunningPlans").finish_non_exhaustive()
-    }
-}
-
-/// Versions being deleted, each of whose files is cut off as soon as it's served until this is
-/// dropped, once they're gone from disk and the Library.
-#[must_use = "the Versions are served again once it's dropped"]
-pub(crate) struct Deleting {
-    plans: RunningPlans,
-    versions: Vec<i64>,
-}
-
-impl Drop for Deleting {
-    fn drop(&mut self) {
-        let mut served = lock(&self.plans.inner.served);
-        for version in &self.versions {
-            served.remove(version);
-        }
     }
 }
 
@@ -245,9 +226,26 @@ impl RunningPlans {
         subtitles: subtitles::Cache,
         events: EventBus,
     ) -> Self {
+        let runner = process::runner(ffmpeg);
+        Self::with_runner(settings, runner, contents, probing, subtitles, events)
+    }
+
+    /// As [`Self::new`], starting each run with `runner` rather than ffmpeg's process.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle plans run on"
+    )]
+    fn with_runner(
+        settings: PlaybackSettings,
+        runner: Arc<Runner>,
+        contents: Contents,
+        probing: Probing,
+        subtitles: subtitles::Cache,
+        events: EventBus,
+    ) -> Self {
         let inner = Arc::new(Inner {
             settings,
-            ffmpeg,
+            runner,
             contents,
             probing,
             subtitles,
@@ -290,8 +288,20 @@ impl RunningPlans {
     /// Starts `plan` for `viewer`, telling Observers so, and returns it with its id and where to
     /// play it from. A Remux or a Transcode runs ffmpeg over the Version's file, from the
     /// segment playing at `start_ms`. `None` if there is no such Version, it's being deleted, or
-    /// `plan` can't be played.
+    /// `plan` can't be played. Safe to drop: the start carries on in a task of its own.
     pub(crate) async fn start(
+        &self,
+        viewer: Viewer,
+        plan: super::Plan,
+        start_ms: i64,
+    ) -> Result<Option<StartedPlan>, StartError> {
+        let plans = self.clone();
+        // A caller giving up mid-wait mustn't leave ffmpeg and its folder with no plan (ADR 0029).
+        detached(async move { plans.start_attached(viewer, plan, start_ms).await }).await
+    }
+
+    /// As [`Self::start`], stopping where the caller stops waiting.
+    async fn start_attached(
         &self,
         viewer: Viewer,
         plan: super::Plan,
@@ -351,11 +361,14 @@ impl RunningPlans {
             Err(probing::Error::Database(err)) => return Err(err.into()),
         };
         let timeline = Timeline::new(listed.keyframes_ms, duration_ms);
-        let ffmpeg = Arc::clone(&self.inner.ffmpeg);
+        let runner = Arc::clone(&self.inner.runner);
         let file_start_ms = listed.file_start_ms;
         let start = move |dir: &Path, from, stop| {
-            let command = ffmpeg.remux(&path, &remux, dir, from, file_start_ms)?;
-            command.spawn().map(|child| process::run(child, stop))
+            let converts = Converts::Remux {
+                remux: &remux,
+                file_start_ms,
+            };
+            runner(&path, converts, dir, from, stop)
         };
         let runs = Runs {
             method: Method::Remux,
@@ -404,18 +417,19 @@ impl RunningPlans {
         };
         let timeline = Timeline::transcoded(duration_ms);
         let cuts = timeline.keyframes.clone();
-        let ffmpeg = Arc::clone(&self.inner.ffmpeg);
+        let runner = Arc::clone(&self.inner.runner);
         let subtitles = self.inner.subtitles.clone();
         let start = move |attempt: Transcode| -> Box<Start> {
-            let (ffmpeg, subtitles) = (Arc::clone(&ffmpeg), subtitles.clone());
+            let (runner, subtitles) = (Arc::clone(&runner), subtitles.clone());
             let (path, cuts) = (path.clone(), cuts.clone());
             Box::new(move |dir: &Path, from: Keyframe, stop| {
-                let cuts = cuts.get(from.n..).unwrap_or_default();
-                let from = FromCut { n: from.n, cuts };
                 // Asked each run, so a seek once the cache is filled skips reading the whole file.
                 let attempt = subtitles.burning_in(file, &attempt);
-                let child = ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()?;
-                Ok(process::run(child, stop))
+                let converts = Converts::Transcode {
+                    attempt: &attempt,
+                    cuts: &cuts,
+                };
+                runner(&path, converts, dir, from, stop)
             })
         };
         // A plan has a fallback only when it Transcodes on hardware.
@@ -631,41 +645,6 @@ impl RunningPlans {
         (lock(&self.inner.plans).values())
             .filter(|plan| versions.contains(&plan.playback.version_id))
             .count()
-    }
-
-    /// Stops every plan playing one of `versions`, whose files are about to be deleted, and cuts
-    /// off each response serving one of them, until the [`Deleting`] it returns is dropped.
-    // ponytail: a Remux or Transcode already starting as this begins can still start on a file
-    // about to go, and play on until it's unused; check again as it's kept if that ever shows.
-    pub(crate) async fn end_for_deleting(&self, versions: &[i64]) -> Deleting {
-        {
-            let mut served = lock(&self.inner.served);
-            for &version in versions {
-                served.entry(version).or_default().cancel();
-            }
-        }
-        let ending: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
-            .extract_if(|_, plan| versions.contains(&plan.playback.version_id))
-            .collect();
-        for (_, plan) in ending {
-            self.stop(&plan).await;
-        }
-        Deleting {
-            plans: self.clone(),
-            versions: versions.to_vec(),
-        }
-    }
-
-    /// Whether the Version `version` is being deleted.
-    fn deleting(&self, version: i64) -> bool {
-        (lock(&self.inner.served).get(&version)).is_some_and(CancellationToken::is_cancelled)
-    }
-
-    /// Cancelled once the Version `version` is being deleted, to cut off a response serving its
-    /// file.
-    pub(super) fn served(&self, version: i64) -> CancellationToken {
-        let mut served = lock(&self.inner.served);
-        served.entry(version).or_default().child_token()
     }
 
     /// Deletes each running plan's files from well behind or far ahead of playback, as
