@@ -11,7 +11,7 @@ impl Browse {
     /// The best `limit` Movies, Shows and Episodes of the Libraries it sees that a search for
     /// `query` finds, of `kind` only if it's set, as `Contents::search` finds them. A title is
     /// found only in the Library its [`Whereabouts`] places it in, so once at most, and not at all
-    /// when it is kept from them.
+    /// when it is kept from the User.
     pub(crate) async fn search(
         &self,
         query: &str,

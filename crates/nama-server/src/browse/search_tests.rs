@@ -7,8 +7,8 @@ use crate::{
     content_ratings::MaximumAge,
     db::Database,
     library::{
-        Change, Contents, Decided, Found, Item, Libraries, LibraryKind, Metadata, TitleKind,
-        fixture::{MatchedMovie, decide, tmdb_movie},
+        Contents, Found, Metadata, TitleKind,
+        fixture::{MatchedMovie, episodes_file_matched_to, tmdb_movie},
     },
     plugins::ExtensionPoints,
     users::{LibraryAccess, testing::reach_of},
@@ -101,11 +101,11 @@ async fn search_finds_a_title_both_copies_reach_once_in_the_oldest_library_and_f
 async fn search_finds_a_shared_show_and_its_episodes_once_unless_the_oldest_copy_is_kept_out() {
     let folders = [(); 5].map(|()| tempfile::tempdir().unwrap());
     let db = Arc::new(Database::open(folders[0].path()).await.unwrap());
-    let (dark, lost) = ((70_523, "Dark"), (4_607, "Lost"));
-    let older_dark = rated_show(&db, folders[1].path(), dark, "PG").await;
-    rated_show(&db, folders[2].path(), dark, "PG").await;
-    rated_show(&db, folders[3].path(), lost, "R").await;
-    rated_show(&db, folders[4].path(), lost, "PG").await;
+    let (dark, lost) = (70_523, 4_607);
+    let older_dark = rated_show(&db, folders[1].path(), dark, "Dark", "PG").await;
+    rated_show(&db, folders[2].path(), dark, "Dark", "PG").await;
+    rated_show(&db, folders[3].path(), lost, "Lost", "R").await;
+    rated_show(&db, folders[4].path(), lost, "Lost", "PG").await;
     let browse = under_13(&db, LibraryAccess::All);
 
     let shows = browse.search("Dark", Some(TitleKind::Show), 10).await;
@@ -124,45 +124,24 @@ async fn search_finds_a_shared_show_and_its_episodes_once_unless_the_oldest_copy
     assert!(kept_out.unwrap().is_empty(), "the older Lost is R");
 }
 
-/// Creates a Shows Library on `folder` holding Episode 1, called "Secrets", of the TMDB Show `show`
-/// by id and title, rated `rating`. Returns its id.
-async fn rated_show(db: &Arc<Database>, folder: &Path, show: (i64, &str), rating: &str) -> i64 {
-    let (show_tmdb, show) = show;
-    let root = folder.canonicalize().unwrap();
-    let root = root.to_str().unwrap();
-    let library = (Libraries::new(Arc::clone(db)))
-        .create(root, LibraryKind::Shows, vec![root.to_owned()])
-        .await
-        .unwrap()
-        .id;
-    let path = format!("{root}/{show} - S01E01.mkv");
-    let file = Change::Store {
-        edition: None,
-        path: path.clone(),
-        size: 10,
-        modified_ns: 0,
-        items: vec![Item::Episode {
-            show: show.to_owned(),
-            year: None,
-            hint: None,
-            season: 1,
-            episode: 1,
-        }],
-    };
-    let contents = Contents::new(Arc::clone(db));
-    contents.apply(library, vec![file]).await.unwrap();
-    let episode = Metadata {
+/// Creates a Shows Library on `folder` of the TMDB Show `show_tmdb`, called `show` and rated
+/// `rating`, whose Episode 1 is called "Secrets". Returns its id.
+async fn rated_show(
+    db: &Arc<Database>,
+    folder: &Path,
+    show_tmdb: i64,
+    show: &str,
+    rating: &str,
+) -> i64 {
+    let episode = |tmdb, title: &str| Metadata {
         show_ids: ExternalIds::from_iter([ExternalId::tmdb(show_tmdb)]),
         show_title: Some(show.to_owned()),
         content_rating: Some(rating.to_owned()),
-        ..tmdb_movie(show_tmdb * 10, "Secrets")
+        ..tmdb_movie(tmdb, title)
     };
-    decide(
-        &contents,
-        library,
-        &path,
-        vec![Decided::Matched(Box::new(episode))],
-    )
-    .await;
-    library
+    let matched = [
+        episode(show_tmdb * 10, "Secrets"),
+        episode(show_tmdb * 10 + 1, "Lies"),
+    ];
+    episodes_file_matched_to(db, folder, matched).await
 }
