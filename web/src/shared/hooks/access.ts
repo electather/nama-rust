@@ -163,9 +163,10 @@ export async function askAgainWhoIsSignedIn(
 
 async function accountChanged({ queryClient, transport }: RouterContext) {
   const query = signedInAccountQuery(transport);
-  const before = queryClient.getQueryData(query.queryKey)?.account?.id;
+  const before = queryClient.getQueryData(query.queryKey);
   const now = await queryClient.query({ ...query, staleTime: 0 });
-  return now?.account?.id !== before;
+  // Hub pages only read it in access checks, so an idle page may have let the cache drop it.
+  return before === undefined || now?.account?.id !== before?.account?.id;
 }
 
 async function usersChanged(

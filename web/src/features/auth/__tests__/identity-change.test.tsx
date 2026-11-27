@@ -109,7 +109,7 @@ describe("at a Server", () => {
       ["call at the Server", "push moved", "cache cleared", "replaced with /next"],
     ],
     [
-      "a switch does the same",
+      "a switch moves push, clears the cache, and goes on in its page's place",
       { kind: "switched", goOn: "/next" },
       ["call at the Server", "push moved", "cache cleared", "replaced with /next"],
     ],
