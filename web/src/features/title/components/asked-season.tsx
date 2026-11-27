@@ -1,27 +1,27 @@
 import { SeasonRequestButton } from "@/features/title/components/season-request-button";
 import type { SeasonAsking } from "@/features/title/hooks/season-asking";
-import type { Request } from "@/gen/nama/v1/request_pb";
 import { RequestStateAndQuality } from "@/shared/components/found-movie-state/request-state-and-quality";
+import type { Standing } from "@/shared/lib/request-standing";
 import { seasonName } from "@/shared/lib/title-facts";
 
 /**
- * Where `season`'s `request` is, if it has one, and "Request Season N" while you can ask, or join
- * someone else's.
+ * Where `season` stands with its Request, by its `standing`, and "Request Season N" while you can
+ * ask, or join someone else's.
  */
 export function AskedSeason({
   asking,
   season,
-  request,
+  standing,
 }: {
   asking: SeasonAsking;
   season: number;
-  request: Request | undefined;
+  standing: Standing;
 }) {
   const what = `${seasonName(season)} of ${asking.show.title}`;
   return (
     <>
-      {request && <RequestStateAndQuality request={request} what={what} large />}
-      <SeasonRequestButton asking={asking} season={season} request={request} />
+      {"request" in standing && <RequestStateAndQuality standing={standing} what={what} large />}
+      <SeasonRequestButton asking={asking} season={season} standing={standing} />
     </>
   );
 }

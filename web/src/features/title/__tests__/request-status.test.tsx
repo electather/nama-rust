@@ -69,22 +69,32 @@ const fromANewerServer = fromJson(RequestSchema, {
 });
 
 test.each([
-  { request: yours(RequestState.PENDING), label: "Pending approval", requestable: false },
-  { request: yours(RequestState.APPROVED), label: "Requested", requestable: false },
-  { request: yours(RequestState.PROCESSING), label: "Processing", requestable: false },
+  { request: yours(RequestState.PENDING), label: "Pending approval" },
+  { request: yours(RequestState.APPROVED), label: "Requested" },
+  { request: yours(RequestState.PROCESSING), label: "Processing" },
   {
     request: yours(RequestState.PARTIALLY_AVAILABLE),
     label: "Partially Available",
-    requestable: false,
   },
-  { request: yours(RequestState.AVAILABLE), label: "Available", requestable: false },
-  { request: yours(RequestState.DECLINED), label: "Declined", requestable: true },
-  { request: fromANewerServer, label: "Unknown", requestable: false },
-])("a Request shows as $label", async ({ request, label, requestable }) => {
-  openApp("/movies/tmdb-438631", server(request));
+  { request: fromANewerServer, label: "Unknown" },
+])(
+  "a Request of yours shows as $label, and can't be Requested again",
+  async ({ request, label }) => {
+    openApp("/movies/tmdb-438631", server(request));
 
-  await expect(screen.findByText(label)).resolves.toBeDefined();
-  expect(screen.queryByRole("button", { name: "Request Dune" }) !== null).toBe(requestable);
+    await expect(screen.findByText(label)).resolves.toBeDefined();
+    expect(screen.queryByRole("button", { name: "Request Dune" })).toBeNull();
+  },
+);
+
+test.each([
+  { state: RequestState.DECLINED, label: "Declined" },
+  { state: RequestState.AVAILABLE, label: "Available" },
+])("a $label Request reads as none, so Dune can be Requested", async ({ state, label }) => {
+  openApp("/movies/tmdb-438631", server(yours(state)));
+
+  await expect(screen.findByRole("button", { name: "Request Dune" })).resolves.toBeDefined();
+  expect(screen.queryByText(label)).toBeNull();
 });
 
 test("a Request downloading fills its pill to the percent, and says how long is left", async () => {

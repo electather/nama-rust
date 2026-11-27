@@ -13,7 +13,7 @@ export function RowText({ row }: { row: Row }) {
             {row.badge}
           </span>
         )}
-        {row.request !== undefined && <RequestPill request={row.request} onPopover />}
+        {row.standing !== undefined && <RequestPill standing={row.standing} onPopover />}
         <Keys keys={row.keys} />
       </div>
       {row.hint !== "" && (

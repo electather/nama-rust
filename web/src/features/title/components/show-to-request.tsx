@@ -24,7 +24,7 @@ export function ShowToRequest({ showId }: { showId: ExternalId }) {
   if (!show) {
     throw notFound();
   }
-  const row = showRow([], show);
+  const row = showRow([], show, asking?.you);
   return (
     <SeasonAskingContext value={asking}>
       <TitlePage name={show.title} hero={<FoundShowHero show={show} showId={showId} row={row} />}>

@@ -1,5 +1,5 @@
 import type { StillArt } from "@/features/action-bar/lib/titles";
-import type { Request } from "@/gen/nama/v1/request_pb";
+import type { RequestStanding } from "@/shared/lib/request-standing";
 
 /** Where the action bar is: its root, a search of one kind of title, or the keyboard shortcuts. */
 export type Frame = "root" | "movie" | "show" | "shortcuts";
@@ -29,8 +29,8 @@ export interface Row {
   server?: string | undefined;
   /** What it is or is set to, in a pill beside the label. */
   badge?: string;
-  /** A title's open Request, whose pill shows beside the label. */
-  request?: Request;
+  /** Where a title's open Request stands, whose pill shows beside the label. */
+  standing?: RequestStanding;
   /** The keys that pick it from anywhere, beside the label. */
   keys?: readonly string[];
   /** The keys a keyboard shortcut's row is about, at its end. */

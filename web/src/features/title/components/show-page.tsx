@@ -21,7 +21,9 @@ import { rowSeasons } from "@/features/title/lib/row-seasons";
 import { seasonsOfRow, showRow } from "@/features/title/lib/show-row";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { isGone } from "@/shared/hooks/browse";
+import { useMay } from "@/shared/hooks/use-may";
 
 /**
  * A Show of a Library: its top, with Play or Resume, or Request for a Season it lacks, and what else
@@ -45,10 +47,10 @@ export function ShowPage({
   const episodes = useShowEpisodes(show, librarySeasons);
   const found = useFoundShowIfMay(showId);
   const asking = usePageSeasonAsking(found);
-  const row = showRow(episodes, found);
+  const row = showRow(episodes, found, asking?.you);
   const seasons = seasonsOfRow(row, librarySeasons);
   const resumed = episodeToResume(useContinueWatchingEntries(), libraryId, showId);
-  const target = heroTarget(row, resumed);
+  const target = heroTarget(row, resumed, useMay(Permission.MANAGE_REQUESTS));
   const toPlay = targetSeason(target);
   const {
     row: rowRef,

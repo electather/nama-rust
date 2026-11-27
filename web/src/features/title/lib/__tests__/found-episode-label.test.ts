@@ -2,17 +2,17 @@ import { create } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { foundEpisodeStatus } from "@/features/title/lib/found-episode-label";
-import type { FoundRowEpisode } from "@/features/title/lib/show-row";
-import { FoundEpisodeSchema } from "@/gen/nama/v1/request_pb";
+import { FoundEpisodeSchema, RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
+import { type TitleFacts, titleStanding } from "@/shared/lib/request-standing";
 import { calendarDay } from "@/shared/lib/title-facts";
 
-const missing = (airDate?: string): FoundRowEpisode => ({
-  kind: "missing",
+/** Episode 5 of Season 1, missing from the Server, standing as `facts` say. */
+const missing = (facts: TitleFacts) => ({
+  kind: "missing" as const,
   seasonNumber: 1,
   episodeNumber: 5,
-  episode: create(FoundEpisodeSchema, { episodeNumber: 5, title: "The Banks Must Pay", airDate }),
-  request: undefined,
-  askable: false,
+  episode: create(FoundEpisodeSchema, { episodeNumber: 5, title: "The Banks Must Pay" }),
+  standing: titleStanding(facts),
 });
 
 describe("a missing Episode's status", () => {
@@ -25,18 +25,18 @@ describe("a missing Episode's status", () => {
   });
 
   test("says when it airs while it hasn't yet", () => {
-    expect(foundEpisodeStatus(missing("2026-12-03"))).toBe(`Airs ${calendarDay("2026-12-03")}`);
+    const item = missing({ request: undefined, inLibrary: false, airDate: "2026-12-03" });
+    expect(foundEpisodeStatus(item)).toBe(`Airs ${calendarDay("2026-12-03")}`);
   });
 
-  test("says it isn't on the Server once it aired", () => {
-    expect(foundEpisodeStatus(missing("2026-11-26"))).toBe("Not on this Server");
+  test("says its Season's Request's state while it has one", () => {
+    const request = create(RequestSchema, { state: RequestState.PENDING });
+    expect(foundEpisodeStatus(missing({ request, inLibrary: false }))).toBe("Pending approval");
   });
 
-  test("says it isn't on the Server on the day it airs", () => {
-    expect(foundEpisodeStatus(missing("2026-11-27"))).toBe("Not on this Server");
-  });
-
-  test("says it isn't on the Server without an air date", () => {
-    expect(foundEpisodeStatus(missing())).toBe("Not on this Server");
+  test("says it isn't on the Server while nobody asked", () => {
+    expect(foundEpisodeStatus(missing({ request: undefined, inLibrary: false }))).toBe(
+      "Not on this Server",
+    );
   });
 });
