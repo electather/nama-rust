@@ -75,6 +75,26 @@ async fn a_linked_server_syncs_a_watchlist_only_with_the_account_its_user_is_lin
     assert_eq!(refused.field, "entries[1].kind");
 }
 
+// Each limit's edge is checked where it is kept, in `src/sync/sync_tests.rs`.
+#[sqlx::test(migrations = false)]
+async fn a_watchlist_breaking_a_limit_is_refused_even_of_a_user_who_isnt_linked(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let long_id = WatchlistEntry {
+        id: "x".repeat(101),
+        ..the_matrix(1_000)
+    };
+
+    let refused = assert_refused(
+        sync_watchlist(&hub, &server, 7, vec![the_matrix(1_000), long_id]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCHLIST_INVALID,
+    );
+    assert_eq!(refused.field, "entries[1].id");
+    assert_eq!(refused.params["maxIdLength"], "100");
+}
+
 // How many Accounts it takes is checked where they're counted, in `src/sync/sync_tests.rs`.
 #[sqlx::test(migrations = false)]
 async fn a_title_on_one_accounts_watchlist_isnt_most_watchlisted(db: PgPool) {
