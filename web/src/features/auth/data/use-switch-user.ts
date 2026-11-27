@@ -5,22 +5,18 @@ import { useRouter } from "@tanstack/react-router";
 
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { signedInQuery } from "@/shared/hooks/access";
-import { moveBrowserPush } from "@/shared/hooks/browser-push";
 import { isCode } from "@/shared/lib/connect-errors";
 
 /**
- * Makes this Device act as another of its Users, hands them this browser's notifications, then
- * calls `onSwitched`.
+ * Makes this Device act as another of its Users, then calls `onSwitched`, which is
+ * `useFinishSignIn`'s, so it hands them this browser's notifications.
  */
 export function useSwitchUser(onSwitched: () => Promise<void>) {
   const queryClient = useQueryClient();
   const transport = useTransport();
   const router = useRouter();
   return useMutation(SignInService.method.switchUser, {
-    onSuccess: async () => {
-      await moveBrowserPush(transport);
-      await onSwitched();
-    },
+    onSuccess: onSwitched,
     onError: async (error) => {
       // Signed out of this Device elsewhere: asking again who is lets the picker drop them.
       if (isCode(error, Code.NotFound)) {

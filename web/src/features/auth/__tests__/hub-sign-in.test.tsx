@@ -11,6 +11,7 @@ import { accountHub, ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
 import { pickFromMenu } from "@/test-menu";
 import { expectUnderField } from "@/test-refusal";
+import { browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
 afterEach(cleanup);
 
@@ -129,6 +130,21 @@ test("at the Hub, a signed-out visitor signs in to their Account with its passwo
   await signInAs(ada.email, "correct horse");
 
   await expect(screen.findByRole("button", { name: `${ada.email}’s menu` })).resolves.toBeDefined();
+});
+
+describe("a browser with notifications", () => {
+  afterEach(forgetBrowserPush);
+
+  test("signing in at the Hub leaves this browser's notifications alone", async () => {
+    const browser = browserWithPush("granted", true);
+    openApp("/", fakeHub().transport);
+
+    await signInAs(ada.email, "correct horse");
+
+    await screen.findByRole("button", { name: `${ada.email}’s menu` });
+    // The Hub serves no WebPushService: a SubscribeWebPush sent it would fail and unsubscribe.
+    expect(browser.subscription.unsubscribe).not.toHaveBeenCalled();
+  });
 });
 
 test("at the Hub, a wrong password is refused under the password", async () => {
