@@ -67,6 +67,7 @@ impl FakeTmdb {
             endpoints: Endpoints {
                 api: format!("http://{addr}/3"),
                 images: format!("http://{addr}/t/p"),
+                youtube_thumbnails: format!("http://{addr}/vi"),
             },
             state,
             server,
@@ -108,7 +109,10 @@ async fn answer(
 ) -> Response {
     lock(&fake.requests).push(uri.to_string());
     let path = uri.path();
-    if let Some(image) = path.strip_prefix("/t/p/") {
+    if let Some(image) = path
+        .strip_prefix("/t/p/")
+        .or_else(|| path.strip_prefix("/vi/"))
+    {
         let file = image.rsplit('/').next().unwrap_or_default();
         let content_type = if std::path::Path::new(file)
             .extension()

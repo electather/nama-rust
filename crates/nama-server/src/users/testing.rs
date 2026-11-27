@@ -2,7 +2,7 @@
 //! in-file fixture", crate AGENTS.md).
 
 use super::permissions::Permissions;
-use crate::db::Database;
+use crate::{db::Database, server_settings::PlaybackLimit};
 
 /// Inserts a User named `name` with no permissions and returns their id.
 pub(crate) async fn insert_user(db: &Database, name: &str) -> i64 {
@@ -59,4 +59,43 @@ pub(crate) async fn insert_device(db: &Database, user: i64) -> i64 {
     })
     .await
     .unwrap()
+}
+
+/// Gives the User `user` the cap for remote playback `cap`.
+pub(crate) async fn cap_remote_playback(db: &Database, user: i64, cap: PlaybackLimit) {
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query("UPDATE users SET remote_playback_limit = ? WHERE id = ?")
+                .bind(cap.name())
+                .bind(user)
+                .execute(&mut **tx)
+                .await
+        })
+    })
+    .await
+    .unwrap();
+}
+
+/// Makes the Device `device` act as the User `user`, signing them in to it if they aren't, or as
+/// none, as a switch or a sign-out does.
+pub(crate) async fn act_as(db: &Database, device: i64, user: Option<i64>) {
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query(
+                "INSERT OR IGNORE INTO device_users (device_id, user_id, authenticated_at)
+                 SELECT ?1, ?2, 0 WHERE ?2 IS NOT NULL",
+            )
+            .bind(device)
+            .bind(user)
+            .execute(&mut **tx)
+            .await?;
+            sqlx::query("UPDATE devices SET user_id = ? WHERE id = ?")
+                .bind(user)
+                .bind(device)
+                .execute(&mut **tx)
+                .await
+        })
+    })
+    .await
+    .unwrap();
 }

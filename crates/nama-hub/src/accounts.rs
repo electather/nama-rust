@@ -191,7 +191,7 @@ impl Accounts {
             id: AccountId(id),
             email: email.to_owned(),
         };
-        let token = sessions::start(&mut tx, account.id).await?;
+        let token = sessions::start_replacing(&mut tx, account.id, None).await?;
         tx.commit().await?;
         Ok(SignedIn { account, token })
     }
@@ -230,10 +230,7 @@ impl Accounts {
         }
         self.sign_ins.succeeded(&attempt);
         let mut tx = self.db.begin().await?;
-        if let Some(session) = replacing {
-            sessions::end(&mut *tx, session).await?;
-        }
-        let token = sessions::start(&mut tx, account.id).await?;
+        let token = sessions::start_replacing(&mut tx, account.id, replacing).await?;
         tx.commit().await?;
         Ok(SignedIn { account, token })
     }
@@ -248,11 +245,7 @@ impl Accounts {
         session.require_recent_authentication()?;
         check_password_length(password)?;
         let password_hash = passwords::hash(password.to_owned()).await?;
-        let mut tx = self.db.begin().await?;
-        // Checked again: the session may have ended, or aged, while the password hashed.
-        if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(RecentAuthenticationRequired.into());
-        }
+        let mut tx = sessions::begin_recent(&self.db, session).await?;
         sqlx::query!(
             "UPDATE accounts SET password_hash = $1 WHERE id = $2",
             password_hash,
@@ -269,11 +262,7 @@ impl Accounts {
     /// DELETE CASCADE`, so this one `DELETE` removes it all and Unlinks its Users, while pooled
     /// counts, which name no Account, stay (ADR 0093, ADR 0099). Needs Recent Authentication.
     pub(crate) async fn delete(&self, session: &AccountSession) -> Result<(), Error> {
-        let mut tx = self.db.begin().await?;
-        // Under the row lock, so a Sign-in Link's takeover can't end the session meanwhile.
-        if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(RecentAuthenticationRequired.into());
-        }
+        let mut tx = sessions::begin_recent(&self.db, session).await?;
         sqlx::query!("DELETE FROM accounts WHERE id = $1", session.account.id.0)
             .execute(&mut *tx)
             .await?;

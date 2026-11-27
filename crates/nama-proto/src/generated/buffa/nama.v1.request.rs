@@ -10107,6 +10107,25 @@ pub struct Trailer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub url: ::buffa::alloc::string::String,
+    /// Its thumbnail's URL on this Server, which stored it when the title's Matches were last
+    /// refreshed. Unset if it has none, when a client shows the title's Backdrop in its place.
+    ///
+    /// Field 3: `thumbnail_url`
+    #[serde(
+        rename = "thumbnailUrl",
+        alias = "thumbnail_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub thumbnail_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `nama.v1.Movie.poster_thumbhash`, for the thumbnail.
+    ///
+    /// Field 4: `thumbhash`
+    #[serde(
+        rename = "thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -10116,6 +10135,8 @@ impl ::core::fmt::Debug for Trailer {
         f.debug_struct("Trailer")
             .field("name", &self.name)
             .field("url", &self.url)
+            .field("thumbnail_url", &self.thumbnail_url)
+            .field("thumbhash", &self.thumbhash)
             .finish()
     }
 }
@@ -10125,6 +10146,28 @@ impl Trailer {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Trailer";
+}
+impl Trailer {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::thumbnail_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_thumbnail_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.thumbnail_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.thumbhash = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Trailer);
 impl ::buffa::MessageName for Trailer {
@@ -10152,6 +10195,12 @@ impl ::buffa::Message for Trailer {
         if !self.url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
         }
+        if let Some(ref v) = self.thumbnail_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10167,6 +10216,12 @@ impl ::buffa::Message for Trailer {
         }
         if !self.url.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.url, buf);
+        }
+        if let Some(ref v) = self.thumbnail_url {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if let Some(ref v) = self.thumbhash {
+            ::buffa::types::put_shared_bytes_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10195,6 +10250,28 @@ impl ::buffa::Message for Trailer {
                 )?;
                 ::buffa::types::merge_string(&mut self.url, buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .thumbnail_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self.thumbhash.get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10205,6 +10282,8 @@ impl ::buffa::Message for Trailer {
     fn clear(&mut self) {
         self.name.clear();
         self.url.clear();
+        self.thumbnail_url = ::core::option::Option::None;
+        self.thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

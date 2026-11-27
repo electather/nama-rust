@@ -6,9 +6,10 @@ use nama_proto::nama::v1::{AdminStop, Playback, PlaybackEnded};
 use super::{
     super::{
         Method,
+        testing::direct_play_of,
         tests::{
-            database, direct_play_of, event_bus, plans_with, playback, ripley, running_plans,
-            settings, start_faked, start_on_hardware, start_remux, vaapi, viewer,
+            database, event_bus, plans_with, playback, ripley, running_plans, settings,
+            start_faked, start_on_hardware, start_remux, vaapi, viewer,
         },
     },
     ReportedProgress,
@@ -135,22 +136,28 @@ async fn an_admin_stops_a_plan_on_any_device_and_its_end_carries_their_message()
 async fn an_admin_stopping_a_direct_play_cuts_off_its_devices_file_until_it_plays_again() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
-    let on_ripley = Some(viewer_of_caller(&ripley()));
+    let on_ripley = viewer_of_caller(&ripley());
     let while_playing = plans.stopped(4, on_ripley);
-    let to_another = plans.stopped(4, Some(viewer(2)));
+    let to_another = plans.stopped(4, viewer(2));
     let another_user = Viewer {
         user: 2,
         ..viewer_of_caller(&ripley())
     };
-    let to_another_user = plans.stopped(4, Some(another_user));
-    let started = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
+    let to_another_user = plans.stopped(4, another_user);
+    let started = plans
+        .start(viewer_of_caller(&ripley()), direct_play_of(4), 0)
+        .await
+        .unwrap();
 
     plans
         .stop_by_admin(started.unwrap().id, String::new())
         .await
         .unwrap();
     let asked_again = plans.stopped(4, on_ripley);
-    plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
+    plans
+        .start(viewer_of_caller(&ripley()), direct_play_of(4), 0)
+        .await
+        .unwrap();
 
     assert!(while_playing.is_cancelled());
     assert!(
@@ -170,9 +177,15 @@ async fn an_admin_stopping_one_of_a_devices_plans_of_a_version_cuts_off_nothing_
  {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
-    let stale = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
-    plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
-    let to_ripley = plans.stopped(4, Some(viewer_of_caller(&ripley())));
+    let stale = plans
+        .start(viewer_of_caller(&ripley()), direct_play_of(4), 0)
+        .await
+        .unwrap();
+    plans
+        .start(viewer_of_caller(&ripley()), direct_play_of(4), 0)
+        .await
+        .unwrap();
+    let to_ripley = plans.stopped(4, viewer_of_caller(&ripley()));
 
     plans
         .stop_by_admin(stale.unwrap().id, String::new())

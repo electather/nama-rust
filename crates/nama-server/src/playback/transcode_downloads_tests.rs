@@ -7,8 +7,8 @@ use std::{path::PathBuf, sync::Arc};
 
 use tokio_util::sync::CancellationToken;
 
-use super::{Asker, Download, Stage, StartError, TranscodeDownloads, length_to_the_end};
-use crate::{db::Database, library::Contents, server_settings::Settings};
+use super::{Download, Stage, StartError, TranscodeDownloads, length_to_the_end};
+use crate::{db::Database, library::Contents, server_settings::Settings, signed_urls::Viewer};
 
 fn parts(status: StatusCode, length: &'static str, range: Option<&'static str>) -> super::Parts {
     let mut response = Response::new(());
@@ -71,7 +71,7 @@ async fn a_download_is_refused_once_it_and_those_kept_would_go_past_the_budget()
 fn taking(bytes: u64) -> Download {
     Download {
         version: 1,
-        asker: Asker { user: 1, device: 1 },
+        asker: Viewer { user: 1, device: 1 },
         file: PathBuf::from("1.mp4"),
         bytes,
         duration_ms: 1000,

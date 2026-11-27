@@ -7,8 +7,9 @@ import { backdropLink } from "@/shared/lib/backdrop-card-classes";
 import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 
 /**
- * A Trailer's card, drawn as an Episode's: `art` under its name and host, with a "…" to Share it,
- * linking to its host. With `onPlay`, a click plays it here instead; without, it opens in a new tab.
+ * A Trailer's card, drawn as an Episode's: its thumbnail, or the title's `art` without one, under its
+ * name and host, with a "…" to Share it, linking to its host. With `onPlay`, a click plays it here
+ * instead; without, it opens in a new tab.
  */
 export function TrailerTile({
   trailer,
@@ -19,9 +20,14 @@ export function TrailerTile({
   art: { url: string | undefined; thumbhash: Uint8Array | undefined };
   onPlay: (() => void) | undefined;
 }) {
+  // The Server stored the thumbnail, so showing it tells the Trailer's host nothing.
+  const shown =
+    trailer.thumbnailUrl === undefined
+      ? art
+      : { url: trailer.thumbnailUrl, thumbhash: trailer.thumbhash };
   return (
     <BackdropFrame
-      art={{ ...art, sizes: backdropTileSizes, widths: "backdropWidths" }}
+      art={{ ...shown, sizes: backdropTileSizes, widths: "backdropWidths" }}
       caption={<TrailerCaption name={trailer.name} host={trailerHost(trailer.url)} />}
       menu={<TrailerMenu trailer={trailer} />}
     >

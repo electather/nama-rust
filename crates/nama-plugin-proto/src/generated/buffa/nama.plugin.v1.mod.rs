@@ -204,6 +204,8 @@ pub mod __buffa {
         reg.register_json_any(super::__EPISODE_NUMBERS_JSON_ANY);
         reg.register_json_any(super::__EPISODE_NUMBER_JSON_ANY);
         reg.register_json_any(super::__STOPPED_MONITORING_JSON_ANY);
+        reg.register_json_any(super::__FOLLOW_SHOW_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_JSON_ANY);
         reg.register_json_any(super::__UNFOLLOWED_JSON_ANY);
         reg.register_json_any(super::__SHARED_ROWS_ASKED_JSON_ANY);
         reg.register_json_any(super::__USER_ROWS_ASKED_JSON_ANY);
@@ -775,6 +777,14 @@ pub use self::__buffa::view::EpisodeNumberOwnedView;
 pub use self::__buffa::view::StoppedMonitoringView;
 #[doc(inline)]
 pub use self::__buffa::view::StoppedMonitoringOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowShowView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UnfollowedView;
 #[doc(inline)]

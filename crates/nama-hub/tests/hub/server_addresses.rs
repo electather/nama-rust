@@ -426,3 +426,63 @@ async fn a_sign_in_returns_to_its_servers_relay_address(db: PgPool) {
     .await
     .unwrap();
 }
+
+#[sqlx::test(migrations = false)]
+async fn a_server_whose_server_url_is_its_relays_address_lists_it_once(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let relay = "198.51.100.4:443";
+    let own = names_after_reporting_relay(&hub, &living_room, &[], 0, relay)
+        .await
+        .unwrap()
+        .swap_remove(0);
+    // As a Server sends it, through WHATWG's parser: ending in `/`, port 443 left out.
+    let url = format!("https://relay.{own}/");
+
+    linked_server(&hub, &living_room)
+        .set_server_addresses(SetServerAddressesRequest {
+            url: url.clone(),
+            relay: relay.to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [(
+            "Living room".to_owned(),
+            url,
+            vec![format!("https://relay.{own}")]
+        )]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_whose_server_url_is_a_lan_address_lists_it_once_as_its_server_url(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+
+    set_addresses(
+        &hub,
+        &living_room,
+        "http://192.168.1.11:7980/",
+        &["http://192.168.1.10:7980", "http://192.168.1.11:7980"],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [(
+            "Living room".to_owned(),
+            "http://192.168.1.11:7980/".to_owned(),
+            vec![
+                "http://192.168.1.11:7980".to_owned(),
+                "http://192.168.1.10:7980".to_owned()
+            ]
+        )]
+    );
+}

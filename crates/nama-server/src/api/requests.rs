@@ -24,7 +24,8 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::{FoundPageError, TitlePages},
     library::{
-        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
+        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImage, ShownImages,
+        TitleImage,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, LookedUpSeason, QUALITY_ASKED_FIELD,
@@ -471,7 +472,7 @@ fn looked_up_to_proto(
         genres: movie.genres,
         content_rating: movie.content_rating,
         on_watchlist,
-        trailers: trailers_to_proto(movie.trailers),
+        trailers: trailers_to_proto(movie.trailers, no_thumbnail),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -559,7 +560,7 @@ fn looked_up_show_to_proto(
         genres: show.genres,
         content_rating: show.content_rating,
         on_watchlist,
-        trailers: trailers_to_proto(show.trailers),
+        trailers: trailers_to_proto(show.trailers, no_thumbnail),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -582,6 +583,12 @@ fn offered_by<'a>(
             .downloaded(Some(Downloaded::Offered { plugin, path }))
             .url
     }
+}
+
+/// A Found title's Trailer thumbnail, which isn't shown: fetching it on each visit would tell the
+/// Trailer's site about the title, which only a Match's refresh may (#2490).
+fn no_thumbnail(_path: &str) -> ShownImage {
+    ShownImage::default()
 }
 
 const MOVIE_POSTER: TitleImage = TitleImage::Movie(Role::Poster);

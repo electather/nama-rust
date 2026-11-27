@@ -1,7 +1,8 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
-//! Server's opaque credential, the Server Addresses it reports and whether its public port can be
-//! reached (`server_addresses.rs`), its names in the Server-names zone (`names.rs`), Unlinking,
-//! and the tokens signed for a Server once it is Linked and for the Relay it dials out to.
+//! Server's opaque credential, the Server Addresses it reports, whether its public port can be
+//! reached (`server_addresses.rs`), whether the Hub names Servers, its own name, the addresses of the
+//! names under it and every write and removal of them (`names.rs`), Unlinking, and the tokens signed
+//! for a Server once it is Linked and for the Relay it dials out to.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
@@ -13,7 +14,6 @@ mod users;
 
 use std::{
     fmt::{self, Write as _},
-    net::IpAddr,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -23,6 +23,7 @@ use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use self::names::Names;
 use crate::{
     accounts::{self, AccountId, AccountSession, Accounts, RecentAuthenticationRequired},
     dns::{DnsError, ServerNames},
@@ -32,6 +33,7 @@ use crate::{
 
 pub(crate) use self::{
     invites::{InviteId, ListedInvite},
+    names::MAX_CHALLENGE_VALUES,
     server_addresses::{ADDRESS_LENGTH, MAX_LAN_ADDRESSES, ReportedAddresses},
     server_sign_ins::SignInId,
     users::{LinkId, ListedUser},
@@ -52,13 +54,6 @@ const CODE_LETTERS: &[u8] = b"BCDFGHJKLMNPQRSTVWXZ";
 
 /// How many letters a code has: 20^8 codes, against the few waiting at once.
 const CODE_LENGTH: usize = 8;
-
-/// The most certificate challenge values a Server may publish at once: one for its own name, one
-/// for the wildcard under it.
-pub(crate) const MAX_CHALLENGE_VALUES: usize = 2;
-
-/// How long a DNS-01 challenge's value is: a SHA-256 digest in unpadded base64url (RFC 8555).
-const CHALLENGE_VALUE_LENGTH: usize = 43;
 
 /// The audience of the token a Server shows a Relay, which the Relay checks (ADR 0057).
 const RELAY_AUDIENCE: &str = "relay";
@@ -108,7 +103,8 @@ pub(crate) struct ListedServer {
     /// The Server URL its Admin set, or empty for none.
     pub(crate) url: String,
     /// The Server Addresses a client tries, best first: the Server URL, then the public address
-    /// the Hub reached, then its Relay, then the LAN addresses, plain `http://<lan-ip>` (ADR 0057).
+    /// the Hub reached, then its Relay, then the LAN addresses, plain `http://<lan-ip>` (ADR 0057),
+    /// each origin once.
     pub(crate) addresses: Vec<String>,
 }
 
@@ -202,8 +198,7 @@ pub(crate) struct Links {
     db: PgPool,
     accounts: Accounts,
     keys: Arc<Keys>,
-    /// Without it, the Hub names no Server.
-    names: Option<ServerNames>,
+    names: Names,
     /// How the Hub tries a Server's public port.
     probe: Arc<dyn Probe>,
 }
@@ -217,10 +212,10 @@ impl Links {
         probe: Arc<dyn Probe>,
     ) -> Self {
         Self {
+            names: Names::new(db.clone(), names),
             db,
             accounts,
             keys,
-            names,
             probe,
         }
     }
@@ -360,79 +355,26 @@ impl Links {
         Ok(Polled::Linked { credential, token })
     }
 
-    /// Points `server`'s own name at `public`, if any, a name under it at each private IPv4
-    /// address among its `lan_addresses`, and its Relay's name at `relay`, if any, and answers its
-    /// names: none while the Hub names no Server.
-    async fn write_names(
-        &self,
-        server: LinkedServerId,
-        public: Option<IpAddr>,
-        lan_addresses: &[String],
-        relay: Option<IpAddr>,
-    ) -> Result<Vec<String>, DnsError> {
-        let Some(server_names) = &self.names else {
-            return Ok(Vec::new());
-        };
-        let own = names::own_name(server, &server_names.zone);
-        let records = names::records(&own, public, lan_addresses, relay);
-        let shown = names::shown(&own, &records);
-        server_names.records.replace(&own, records).await?;
-        Ok(shown)
-    }
-
     /// A token proving to a Relay that `server` holds its own name, which the Relay then routes
     /// to it (ADR 0057).
     pub(crate) fn relay_token(&self, server: &LinkedServer) -> Result<String, Error> {
-        let server_names = self.names.as_ref().ok_or(Error::NamesOff)?;
         let iat = issued_at();
         Ok(self.keys.sign(&RelayClaims {
-            sub: names::own_name(server.id, &server_names.zone),
+            sub: self.names.own_name(server.id)?,
             aud: RELAY_AUDIENCE,
             iat,
             exp: iat + TOKEN_LIFETIME_SECS,
         }))
     }
 
-    /// Removes every record under `server`'s own name, its certificate challenge's included, if
-    /// the Hub names Servers.
-    async fn forget_names(&self, server: LinkedServerId) -> Result<(), DnsError> {
-        if let Some(server_names) = &self.names {
-            let own = names::own_name(server, &server_names.zone);
-            server_names.records.replace(&own, Vec::new()).await?;
-            (server_names.records)
-                .replace_texts(&names::challenge_name(&own), Vec::new())
-                .await?;
-        }
-        Ok(())
-    }
-
-    /// Makes `values` the only TXT records at `_acme-challenge.<own name>`, `server`'s DNS-01
-    /// challenge for a certificate for its names (ADR 0057), or removes them when it is empty.
+    /// Makes `values` the only TXT records of `server`'s DNS-01 challenge for a certificate for
+    /// its names (ADR 0057), or removes them when it is empty (`names.rs`).
     pub(crate) async fn set_challenge(
         &self,
         server: &LinkedServer,
         values: Vec<String>,
     ) -> Result<(), Error> {
-        if values.len() > MAX_CHALLENGE_VALUES || !values.iter().all(|value| is_challenge(value)) {
-            return Err(Error::ChallengeInvalid);
-        }
-        let server_names = self.names.as_ref().ok_or(Error::NamesOff)?;
-        let own = names::own_name(server.id, &server_names.zone);
-        server_names
-            .records
-            .replace_texts(&names::challenge_name(&own), values)
-            .await?;
-        // As a report does, for an Unlink that removed the challenge while it was being written.
-        let linked = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT FROM linked_servers WHERE id = $1) AS "linked!""#,
-            server.id.0,
-        )
-        .fetch_one(&self.db)
-        .await?;
-        if !linked {
-            self.forget_names(server.id).await?;
-        }
-        Ok(())
+        self.names.publish_challenge(server.id, values).await
     }
 
     /// The Linked Server whose credential is `credential`, if it is still Linked.
@@ -454,15 +396,13 @@ impl Links {
     /// Unlinks `server`: its credential stops working at once, and its names are gone. While its
     /// names can't be removed, it stays Linked.
     pub(crate) async fn unlink(&self, server: &LinkedServer) -> Result<(), Error> {
-        self.forget_names(server.id).await?;
-        sqlx::query!("DELETE FROM linked_servers WHERE id = $1", server.id.0)
-            .execute(&self.db)
-            .await?;
-        // Again, for a report that named the Server between the first removal and the delete.
-        if let Err(err) = self.forget_names(server.id).await {
-            tracing::error!(server = %server.id, "an Unlinked Server's names may stay: {err}");
-        }
-        Ok(())
+        let removal = async {
+            sqlx::query!("DELETE FROM linked_servers WHERE id = $1", server.id.0)
+                .execute(&self.db)
+                .await?;
+            Ok(())
+        };
+        self.names.unlink(server.id, removal).await
     }
 
     /// Deletes `session`'s Account, as [`Accounts::delete`] does, then the names of the Linked
@@ -479,11 +419,9 @@ impl Links {
         .fetch_all(&self.db)
         .await?;
         self.accounts.delete(session).await?;
-        for server in owned.into_iter().map(LinkedServerId) {
-            if let Err(err) = self.forget_names(server).await {
-                tracing::error!(%server, "the names of a deleted Account's Server stay: {err}");
-            }
-        }
+        (self.names)
+            .forget_deleted(owned.into_iter().map(LinkedServerId))
+            .await;
         Ok(())
     }
 
@@ -508,13 +446,6 @@ fn issued_at() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
-}
-
-/// Whether `value` is a DNS-01 challenge's value. Only base64url, so it can't break out of the TXT
-/// record it is written into.
-fn is_challenge(value: &str) -> bool {
-    value.len() == CHALLENGE_VALUE_LENGTH
-        && (value.bytes()).all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
 /// `name` as the Hub keeps it: trimmed, and cut to [`NAME_LENGTH`] characters.

@@ -28,6 +28,7 @@ mod empty_folders;
 mod events;
 mod featured;
 mod fix_match;
+mod followed_shows;
 mod genres_people;
 mod home_layout_order;
 mod home_rows;

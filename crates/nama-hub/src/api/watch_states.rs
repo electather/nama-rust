@@ -1,21 +1,57 @@
-//! The conversions `LinkedServerService.PushWatchStates` and `PullWatchStates` use.
+//! Watch States for a Linked Server: `LinkedServerService.PushWatchStates` and `PullWatchStates`,
+//! and the conversions and refusals they use.
 
-use connectrpc::ConnectError;
-use nama_hub_proto::nama::hub::v1::{self as proto, RefusalReason};
+use connectrpc::{ConnectError, RequestContext, Response, ServiceResult};
+use nama_hub_proto::nama::hub::v1::{
+    self as proto, PullWatchStatesRequest, PullWatchStatesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RefusalReason,
+};
 
-use super::refuse;
-use crate::sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange};
+use super::{
+    hub_failed,
+    links::{LinkedServerServiceHandler, linked_server},
+    refuse, sync_refused,
+};
+use crate::{
+    sync::{self, MAX_CHANGES, MAX_IDS, Part, WatchStateChange},
+    titles::ExternalId,
+};
 
-/// `changes` as `sync` takes them, or the refusal of the first limit they break.
+pub(super) async fn push_watch_states(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: PushWatchStatesRequest,
+) -> ServiceResult<PushWatchStatesResponse> {
+    let server = linked_server(ctx)?;
+    let changes = changes_from_proto(request.changes)?;
+    (handler.watch_states)
+        .push(&handler.links, server, changes)
+        .await
+        .map_err(|err| sync_refused(&err, "changes", invalid_change))?;
+    Response::ok(PushWatchStatesResponse::default())
+}
+
+pub(super) async fn pull_watch_states(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: PullWatchStatesRequest,
+) -> ServiceResult<PullWatchStatesResponse> {
+    let pulled = handler
+        .watch_states
+        .pull(&handler.links, linked_server(ctx)?, request.user_id)
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(PullWatchStatesResponse {
+        watch_states: pulled.into_iter().map(change_to_proto).collect(),
+        ..Default::default()
+    })
+}
+
+/// `changes` as `sync` takes them, or the refusal of the first that a `WatchStateChange` can't
+/// hold. `sync` checks the rest.
 pub(super) fn changes_from_proto(
     changes: Vec<proto::WatchStateChange>,
 ) -> Result<Vec<WatchStateChange>, ConnectError> {
-    if changes.len() > MAX_CHANGES {
-        return Err(invalid_change(
-            "changes",
-            format!("a push holds up to {MAX_CHANGES} changes"),
-        ));
-    }
     (changes.into_iter().enumerate())
         .map(|(nth, change)| change_from_proto(nth, change))
         .collect()
@@ -26,29 +62,20 @@ fn change_from_proto(
     nth: usize,
     change: proto::WatchStateChange,
 ) -> Result<WatchStateChange, ConnectError> {
-    let field = |name: &str| format!("changes[{nth}].{name}");
-    let id_fits = |id: &String| !id.is_empty() && id.chars().count() <= MAX_ID_LENGTH;
-    if !(1..=MAX_IDS).contains(&change.ids.len()) || !change.ids.iter().all(id_fits) {
-        return Err(invalid_change(
-            &field("ids"),
-            format!(
-                "a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters"
-            ),
-        ));
-    }
-    let duration_ms = i64::try_from(change.duration_ms)
-        .map_err(|_too_long| invalid_change(&field("duration_ms"), "the duration is too long"))?;
-    let position_ms = (i64::try_from(change.position_ms).ok())
-        .filter(|&position_ms| position_ms <= duration_ms)
-        .ok_or_else(|| {
-            invalid_change(&field("position_ms"), "the position is past the duration")
-        })?;
-    if !(0..=MAX_CHANGED_AT_MS).contains(&change.changed_at_ms) {
-        return Err(invalid_change(
-            &field("changed_at_ms"),
-            "a change is dated from 1970 to the end of 9999",
-        ));
-    }
+    let duration_ms = i64::try_from(change.duration_ms).map_err(|_too_long| {
+        invalid_change(
+            &format!("changes[{nth}].duration_ms"),
+            "the duration is too long",
+        )
+    })?;
+    // Too long for a duration, so past any.
+    let position_ms = i64::try_from(change.position_ms).map_err(|_too_long| {
+        let past = sync::Error::Invalid {
+            nth,
+            part: Part::Position,
+        };
+        sync_refused(&past, "changes", invalid_change)
+    })?;
     Ok(WatchStateChange {
         user_id: change.user_id,
         episode: change.episode,
@@ -81,6 +108,6 @@ fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
         .field(field)
         .param("maxChanges", &MAX_CHANGES)
         .param("maxIds", &MAX_IDS)
-        .param("maxIdLength", &MAX_ID_LENGTH)
+        .param("maxIdLength", &ExternalId::MAX_LENGTH)
         .into()
 }

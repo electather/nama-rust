@@ -20,3 +20,5 @@ mod titles;
 mod track_preferences;
 mod users_from_accounts;
 mod viewing;
+mod watch_states;
+mod watchlists;

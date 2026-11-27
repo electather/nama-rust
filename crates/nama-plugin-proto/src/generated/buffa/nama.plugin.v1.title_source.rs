@@ -4964,6 +4964,17 @@ pub struct Trailer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub official: bool,
+    /// Its thumbnail's URL, which the Kernel downloads through the `title_image` export as it does
+    /// a path, so a client never fetches it from the site. A YouTube one ending
+    /// `/maxresdefault.jpg` falls back to `/hqdefault.jpg` where the site has none.
+    ///
+    /// Field 5: `thumbnail_url`
+    #[serde(
+        rename = "thumbnailUrl",
+        alias = "thumbnail_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub thumbnail_url: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4975,6 +4986,7 @@ impl ::core::fmt::Debug for Trailer {
             .field("key", &self.key)
             .field("name", &self.name)
             .field("official", &self.official)
+            .field("thumbnail_url", &self.thumbnail_url)
             .finish()
     }
 }
@@ -4984,6 +4996,18 @@ impl Trailer {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Trailer";
+}
+impl Trailer {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::thumbnail_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_thumbnail_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.thumbnail_url = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Trailer);
 impl ::buffa::MessageName for Trailer {
@@ -5017,6 +5041,9 @@ impl ::buffa::Message for Trailer {
         if self.official {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if let Some(ref v) = self.thumbnail_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5038,6 +5065,9 @@ impl ::buffa::Message for Trailer {
         }
         if self.official {
             ::buffa::types::put_bool_field(4u32, self.official, buf);
+        }
+        if let Some(ref v) = self.thumbnail_url {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5080,6 +5110,18 @@ impl ::buffa::Message for Trailer {
                 )?;
                 self.official = ::buffa::types::decode_bool(buf)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .thumbnail_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5092,6 +5134,7 @@ impl ::buffa::Message for Trailer {
         self.key.clear();
         self.name.clear();
         self.official = false;
+        self.thumbnail_url = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

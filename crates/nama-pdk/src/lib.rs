@@ -14,8 +14,8 @@ pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
         Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, CheckedSettings,
-        ConnectionStarted, Download, Episode, EpisodeAnswer, EpisodeAsked, Fulfilled, Image,
-        ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer, Notification, Point, Request,
+        ConnectionStarted, Download, Episode, EpisodeAnswer, EpisodeAsked, FollowShow, Fulfilled,
+        Image, ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer, Notification, Point, Request,
         SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, SettingField, SettingKind,
         SettingValue, Show, ShowAnswer, StopMonitoring, TitleAsked, TitleId, TitleKind,
         delivery::Recipient, setting_value,
@@ -277,7 +277,8 @@ pub trait Fulfiller {
     /// kinds tells a Movie Request from a Season one by which it holds.
     ///
     /// A Season Request naming a Followed Show in `followed_show_id` also asks it to follow the
-    /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`].
+    /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`]. The
+    /// Server also asks [`Fulfiller::follow`] as the Followed Show becomes Approved.
     ///
     /// # Errors
     ///
@@ -288,8 +289,22 @@ pub trait Fulfiller {
     /// error's message is the reason the Request shows as Failed.
     fn fulfill(request: Request) -> Result<Fulfilled, Error>;
 
-    /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
-    /// Followed Show ended. A Plugin that never follows, such as one for Movies, leaves it be.
+    /// Follows `show`, whose Followed Show became Approved: has the service fetch the Seasons that
+    /// come out from now on, at `show`'s quality profile, but none already out. A hand-off naming
+    /// the Followed Show asks to follow too, so following must be idempotent. A Plugin that never
+    /// follows, such as one for Movies, leaves it be.
+    ///
+    /// # Errors
+    ///
+    /// [`TryAgainIn`] when the service can't be told yet: the Server asks again after that long.
+    /// Otherwise when the service couldn't be told. The Server logs the error's message.
+    fn follow(_show: FollowShow) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Stops following the Show `request` is a Season of, as a hand-off or [`Fulfiller::follow`]
+    /// asked it to, since its Followed Show ended. A Plugin that never follows, such as one for
+    /// Movies, leaves it be.
     ///
     /// # Errors
     ///
@@ -321,9 +336,9 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
-/// The error a [`Fulfiller`] returns from `fulfill`, `unfollow` or `stop_monitoring`, or a
-/// [`SegmentSource`] from `search`, when the service can't act yet, such as Sonarr still adding a
-/// Show or a rate limit reached: the Server asks again with the same input after this long,
+/// The error a [`Fulfiller`] returns from `fulfill`, `follow`, `unfollow` or `stop_monitoring`, or
+/// a [`SegmentSource`] from `search`, when the service can't act yet, such as Sonarr still adding
+/// a Show or a rate limit reached: the Server asks again with the same input after this long,
 /// clamped to 1 to 300 seconds, while the Plugin stays enabled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TryAgainIn(pub Duration);
@@ -348,18 +363,20 @@ impl TryAgainIn {
     }
 }
 
-/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow`, `stop_monitoring` and `progress`,
-/// taking and returning the `nama.plugin.v1` messages the Server exchanges with them. A
-/// [`TryAgainIn`] error from the first three becomes their answer's `retry_after_seconds`.
+/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `follow`, `unfollow`, `stop_monitoring` and
+/// `progress`, taking and returning the `nama.plugin.v1` messages the Server exchanges with them. A
+/// [`TryAgainIn`] error from the first four becomes their answer's `retry_after_seconds`.
 #[macro_export]
 macro_rules! fulfiller {
     ($fulfiller:ty) => {
         const _: () = {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
-                Buffa, FnResult, Fulfiller, Request, StopMonitoring, TryAgainIn, extism_pdk,
+                Buffa, FnResult, FollowShow, Fulfiller, Request, StopMonitoring, TryAgainIn,
+                extism_pdk,
                 nama_plugin_proto::nama::plugin::v1::{
-                    Downloads, Fulfilled, Progress, ProgressAsked, StoppedMonitoring, Unfollowed,
+                    Downloads, Followed, Fulfilled, Progress, ProgressAsked, StoppedMonitoring,
+                    Unfollowed,
                 },
                 plugin_fn,
             };
@@ -372,6 +389,20 @@ macro_rules! fulfiller {
                         Some(seconds) => Ok(Buffa(Fulfilled {
                             retry_after_seconds: Some(seconds),
                             ..Fulfilled::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
+            }
+
+            #[plugin_fn]
+            pub fn follow(Buffa(show): Buffa<FollowShow>) -> FnResult<Buffa<Followed>> {
+                match <$fulfiller as Fulfiller>::follow(show) {
+                    Ok(()) => Ok(Buffa(Followed::default())),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(Followed {
+                            retry_after_seconds: Some(seconds),
+                            ..Followed::default()
                         })),
                         None => Err(error.into()),
                     },

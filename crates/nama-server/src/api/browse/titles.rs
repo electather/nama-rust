@@ -12,7 +12,7 @@ use crate::{
     },
     browse::{self, Episode, Featured, Started},
     home_rows::RowTitle,
-    library::{OnServer, Roles, ShownImages, Trailer, WatchState},
+    library::{OnServer, Roles, ShownImage, ShownImages, Trailer, WatchState},
 };
 
 use super::{
@@ -140,13 +140,22 @@ pub(in crate::api) fn roles_to_proto(
     (cast, crew)
 }
 
-/// A title's Trailers, as clients see them.
-pub(in crate::api) fn trailers_to_proto(trailers: Vec<Trailer>) -> Vec<proto::Trailer> {
+/// A title's Trailers as clients see them, each thumbnail as `thumbnail(its path)` shows it.
+pub(in crate::api) fn trailers_to_proto(
+    trailers: Vec<Trailer>,
+    thumbnail: impl Fn(&str) -> ShownImage,
+) -> Vec<proto::Trailer> {
     (trailers.into_iter())
-        .map(|trailer| proto::Trailer {
-            name: trailer.name,
-            url: trailer.url,
-            ..Default::default()
+        .map(|trailer| {
+            let shown = trailer.thumbnail.as_deref().map(&thumbnail);
+            let shown = shown.unwrap_or_default();
+            proto::Trailer {
+                name: trailer.name,
+                url: trailer.url,
+                thumbnail_url: shown.url,
+                thumbhash: shown.thumbhash,
+                ..Default::default()
+            }
         })
         .collect()
 }

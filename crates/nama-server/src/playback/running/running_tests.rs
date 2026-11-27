@@ -14,14 +14,14 @@ use tokio::task::JoinHandle;
 
 use super::{
     FallbackRun, Method, RunningPlans, RunningTranscodes, Runs, StartError, sweep_leftovers,
-    testing::{FakeRuns, every_two_seconds},
+    testing::{FakeRuns, direct_play_of, every_two_seconds},
 };
 use crate::{
     db::Database,
     events::{EventBus, Filter, event},
     ffmpeg::{Accel, Ffmpeg, Hardware},
     library::Contents,
-    playback::{ProbePasses, Probing, WholeFileReads, subtitles},
+    playback::{ProbePasses, Probing, WholeFileReads, subtitles, viewer_of_caller},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
     signed_urls::Viewer,
@@ -534,11 +534,8 @@ async fn a_direct_play_is_kept_while_its_file_is_sent_and_then_ends() {
     let late_part = futures_util::stream::once(async {
         tokio::time::sleep(Duration::from_millis(100)).await;
     });
-    let mut file = std::pin::pin!(plans.ask_direct_plays_while_sending(
-        version,
-        Some(viewer(device)),
-        late_part
-    ));
+    let mut file =
+        std::pin::pin!(plans.ask_direct_plays_while_sending(version, viewer(device), late_part));
 
     file.next().await;
     plans.stop_unused(Duration::from_millis(50)).await;
@@ -678,26 +675,6 @@ async fn the_sweep_deletes_plan_folders_in_the_set_and_default_folders_and_nothi
     assert!(others.exists());
 }
 
-/// A plan Direct Playing the Version `version`.
-pub(super) fn direct_play_of(version: i64) -> crate::playback::Plan {
-    crate::playback::Plan {
-        version,
-        playing: Some(crate::playback::Playing::DirectPlay),
-        tracks: vec![],
-        reasons: vec![],
-        subtitles: vec![],
-        limit: None,
-        audio: None,
-        burn_in: None,
-        starting_subtitle: None,
-        offers: crate::playback::Offers::default(),
-        chapters: vec![],
-        segments: vec![],
-        preview_frames: None,
-        subtitle_offsets: crate::playback::SubtitleOffsets::default(),
-    }
-}
-
 pub(super) fn ripley() -> crate::users::Caller {
     use crate::users::{Caller, Device, Permissions, User};
 
@@ -724,9 +701,15 @@ async fn a_version_being_deleted_starts_no_plan_until_it_is_gone() {
     let plans = running_plans(data.path()).await;
     let deleting = plans.end_for_deleting(&[4]).await;
 
-    let while_deleting = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
+    let while_deleting = plans
+        .start(viewer_of_caller(&ripley()), direct_play_of(4), 0)
+        .await
+        .unwrap();
     drop(deleting);
-    let after = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
+    let after = plans
+        .start(viewer_of_caller(&ripley()), direct_play_of(4), 0)
+        .await
+        .unwrap();
 
     assert!(while_deleting.is_none());
     assert!(after.is_some());

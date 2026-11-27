@@ -322,7 +322,7 @@ A title's Roles that are jobs, such as Director or Creator.
 _Avoid_: staff, credits
 
 **Trailer**:
-A video advertising a Movie or Show, kept as a link to where it is hosted. Nama plays it only in its host's own player, loaded once a User opens it.
+A video advertising a Movie or Show, kept as a link to where it is hosted, with the thumbnail the Server stores from there when the title's Matches are refreshed. Nama plays it only in its host's own player, loaded once a User opens it.
 _Avoid_: clip, teaser, preview
 
 **Similar titles**:
@@ -438,6 +438,10 @@ _Avoid_: trickplay, thumbnail, BIF
 **Base Layer**:
 The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, as in profile 5: a Dolby Vision player shows them as they are, and any other player only through a Transcode, which converts it by its RPU to HDR10 on hardware making HEVC for a Device showing HDR, and else to SDR.
 _Avoid_: fallback layer, compatibility layer
+
+**Viewer**:
+The User and Device a request for media acts as, from its session or from the signed URL it uses. A plan plays only for its Viewer, and a Version's media goes only to a Viewer whose User may see it.
+_Avoid_: watcher, player, audience
 
 **Direct Play**:
 Playing a Version's file exactly as it is.

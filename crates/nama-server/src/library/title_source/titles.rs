@@ -163,6 +163,11 @@ pub(crate) struct Trailer {
     pub(crate) name: String,
     /// Its `https` URL on `YouTube` or Vimeo.
     pub(crate) url: String,
+    /// Its thumbnail's path, to pass to the title source's `image`, which artwork keeps while
+    /// some Match stores the title.
+    // `match_images.rs` finds it by this name in `title_details.trailers`' JSON: renaming it
+    // drops every stored thumbnail.
+    pub(crate) thumbnail: Option<String>,
 }
 
 /// How many Trailers a title keeps, whatever its source sends.
@@ -483,7 +488,11 @@ fn trailer(trailer: wire::Trailer) -> Option<Trailer> {
     } else {
         trailer.name
     };
-    Some(Trailer { name, url })
+    Some(Trailer {
+        name,
+        url,
+        thumbnail: trailer.thumbnail_url.filter(|path| !path.is_empty()),
+    })
 }
 
 pub(super) fn season(season: wire::Season) -> Result<Season, MetadataError> {

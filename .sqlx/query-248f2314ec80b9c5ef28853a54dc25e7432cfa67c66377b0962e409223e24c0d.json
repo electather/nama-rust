@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, relay_address = $3\n             WHERE id = $4",
+  "query": "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, relay = $3\n             WHERE id = $4",
   "describe": {
     "columns": [],
     "parameters": {
@@ -13,5 +13,5 @@
     },
     "nullable": []
   },
-  "hash": "ad88540030809a52d32cc34d94ac9e1154031d05015ba0d76a53b35cd201ae7a"
+  "hash": "248f2314ec80b9c5ef28853a54dc25e7432cfa67c66377b0962e409223e24c0d"
 }

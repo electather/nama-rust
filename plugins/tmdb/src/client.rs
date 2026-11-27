@@ -31,7 +31,7 @@ use crate::{
     Endpoints,
     wire::{
         Collection, EpisodeDetails, Found, Images, MovieDetails, MovieResult, Page,
-        Recommendations, SeasonDetails, ShowDetails, ShowResult,
+        Recommendations, SeasonDetails, ShowDetails, ShowResult, YOUTUBE_THUMBNAILS,
     },
 };
 
@@ -251,6 +251,22 @@ impl Client {
             status => Err(failed(format!("TMDB answered {status}"))),
         }
     }
+}
+
+/// The name of the TMDB image at `path`, a single `/name.ext` as TMDB gives them.
+fn tmdb_image(path: &str) -> Option<&str> {
+    let name = path.strip_prefix('/').unwrap_or(path);
+    let other = name.is_empty() || name.contains(['/', '\\', '?', '#']) || name.contains("..");
+    (!other).then_some(name)
+}
+
+/// The video key and file name in `rest`, what follows [`YOUTUBE_THUMBNAILS`] in a Trailer's
+/// `thumbnail_url`, if it names one of the thumbnails the Kernel asks for and nothing else.
+fn youtube_thumbnail(rest: &str) -> Option<(&str, &str)> {
+    let (key, name) = rest.strip_prefix('/')?.split_once('/')?;
+    let safe_key = !key.is_empty()
+        && (key.bytes()).all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_');
+    (safe_key && matches!(name, "maxresdefault.jpg" | "hqdefault.jpg")).then_some((key, name))
 }
 
 /// `tt` and digits, as IMDb's title ids are.
@@ -477,13 +493,17 @@ impl TitleSource for Client {
         asked: &'a ImageAsked,
     ) -> BoxFuture<'a, Result<ImageAnswer, MetadataError>> {
         Box::pin(async move {
-            // TMDB's image paths are a single `/name.ext`; anything else isn't one of its images.
-            let name = asked.path.strip_prefix('/').unwrap_or(&asked.path);
-            if name.is_empty() || name.contains(['/', '\\', '?', '#']) || name.contains("..") {
+            let url = match asked.path.strip_prefix(YOUTUBE_THUMBNAILS) {
+                Some(thumbnail) => youtube_thumbnail(thumbnail).map(|(key, name)| {
+                    format!("{}/{key}/{name}", self.endpoints.youtube_thumbnails)
+                }),
+                None => tmdb_image(&asked.path)
+                    .map(|name| format!("{}/{IMAGE_SIZE}/{name}", self.endpoints.images)),
+            };
+            let Some(url) = url else {
                 return Ok(ImageAnswer::default());
-            }
-            let url = Url::parse(&format!("{}/{IMAGE_SIZE}/{name}", self.endpoints.images))
-                .map_err(failed)?;
+            };
+            let url = Url::parse(&url).map_err(failed)?;
             let image = self.get(url).await?.map(|(content_type, bytes)| Image {
                 content_type: content_type.unwrap_or_else(|| "image/jpeg".to_owned()),
                 bytes: bytes.to_vec(),
