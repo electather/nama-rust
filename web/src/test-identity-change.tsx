@@ -10,7 +10,11 @@ import {
 } from "@tanstack/react-router";
 import { render, waitFor } from "@testing-library/react";
 
-import { type IdentityChange, useIdentityChange } from "@/features/auth/data/use-identity-change";
+import {
+  type IdentityChange,
+  useIdentityChange,
+  useSignInIfSessionEnded,
+} from "@/features/auth/data/use-identity-change";
 import type { RouterContext } from "@/shared/hooks/access";
 import type { ServerAt } from "@/shared/lib/server";
 
@@ -30,7 +34,8 @@ export function keptSessionKeys() {
 /**
  * Opens a page at `/start`, after `/before`, that makes `change` at `at`, noting in `log` when the
  * cache is cleared and where the page goes, with whether sessions were kept then. Returns the
- * change, the router, and the cache, which holds something from before.
+ * change, the page's `onError` for a Hub call, the router, and the cache, which holds something
+ * from before.
  */
 export async function openIdentityChange<T>(
   change: IdentityChange<T>,
@@ -44,9 +49,13 @@ export async function openIdentityChange<T>(
       log.push("cache cleared");
     }
   });
-  const made: { change?: ReturnType<typeof useIdentityChange<T>> } = {};
+  const made: {
+    change?: ReturnType<typeof useIdentityChange<T>>;
+    onHubError?: ReturnType<typeof useSignInIfSessionEnded>;
+  } = {};
   function Start() {
     made.change = useIdentityChange(change);
+    made.onHubError = useSignInIfSessionEnded();
     return null;
   }
   const root = createRootRouteWithContext<RouterContext & { serverAt: ServerAt }>()();
@@ -72,12 +81,12 @@ export async function openIdentityChange<T>(
     </TransportProvider>,
   );
   const ready = await waitFor(() => {
-    if (made.change === undefined) {
+    if (made.change === undefined || made.onHubError === undefined) {
       throw new Error("not yet started");
     }
-    return made.change;
+    return { change: made.change, onHubError: made.onHubError };
   });
-  return { change: ready, router, queryClient };
+  return { ...ready, router, queryClient };
 }
 
 const fromBefore = ["from before"];

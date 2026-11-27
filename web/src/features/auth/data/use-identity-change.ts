@@ -149,3 +149,22 @@ async function goOnReplacing<T>(at: At, goOn: GoOn<T>, answer: T) {
   const href = typeof goOn === "function" ? goOn(answer) : (goOn ?? "/");
   await at.navigate({ href, replace: true });
 }
+
+/**
+ * An `onError` for a call to the Hub that sends the Account to sign in, then back to this page,
+ * when its session ended meanwhile, elsewhere or by expiring: trying again could never succeed.
+ */
+export function useSignInIfSessionEnded() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const hub = useRouteContext({ from: "__root__", select: ({ transport }) => transport });
+  // `src/router.tsx` leaves an ended session to the Hub's page: rerunning `_member`'s access check
+  // sends the Account to sign in. The cache and kept sessions wait for that sign-in (#2573).
+  return async (error: Error) => {
+    if (hubRefusalReason(error) === RefusalReason.SIGN_IN_REQUIRED) {
+      await askAgainWhoIsSignedIn({ queryClient, transport: hub }, "account", async () => {
+        await router.invalidate();
+      });
+    }
+  };
+}

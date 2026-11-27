@@ -302,7 +302,7 @@ test("asking the Hub again reruns the access checks once its session ended", asy
 
   await askAgainWhoIsSignedIn(context, "account", rerun);
 
-  expect(rerun).toHaveBeenCalledTimes(1);
+  expect(rerun.mock.calls).toStrictEqual([[]]);
 });
 
 test("asking the Hub again reruns the access checks when an idle page's cache lost the Account", async () => {
@@ -312,7 +312,7 @@ test("asking the Hub again reruns the access checks when an idle page's cache lo
 
   await askAgainWhoIsSignedIn({ queryClient: new QueryClient(), transport }, "account", rerun);
 
-  expect(rerun).toHaveBeenCalledTimes(1);
+  expect(rerun.mock.calls).toStrictEqual([[]]);
 });
 
 test("asking the Hub again leaves the access checks alone while the same Account is signed in", async () => {

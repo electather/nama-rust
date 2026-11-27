@@ -14,7 +14,7 @@ import {
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { WebPushService } from "@/gen/nama/v1/web_push_pb";
-import { whoIsSignedIn } from "@/shared/hooks/access";
+import { signedInAccount, whoIsSignedIn } from "@/shared/hooks/access";
 import type { ServerAt } from "@/shared/lib/server";
 import { fakeServer, newUser } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
@@ -162,28 +162,32 @@ describe("at a Server", () => {
     expect(browser.subscription.unsubscribe).toHaveBeenCalledWith();
   });
 
-  test("a sign-in whose call fails rethrows, and does nothing after it", async () => {
+  const failing = new ConnectError("database is locked", Code.Internal);
+
+  test.each<[string, IdentityChange<unknown>]>([
+    ["a sign-in", { kind: "signed in", goOn: "/next" }],
+    ["a switch", { kind: "switched", goOn: "/next" }],
+  ])("%s whose call fails rethrows, and does nothing after it", async (_name, kind) => {
     const log: string[] = [];
     const at = atServer(log);
-    const { change, router, queryClient } = await openIdentityChange(
-      { kind: "signed in", goOn: "/next" },
-      at,
-      log,
-    );
+    const { change, router, queryClient } = await openIdentityChange(kind, at, log);
 
-    await expect(change(callNoting(log, at, notFound))).rejects.toBe(notFound);
+    await expect(change(callNoting(log, at, failing))).rejects.toBe(failing);
 
     expect(log).toStrictEqual(["call at the Server"]);
     expect(cachedFromBefore(queryClient)).toBe("theirs");
     expect(router.state.location.pathname).toBe("/start");
   });
 
-  test("a sign-out whose call fails rethrows, having left push all the same", async () => {
+  test.each<[string, IdentityChange<unknown>]>([
+    ["signing the User out", { kind: "user signed out" }],
+    ["signing the Device out", { kind: "device signed out" }],
+  ])("%s, when its call fails, rethrows, having left push all the same", async (_name, kind) => {
     const log: string[] = [];
     const at = atServer(log);
-    const { change, queryClient } = await openIdentityChange({ kind: "user signed out" }, at, log);
+    const { change, queryClient } = await openIdentityChange(kind, at, log);
 
-    await expect(change(callNoting(log, at, notFound))).rejects.toBe(notFound);
+    await expect(change(callNoting(log, at, failing))).rejects.toBe(failing);
 
     expect(log).toStrictEqual(["push left", "call at the Server"]);
     expect(cachedFromBefore(queryClient)).toBe("theirs");
@@ -205,7 +209,7 @@ describe("at a Server", () => {
 
     await expect(change(callNoting(log, at, notFound))).rejects.toBe(notFound);
 
-    expect(rerun).toHaveBeenCalledTimes(1);
+    expect(rerun.mock.calls).toStrictEqual([[]]);
     const asked = await whoIsSignedIn({ queryClient, transport: at.server });
     expect(asked?.deviceUsers.map(({ id }) => id)).toStrictEqual([1n]);
   });
@@ -246,15 +250,15 @@ describe("at the Hub", () => {
     for (const { id } of servers) {
       localStorage.setItem(serverSessionKey(ada.id, id), `${id} token`);
     }
-    const { transport } = accountHub({ servers: [] });
+    const { hub, transport } = accountHub({ servers: [] });
     const device = { deviceUsers: [1n], refusesPush: false };
     const at = { server: serverWithPush(log, device), hub: transport, serverAt };
-    return { at, signedOut };
+    return { at, hub, signedOut };
   }
 
   /** Opens the change at the Hub, with the Account's Servers in the cache. */
   async function openAtHub<T>(change: IdentityChange<T>, log: string[]) {
-    const { at, signedOut } = atHub(log);
+    const { at, hub, signedOut } = atHub(log);
     const opened = await openIdentityChange(change, at, log);
     const linkedServers = createConnectQueryKey({
       schema: LinkService.method.listLinkedServers,
@@ -266,7 +270,7 @@ describe("at the Hub", () => {
       linkedServers,
       create(ListLinkedServersResponseSchema, { servers }),
     );
-    return { ...opened, at, signedOut };
+    return { ...opened, at, hub, signedOut };
   }
 
   const signInRequired = hubRefused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
@@ -339,17 +343,42 @@ describe("at the Hub", () => {
     expect(log).toStrictEqual(["cache cleared", "replaced with /history"]);
   });
 
-  test.each<[string, IdentityChange<unknown>]>([
-    ["an Account sign-in", { kind: "account signed in", goOn: "/next" }],
-    ["deleting the Account", { kind: "account deleted" }],
-  ])("%s whose call fails rethrows, and keeps the sessions", async (_name, change) => {
+  test.each<[string, IdentityChange<unknown>, ConnectError]>([
+    ["an Account sign-in", { kind: "account signed in", goOn: "/next" }, signInRequired],
+    [
+      "an Account sign-out refused otherwise",
+      { kind: "account signed out", goOn: "/next" },
+      new ConnectError("database is locked", Code.Internal),
+    ],
+    ["deleting the Account", { kind: "account deleted" }, signInRequired],
+  ])("%s whose call fails rethrows, and keeps the sessions", async (_name, change, refusal) => {
     const log: string[] = [];
     const { change: make, at, queryClient } = await openAtHub(change, log);
 
-    await expect(make(callNoting(log, at, signInRequired))).rejects.toBe(signInRequired);
+    await expect(make(callNoting(log, at, refusal))).rejects.toBe(refusal);
 
     expect(log).toStrictEqual(["call at the Hub"]);
     expect(cachedFromBefore(queryClient)).toBe("theirs");
+    expect(keptSessionKeys()).toHaveLength(2);
+  });
+
+  test("a Hub call refused for want of sign-in asks again who is signed in, and reruns the access checks", async () => {
+    const log: string[] = [];
+    const { onHubError, at, hub, router, queryClient } = await openAtHub(
+      { kind: "account signed out", goOn: undefined },
+      log,
+    );
+    await signedInAccount({ queryClient, transport: at.hub });
+    const rerun = vi.spyOn(router, "invalidate");
+    // Ada's session ended elsewhere.
+    hub.signedIn = false;
+
+    await onHubError(signInRequired);
+
+    expect(rerun.mock.calls).toStrictEqual([[]]);
+    await expect(signedInAccount({ queryClient, transport: at.hub })).resolves.toBeNull();
+    // Today's: the cache and the kept sessions wait for the next sign-in (#2573).
+    expect(log).toStrictEqual([]);
     expect(keptSessionKeys()).toHaveLength(2);
   });
 });
