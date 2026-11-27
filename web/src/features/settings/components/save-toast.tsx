@@ -5,8 +5,8 @@ import { useRef } from "react";
 import { StateLabel } from "@/shared/components/state-label";
 
 /**
- * The toast over the foot of a pane that makes each change as it's asked, there only once the
- * Server has refused one: `says` why, until it's dismissed or the next change is made.
+ * The toast over the foot of a flex column, such as a pane that makes each change as it's asked,
+ * there only once something fails: `says` why, until it's dismissed or retried.
  */
 export function SaveToast({
   label = "Not saved",
@@ -15,7 +15,7 @@ export function SaveToast({
 }: {
   /** What didn't happen, in two words. */
   label?: string;
-  /** Nothing while no change was refused, or its refusal is said under the field it's about. */
+  /** Nothing while nothing failed, or its refusal is said under the field it's about. */
   says: string | undefined;
   onDismiss: () => void;
 }) {

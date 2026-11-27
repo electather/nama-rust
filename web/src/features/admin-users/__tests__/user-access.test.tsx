@@ -1,9 +1,16 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import type { LibraryAccessSchema, MaximumAgeSchema } from "@/gen/nama/v1/sign_in_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import {
+  type LibraryAccessSchema,
+  type MaximumAgeSchema,
+  Permission,
+} from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { refused } from "@/test-refusal";
 import { dropdown, pick } from "@/test-settings";
 
 afterEach(cleanup);
@@ -20,6 +27,7 @@ async function openUser(name: string) {
 /** A fake Server keeping Alex's Maximum Age and Libraries as they're set, with two Libraries. */
 function keepingAlex() {
   const alex: {
+    permissions?: Permission[];
     maximumAge?: MessageInitShape<typeof MaximumAgeSchema> | undefined;
     libraryAccess?: MessageInitShape<typeof LibraryAccessSchema> | undefined;
   } = {};
@@ -127,5 +135,70 @@ describe("an Admin setting a User's Libraries", () => {
 
     expect(dropdown("Libraries").textContent).toBe("All Libraries");
     expect(screen.queryByRole("switch", { name: "Movies" })).toBeNull();
+  });
+});
+
+describe("manage Users and Chosen Libraries, which the Server never lets a User hold together", () => {
+  const why =
+    "Alex can’t Manage Users while on Chosen Libraries, unless they Manage Libraries too.";
+
+  test("manage Users isn't offered on Chosen Libraries, nor taking Manage Libraries from one who holds both", async () => {
+    const { alex, server } = keepingAlex();
+    alex.libraryAccess = { libraryIds: [2n] };
+    await reopenAlex(server);
+
+    expect(screen.getByRole("checkbox", { name: "Manage Users" })).toMatchObject({
+      checked: false,
+      disabled: true,
+    });
+    expect(screen.getByText(why)).toBeDefined();
+    alex.permissions = [Permission.MANAGE_USERS, Permission.MANAGE_LIBRARIES];
+    await reopenAlex(server);
+
+    expect(screen.getByRole("checkbox", { name: "Manage Libraries" })).toMatchObject({
+      checked: true,
+      disabled: true,
+    });
+    expect(screen.getByRole("checkbox", { name: "Manage Users" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+  });
+
+  test("chosen Libraries isn't offered to a User with Manage Users, unless they Manage Libraries too", async () => {
+    const { alex, server } = keepingAlex();
+    alex.permissions = [Permission.MANAGE_USERS];
+    await reopenAlex(server);
+
+    fireEvent.click(dropdown("Libraries"));
+    const chosen = screen.getByRole("option", { name: "Chosen Libraries" });
+    expect(chosen.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByText("A User with Manage Users sees every Library.")).toBeDefined();
+    alex.permissions = [Permission.MANAGE_USERS, Permission.MANAGE_LIBRARIES];
+    await reopenAlex(server);
+
+    pick("Libraries", "Chosen Libraries");
+    await expect.poll(() => alex.libraryAccess?.libraryIds).toStrictEqual([1n, 2n]);
+  });
+
+  test("a change the Server refuses for it says why", async () => {
+    const server = fakeServer(
+      { signedIn: admin, libraries: [{ id: 1n, name: "Movies" }] },
+      {},
+      {
+        listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }),
+        setLibraryAccess: () => {
+          throw refused(Code.FailedPrecondition, "refused", {
+            reason: RefusalReason.MANAGE_USERS_NEEDS_EVERY_LIBRARY,
+          });
+        },
+      },
+    );
+    await reopenAlex(server);
+
+    pick("Libraries", "Chosen Libraries");
+
+    await expect(screen.findByText(why)).resolves.toBeDefined();
+    expect(dropdown("Libraries").textContent).toBe("All Libraries");
   });
 });

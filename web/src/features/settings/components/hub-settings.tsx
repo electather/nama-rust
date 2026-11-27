@@ -5,7 +5,7 @@ import { useSearch } from "@tanstack/react-router";
 import { ServerPicker } from "@/features/settings/components/server-picker";
 import { SettingsBody } from "@/features/settings/components/settings-body";
 import { useAdminServers } from "@/features/settings/data/use-admin-servers";
-import { type Section, groupsFor } from "@/features/settings/lib/sections";
+import { type SettingsPage, groupsFor } from "@/features/settings/lib/sections";
 
 /**
  * Settings at the Hub: the Account's own, or, once `?manage=` picks one of the Servers its User is
@@ -15,7 +15,7 @@ export function HubSettings({
   section,
   header,
 }: {
-  section: Section;
+  section: SettingsPage;
   header: { titleId: string; onClose: () => void };
 }) {
   const hub = useTransport();

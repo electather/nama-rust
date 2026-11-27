@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { EmailField } from "@/features/auth/components/email-field";
 import { useCreateAccount } from "@/features/auth/data/use-create-account";
-import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
+import { useFinishHubSignIn } from "@/features/auth/data/use-finish-hub-sign-in";
 import { hubErrors } from "@/features/auth/lib/hub-errors";
 import { PasswordField } from "@/shared/components/form-field/password-field";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
@@ -14,7 +14,7 @@ import { textLink } from "@/shared/lib/text-link-classes";
  * `redirect`.
  */
 export function CreateAccount({ redirect }: { redirect: string | undefined }) {
-  const create = useCreateAccount(useFinishSignIn(redirect));
+  const create = useCreateAccount(useFinishHubSignIn(redirect));
   const errors = create.error ? hubErrors(create.error) : {};
   return (
     <SignInLayout
@@ -26,7 +26,7 @@ export function CreateAccount({ redirect }: { redirect: string | undefined }) {
         create.mutate({ email: formText(form, "email"), password: formText(form, "password") });
       }}
       footer={
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-xs text-balance text-muted-foreground">
           Have an Account?{" "}
           <Link to="/sign-in" search={{ redirect }} replace className={textLink}>
             Sign in

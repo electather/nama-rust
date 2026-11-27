@@ -9,8 +9,9 @@ import {
 } from "nama-ui/components/dropdown-menu";
 
 import { useSignOut } from "@/app/data/use-sign-out";
-import { AccountSignOutItem } from "@/app/top-bar/account-sign-out-item";
-import { sectionSearch } from "@/features/settings/lib/sections";
+import { SignOutToast } from "@/app/top-bar/sign-out-toast";
+import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
+import { allSections, sectionSearch } from "@/features/settings/lib/sections";
 
 const watchlistLink = <Link to="/watchlist" />;
 
@@ -22,7 +23,8 @@ const watchlistLink = <Link to="/watchlist" />;
 export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean }) {
   const navigate = useNavigate();
   const here = useLocation({ select: (location) => location.href });
-  const signOut = useSignOut();
+  const signOutAccount = useSignOutAccount();
+  const signOutUser = useSignOut();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -55,25 +57,34 @@ export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean
             // A history entry of its own, so Back closes Settings.
             void navigate({
               to: ".",
-              search: (rest) => ({ ...rest, ...sectionSearch(atHub ? "account" : "playback") }),
+              search: (rest) => ({ ...rest, ...sectionSearch(allSections) }),
             });
           }}
         >
           Settings
         </DropdownMenuItem>
-        {atHub ? (
-          <AccountSignOutItem />
-        ) : (
-          <DropdownMenuItem
-            disabled={signOut.isPending}
-            onClick={() => {
-              signOut.mutate();
-            }}
-          >
-            Sign out
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem
+          disabled={signOutAccount.isPending || signOutUser.isPending}
+          onClick={() => {
+            if (atHub) {
+              signOutAccount.mutate({});
+            } else {
+              signOutUser.mutate();
+            }
+          }}
+        >
+          Sign out
+        </DropdownMenuItem>
       </DropdownMenuContent>
+      {/* Beside the menu's content, not in it, so it outlives the closed menu. */}
+      <SignOutToast
+        error={signOutAccount.error ?? signOutUser.error}
+        atHub={atHub}
+        onDismiss={() => {
+          signOutAccount.reset();
+          signOutUser.reset();
+        }}
+      />
     </DropdownMenu>
   );
 }

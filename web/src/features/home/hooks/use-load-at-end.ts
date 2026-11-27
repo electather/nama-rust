@@ -11,9 +11,7 @@ export function useLoadAtEnd({
 }: {
   shown: number;
   count: number;
-  next:
-    | { has: boolean; load: (options: { cancelRefetch: boolean }) => Promise<unknown> }
-    | undefined;
+  next: { has: boolean; load: (options: { cancelRefetch: boolean }) => unknown } | undefined;
 }) {
   const load = next?.load;
   const atEnd = next?.has === true && shown >= count - 1;

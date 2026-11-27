@@ -65,6 +65,46 @@ export function isFiltered({ genres, from, to, watched }: TitleListing) {
   return [genres, from, to, watched].some((value) => value !== undefined);
 }
 
+/** What the sort menu calls each way `sort` runs, in words. */
+export function orderNames(sort: Sort) {
+  return sort === "title"
+    ? { asc: "A to Z", desc: "Z to A" }
+    : { asc: "Oldest first", desc: "Newest first" };
+}
+
+/** `listing` keeping every title, in its sort. */
+export function unfiltered({ sort, order }: TitleListing): TitleListing {
+  return { sort, order };
+}
+
+/** "1990–1999", "From 1990", "To 1999": the years `listing` keeps, if it keeps some. */
+function yearsName({ from, to }: TitleListing) {
+  if (from === undefined) {
+    return to === undefined ? undefined : `To ${to}`;
+  }
+  return to === undefined ? `From ${from}` : `${from}–${to}`;
+}
+
+/** The name of each filter `listing` has on: its genres, its years, then its Watch State. */
+export function filterNames(listing: TitleListing) {
+  const { genres = [], watched } = listing;
+  const years = yearsName(listing);
+  return [
+    ...genres,
+    ...(years === undefined ? [] : [years]),
+    ...(watched === undefined ? [] : [watchedStates[watched]]),
+  ];
+}
+
+/** "Filter", or "Filter: Crime", "Filter: Crime +2": what the Filter button says is on. */
+export function filterLabel(listing: TitleListing) {
+  const [first, ...more] = filterNames(listing);
+  if (first === undefined) {
+    return "Filter";
+  }
+  return more.length === 0 ? `Filter: ${first}` : `Filter: ${first} +${more.length}`;
+}
+
 /** Which way `listing` runs: as its URL says, else up by title and newest first otherwise. */
 export function isDescending({ sort = "title", order }: TitleListing) {
   return order === undefined ? sort !== "title" : order === "desc";

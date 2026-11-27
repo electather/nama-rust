@@ -16,7 +16,10 @@ mod switch;
 use std::{
     io::{self, Write as _},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, PoisonError, RwLock},
+    sync::{
+        Arc, Mutex, PoisonError, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use axum::{body::Body, http::StatusCode};
@@ -165,8 +168,13 @@ pub struct ImageStore {
     switching: Arc<Mutex<Option<Switching>>>,
     /// Held from fetching an original to resize until its copy is made, so one original at a time
     /// is held in memory for it, and a request that waited behind the one making its copy finds
-    /// it rather than fetching the original again.
-    resizing: Arc<tokio::sync::Mutex<()>>,
+    /// it rather than fetching the original again. It holds the bytes the resized copies take, as
+    /// measured last, or `None` until a copy made ahead first needs it.
+    resizing: Arc<tokio::sync::Mutex<Option<u64>>>,
+    /// Set once copies are deleted, so the next copy made ahead measures the cache again rather
+    /// than skip for bytes no longer there. Apart from `resizing`, so a delete never waits on a
+    /// resize.
+    copies_deleted: Arc<AtomicBool>,
     /// A permit is held by each original read whole, until it is sent or resized, so at most
     /// [`WHOLE_READS`] originals are in memory at once on a small device (ADR 0039, ADR 0052).
     // ponytail: a client that stops reading holds its permit with no timeout, so a few stalled
@@ -246,6 +254,7 @@ impl ImageStore {
             store: Arc::new(RwLock::new(store)),
             switching: Arc::default(),
             resizing: Arc::default(),
+            copies_deleted: Arc::default(),
             reading: Arc::new(tokio::sync::Semaphore::new(WHOLE_READS)),
             writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
@@ -408,12 +417,13 @@ impl ImageStore {
     ///
     /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
-        self.forget_thumbhashes(key).await?;
         let row = row_key(key);
-        {
-            let _writing = self.write_lock(&row).lock().await;
-            self.blobs().delete(&row).await?;
-        }
+        // Held throughout, as a resize of the image holds it: one finishing mid-delete would
+        // write copies into the folder being removed, failing the delete (#2520), and keep a
+        // thumbhash after it was forgotten.
+        let _writing = self.write_lock(&row).lock().await;
+        self.forget_thumbhashes(key).await?;
+        self.blobs().delete(&row).await?;
         self.delete_copies(key).await
     }
 
@@ -487,7 +497,9 @@ impl ImageStore {
     /// `key` again, which then never gets a thumbhash, or is sent as stored where it could be
     /// resized.
     async fn delete_copies(&self, key: &[&str]) -> io::Result<()> {
-        unless_gone(tokio::fs::remove_dir_all(self.copies_path(key)).await)
+        let deleted = unless_gone(tokio::fs::remove_dir_all(self.copies_path(key)).await);
+        self.copies_deleted.store(true, Ordering::Release);
+        deleted
     }
 
     /// The key of every image stored under `dir`, each starting with `dir`.

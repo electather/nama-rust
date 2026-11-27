@@ -1,9 +1,14 @@
+use axum::http::StatusCode;
 use buffa::Enumeration;
-use nama_proto::nama::v1::Permission;
+use nama_proto::nama::v1::{InboxNotification, Permission};
 use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 
 use super::{rate_limits::Attempt, *};
-use crate::plugins::Registry;
+use crate::{
+    plugins::Registry,
+    server_settings::web_push_key,
+    web_push::{Pusher, browser, push_service, push_to_subscriptions, subscribe},
+};
 
 async fn create_user(db: &Database, name: &str) -> Result<User, Error> {
     let name = name.to_owned();
@@ -39,15 +44,7 @@ async fn ada(data_dir: &std::path::Path) -> (Users, User) {
 async fn signed_in_device(data_dir: &std::path::Path) -> (Users, i64) {
     let (users, ada) = ada(data_dir).await;
     let signed_in_at = now();
-    users
-        .db
-        .write(move |tx| {
-            Box::pin(async move {
-                insert_device(tx, ada.id, None, 0, laptop(), &hash_token(TOKEN)).await
-            })
-        })
-        .await
-        .unwrap();
+    new_device_of(&users, ada.id, TOKEN).await;
     (users, signed_in_at)
 }
 
@@ -677,4 +674,76 @@ async fn a_device_signed_in_before_upgrading_to_device_users_still_acts_as_its_u
             .collect::<Vec<_>>(),
         [1]
     );
+}
+
+/// Signs the User `user` in to a new Device whose session is `token`, and returns its id.
+async fn new_device_of(users: &Users, user: i64, token: &'static str) -> i64 {
+    let device = users.db.write(move |tx| {
+        Box::pin(
+            async move { insert_device(tx, user, None, 0, laptop(), &hash_token(token)).await },
+        )
+    });
+    device.await.unwrap().id
+}
+
+#[tokio::test]
+async fn revoking_a_device_or_signing_it_out_stops_web_push_to_its_browser() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (users, ada) = ada(data_dir.path()).await;
+    let (mut devices, mut received) = (Vec::new(), Vec::new());
+    for token in ["nama_laptop", "nama_phone", "nama_tv"] {
+        let device = new_device_of(&users, ada.id, token).await;
+        let (endpoint, got) = push_service(StatusCode::CREATED).await;
+        subscribe(&users.db, ada.id, device, browser(&endpoint))
+            .await
+            .unwrap();
+        devices.push(device);
+        received.push(got);
+    }
+
+    users.revoke(&admin(), ada.id, devices[0]).await.unwrap();
+    users.sign_out(devices[1]).await.unwrap();
+    push_a_notification_to(&users, ada.id).await;
+
+    let delivered = received.iter().map(|got| got.lock().unwrap().len());
+    assert_eq!(delivered.collect::<Vec<_>>(), [0, 0, 1]);
+}
+
+/// Pushes the User `user` one notification, as storing it in their inbox does.
+async fn push_a_notification_to(users: &Users, user: i64) {
+    let pusher = Pusher::new(web_push_key(&users.db).await.unwrap()).unwrap();
+    let stored = vec![(user, InboxNotification::default())];
+    push_to_subscriptions(&users.db, &pusher, stored, None).await;
+}
+
+#[tokio::test]
+async fn after_a_switch_only_the_user_switched_to_gets_pushed_to_the_browser() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let users = users_with_local_auth(data_dir.path()).await;
+    let ada = users.create(&admin(), "Ada", PASSWORD).await.unwrap();
+    let lin = users.create(&admin(), "Lin", PASSWORD).await.unwrap();
+    let as_ada = sign_in_with_password(&users, "Ada").await;
+    let device = as_ada.caller.device.id;
+    let (user, method) = users.verify(&admitted(), "Lin", PASSWORD).await.unwrap();
+    let proved = Proved::Method { user, method };
+    (users
+        .sign_in_as(proved, laptop(), Some(&as_ada.token))
+        .await)
+        .unwrap();
+    users.switch(device, ada).await.unwrap();
+    let (endpoint, got) = push_service(StatusCode::CREATED).await;
+    subscribe(&users.db, ada, device, browser(&endpoint))
+        .await
+        .unwrap();
+
+    users.switch(device, lin).await.unwrap();
+    // What the web app sends once the switch is done (`web/src/AGENTS.md`).
+    subscribe(&users.db, lin, device, browser(&endpoint))
+        .await
+        .unwrap();
+    push_a_notification_to(&users, ada).await;
+    let after_adas = got.lock().unwrap().len();
+    push_a_notification_to(&users, lin).await;
+
+    assert_eq!((after_adas, got.lock().unwrap().len()), (0, 1));
 }

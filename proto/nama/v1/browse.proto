@@ -360,6 +360,18 @@ message ListMoviesRequest {
 message ListMoviesResponse {
   repeated MovieSummary movies = 1;
   PageResponse page = 2;
+  // Where each letter or year starts, for a client to jump to it: on the first page of a listing
+  // by title or release date, in the listing's order; empty otherwise.
+  repeated TitleIndexKey index = 3;
+}
+
+// Where the first title under one key of a Library's listing is.
+message TitleIndexKey {
+  // By title, the sort title's first letter in upper case, "#" for one that starts with no letter
+  // A to Z; by release date, the year, "2014". Titles without a release date have none.
+  string key = 1;
+  // How many titles the listing has before it.
+  int32 position = 2;
 }
 
 message GetMovieRequest {
@@ -525,6 +537,8 @@ message ListShowsRequest {
 message ListShowsResponse {
   repeated ShowSummary shows = 1;
   PageResponse page = 2;
+  // As `ListMoviesResponse.index`.
+  repeated TitleIndexKey index = 3;
 }
 
 message ListGenresRequest {

@@ -77,3 +77,17 @@ fn the_relay_name_under_the_own_name_points_at_the_relay() {
         ]
     );
 }
+
+#[test]
+fn a_named_lan_address_is_reached_over_https_at_its_name_on_its_port() {
+    assert_eq!(
+        lan_name_address("own.zone", "http://192.168.1.10:7980").as_deref(),
+        Some("https://192-168-1-10.own.zone:7980")
+    );
+    assert_eq!(
+        lan_name_address("own.zone", "http://10.0.0.5").as_deref(),
+        Some("https://10-0-0-5.own.zone:80")
+    );
+    assert_eq!(lan_name_address("own.zone", "http://8.8.8.8:7980"), None);
+    assert_eq!(lan_name_address("own.zone", "http://nama.local:7980"), None);
+}

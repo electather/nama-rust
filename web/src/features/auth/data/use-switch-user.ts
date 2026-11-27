@@ -7,7 +7,10 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { signedInQuery } from "@/shared/hooks/access";
 import { isCode } from "@/shared/lib/connect-errors";
 
-/** Makes this Device act as another of its Users, then calls `onSwitched`. */
+/**
+ * Makes this Device act as another of its Users, then calls `onSwitched`, which is
+ * `useFinishSignIn`'s, so it hands them this browser's notifications.
+ */
 export function useSwitchUser(onSwitched: () => Promise<void>) {
   const queryClient = useQueryClient();
   const transport = useTransport();

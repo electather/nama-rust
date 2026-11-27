@@ -137,8 +137,8 @@ const ROWS: &[&[&str]] = &[
         "events",
         "connections",
         "users",
-        "server_addresses",
         "certificate",
+        "server_addresses",
         "relay",
         "link",
     ],
@@ -202,8 +202,8 @@ const ALLOWED_UPWARD: &[Allowed] = &[
     (
         Importers::File("src/web_push/subscriptions_tests.rs"),
         &["users", "testing"],
-        "the crate's One in-file fixture rule sends every in-file test needing a User through \
-         users::testing::insert_user",
+        "the crate's One in-file fixture rule sends every in-file test needing a User or a Device \
+         through users::testing::insert_user and insert_device",
     ),
 ];
 
@@ -219,9 +219,9 @@ const SURFACE_EXCEPTIONS: &[Exception] = &[
     (
         "users",
         "testing",
-        "the crate's One in-file fixture rule sends every in-file test needing a User through \
-         users::testing::insert_user, which users.rs can't re-export: its own insert_user is \
-         the production one",
+        "the crate's One in-file fixture rule sends every in-file test needing a User or a Device \
+         through users::testing::insert_user and insert_device, which users.rs can't re-export: \
+         its own insert_user and insert_device are the production ones",
     ),
 ];
 

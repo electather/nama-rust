@@ -11,6 +11,11 @@ use sqlx::SqliteConnection;
 use super::{Error, Permissions, User, Users, ensure_may_change, until_heard};
 use crate::db::{Database, now};
 
+/// How many Library access changes may happen before a waiter in
+/// [`Users::library_access_watched`] has seen them. One that falls further behind reads its User's
+/// Library access instead.
+pub(super) const LIBRARY_ACCESS_CHANGES_BUFFERED: usize = 64;
+
 /// Which Libraries a User sees.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LibraryAccess {
@@ -34,21 +39,56 @@ impl LibraryAccess {
 /// Admin chose, since they can read and change any Library anyway; one who isn't there sees none.
 pub(crate) async fn library_access(db: &Database, user: i64) -> Result<LibraryAccess, sqlx::Error> {
     let mut conn = db.reader().acquire().await?;
-    let stored = sqlx::query!(
+    match access_row(&mut conn, user).await? {
+        Some(row) if row.sees_every_library() => Ok(LibraryAccess::All),
+        Some(_) => Ok(LibraryAccess::Only(chosen(&mut conn, user).await?)),
+        None => Ok(LibraryAccess::Only(BTreeSet::new())),
+    }
+}
+
+/// Fails with [`Error::ManageUsersNeedsEveryLibrary`] if the User `user` holds
+/// `PERMISSION_MANAGE_USERS` but sees only a chosen list of Libraries ("Managing Users needs every
+/// Library", `AGENTS.md`). Run after the write, in its transaction, so a refusal rolls it back.
+pub(super) async fn ensure_a_user_manager_sees_every_library(
+    conn: &mut SqliteConnection,
+    user: i64,
+) -> Result<(), Error> {
+    match access_row(conn, user).await? {
+        Some(row)
+            if row.permissions.allow(Permission::ManageUsers) && !row.sees_every_library() =>
+        {
+            Err(Error::ManageUsersNeedsEveryLibrary)
+        }
+        _ => Ok(()),
+    }
+}
+
+/// What `users` holds that decides whether a User sees every Library.
+struct AccessRow {
+    all_libraries: bool,
+    permissions: Permissions,
+}
+
+impl AccessRow {
+    fn sees_every_library(&self) -> bool {
+        self.all_libraries || self.permissions.allow(Permission::ManageLibraries)
+    }
+}
+
+/// What `users` holds of the User `user`, if they are there.
+async fn access_row(
+    conn: &mut SqliteConnection,
+    user: i64,
+) -> Result<Option<AccessRow>, sqlx::Error> {
+    sqlx::query_as!(
+        AccessRow,
         r#"SELECT all_libraries AS "all_libraries: bool",
                   permissions AS "permissions: Permissions"
            FROM users WHERE id = ?"#,
         user
     )
-    .fetch_optional(&mut *conn)
-    .await?;
-    match stored {
-        Some(row) if row.all_libraries || row.permissions.allow(Permission::ManageLibraries) => {
-            Ok(LibraryAccess::All)
-        }
-        Some(_) => Ok(LibraryAccess::Only(chosen(&mut conn, user).await?)),
-        None => Ok(LibraryAccess::Only(BTreeSet::new())),
-    }
+    .fetch_optional(conn)
+    .await
 }
 
 impl Users {
@@ -93,10 +133,12 @@ impl Users {
         Ok((seen, set_again))
     }
 
-    /// Gives the User `user` `access`, as `by` asks, leaving out an id no Library has. Without
-    /// `PERMISSION_ADMIN`, `by` may change neither an Admin's nor their own, so a capped User
-    /// can't lift theirs. It applies from their next request, which reads it afresh. Once the
-    /// change commits, [`Self::library_access_watched`]'s future resolves for them.
+    /// Gives the User `user` `access`, as `by` asks, leaving out an id no Library has, unless it's
+    /// a chosen list for one holding `PERMISSION_MANAGE_USERS`
+    /// ([`ensure_a_user_manager_sees_every_library`]). Without `PERMISSION_ADMIN`, `by` may change
+    /// neither an Admin's nor their own, so a capped User can't lift theirs. It applies from their
+    /// next request, which reads it afresh. Once the change commits,
+    /// [`Self::library_access_watched`]'s future resolves for them.
     pub(crate) async fn set_library_access(
         &self,
         by: &User,
@@ -170,5 +212,9 @@ async fn replace(
     )
     .execute(&mut *conn)
     .await?;
-    Ok(())
+    ensure_a_user_manager_sees_every_library(conn, user).await
 }
+
+#[cfg(test)]
+#[path = "library_access_tests.rs"]
+mod tests;

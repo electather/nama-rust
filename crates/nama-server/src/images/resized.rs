@@ -295,28 +295,25 @@ pub(super) fn touch(copy: &Path) -> io::Result<()> {
         .set_times(FileTimes::new().set_accessed(SystemTime::now()))
 }
 
+/// The bytes the copies in `cache` take.
+///
+/// # Errors
+///
+/// If the cache can't be read.
+pub(super) fn size(cache: &Path) -> io::Result<u64> {
+    Ok(copies(cache)?.iter().map(|(_, size, _)| size).sum())
+}
+
 /// Deletes the copies in `cache` sent least recently until they take at most `limit` bytes, never
-/// `made`, the copy about to be sent.
+/// `made`, the copy about to be sent. Returns the bytes those left take.
 ///
 /// # Errors
 ///
 /// If the cache can't be read or a copy deleted.
 // ponytail: lists the whole cache after each new copy, which costs about a stat per copy; keep
 // a running total if a cache of tens of thousands of copies makes resizes slow.
-pub(super) fn evict(cache: &Path, limit: u64, made: &Path) -> io::Result<()> {
-    let mut copies: Vec<(SystemTime, u64, PathBuf)> = Vec::new();
-    for entry in WalkDir::new(cache) {
-        let entry = match entry {
-            Ok(entry) if entry.file_type().is_file() => entry,
-            Ok(_) => continue,
-            Err(err) if err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound) => {
-                continue;
-            }
-            Err(err) => return Err(err.into()),
-        };
-        let metadata = entry.metadata()?;
-        copies.push((metadata.accessed()?, metadata.len(), entry.into_path()));
-    }
+pub(super) fn evict(cache: &Path, limit: u64, made: &Path) -> io::Result<u64> {
+    let mut copies = copies(cache)?;
     let mut total: u64 = copies.iter().map(|(_, size, _)| size).sum();
     copies.sort_unstable();
     for (_, size, path) in copies {
@@ -329,7 +326,25 @@ pub(super) fn evict(cache: &Path, limit: u64, made: &Path) -> io::Result<()> {
         std::fs::remove_file(path)?;
         total -= size;
     }
-    Ok(())
+    Ok(total)
+}
+
+/// Each copy in `cache`, as when it was last sent, its size and its path.
+fn copies(cache: &Path) -> io::Result<Vec<(SystemTime, u64, PathBuf)>> {
+    let mut copies = Vec::new();
+    for entry in WalkDir::new(cache) {
+        let entry = match entry {
+            Ok(entry) if entry.file_type().is_file() => entry,
+            Ok(_) => continue,
+            Err(err) if err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound) => {
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        };
+        let metadata = entry.metadata()?;
+        copies.push((metadata.accessed()?, metadata.len(), entry.into_path()));
+    }
+    Ok(copies)
 }
 
 #[cfg(test)]

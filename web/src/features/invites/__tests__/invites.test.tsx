@@ -1,7 +1,7 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { Code, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type AcceptInviteRequest, Permission, SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
@@ -11,8 +11,10 @@ import {
   type ListInvitesResponseSchema,
   type UserService,
 } from "@/gen/nama/v1/user_pb";
+import { WebPushService } from "@/gen/nama/v1/web_push_pb";
 import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { PUSH_ENDPOINT, browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
 afterEach(cleanup);
 
@@ -143,6 +145,45 @@ test("opening an Invite's link, picking a name and password lands signed in", as
   expect(router.state.location.pathname).toBe("/");
   expect(sent?.token).toBe("abc");
   expect(sent?.delivery).toBe(SessionDelivery.COOKIE);
+});
+
+describe("a browser with notifications", () => {
+  afterEach(forgetBrowserPush);
+
+  test("joining with an Invite in a browser with notifications hands them to the new User", async () => {
+    browserWithPush("granted", true);
+    const state: ServerState = {};
+    const subscribed: string[] = [];
+    openApp(
+      "/invite/abc",
+      fakeServer(
+        state,
+        {
+          acceptInvite: () => {
+            state.signedIn = newUser;
+            return {};
+          },
+        },
+        {},
+        (router) => {
+          router.service(WebPushService, {
+            subscribeWebPush: ({ endpoint }) => {
+              subscribed.push(endpoint);
+              return {};
+            },
+          });
+        },
+      ),
+    );
+
+    await screen.findByRole("heading", { name: "Join Living Room" });
+    fill("Username", "Mum");
+    fill("Password", "correct horse");
+    fireEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    await expect(screen.findByRole("link", { name: "Home" })).resolves.toBeDefined();
+    expect(subscribed).toStrictEqual([PUSH_ENDPOINT]);
+  });
 });
 
 test("a taken name is shown next to its field, and an Invite that no longer works says so", async () => {

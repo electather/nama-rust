@@ -324,6 +324,10 @@ pub enum RefusalReason {
     /// `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
     /// already. `field` is `hub_token`.
     REFUSAL_REASON_HUB_TOKEN_REFUSED = 107i32,
+    /// `failed_precondition`: a User who sees only a chosen list of Libraries can't hold
+    /// `PERMISSION_MANAGE_USERS` unless `PERMISSION_MANAGE_LIBRARIES` lets them see every one, so no
+    /// Library hidden from them is named to them as they edit another User's.
+    REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY = 108i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -641,6 +645,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_HUB_TOKEN_REFUSED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const HubTokenRefused: Self = Self::REFUSAL_REASON_HUB_TOKEN_REFUSED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ManageUsersNeedsEveryLibrary: Self = Self::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -973,6 +980,11 @@ impl ::buffa::Enumeration for RefusalReason {
             107i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_HUB_TOKEN_REFUSED)
             }
+            108i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1184,6 +1196,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID"
             }
             Self::REFUSAL_REASON_HUB_TOKEN_REFUSED => "REFUSAL_REASON_HUB_TOKEN_REFUSED",
+            Self::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY => {
+                "REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1535,6 +1550,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_HUB_TOKEN_REFUSED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_HUB_TOKEN_REFUSED)
             }
+            "REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1645,6 +1665,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SWITCH_PIN_INVALID,
             Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
             Self::REFUSAL_REASON_HUB_TOKEN_REFUSED,
+            Self::REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY,
         ]
     }
 }

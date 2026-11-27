@@ -1,16 +1,17 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { AccountSchema, AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
-import { accountHub, ada } from "@/test-hub";
+import { ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
 import { pickFromMenu } from "@/test-menu";
 import { expectUnderField } from "@/test-refusal";
+import { browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
 afterEach(cleanup);
 
@@ -131,6 +132,19 @@ test("at the Hub, a signed-out visitor signs in to their Account with its passwo
   await expect(screen.findByRole("button", { name: `${ada.email}’s menu` })).resolves.toBeDefined();
 });
 
+describe("a browser with notifications", () => {
+  afterEach(forgetBrowserPush);
+
+  test("signing in at the Hub leaves this browser's notifications alone", async () => {
+    const browser = browserWithPush("granted", true);
+    openApp("/", fakeHub().transport);
+    await signInAs(ada.email, "correct horse");
+    await screen.findByRole("button", { name: `${ada.email}’s menu` });
+    // The Hub serves no WebPushService: a SubscribeWebPush sent it would fail and unsubscribe.
+    expect(browser.subscription.unsubscribe).not.toHaveBeenCalled();
+  });
+});
+
 test("at the Hub, a wrong password is refused under the password", async () => {
   openApp("/sign-in", fakeHub().transport);
 
@@ -139,22 +153,22 @@ test("at the Hub, a wrong password is refused under the password", async () => {
   await expectUnderField("Password", "That email and password don’t match an Account.");
 });
 
+test("at the Hub, a forgotten password points to a Sign-in Link", async () => {
+  openApp("/sign-in", fakeHub().transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Forgot your password?" }));
+
+  expect(
+    screen.getByText("Ask for a Sign-in Link below: it signs you in without a password."),
+  ).toBeDefined();
+});
+
 test("signing the Account out goes back to sign-in", async () => {
   openApp("/", fakeHub({ signedIn: true }).transport);
 
   await pickFromMenu(`${ada.email}’s menu`, "Sign out");
 
   await expect(screen.findByRole("heading", { name: "Sign in to the Hub" })).resolves.toBeDefined();
-});
-
-test("signing the Account out that the Hub can't says so in the menu", async () => {
-  openApp("/", accountHub({ signOutFails: true }).transport);
-
-  await pickFromMenu(`${ada.email}’s menu`, "Sign out");
-
-  const menu = within(await screen.findByRole("menu"));
-  await expect(menu.findByText(/The Hub couldn’t sign you out just now/u)).resolves.toBeDefined();
-  expect(menu.getByRole("menuitem", { name: "Sign out" })).toBeDefined();
 });
 
 test("creating an Account at the Hub signs it in", async () => {
@@ -237,6 +251,19 @@ test("a Sign-in Link is emailed, to continue where signing in was going", async 
 
   await screen.findByRole("heading", { name: "Check your email" });
   expect(hub.sent).toStrictEqual([{ email: ada.email, continueTo: "/history" }]);
+});
+
+test("after a Sign-in Link is emailed, signing in with a password keeps where it was going", async () => {
+  const router = openApp("/send-sign-in-link?redirect=%2Fhistory", fakeHub().transport);
+  await screen.findByRole("heading", { name: "Email a Sign-in Link" });
+  fill("Email", ada.email);
+  fireEvent.click(screen.getByRole("button", { name: "Email me a Sign-in Link" }));
+  await screen.findByRole("heading", { name: "Check your email" });
+
+  fireEvent.click(screen.getByRole("link", { name: "Sign in with a password" }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  expect(router.state.location.href).toBe("/sign-in?redirect=%2Fhistory");
 });
 
 test("a Sign-in Link signs its Account in", async () => {

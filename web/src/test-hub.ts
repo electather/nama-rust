@@ -32,6 +32,8 @@ export interface AccountHub extends LinksHub {
   /** Whether signing out fails, as when the Hub can't be reached. */
   signOutFails: boolean;
   deleted: boolean;
+  /** The emails a Sign-in Link was asked for, in order. */
+  linksSentTo: string[];
 }
 
 /**
@@ -53,6 +55,7 @@ export function accountHub(state: Partial<AccountHub> = {}) {
     passkeyWait: 0,
     signOutFails: false,
     deleted: false,
+    linksSentTo: [],
     servers: [],
     users: [],
     invites: [],
@@ -87,7 +90,12 @@ export function accountHub(state: Partial<AccountHub> = {}) {
         Object.assign(hub, { signedIn: true, stale: false });
         return { account: ada };
       },
+      sendSignInLink: ({ email }) => {
+        hub.linksSentTo.push(email);
+        return {};
+      },
       signOut: () => {
+        signedInOnly();
         if (hub.signOutFails) {
           throw new ConnectError("unreachable", Code.Unavailable);
         }

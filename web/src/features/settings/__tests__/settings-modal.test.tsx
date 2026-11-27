@@ -1,7 +1,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { DetachedWindowAPI } from "happy-dom";
-import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { openSettings } from "@/test-settings";
@@ -55,6 +55,51 @@ describe("on a phone", () => {
 
     expect(document.activeElement).toBe(dialog);
   });
+
+  test("all of Settings is a page of its sections, with Search, and no section's pane", async () => {
+    openSettings("all", fakeServer({ signedIn: newUser }));
+
+    await expect(screen.findByRole("link", { name: "Playback" })).resolves.toBeDefined();
+    expect(screen.getByRole("combobox", { name: "Search settings" })).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Playback" })).toBeNull();
+  });
+
+  test("a section opens as a page of its own, without Search, and Back returns to the list", async () => {
+    const router = openSettings("all", fakeServer({ signedIn: newUser }));
+
+    fireEvent.click(await screen.findByRole("link", { name: "Playback" }));
+
+    await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
+    expect(screen.queryByRole("combobox", { name: "Search settings" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await expect(screen.findByRole("link", { name: "Playback" })).resolves.toBeDefined();
+    expect(router.state.location.search.settings).toBe("all");
+  });
+
+  test("a tap on the scrim above the sheet closes Settings, and one on the sheet doesn't", async () => {
+    const router = openSettings("all", fakeServer({ signedIn: newUser }));
+    const sheet = await screen.findByRole("dialog", { name: "Settings" });
+    // happy-dom lays nothing out; the sheet starts 80px down the window, as 11/12 of a short one.
+    sheet.getBoundingClientRect = () => DOMRect.fromRect({ y: 80, width: 375, height: 732 });
+
+    fireEvent.click(sheet, { clientY: 200 });
+    expect(screen.getByRole("dialog", { name: "Settings" })).toBeDefined();
+    fireEvent.click(sheet, { clientY: 40 });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+    });
+    expect(router.state.location.search.settings).toBeUndefined();
+  });
+
+  test("a section a link opened goes back to the list in its place", async () => {
+    const router = openSettings("devices", fakeServer({ signedIn: newUser }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+
+    await expect(screen.findByRole("link", { name: "Devices" })).resolves.toBeDefined();
+    expect(router.state.location.search.settings).toBe("all");
+  });
 });
 
 test("closing Settings leaves the page it was over", async () => {
@@ -69,7 +114,7 @@ test("closing Settings leaves the page it was over", async () => {
   expect(router.state.location.search.settings).toBeUndefined();
 });
 
-test("your menu opens Playback, dropping a Job and other details left in the address", async () => {
+test("your menu opens all of Settings, on Playback wider than a phone, dropping a Job and other details left in the address", async () => {
   const router = openApp(
     "/code?job=7&plugin=tmdb&user=2&library=3&setting=quality",
     fakeServer({ signedIn: newUser }),
@@ -79,7 +124,7 @@ test("your menu opens Playback, dropping a Job and other details left in the add
   fireEvent.click(await screen.findByRole("menuitem", { name: "Settings" }));
 
   await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
-  expect(router.state.location.href).toBe("/code?settings=playback");
+  expect(router.state.location.href).toBe("/code?settings=all");
 });
 
 test("closing Settings clears every Settings detail from the address, a Job too", async () => {
@@ -112,31 +157,6 @@ test("a section's link opens it, and a word that names none opens Playback", asy
 
   await expect(screen.findByRole("heading", { name: "Devices" })).resolves.toBeDefined();
   expect(screen.getByRole("link", { name: "Devices" }).getAttribute("aria-current")).toBe("page");
-});
-
-test("the open section scrolls back into view once the web font loads and widens the sections", async () => {
-  const finishLoadingFonts: (() => void)[] = [];
-  const ready = new Promise<void>((resolve) => {
-    finishLoadingFonts.push(resolve);
-  });
-  // happy-dom has no `document.fonts`.
-  Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
-  const scrolled = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
-  onTestFinished(() => {
-    Reflect.deleteProperty(document, "fonts");
-    scrolled.mockRestore();
-  });
-  openSettings("devices", fakeServer({ signedIn: newUser }));
-  const link = await screen.findByRole("link", { name: "Devices" });
-  await waitFor(() => {
-    expect(scrolled.mock.contexts).toContain(link);
-  });
-  scrolled.mockClear();
-  finishLoadingFonts[0]?.();
-
-  await waitFor(() => {
-    expect(scrolled.mock.contexts).toContain(link);
-  });
 });
 
 function locked(): object {

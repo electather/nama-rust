@@ -179,6 +179,29 @@ async fn a_server_sets_only_its_own_addresses(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_server_setting_its_addresses_is_told_its_own_id(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let cabin = linked(&hub, &ada, "Cabin").await;
+
+    let told = [
+        set_addresses_with_port(&hub, &living_room, "", &[], 0).await,
+        set_addresses_with_port(&hub, &cabin, "", &[], 0).await,
+    ]
+    .map(|set| set.unwrap().server_id);
+
+    let listed = links(&hub, &ada)
+        .list_linked_servers(ListLinkedServersRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .servers;
+    let ids = listed.into_iter().map(|server| server.id);
+    assert_eq!(ids.collect::<Vec<_>>(), told);
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_server_url_a_browser_opens_is_admitted_listed_as_sent_and_returned_to(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
@@ -348,4 +371,58 @@ async fn a_sign_in_never_returns_to_the_public_address_as_the_server_cant_know_i
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_URL_INVALID,
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_sign_in_returns_to_its_servers_https_lan_name_and_not_another_servers(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let kitchen = linked(&hub, &ada, "Kitchen").await;
+    let lan = ["http://192.168.1.10:7980"];
+    let own = names_after_reporting_relay(&hub, &living_room, &lan, 0, "")
+        .await
+        .unwrap()
+        .swap_remove(0);
+    let kitchens_own = names_after_reporting_relay(&hub, &kitchen, &lan, 0, "")
+        .await
+        .unwrap()
+        .swap_remove(0);
+
+    start_sign_in(
+        &hub,
+        &living_room,
+        &format!("https://192-168-1-10.{own}:7980/sign-in"),
+    )
+    .await
+    .unwrap();
+    assert_refused(
+        start_sign_in(
+            &hub,
+            &living_room,
+            &format!("https://192-168-1-10.{kitchens_own}:7980/sign-in"),
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_URL_INVALID,
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_sign_in_returns_to_its_servers_relay_address(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let own = names_after_reporting_relay(&hub, &living_room, &[], 0, "198.51.100.4:8443")
+        .await
+        .unwrap()
+        .swap_remove(0);
+
+    start_sign_in(
+        &hub,
+        &living_room,
+        &format!("https://relay.{own}:8443/sign-in"),
+    )
+    .await
+    .unwrap();
 }

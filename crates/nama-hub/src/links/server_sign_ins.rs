@@ -72,8 +72,8 @@ struct SignInClaims {
 
 impl Links {
     /// Starts a sign-in to `server`, which the Hub's page sends back to `return_url`, forgetting
-    /// every expired one. Fails with [`Error::UrlInvalid`] unless `return_url` is a return address
-    /// `server` reported (`server_addresses.rs`).
+    /// every expired one. Fails with [`Error::UrlInvalid`] unless `return_url` is one of
+    /// `server`'s return addresses (`server_addresses.rs`).
     pub(crate) async fn start_sign_in(
         &self,
         server: &LinkedServer,

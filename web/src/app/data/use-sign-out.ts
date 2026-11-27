@@ -4,10 +4,12 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { whoIsSignedIn } from "@/shared/hooks/access";
+import { leaveBrowserPush } from "@/shared/hooks/browser-push";
 
 /**
- * Signs the User out of this Device, leaving its other Users signed in, forgets everything cached
- * for them, and opens the User picker, which goes on to sign-in once nobody is left (ADR 0106).
+ * Signs the User out of this Device, leaving its other Users signed in, stops this browser's
+ * notifications for them, forgets everything cached for them, and opens the User picker, which
+ * goes on to sign-in once nobody is left (ADR 0106).
  */
 export function useSignOut() {
   const queryClient = useQueryClient();
@@ -16,6 +18,7 @@ export function useSignOut() {
   return useMutation({
     mutationFn: async () => {
       const signedIn = await whoIsSignedIn({ queryClient, transport });
+      await leaveBrowserPush(transport);
       await callUnaryMethod(transport, UserService.method.revokeDevice, {
         // Signed out meanwhile, no Device is named, and the Server refuses as it should.
         deviceId: signedIn?.device?.id ?? 0n,

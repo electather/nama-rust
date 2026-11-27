@@ -18,7 +18,7 @@ function Input({
       data-slot="input"
       className={cn(
         "w-full min-w-0 rounded-lg border border-input bg-input/30 px-2.5 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted aria-invalid:border-destructive/50 aria-invalid:ring-3 aria-invalid:ring-destructive/40",
-        variant === "default" ? "h-8" : "h-9",
+        variant === "default" ? "h-11 md:h-8" : "h-9",
         variant === "code" && "text-center tracking-widest tabular-nums",
         className,
       )}

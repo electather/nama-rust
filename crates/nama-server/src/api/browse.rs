@@ -25,8 +25,8 @@ use crate::{
     db::Database,
     home_rows::HomeRows,
     library::{
-        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role, ShownImage,
-        ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
+        Downloaded, FoundMovie, FoundShow, ImageRef, IndexKey, Item, LibraryMovie, Listing, Role,
+        ShownImage, ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
     server_settings::Settings,
@@ -125,7 +125,8 @@ impl BrowseService for BrowseServiceHandler {
                 .into_iter()
                 .map(|(movie, state)| movie_summary(movie, state, &images))
                 .collect(),
-            page: page.into(),
+            index: index_to_proto(page.index),
+            page: page.page.into(),
             ..Default::default()
         })
     }
@@ -195,7 +196,8 @@ impl BrowseService for BrowseServiceHandler {
                 .into_iter()
                 .map(|listed| show_summary(&listed, &images))
                 .collect(),
-            page: page.into(),
+            index: index_to_proto(page.index),
+            page: page.page.into(),
             ..Default::default()
         })
     }
@@ -524,6 +526,15 @@ fn listing(filter: Filter, sort: TitleSort, direction: Option<SortDirection>) ->
         sort,
         descending,
     }
+}
+
+fn index_to_proto(index: Vec<IndexKey>) -> Vec<proto::TitleIndexKey> {
+    let key = |IndexKey { key, position }| proto::TitleIndexKey {
+        key,
+        position: i32::try_from(position).unwrap_or(i32::MAX),
+        ..Default::default()
+    };
+    index.into_iter().map(key).collect()
 }
 
 const MOVIE_POSTER: TitleImage = TitleImage::Movie(Role::Poster);

@@ -1,6 +1,7 @@
 import type { Transport } from "@connectrpc/connect";
-import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
+import { createQueryOptions, useSuspenseQuery, useTransport } from "@connectrpc/connect-query";
 
+import { type PanelOn, featuredPanels } from "@/features/home/lib/featured-panels";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
@@ -12,8 +13,15 @@ export function featuredQuery(transport: Transport) {
   };
 }
 
-/** Your Featured titles, heaviest first. */
-export function useFeatured() {
-  return useSuspenseQuery(BrowseService.method.listFeatured, {}, { staleTime: loaderStaleTime })
-    .data.titles;
+/** Your Featured's panels, heaviest first. */
+export function useFeatured(): PanelOn[] {
+  const transport = useTransport();
+  const { titles } = useSuspenseQuery(
+    BrowseService.method.listFeatured,
+    {},
+    {
+      staleTime: loaderStaleTime,
+    },
+  ).data;
+  return featuredPanels(titles).map((panel) => ({ transport, panel }));
 }

@@ -288,7 +288,7 @@ test("g then a page's key goes to that page, Settings' sections opening over it"
   fireEvent.keyDown(document.body, { key: "s" });
   await screen.findByRole("dialog", { name: "Settings" });
   expect(router.state.location.pathname).toBe("/");
-  expect(router.state.location.search.settings).toBe("playback");
+  expect(router.state.location.search.settings).toBe("all");
 });
 
 test("a link to the old search page opens the action bar on what it searched for", async () => {

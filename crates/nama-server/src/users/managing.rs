@@ -6,11 +6,18 @@ use std::collections::HashMap;
 use nama_proto::nama::v1::Permission;
 use sqlx::SqliteConnection;
 
-use super::{Error, Permissions, User, Users, invites::delete_invites_by, until_heard};
+use super::{
+    Error, Permissions, User, Users, invites::delete_invites_by,
+    library_access::ensure_a_user_manager_sees_every_library, until_heard,
+};
 use crate::{
     db::{Database, now},
     server_settings::PlaybackLimit,
 };
+
+/// How many Permission changes may happen before a waiter in [`Users::permissions_changed`] has
+/// seen them. One that falls further behind reads its User's Permissions instead.
+pub(super) const PERMISSION_CHANGES_BUFFERED: usize = 64;
 
 impl Users {
     /// The Permissions [`Users::create`] gives a new User, and the cap for remote playback every
@@ -70,11 +77,12 @@ impl Users {
     }
 
     /// Gives the User `user` exactly `permissions` and `cap` for remote playback, as `by` asks,
-    /// unless that leaves no local Admin ([`ensure_a_local_admin_left`]) or [`ensure_may_change`]
-    /// refuses. Without `PERMISSION_ADMIN`, `by` may neither grant it nor change their own
-    /// Permissions. Their Devices stay signed in, and the Permissions apply from their next
-    /// request, which reads them afresh. Once the change commits, [`Users::permissions_changed`]
-    /// resolves for them.
+    /// unless that leaves no local Admin ([`ensure_a_local_admin_left`]), gives
+    /// `PERMISSION_MANAGE_USERS` to a User on a chosen list of Libraries
+    /// ([`ensure_a_user_manager_sees_every_library`]) or [`ensure_may_change`] refuses. Without
+    /// `PERMISSION_ADMIN`, `by` may neither grant it nor change their own Permissions. Their
+    /// Devices stay signed in, and the Permissions apply from their next request, which reads them
+    /// afresh. Once the change commits, [`Users::permissions_changed`] resolves for them.
     pub(crate) async fn set_permissions(
         &self,
         by: &User,
@@ -180,9 +188,10 @@ pub(super) async fn default_permissions(
     .await
 }
 
-/// Gives the User `user` exactly `permissions` and `cap`, failing if that leaves no local Admin.
-/// Checked after the write, in the same transaction, so a refusal rolls the write back. Writes run
-/// one at a time, so two demotions at once can't both pass the check.
+/// Gives the User `user` exactly `permissions` and `cap`, failing if that leaves no local Admin, or
+/// them holding `PERMISSION_MANAGE_USERS` on a chosen list of Libraries. Checked after the write,
+/// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
+/// demotions at once can't both pass the check.
 async fn update_permissions(
     conn: &mut SqliteConnection,
     user: i64,
@@ -206,6 +215,7 @@ async fn update_permissions(
     if !permissions.allow(Permission::ManageUsers) {
         delete_invites_by(conn, user).await?;
     }
+    ensure_a_user_manager_sees_every_library(conn, user).await?;
     ensure_a_local_admin_left(conn).await
 }
 

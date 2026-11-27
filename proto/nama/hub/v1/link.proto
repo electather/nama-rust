@@ -650,6 +650,9 @@ message SetServerAddressesResponse {
   // address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address,
   // and `relay.<own name>` with a `relay`. Empty on a Hub that names no Server.
   repeated string names = 3;
+  // The calling Linked Server's id, the audience of the tokens the Hub signs for it. A Server that
+  // doesn't know its id, such as one Linked by the v0.2.0 Hub Plugin, learns it here.
+  string server_id = 4;
 }
 
 message SetCertificateChallengeRequest {

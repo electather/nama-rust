@@ -248,6 +248,7 @@ pub mod __buffa {
         reg.register_json_any(super::__MOVIE_FILTER_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_INDEX_KEY_JSON_ANY);
         reg.register_json_any(super::__GET_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_MOVIE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SHOW_JSON_ANY);
@@ -1224,6 +1225,10 @@ pub use self::__buffa::view::ListMoviesRequestOwnedView;
 pub use self::__buffa::view::ListMoviesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListMoviesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleIndexKeyView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleIndexKeyOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetMovieRequestView;
 #[doc(inline)]
