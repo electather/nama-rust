@@ -2,7 +2,6 @@ import { X } from "lucide-react";
 import { Button } from "nama-ui/components/button";
 import { type ComponentType, Suspense } from "react";
 
-import { BackToSections } from "@/features/settings/components/back-to-sections";
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { JobCrumbs } from "@/features/settings/components/job-crumbs";
 import { JobRunNow } from "@/features/settings/components/job-run-now";
@@ -10,7 +9,9 @@ import { LibraryCrumbs } from "@/features/settings/components/library-crumbs";
 import { NewLibraryLink } from "@/features/settings/components/new-library-link";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { ResetHomeLayout } from "@/features/settings/components/reset-home-layout";
+import { SettingsCrumb } from "@/features/settings/components/settings-crumb";
 import { UserCrumbs } from "@/features/settings/components/user-crumbs";
+import { CrumbsRoot } from "@/features/settings/hooks/crumbs-root";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
 import { ErrorBoundary } from "@/shared/components/error-boundary";
 
@@ -36,7 +37,7 @@ const sectionActions: Partial<Record<Section, ComponentType>> = {
  * crumbs name only the Section: both may call what the Server lacks. A crumb whose read fails also
  * falls back to the Section's name, since this sits outside the pane's own error boundary. On a
  * phone, over the list of sections (`phone` "list") it says Settings alone, and over a section
- * ("section") it starts with the way back to that list.
+ * ("section") its trail starts with the Settings crumb back to that list.
  */
 export function SettingsHeader({
   titleId,
@@ -64,15 +65,16 @@ export function SettingsHeader({
   ) : (
     plain
   );
+  const root = phone === "section" ? <SettingsCrumb /> : undefined;
+  const trail = <CrumbsRoot value={root}>{crumbs}</CrumbsRoot>;
   return (
     <header className="flex h-11 shrink-0 items-center gap-1 ps-4 pe-1.5 md:ps-5">
       {/* The dialog is named by this alone, whichever section is open. */}
       <h2 id={titleId} className="sr-only">
         Settings
       </h2>
-      {phone === "section" && <BackToSections />}
       <nav aria-label="Breadcrumbs" className="me-auto min-w-0 pe-1">
-        {crumbs}
+        {trail}
       </nav>
       {Action && (
         <Suspense fallback={null}>
