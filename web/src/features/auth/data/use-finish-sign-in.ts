@@ -1,14 +1,18 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useTransport } from "@connectrpc/connect-query";
 
-/** Once someone is signed in: forgets what was cached before, and goes to `redirect` or home. */
+import { useFinishHubSignIn } from "@/features/auth/data/use-finish-hub-sign-in";
+import { moveBrowserPush } from "@/shared/hooks/browser-push";
+
+/**
+ * Once someone is signed in to a Server, or switched to: hands them this browser's notifications,
+ * then finishes as `useFinishHubSignIn` does.
+ */
 export function useFinishSignIn(redirect: string | undefined) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const transport = useTransport();
+  const finish = useFinishHubSignIn(redirect);
   return async () => {
-    // Forget the signed-out visitor, and anything cached for whoever was signed in before.
-    queryClient.clear();
-    // In the sign-in page's place: going back to it would only send Back on to `redirect` again.
-    await navigate({ href: redirect ?? "/", replace: true });
+    // The Device now acts as this User (ADR 0106), and the Server keeps pushing whoever it was.
+    await moveBrowserPush(transport);
+    await finish();
   };
 }

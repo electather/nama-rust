@@ -25,8 +25,8 @@ export async function subscribeAtServer(transport: Transport, subscription: Push
 }
 
 /**
- * Hands this browser's push subscription, if it has one, to the User the Device switched to. A
- * failure doesn't undo the switch.
+ * Hands this browser's push subscription, if it has one, to the User the Device now acts as, after
+ * a sign-in or a switch. A failure doesn't undo either.
  */
 export async function moveBrowserPush(transport: Transport) {
   try {
