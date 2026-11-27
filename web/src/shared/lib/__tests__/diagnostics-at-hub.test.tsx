@@ -107,9 +107,8 @@ test.each([
     const listed: string[] = [];
     openAtHub("/watchlist", { [exporter]: true, [other]: false }, listed);
 
-    await vi.waitFor(() => {
-      expect(new Set(listed)).toStrictEqual(new Set([basement, cabin]));
-    });
+    // Polled, not `vi.waitFor`: its 1 s can pass while the file's first app loads its route chunks.
+    await expect.poll(() => new Set(listed)).toStrictEqual(new Set([basement, cabin]));
     expect(recorded).toContain(`${exporter} call ListWatchlist`);
     expect(recorded.filter((line) => line.startsWith(other))).toStrictEqual([]);
   },
@@ -118,9 +117,7 @@ test.each([
 test("at the Hub, route changes and uncaught errors on the Hub's own pages are dropped", async () => {
   const listed: string[] = [];
   const router = openAtHub("/watchlist", { [basement]: true }, listed);
-  await vi.waitFor(() => {
-    expect(listed).toContain(basement);
-  });
+  await expect.poll(() => listed).toContain(basement);
 
   await router.navigate({ to: "/" });
   failUncaught();
@@ -130,11 +127,9 @@ test("at the Hub, route changes and uncaught errors on the Hub's own pages are d
 
 test("at the Hub, route changes and uncaught errors on a Server's page go to that Server", async () => {
   openAtHub("/libraries/1?server=basement", { [basement]: true });
-  await vi.waitFor(() => {
-    expect(recorded).toContain(
-      `${basement} span route change /_member/_server/libraries/$libraryId/`,
-    );
-  });
+  await expect
+    .poll(() => recorded)
+    .toContain(`${basement} span route change /_member/_server/libraries/$libraryId/`);
 
   failUncaught();
 
@@ -143,11 +138,9 @@ test("at the Hub, route changes and uncaught errors on a Server's page go to tha
 
 test("at the Hub, an uncaught error on a Server's page naming no Server, after one that does, is dropped", async () => {
   const router = openAtHub("/libraries/1?server=basement", { [basement]: true });
-  await vi.waitFor(() => {
-    expect(recorded).toContain(
-      `${basement} span route change /_member/_server/libraries/$libraryId/`,
-    );
-  });
+  await expect
+    .poll(() => recorded)
+    .toContain(`${basement} span route change /_member/_server/libraries/$libraryId/`);
   recorded.length = 0;
 
   // Pushed, so `?server=` isn't kept: the Hub answers "Page not found".

@@ -171,8 +171,11 @@ export const WebPushService: GenService<{
     output: typeof GetWebPushKeyResponseSchema;
   },
   /**
-   * Pushes the caller's notifications to a browser's push subscription from now on. An endpoint
-   * another User subscribed becomes the caller's, as the browser now holds the caller's session.
+   * Pushes the caller's notifications to a browser's push subscription until the caller is
+   * signed out of the Device that sent it, however that happens. An endpoint another User
+   * subscribed becomes the caller's, as the browser now acts as them: a client sends its
+   * subscription again as each User it switches to, and unsubscribes before signing a User or the
+   * Device out.
    * Fails with `REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID` for an endpoint that isn't an https
    * URL or keys that aren't the browser's.
    *

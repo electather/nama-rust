@@ -3,10 +3,11 @@
 //! one. Every check parses with WHATWG's parser, as browsers read the Hub's links to them and the
 //! address its page sends a person back to.
 //!
-//! A sign-in never returns to the public address or the Relay's, though the list offers both: the
-//! Server refuses such a return address itself before it asks the Hub (`nama-server`'s
-//! `server_addresses::is_reported`), as it can't know its public IP, and the Relay's address is a
-//! name the Hub gives it. Only its Server URL and LAN addresses are return addresses.
+//! A sign-in never returns to the public address, though the list offers it: the Server refuses
+//! such a return address itself before it asks the Hub (`nama-server`'s
+//! `server_addresses::is_reported`), as it can't know its public IP. Its Server URL, LAN addresses,
+//! the HTTPS names the Hub gave those and its Relay's address are return addresses; the Hub makes
+//! the last two itself, so a Server can't widen them by reporting anything.
 
 use std::net::SocketAddr;
 
@@ -164,21 +165,34 @@ impl Links {
         })
     }
 
-    /// Whether `return_url` may be where a sign-in to `server` returns: on its Server URL or one
-    /// of its LAN addresses, never its public address or Relay's (module docs).
+    /// Whether `return_url` may be where a sign-in to `server` returns: on its Server URL, one of
+    /// its LAN addresses or their names, or its Relay's address, never its public address (module
+    /// docs).
     pub(super) async fn is_return_address(
         &self,
         server: LinkedServerId,
         return_url: &str,
     ) -> Result<bool, sqlx::Error> {
         let addresses = sqlx::query!(
-            "SELECT server_url, lan_addresses FROM linked_servers WHERE id = $1",
+            "SELECT server_url, lan_addresses, relay_address FROM linked_servers WHERE id = $1",
             server.0,
         )
         .fetch_one(&self.db)
         .await?;
-        let return_addresses = std::iter::once(addresses.server_url.as_str())
-            .chain(addresses.lan_addresses.iter().map(String::as_str));
+        let lan_names: Vec<String> = match &self.names {
+            Some(server_names) => {
+                let own = names::own_name(server, &server_names.zone);
+                (addresses.lan_addresses.iter())
+                    .filter_map(|address| names::lan_name_address(&own, address))
+                    .collect()
+            }
+            None => Vec::new(),
+        };
+        let return_addresses = [&addresses.server_url, &addresses.relay_address]
+            .into_iter()
+            .chain(&addresses.lan_addresses)
+            .chain(&lan_names)
+            .map(String::as_str);
         Ok(is_on_server(return_url, return_addresses))
     }
 

@@ -33,7 +33,8 @@ use x509_parser::{certificate::X509Certificate, extensions::GeneralName, prelude
 
 use crate::{
     db,
-    link::{self, Link, Linking},
+    link::{self, Linking},
+    server_addresses,
     server_settings::ServerUrl,
 };
 
@@ -172,7 +173,7 @@ pub(crate) fn keep_renewed(
                 Ok(()) = reports.changed() => {}
             }
             let now = db::now();
-            let named = named(&linking).await;
+            let named = linking.named().await;
             let public =
                 (named.as_ref()).and_then(|found| public_url(found, &certificate, now, relay));
             server_url.set_default(public);
@@ -188,18 +189,6 @@ pub(crate) fn keep_renewed(
             }
         }
     })
-}
-
-/// What the service found of how clients reach the Server, while it has the Server Linked and
-/// named.
-async fn named(linking: &Linking) -> Option<Reachability> {
-    match linking.server_link().await {
-        Ok(Link::Linked {
-            reachability: Some(found),
-            ..
-        }) if !found.names.is_empty() => Some(found),
-        _ => None,
-    }
 }
 
 /// The Server URL while the Admin sets none, while `certificate` is for its own name and the
@@ -221,7 +210,7 @@ fn public_url(
         let port = Url::parse(&found.address).ok()?.port_or_known_default()?;
         return Some(format!("https://{own}:{port}"));
     }
-    let relay_name = format!("relay.{own}");
+    let relay_name = server_addresses::relay_name(own);
     let relay = relay.filter(|_| found.names.contains(&relay_name))?;
     Some(format!("https://{relay_name}:{}", relay.port()))
 }

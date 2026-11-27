@@ -9,6 +9,7 @@ import {
 } from "nama-ui/components/dropdown-menu";
 
 import { useSignOut } from "@/app/data/use-sign-out";
+import { SignOutToast } from "@/app/top-bar/sign-out-toast";
 import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
 import { sectionSearch } from "@/features/settings/lib/sections";
 
@@ -22,9 +23,8 @@ const watchlistLink = <Link to="/watchlist" />;
 export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean }) {
   const navigate = useNavigate();
   const here = useLocation({ select: (location) => location.href });
-  const signOutUser = useSignOut();
   const signOutAccount = useSignOutAccount();
-  const signingOut = signOutUser.isPending || signOutAccount.isPending;
+  const signOutUser = useSignOut();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -64,7 +64,7 @@ export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean
           Settings
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={signingOut}
+          disabled={signOutAccount.isPending || signOutUser.isPending}
           onClick={() => {
             if (atHub) {
               signOutAccount.mutate({});
@@ -76,6 +76,15 @@ export function UserMenu({ userName, atHub }: { userName: string; atHub: boolean
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
+      {/* Beside the menu's content, not in it, so it outlives the closed menu. */}
+      <SignOutToast
+        error={signOutAccount.error ?? signOutUser.error}
+        atHub={atHub}
+        onDismiss={() => {
+          signOutAccount.reset();
+          signOutUser.reset();
+        }}
+      />
     </DropdownMenu>
   );
 }

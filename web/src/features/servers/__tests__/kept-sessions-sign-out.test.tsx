@@ -9,6 +9,7 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import type { ServerAt } from "@/shared/lib/server";
 import { fill, openApp } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
+import { openMenu } from "@/test-menu";
 
 afterEach(() => {
   cleanup();
@@ -70,9 +71,10 @@ test("signing the Account out signs each kept Device out on its Server, despite 
   keepSessions();
   const { signedOut, serverAt } = serversSigningOut({ "https://basement.example": "refuses" });
   const { hub, transport } = accountHub({ servers });
-  openApp("/?settings=account", transport, undefined, serverAt);
+  openApp("/", transport, undefined, serverAt);
 
-  const signOut = await screen.findByRole("button", { name: "Sign out" });
+  await openMenu("ada@example.com’s menu");
+  const signOut = await screen.findByRole("menuitem", { name: "Sign out" });
   // Signed out, the Hub lists no Servers, so only the list the page already has can name them.
   hub.servers = [];
   fireEvent.click(signOut);

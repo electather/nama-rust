@@ -40,7 +40,7 @@ mod seeing;
 mod sessions;
 mod sign_in;
 mod sign_in_codes;
-// Neighbours' tests reach it by path: `insert_user` here is the production one.
+// Neighbours' tests reach it by path: `insert_user` and `insert_device` here are the production ones.
 #[cfg(test)]
 pub(crate) mod testing;
 
@@ -54,8 +54,11 @@ pub(crate) use inbox::{
     store as store_in_inbox, unread as count_unread_in_inbox,
 };
 pub(crate) use invites::Invite;
+use library_access::LIBRARY_ACCESS_CHANGES_BUFFERED;
 pub(crate) use library_access::{LibraryAccess, library_access};
-use managing::{default_permissions, ensure_may_change, ensure_may_grant};
+use managing::{
+    PERMISSION_CHANGES_BUFFERED, default_permissions, ensure_may_change, ensure_may_grant,
+};
 pub(crate) use managing::{every_user, remote_cap};
 use maximum_age::MAXIMUM_AGE_CHANGES_BUFFERED;
 pub(crate) use maximum_age::maximum_age;
@@ -102,15 +105,6 @@ const RECENT_AUTHENTICATION_WINDOW: i64 = 10 * 60;
 /// How many sign-outs and switches may happen before a waiter in [`Users::signed_out`] has seen
 /// them. One that falls further behind checks its Device in the database instead.
 const SIGN_OUTS_BUFFERED: usize = 64;
-
-/// How many Permission changes may happen before a waiter in [`Users::permissions_changed`] has
-/// seen them. One that falls further behind reads its User's Permissions instead.
-const PERMISSION_CHANGES_BUFFERED: usize = 64;
-
-/// How many Library access changes may happen before a waiter in
-/// [`Users::library_access_watched`] has seen them. One that falls further behind reads its User's
-/// Library access instead.
-const LIBRARY_ACCESS_CHANGES_BUFFERED: usize = 64;
 
 /// The Server's Users, Devices and sessions, kept in its database.
 ///
@@ -300,6 +294,12 @@ pub enum Error {
     /// the Hub (ADR 0092).
     #[error("the Server must keep at least one Admin who can sign in with a password")]
     LastAdmin,
+    /// The change would leave a User holding `PERMISSION_MANAGE_USERS` who sees only a chosen list
+    /// of Libraries.
+    #[error(
+        "a User who sees only chosen Libraries can't Manage Users unless they also Manage Libraries"
+    )]
+    ManageUsersNeedsEveryLibrary,
     /// Only a User with `PERMISSION_ADMIN` may make the change.
     #[error("only an Admin may change an Admin, make an Admin or change their own Permissions")]
     AdminRequired,

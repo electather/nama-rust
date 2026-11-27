@@ -7,7 +7,7 @@ import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
 export function ExpiredSignInLink() {
   return (
     <SignInCard heading="This Sign-in Link has expired">
-      <p className="text-center text-base text-pretty">
+      <p className="text-center text-sm text-pretty">
         Each Sign-in Link works once, within 15 minutes. Ask for a new one to sign in.
       </p>
       <Link to="/send-sign-in-link" replace className={buttonVariants({ size: "lg" })}>

@@ -82,7 +82,7 @@
       },
       {
         "from": "auth",
-        // Home at the Hub lists its Servers' Libraries under their merged rows.
+        // Home at the Hub notices the Servers it can't show over their merged rows.
         "allow": ["auth", "home", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
