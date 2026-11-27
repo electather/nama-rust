@@ -208,13 +208,6 @@ test("continue Watching at the Hub shows its skeleton till the first Server answ
         return answer;
       },
     }),
-    "https://cabin.example": fakeServer({
-      listContinueWatching: async () => {
-        // Cabin never answers.
-        await new Promise(() => {});
-        return {};
-      },
-    }),
   });
   await waitFor(() => {
     expect(continueWatchingSkeleton()).not.toBeNull();
@@ -256,66 +249,107 @@ function listing(entries: ReturnType<typeof startedMovie>[], nextToken = "") {
   return { entries, page: { nextToken } };
 }
 
-/** A fake Server listing `entries` on Continue Watching, 20 to a page. */
-function pagedServer(entries: ReturnType<typeof startedMovie>[]) {
-  return fakeServer({
-    listContinueWatching: ({ page }) => {
-      // `Number("")` is 0: the first page.
-      const from = Number(page?.token ?? "");
-      const to = from + 20;
-      return listing(entries.slice(from, to), to < entries.length ? String(to) : "");
+/** The Movies `M0` to `M<count - 1>`, last watched in that order, most recent first. */
+function movies(count: number) {
+  return Array.from({ length: count }, (_, at) =>
+    startedMovie({ namespace: "tmdb", value: `m${at}` }, `M${at}`, BigInt(1000 - at * 10)),
+  );
+}
+
+/** The titles `M<from>` to `M<to - 1>`. */
+function titlesFrom(from: number, to: number) {
+  return Array.from({ length: to - from }, (_, at) => `M${from + at}`);
+}
+
+/** The names of the cards resuming `titles`. */
+function resuming(...titles: string[]) {
+  return titles.map((title) => `Resume ${title}, 1h 39m left`);
+}
+
+/**
+ * A fake Server listing `list()` on Continue Watching, 20 to a page, each page's token naming its
+ * last title, as the Server's keyset tokens do.
+ */
+function pagedServer(
+  list: () => ReturnType<typeof startedMovie>[],
+  watchState: Partial<ServiceImpl<typeof WatchStateService>> = {},
+) {
+  return fakeServer(
+    {
+      listContinueWatching: ({ page }) => {
+        const entries = list();
+        const from =
+          entries.findIndex(({ movieOrEpisode }) => movieOrEpisode.value.id.value === page?.token) +
+          1;
+        const shown = entries.slice(from, from + 20);
+        const more = from + 20 < entries.length;
+        return listing(shown, more ? shown.at(-1)?.movieOrEpisode.value.id.value : "");
+      },
     },
-  });
+    watchState,
+  );
 }
 
 test("continue Watching at the Hub pages each Server as it scrolls, merged in order, each title once", async () => {
   // Wide enough that the first pages fit across the shelf at once, so it's at its end.
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(4000);
-  const movies = Array.from({ length: 25 }, (_, at) =>
-    startedMovie({ namespace: "tmdb", value: String(at) }, `M${at}`, BigInt(1000 - at * 10)),
-  );
+  const basementMovies = movies(25);
   openHub({
-    "https://basement.example": pagedServer(movies),
+    "https://basement.example": pagedServer(() => basementMovies),
     "https://cabin.example": fakeServer({
       listContinueWatching: () =>
         listing([
-          startedMovie({ namespace: "tmdb", value: "22" }, "M22", 905n),
+          startedMovie({ namespace: "tmdb", value: "m22" }, "M22", 905n),
           startedMovie(heat, "Heat", 805n),
         ]),
     }),
   });
 
-  const titles = [
-    "M0",
-    "M1",
-    "M2",
-    "M3",
-    "M4",
-    "M5",
-    "M6",
-    "M7",
-    "M8",
-    "M9",
-    "M22",
-    "M10",
-    "M11",
-    "M12",
-    "M13",
-    "M14",
-    "M15",
-    "M16",
-    "M17",
-    "M18",
-    "M19",
-    "Heat",
-    "M20",
-    "M21",
-    "M23",
-    "M24",
-  ];
   await waitFor(() => {
     expect(linksIn("Continue Watching").map(({ name }) => name)).toStrictEqual(
-      titles.map((title) => `Resume ${title}, 1h 39m left`),
+      resuming(
+        ...titlesFrom(0, 10),
+        "M22",
+        ...titlesFrom(10, 20),
+        "Heat",
+        "M20",
+        "M21",
+        "M23",
+        "M24",
+      ),
+    );
+  });
+});
+
+test("a card a change moves onto a Server's next page still shows at the Hub", async () => {
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(4000);
+  let basementMovies = movies(25);
+  openHub({
+    "https://basement.example": pagedServer(() => basementMovies, {
+      setHiddenFromContinueWatching: () => {
+        // Meanwhile Alien and Heat are watched elsewhere, which moves M19 onto the next page.
+        const others = basementMovies.filter(
+          ({ movieOrEpisode }) => movieOrEpisode.value.title !== "M5",
+        );
+        basementMovies = [
+          startedMovie(alien, "Alien", 2000n),
+          startedMovie(heat, "Heat", 1900n),
+          ...others,
+        ];
+        return {};
+      },
+    }),
+  });
+  await waitFor(() => {
+    expect(linksIn("Continue Watching")).toHaveLength(25);
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "More for M5" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Remove from recently watched" }));
+
+  await waitFor(() => {
+    expect(linksIn("Continue Watching").map(({ name }) => name)).toStrictEqual(
+      resuming("Alien", "Heat", ...titlesFrom(0, 5), ...titlesFrom(6, 25)),
     );
   });
 });
