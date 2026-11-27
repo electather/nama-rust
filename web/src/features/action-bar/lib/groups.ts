@@ -1,5 +1,6 @@
 import type { Page } from "@/features/action-bar/lib/pages";
 import { libraryRows, personRows } from "@/features/action-bar/lib/place-rows";
+import { kindBadge, statusBadge } from "@/features/action-bar/lib/row-badges";
 import {
   type Frame,
   type Group,
@@ -36,27 +37,6 @@ export interface BarActions {
   openLibrary: (library: Library) => void;
   openPerson: (person: FoundPerson) => void;
   retry: () => void;
-}
-
-const badges = { movie: "Movie", show: "Show", episode: "Episode" } as const;
-
-/** What a row of Recent says beside its label: its kind, as Recent mixes them. */
-function kindBadge(title: FoundTitle): Pick<Row, "badge" | "request"> {
-  return { badge: badges[title.kind] };
-}
-
-/**
- * What a search result says beside its label: nothing when Available, else its Request, or for a
- * Followed Show with no open Season Request, that it's Requested.
- */
-function statusBadge({ libraryId, request, status }: FoundTitle): Pick<Row, "badge" | "request"> {
-  if (libraryId !== undefined) {
-    return {};
-  }
-  if (request !== undefined) {
-    return { request };
-  }
-  return { badge: status === TitleStatus.REQUESTED ? "Requested" : "Request" };
 }
 
 function titleRows(
