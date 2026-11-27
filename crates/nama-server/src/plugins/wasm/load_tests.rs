@@ -310,7 +310,8 @@ fn a_choices_setting_without_manifest_choices_loads_only_with_a_settings_check()
 fn choices_on_another_kind_repeated_or_missing_the_default_are_refused() {
     let refusals = [
         SettingField {
-            kind: SettingKind::SETTING_KIND_CHOICE.into(),
+            kind: SettingKind::SETTING_KIND_TEXT.into(),
+            default_value: None.into(),
             ..ratings(&["G"], None)
         },
         ratings(&["G", "PG", "G"], None),
@@ -321,9 +322,54 @@ fn choices_on_another_kind_repeated_or_missing_the_default_are_refused() {
     assert_eq!(
         refusals,
         [
-            "its setting ratings has choices, which only a Choices setting may",
+            "its setting ratings has choices, which only a Choice or Choices setting may",
             r#"its setting ratings lists the choice "G" twice"#,
             "its setting ratings's default holds a value that isn't among its choices",
+        ]
+        .map(|refusal| Some(refusal.to_owned()))
+    );
+}
+
+/// A Choice setting listing `choices` in its Manifest, with `default` as its default if any.
+fn language(choices: &[&str], default: Option<&str>) -> SettingField {
+    SettingField {
+        key: "language".to_owned(),
+        kind: SettingKind::SETTING_KIND_CHOICE.into(),
+        default_value: default
+            .map(|value| SettingValue {
+                value: Some(setting_value::Value::TextValue(value.to_owned())),
+                ..Default::default()
+            })
+            .into(),
+        ..ratings(choices, None)
+    }
+}
+
+#[test]
+fn a_choice_setting_with_manifest_choices_loads_without_a_settings_check() {
+    let fields = judged_settings(language(&["en-US", "de-DE"], Some("en-US"))).unwrap();
+
+    assert_eq!(
+        (fields.iter())
+            .map(|field| (field.choices.iter().map(|choice| choice.value.as_str())).collect())
+            .collect::<Vec<Vec<_>>>(),
+        [["en-US", "de-DE"]]
+    );
+}
+
+#[test]
+fn a_choice_setting_repeating_a_manifest_choice_or_defaulting_to_an_unlisted_one_is_refused() {
+    let refusals = [
+        language(&["en-US", "de-DE", "en-US"], None),
+        language(&["en-US", "de-DE"], Some("english")),
+    ]
+    .map(|setting| judged_settings(setting).err());
+
+    assert_eq!(
+        refusals,
+        [
+            r#"its setting language lists the choice "en-US" twice"#,
+            "its setting language's default holds a value that isn't among its choices",
         ]
         .map(|refusal| Some(refusal.to_owned()))
     );

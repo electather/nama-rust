@@ -284,7 +284,7 @@ fn a_builtin_with_choices_on_another_kind_is_refused() {
 
     assert_eq!(
         refused(field, false).as_deref(),
-        Some("its setting ratings has choices, which only a Choices setting may")
+        Some("its setting ratings has choices, which only a Choice or Choices setting may")
     );
 }
 

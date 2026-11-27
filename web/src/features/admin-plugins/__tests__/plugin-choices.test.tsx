@@ -138,7 +138,7 @@ test("a failed test shows the Plugin’s error and leaves the choice locked", as
   expect(found12.hasAttribute("disabled")).toBe(true);
 });
 
-test("a passing test that offers nothing for a choice unlocks it with nothing to pick", async () => {
+test("a passing test that offers nothing for a choice unlocks it with only the one it holds", async () => {
   openPlugin("test-choices", { testPluginSettings: () => ({ choices: {} }) });
 
   await pressTest();
@@ -147,7 +147,7 @@ test("a passing test that offers nothing for a choice unlocks it with nothing to
     const found13 = await profile();
     expect(found13.hasAttribute("disabled")).toBe(false);
   });
-  await expect(offered("Profile")).resolves.toStrictEqual(["Pick one"]);
+  await expect(offered("Profile")).resolves.toStrictEqual(["Pick one", "1"]);
 });
 
 /** Saves the test Plugin's settings, refused for `reason` with `message`, naming its Profile. */

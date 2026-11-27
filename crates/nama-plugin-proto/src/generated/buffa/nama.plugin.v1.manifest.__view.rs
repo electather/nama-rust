@@ -1376,11 +1376,11 @@ pub struct SettingFieldView<'a> {
     pub min_value: ::core::option::Option<i64>,
     /// Field 8: `max_value`
     pub max_value: ::core::option::Option<i64>,
-    /// The choices a `SETTING_KIND_CHOICES` setting offers, in the order a form shows them, unless
-    /// `check_settings()` returns its own for the setting, which replace them. A Server refuses a
-    /// Plugin setting them on another kind, repeating a choice's value, with a default holding a
-    /// value not among them, or with a `SETTING_KIND_CHOICES` setting that has none and no
-    /// `check_settings()` export.
+    /// The choices a `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting offers, in the order a
+    /// form shows them, unless `check_settings()` returns its own for the setting, which replace them.
+    /// A Server refuses a Plugin setting them on another kind, repeating a choice's value, with a
+    /// default holding a value not among them, or with a `SETTING_KIND_CHOICES` setting that has none
+    /// and no `check_settings()` export.
     ///
     /// Field 9: `choices`
     pub choices: ::buffa::RepeatedView<'a, super::super::__buffa::view::ChoiceView<'a>>,
@@ -1851,11 +1851,11 @@ impl SettingFieldOwnedView {
     pub fn max_value(&self) -> ::core::option::Option<i64> {
         self.0.reborrow().max_value
     }
-    /// The choices a `SETTING_KIND_CHOICES` setting offers, in the order a form shows them, unless
-    /// `check_settings()` returns its own for the setting, which replace them. A Server refuses a
-    /// Plugin setting them on another kind, repeating a choice's value, with a default holding a
-    /// value not among them, or with a `SETTING_KIND_CHOICES` setting that has none and no
-    /// `check_settings()` export.
+    /// The choices a `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting offers, in the order a
+    /// form shows them, unless `check_settings()` returns its own for the setting, which replace them.
+    /// A Server refuses a Plugin setting them on another kind, repeating a choice's value, with a
+    /// default holding a value not among them, or with a `SETTING_KIND_CHOICES` setting that has none
+    /// and no `check_settings()` export.
     ///
     /// Field 9: `choices`
     #[must_use]
@@ -1898,8 +1898,8 @@ impl ::serde::Serialize for SettingFieldOwnedView {
 /// What an Installed Plugin's `check_settings()` returns when its settings work.
 #[derive(Clone, Debug, Default)]
 pub struct CheckedSettingsView<'a> {
-    /// The choices for each `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting, by key. A
-    /// `SETTING_KIND_CHOICES` setting's replace those its `SettingField.choices` lists.
+    /// The choices for each `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting, by key. They
+    /// replace those the setting's `SettingField.choices` lists.
     ///
     /// Field 1: `choices` (map)
     pub choices: ::buffa::MapView<
@@ -2216,8 +2216,8 @@ impl CheckedSettingsOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The choices for each `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting, by key. A
-    /// `SETTING_KIND_CHOICES` setting's replace those its `SettingField.choices` lists.
+    /// The choices for each `SETTING_KIND_CHOICE` or `SETTING_KIND_CHOICES` setting, by key. They
+    /// replace those the setting's `SettingField.choices` lists.
     ///
     /// Field 1: `choices` (map)
     #[must_use]
