@@ -157,11 +157,10 @@ impl Shared {
             LibraryKind::Movies,
             std::slice::from_ref(&alien),
         );
-        let of_titles = match of_titles.await.unwrap().remove(&alien) {
-            Some(Whereabouts::In(title)) => Whereabouts::In(title.library()),
-            Some(Whereabouts::KeptFrom) => Whereabouts::KeptFrom,
-            Some(Whereabouts::Nowhere) | None => Whereabouts::Nowhere,
-        };
+        let of_titles = (of_titles.await.unwrap().remove(&alien))
+            .map_or(Whereabouts::Nowhere, |placed| {
+                placed.map(|title| title.library())
+            });
         let mut conn = self.db.reader().acquire().await.unwrap();
         let of_title = Whereabouts::of_title(&mut conn, reach, TitleKind::Movie, &alien);
         let of_title = of_title.await.unwrap();

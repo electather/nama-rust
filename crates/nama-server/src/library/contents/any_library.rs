@@ -1,4 +1,5 @@
-//! Where a title is Matched in any Library, which Requests, Custom Images and Watch sync ask.
+//! Where a title is Matched in any Library, which Requests, Custom Images, Watch sync and
+//! `Whereabouts` ask.
 
 use std::collections::HashSet;
 
@@ -14,23 +15,8 @@ pub(crate) async fn library_with_movie(
     conn: &mut SqliteConnection,
     id: &ExternalId,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let (namespace, value) = (id.namespace(), id.value());
-    sqlx::query_scalar!(
-        r#"SELECT MIN(library_files.library_id) AS "library: i64"
-           FROM item_match_ids
-           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-           JOIN library_items ON library_items.id = item_matches.item_id
-           JOIN library_files ON library_files.id = library_items.file_id
-           WHERE item_match_ids.scope = 'title'
-             AND item_match_ids.namespace = ?
-             AND item_match_ids.value = ?
-             AND item_matches.state = 'matched'
-             AND library_items.kind = 'movie'"#,
-        namespace,
-        value
-    )
-    .fetch_one(&mut *conn)
-    .await
+    let copies = copies_of(conn, TitleKind::Movie, id).await?;
+    Ok(copies.first().map(|&(library, _)| library))
 }
 
 /// The oldest Library with an Episode Matched to the Show `id`, by any of its ids, if any.
@@ -38,23 +24,8 @@ pub(crate) async fn library_with_show(
     conn: &mut SqliteConnection,
     id: &ExternalId,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let (namespace, value) = (id.namespace(), id.value());
-    sqlx::query_scalar!(
-        r#"SELECT MIN(library_files.library_id) AS "library: i64"
-           FROM item_match_ids
-           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-           JOIN library_items ON library_items.id = item_matches.item_id
-           JOIN library_files ON library_files.id = library_items.file_id
-           WHERE item_match_ids.scope = 'show'
-             AND item_match_ids.namespace = ?
-             AND item_match_ids.value = ?
-             AND item_matches.state = 'matched'
-             AND library_items.kind = 'episode'"#,
-        namespace,
-        value
-    )
-    .fetch_one(&mut *conn)
-    .await
+    let copies = copies_of(conn, TitleKind::Show, id).await?;
+    Ok(copies.first().map(|&(library, _)| library))
 }
 
 /// Each Library with the title of `kind` known by `id` Matched, by any of its ids, oldest first,

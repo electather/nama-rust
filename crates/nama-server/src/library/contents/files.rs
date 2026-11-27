@@ -139,7 +139,7 @@ impl Contents {
         let ratings = self.version_content_ratings(version).await?;
         Ok(ratings
             .iter()
-            .all(|rating| reach.reaches(library, rating.as_deref())))
+            .all(|rating| reach.allows_rating(rating.as_deref())))
     }
 
     /// The other Versions, by path, in the Library of the Version `version`, of any Movie or

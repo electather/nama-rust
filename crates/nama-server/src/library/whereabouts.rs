@@ -29,6 +29,15 @@ impl<T> Whereabouts<T> {
             Self::KeptFrom | Self::Nowhere => None,
         }
     }
+
+    /// The same answer, with what it is in, if anything, turned by `f`.
+    pub(crate) fn map<U>(self, f: impl FnOnce(T) -> U) -> Whereabouts<U> {
+        match self {
+            Self::In(title) => Whereabouts::In(f(title)),
+            Self::KeptFrom => Whereabouts::KeptFrom,
+            Self::Nowhere => Whereabouts::Nowhere,
+        }
+    }
 }
 
 impl Whereabouts {
@@ -80,15 +89,7 @@ impl Whereabouts<i64> {
         id: &ExternalId,
     ) -> Result<Self, sqlx::Error> {
         let copies = copies_of(conn, kind, id).await?;
-        Ok(
-            match placed(reach, copies, |(library, rating)| {
-                (*library, rating.as_deref())
-            }) {
-                Whereabouts::In((library, _)) => Self::In(library),
-                Whereabouts::KeptFrom => Self::KeptFrom,
-                Whereabouts::Nowhere => Self::Nowhere,
-            },
-        )
+        Ok(placed(reach, copies, copy_held).map(|(library, _)| library))
     }
 }
 
@@ -116,6 +117,10 @@ fn placed<T>(
 
 fn held_in(title: &OnServer) -> (i64, Option<&str>) {
     (title.library(), title.content_rating())
+}
+
+fn copy_held((library, rating): &(i64, Option<String>)) -> (i64, Option<&str>) {
+    (*library, rating.as_deref())
 }
 
 #[cfg(test)]
