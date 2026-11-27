@@ -88,9 +88,9 @@ impl Ratings {
 }
 
 impl Viewer {
-    /// Whether this viewer's Reach lets the title of `event` reach them: one about another User's Request
-    /// or Followed Show, or any `ItemMatched`, of a title over it doesn't, as their lists leave
-    /// those out. One whose rating can't be read, logged, doesn't either.
+    /// Whether this viewer's Reach lets the title of `event` reach them: one about another User's
+    /// Request or Followed Show, or any `ItemMatched`, of a title over their Maximum Age doesn't,
+    /// as their lists leave those out. One whose rating can't be read, logged, doesn't either.
     pub(super) async fn allows_title_of(&self, ratings: &Ratings, event: &Event) -> bool {
         if self.reach.lets_every_rating() {
             return true;

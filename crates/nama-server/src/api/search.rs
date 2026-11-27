@@ -258,7 +258,7 @@ impl Searching {
 
 /// What each Search source's batch in one search reads, read once.
 struct SourceBatches<'a> {
-    handler: &'a Searching,
+    search: &'a Searching,
     viewer: &'a User,
     images: &'a ShownImages,
     limit: usize,
@@ -269,16 +269,16 @@ struct SourceBatches<'a> {
 }
 
 impl<'a> SourceBatches<'a> {
-    async fn new(handler: &'a Searching, searched: &'a Searched, images: &'a ShownImages) -> Self {
+    async fn new(search: &'a Searching, searched: &'a Searched, images: &'a ShownImages) -> Self {
         let viewer = &searched.viewer;
-        let requests = &handler.requests;
+        let requests = &search.requests;
         let (movie_namespaces, show_namespaces) = future::join(
             requests.requestable_namespaces(viewer, TitleKind::Movie),
             requests.requestable_namespaces(viewer, TitleKind::Show),
         )
         .await;
         Self {
-            handler,
+            search,
             viewer,
             images,
             limit: searched.limit,
@@ -338,7 +338,7 @@ impl<'a> SourceBatches<'a> {
         title: Sourced,
         mut ids: Vec<ExternalId>,
     ) -> Result<Option<(proto::Hit, Vec<ExternalId>)>, ConnectError> {
-        let on_server = self.handler.browse.in_libraries(title.kind, &ids).await;
+        let on_server = self.search.browse.in_libraries(title.kind, &ids).await;
         if let Some(on_server) = on_server.map_err(refused(Fields::NONE))?.into_iter().next() {
             let (id, known) = match &on_server {
                 OnServer::Movie(movie) => (&movie.id, &movie.ids),
@@ -348,7 +348,7 @@ impl<'a> SourceBatches<'a> {
             return Ok(Some((available_hit(on_server, self.images), ids)));
         }
         // As a Plugin's Home row does, rather than offer it to Request.
-        let hidden = self.handler.browse.hides(title.kind, &ids).await;
+        let hidden = self.search.browse.hides(title.kind, &ids).await;
         if hidden.map_err(refused(Fields::NONE))? {
             return Ok(None);
         }
@@ -356,7 +356,7 @@ impl<'a> SourceBatches<'a> {
             TitleKind::Movie => &self.movie_namespaces,
             TitleKind::Show => &self.show_namespaces,
         };
-        let unavailable = (self.handler.requests).unavailable(self.viewer, &title, requestable);
+        let unavailable = (self.search.requests).unavailable(self.viewer, &title, requestable);
         let unavailable = unavailable.await.map_err(database_failed)?;
         Ok(unavailable
             .map(|unavailable| (sourced_hit(plugin, title, unavailable, self.images), ids)))

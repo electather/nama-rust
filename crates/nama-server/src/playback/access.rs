@@ -287,8 +287,7 @@ pub(crate) const fn viewer_of_caller(caller: &Caller) -> Viewer {
 }
 
 /// Whether each title the Version `version` holds reaches the User `user`, as it must for them to
-/// play it. One there is no such Version of is for
-/// the caller to refuse.
+/// play it. One there is no such Version of is for the caller to refuse.
 pub(super) async fn sees_version(
     db: &Arc<Database>,
     user: i64,
