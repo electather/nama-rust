@@ -26,8 +26,8 @@ use tokio::net::TcpListener;
 pub use api::Handles;
 
 /// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, built from
-/// `handles`, until `shutdown` resolves, then lets requests in flight finish. Must be called
-/// inside a Tokio runtime, which sends them.
+/// [`Handles`], until `shutdown` resolves, then lets requests in flight finish. Must be called
+/// inside a Tokio runtime.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the web app (ADR 0105).
