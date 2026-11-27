@@ -164,6 +164,17 @@ test("the Filter panel shows 5 genres, Show more the rest, and always one that's
   expect(chips()).toStrictEqual(genres);
 });
 
+test("the Filter panel's corner button clears every filter, and shows only while one is on", async () => {
+  openApp("/libraries/1?watched=played", thousandMovies([]));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Filter, 1 on" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
+
+  await screen.findByRole("button", { name: "Filter" });
+  expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Remove/u })).toBeNull();
+});
+
 test("a filter's chip turns it off, and Clear all turns them all off", async () => {
   const asked: ListMoviesRequest[] = [];
   openApp("/libraries/1?genres=%5B%22Crime%22%5D&watched=played&from=1990", thousandMovies(asked));
