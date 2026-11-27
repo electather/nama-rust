@@ -29,13 +29,10 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use buffa::Message;
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_hub_proto::nama::hub::v1::{
-    GetRelayTokenRequest, GetRelayTokenResponse, GetUserLinkRequest, GetUserLinkResponse,
-    InviteUserRequest, InviteUserResponse, PollServerLinkRequest, PollServerLinkResponse,
+    GetRelayTokenRequest, GetRelayTokenResponse, PollServerLinkRequest, PollServerLinkResponse,
     PollServerSignInRequest, PollServerSignInResponse, SetServerAddressesRequest,
     SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse,
+    StartServerSignInRequest, StartServerSignInResponse, UnlinkServerRequest, UnlinkServerResponse,
 };
 use nama_proto::nama::v1::{
     GetServerLinkRequest, ServerServiceClient, StartServerLinkRequest as Start,
@@ -120,8 +117,10 @@ struct State {
     unlinked_on_hub: Vec<i64>,
     /// The User an Account approved the sign-in as, until the Server collects it.
     approved: Option<i64>,
-    /// Whom the fake signs sign-in tokens for, the Server's id unless a test says otherwise.
+    /// Whom the fake takes the Server for in sign-in tokens and reports, else [`SERVER_ID`].
     audience: Option<String>,
+    /// Whether a new Link's token has expired, so the Server can't check it.
+    expired_link_token: bool,
     /// How often the Server asked for a sign-in's token.
     sign_in_polls: usize,
     /// Whether every call fails `unavailable`, as a Hub that is down.
@@ -135,11 +134,14 @@ struct State {
 mod account;
 #[path = "fake_hub_suggestions.rs"]
 mod suggestions;
+#[path = "fake_hub_users.rs"]
+mod users;
 pub(crate) use account::Account;
 use account::{
     pull_track_preferences, pull_watch_states, push_track_preferences, push_watch_states,
     record_viewing_events, sync_watchlist,
 };
+use users::{invite, start_user, unlink_user, user_link};
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
 pub(crate) struct FakeHub {
@@ -363,7 +365,7 @@ impl FakeHub {
         lock(&self.state).approved = Some(user_id);
     }
 
-    /// Signs sign-in tokens for the Server `server_id` from now on.
+    /// Signs sign-in tokens for the Server `server_id` from now on, and names it so to the Server.
     pub(crate) fn sign_in_for(&self, server_id: &str) {
         lock(&self.state).audience = Some(server_id.to_owned());
     }
@@ -429,6 +431,11 @@ impl FakeHub {
         let server = TestServer::builder().config(hub.config()).start().await;
         hub.link(&server).await;
         (server, hub)
+    }
+
+    /// Hands a token that has expired with each new Link from now on.
+    pub(crate) fn expire_link_tokens(&self) {
+        lock(&self.state).expired_link_token = true;
     }
 
     /// [`FakeHub::link`], and every User of `server` Linked to the Account too, but those the
@@ -578,12 +585,17 @@ fn poll(
     state.entered = false;
     state.linked = true;
     state.credentials += 1;
+    let exp = if state.expired_link_token {
+        0
+    } else {
+        in_5_minutes()
+    };
     Ok(PollServerLinkResponse {
         linked: true,
         credential: credential(state.credentials),
         token: sign(
             key,
-            &json!({ "sub": SERVER_ID, "email": EMAIL, "exp": in_5_minutes() }),
+            &json!({ "sub": SERVER_ID, "email": EMAIL, "exp": exp }),
         ),
         ..Default::default()
     })
@@ -615,9 +627,14 @@ fn tell(
     }
     let port = request.public_port;
     state.told.push(request.clone());
+    let server_id = state
+        .audience
+        .clone()
+        .unwrap_or_else(|| SERVER_ID.to_owned());
     if port == 0 {
         return Ok(SetServerAddressesResponse {
             names,
+            server_id,
             ..Default::default()
         });
     }
@@ -625,6 +642,7 @@ fn tell(
         public_address: format!("http://{PUBLIC_IP}:{port}"),
         reachable: port == u32::from(OPEN_PORT),
         names,
+        server_id,
         ..Default::default()
     })
 }
@@ -643,74 +661,6 @@ fn relay_token(
         ),
         ..Default::default()
     })
-}
-
-fn start_user(
-    state: &mut State,
-    headers: &HeaderMap,
-    request: &StartUserLinkRequest,
-    _: &Ed25519KeyPair,
-) -> Result<StartUserLinkResponse, ConnectError> {
-    caller(state, headers)?;
-    if user_account(state, request.user_id).is_some() {
-        return Err(ConnectError::already_exists("the User is Linked"));
-    }
-    state
-        .user_codes
-        .insert(request.user_id, request.name.clone());
-    Ok(StartUserLinkResponse {
-        user_code: USER_CODE.to_owned(),
-        expires_in_seconds: 600,
-        ..Default::default()
-    })
-}
-
-/// The email of the Account `user_id` is Linked to, if they are.
-fn user_account(state: &State, user_id: i64) -> Option<String> {
-    (state.user_accounts.get(&user_id).cloned()).or_else(|| {
-        (state.everyone_linked && !state.unlinked_on_hub.contains(&user_id))
-            .then(|| EMAIL.to_owned())
-    })
-}
-
-fn user_link(
-    state: &mut State,
-    headers: &HeaderMap,
-    request: &GetUserLinkRequest,
-    _: &Ed25519KeyPair,
-) -> Result<GetUserLinkResponse, ConnectError> {
-    caller(state, headers)?;
-    Ok(GetUserLinkResponse {
-        account: user_account(state, request.user_id).unwrap_or_default(),
-        ..Default::default()
-    })
-}
-
-fn unlink_user(
-    state: &mut State,
-    headers: &HeaderMap,
-    request: &UnlinkUserRequest,
-    _: &Ed25519KeyPair,
-) -> Result<UnlinkUserResponse, ConnectError> {
-    caller(state, headers)?;
-    state.unlinked_users.push(request.user_id);
-    if state.unlinks_fail {
-        return Err(ConnectError::internal("the Hub failed"));
-    }
-    state.user_codes.remove(&request.user_id);
-    state.user_accounts.remove(&request.user_id);
-    Ok(UnlinkUserResponse::default())
-}
-
-fn invite(
-    state: &mut State,
-    headers: &HeaderMap,
-    request: &InviteUserRequest,
-    _: &Ed25519KeyPair,
-) -> Result<InviteUserResponse, ConnectError> {
-    caller(state, headers)?;
-    state.invited = Some((request.user_id, request.name.clone(), request.email.clone()));
-    Ok(InviteUserResponse::default())
 }
 
 fn start_sign_in(

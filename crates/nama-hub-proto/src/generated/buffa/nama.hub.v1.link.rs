@@ -9498,6 +9498,17 @@ pub struct SetServerAddressesResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub names: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The calling Linked Server's id, the audience of the tokens the Hub signs for it. A Server that
+    /// doesn't know its id, such as one Linked by the v0.2.0 Hub Plugin, learns it here.
+    ///
+    /// Field 4: `server_id`
+    #[serde(
+        rename = "serverId",
+        alias = "server_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub server_id: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -9508,6 +9519,7 @@ impl ::core::fmt::Debug for SetServerAddressesResponse {
             .field("public_address", &self.public_address)
             .field("reachable", &self.reachable)
             .field("names", &self.names)
+            .field("server_id", &self.server_id)
             .finish()
     }
 }
@@ -9549,6 +9561,9 @@ impl ::buffa::Message for SetServerAddressesResponse {
         for v in &self.names {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if !self.server_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.server_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9567,6 +9582,9 @@ impl ::buffa::Message for SetServerAddressesResponse {
         }
         for v in &self.names {
             ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if !self.server_id.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.server_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9606,6 +9624,13 @@ impl ::buffa::Message for SetServerAddressesResponse {
                 )?;
                 self.names.push(__elem);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.server_id, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9617,6 +9642,7 @@ impl ::buffa::Message for SetServerAddressesResponse {
         self.public_address.clear();
         self.reachable = false;
         self.names.clear();
+        self.server_id.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

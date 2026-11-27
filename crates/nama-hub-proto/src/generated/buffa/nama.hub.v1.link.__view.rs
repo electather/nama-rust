@@ -18004,6 +18004,11 @@ pub struct SetServerAddressesResponseView<'a> {
     ///
     /// Field 3: `names`
     pub names: ::buffa::RepeatedView<'a, &'a str>,
+    /// The calling Linked Server's id, the audience of the tokens the Hub signs for it. A Server that
+    /// doesn't know its id, such as one Linked by the v0.2.0 Hub Plugin, learns it here.
+    ///
+    /// Field 4: `server_id`
+    pub server_id: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
@@ -18061,6 +18066,13 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
                 )?;
                 view.names.push(__elem);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.server_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -18092,6 +18104,7 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
             public_address: self.public_address.to_string(),
             reachable: self.reachable,
             names: self.names.iter().map(|s| s.to_string()).collect(),
+            server_id: self.server_id.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -18114,6 +18127,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesResponseView<'a> {
         for v in &self.names {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if !self.server_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.server_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -18133,6 +18149,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesResponseView<'a> {
         }
         for v in &self.names {
             ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if !self.server_id.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.server_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -18163,6 +18182,9 @@ impl<'__a> ::serde::Serialize for SetServerAddressesResponseView<'__a> {
         }
         if !self.names.is_empty() {
             __map.serialize_entry("names", &*self.names)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.server_id) {
+            __map.serialize_entry("serverId", self.server_id)?;
         }
         __map.end()
     }
@@ -18284,6 +18306,14 @@ impl SetServerAddressesResponseOwnedView {
     #[must_use]
     pub fn names(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().names
+    }
+    /// The calling Linked Server's id, the audience of the tokens the Hub signs for it. A Server that
+    /// doesn't know its id, such as one Linked by the v0.2.0 Hub Plugin, learns it here.
+    ///
+    /// Field 4: `server_id`
+    #[must_use]
+    pub fn server_id(&self) -> &'_ str {
+        self.0.reborrow().server_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SetServerAddressesResponseView<'static>>>

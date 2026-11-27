@@ -179,6 +179,29 @@ async fn a_server_sets_only_its_own_addresses(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_server_setting_its_addresses_is_told_its_own_id(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let cabin = linked(&hub, &ada, "Cabin").await;
+
+    let told = [
+        set_addresses_with_port(&hub, &living_room, "", &[], 0).await,
+        set_addresses_with_port(&hub, &cabin, "", &[], 0).await,
+    ]
+    .map(|set| set.unwrap().server_id);
+
+    let listed = links(&hub, &ada)
+        .list_linked_servers(ListLinkedServersRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .servers;
+    let ids = listed.into_iter().map(|server| server.id);
+    assert_eq!(ids.collect::<Vec<_>>(), told);
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_server_url_a_browser_opens_is_admitted_listed_as_sent_and_returned_to(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
