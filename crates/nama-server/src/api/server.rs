@@ -15,14 +15,13 @@ use nama_proto::nama::v1::{
     GetServerInfoRequest, GetServerInfoResponse, GetServerLinkRequest, GetServerLinkResponse,
     GetServerSettingsRequest, GetServerSettingsResponse,
     HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
-    ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService,
-    ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse,
-    StartServerLinkRequest, StartServerLinkResponse, StopPlayRequest, StopPlayResponse,
-    SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping, TranscodeHardware,
-    UnlinkServerRequest, UnlinkServerResponse, UpdateBackupSettingsRequest,
-    UpdateBackupSettingsResponse, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
-    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
+    ListPlaysRequest, ListPlaysResponse, RefusalReason, ServerService, ServerSettings,
+    SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest,
+    SwitchImageStoreResponse, ToneMapping, UnlinkServerRequest, UnlinkServerResponse,
+    UpdateBackupSettingsRequest, UpdateBackupSettingsResponse, UpdateImageSettingsRequest,
+    UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
+    UpdateServerSettingsRequest, UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
 };
 
 use crate::{
@@ -33,9 +32,7 @@ use crate::{
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     link::Linking,
-    playback::{
-        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
-    },
+    playback::{MessageTooLong, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto},
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
         self, BackupValues, HardwareChoice, HomeLayout, HomeRowId, ImageValues, Invalid, PickedGpu,
@@ -45,8 +42,11 @@ use crate::{
 };
 
 use super::{
-    BrowserSpans, browse::recently_added_rows, database_failed, playback::limit_from_proto, refuse,
-    server_link, unknown_enum_value,
+    BrowserSpans,
+    browse::recently_added_rows,
+    database_failed,
+    playback::{limit_from_proto, play_to_proto},
+    refuse, server_link, unknown_enum_value,
 };
 
 /// The Settings Sections this Server serves, by their `?settings=` words, as
@@ -428,31 +428,6 @@ impl ServerService for ServerServiceHandler {
     }
 }
 
-/// `play` as `ListPlays` sends it.
-fn play_to_proto(play: PlayNow) -> Play {
-    let transcodes = play.playback.method == PlaybackMethod::PLAYBACK_METHOD_TRANSCODE;
-    let transcodes_on = transcodes.then(|| TranscodeHardware {
-        api: (play.hardware.as_ref())
-            .map_or(
-                HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
-                |hardware| accel_to_proto(hardware.accel),
-            )
-            .into(),
-        gpu: (play.hardware.and_then(|hardware| hardware.gpu))
-            .map(|gpu| gpu_to_proto(gpu.id().to_owned(), gpu.name()))
-            .into(),
-        ..Default::default()
-    });
-    Play {
-        playback: play.playback.into(),
-        title: play.title.unwrap_or_default(),
-        position_ms: play.progress.map(|progress| progress.position_ms),
-        duration_ms: play.progress.map_or(0, |progress| progress.duration_ms),
-        transcodes_on: transcodes_on.into(),
-        ..Default::default()
-    }
-}
-
 impl ServerServiceHandler {
     /// The default Home layout with every Home row Home could show now, as the API has it.
     async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
@@ -780,7 +755,7 @@ const fn hardware_choice_to_proto(choice: &HardwareChoice) -> HardwareAccelerati
 }
 
 /// The GPU with the PCI address `id`, called `name`, as the API has it.
-fn gpu_to_proto(id: String, name: String) -> proto::Gpu {
+pub(super) fn gpu_to_proto(id: String, name: String) -> proto::Gpu {
     proto::Gpu {
         id,
         name,
