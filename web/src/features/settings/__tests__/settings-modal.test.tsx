@@ -76,6 +76,22 @@ describe("on a phone", () => {
     expect(router.state.location.search.settings).toBe("all");
   });
 
+  test("a tap on the scrim above the sheet closes Settings, and one on the sheet doesn't", async () => {
+    const router = openSettings("all", fakeServer({ signedIn: newUser }));
+    const sheet = await screen.findByRole("dialog", { name: "Settings" });
+    // happy-dom lays nothing out; the sheet starts 80px down the window, as 11/12 of a short one.
+    sheet.getBoundingClientRect = () => DOMRect.fromRect({ y: 80, width: 375, height: 732 });
+
+    fireEvent.click(sheet, { clientY: 200 });
+    expect(screen.getByRole("dialog", { name: "Settings" })).toBeDefined();
+    fireEvent.click(sheet, { clientY: 40 });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+    });
+    expect(router.state.location.search.settings).toBeUndefined();
+  });
+
   test("a section a link opened goes back to the list in its place", async () => {
     const router = openSettings("devices", fakeServer({ signedIn: newUser }));
 
