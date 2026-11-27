@@ -13,8 +13,8 @@ use super::{
     refuse, sync_refused,
 };
 use crate::sync::{
-    Like, MAX_CHANGES, MAX_ID_LENGTH, MAX_LANGUAGE_LENGTH, MAX_TITLE_LENGTH, Part, PreferenceFor,
-    TrackPreferenceChange,
+    self, Like, MAX_CHANGES, MAX_ID_LENGTH, MAX_LANGUAGE_LENGTH, MAX_TITLE_LENGTH, Part,
+    PreferenceFor, TrackPreferenceChange,
 };
 
 pub(super) async fn push_track_preferences(
@@ -62,18 +62,22 @@ fn change_from_proto(
     nth: usize,
     change: proto::TrackPreferenceChange,
 ) -> Result<TrackPreferenceChange, ConnectError> {
+    let broken = |part| sync_refused(&sync::Error::Invalid { nth, part }, "changes", invalid);
     let title_id = change.title_id;
     let kept_for = match change.title_kind.as_known() {
         Some(TitleKind::TITLE_KIND_UNSPECIFIED) if title_id.is_empty() => PreferenceFor::User,
         Some(TitleKind::TITLE_KIND_MOVIE) => PreferenceFor::Movie(title_id),
         Some(TitleKind::TITLE_KIND_SHOW) => PreferenceFor::Show(title_id),
-        Some(TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
-            return Err(invalid(
-                &format!("changes[{nth}].title_id"),
-                Part::TitleId.to_string(),
-            ));
-        }
+        Some(TitleKind::TITLE_KIND_UNSPECIFIED) | None => return Err(broken(Part::TitleId)),
     };
+    // A change turned off reaches `sync` without its language and title, which a Linked Server
+    // still gets refused for when over-long, as it always has.
+    if change.off && change.language.chars().count() > MAX_LANGUAGE_LENGTH {
+        return Err(broken(Part::Language));
+    }
+    if change.off && change.title.chars().count() > MAX_TITLE_LENGTH {
+        return Err(broken(Part::Title));
+    }
     Ok(TrackPreferenceChange {
         user_id: change.user_id,
         audio: change.audio,

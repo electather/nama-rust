@@ -12,7 +12,7 @@ use super::{
     links::{LinkedServerServiceHandler, linked_server},
     refuse, sync_refused,
 };
-use crate::sync::{MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange};
+use crate::sync::{self, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, Part, WatchStateChange};
 
 pub(super) async fn push_watch_states(
     handler: &LinkedServerServiceHandler,
@@ -21,7 +21,8 @@ pub(super) async fn push_watch_states(
 ) -> ServiceResult<PushWatchStatesResponse> {
     let server = linked_server(ctx)?;
     let changes = changes_from_proto(request.changes)?;
-    (handler.watch_states.push(&handler.links, server, changes))
+    (handler.watch_states)
+        .push(&handler.links, server, changes)
         .await
         .map_err(|err| sync_refused(&err, "changes", invalid_change))?;
     Response::ok(PushWatchStatesResponse::default())
@@ -58,12 +59,19 @@ fn change_from_proto(
     nth: usize,
     change: proto::WatchStateChange,
 ) -> Result<WatchStateChange, ConnectError> {
-    let field = |name: &str| format!("changes[{nth}].{name}");
-    let duration_ms = i64::try_from(change.duration_ms)
-        .map_err(|_too_long| invalid_change(&field("duration_ms"), "the duration is too long"))?;
+    let duration_ms = i64::try_from(change.duration_ms).map_err(|_too_long| {
+        invalid_change(
+            &format!("changes[{nth}].duration_ms"),
+            "the duration is too long",
+        )
+    })?;
     // Too long for a duration, so past any.
     let position_ms = i64::try_from(change.position_ms).map_err(|_too_long| {
-        invalid_change(&field("position_ms"), "the position is past the duration")
+        let past = sync::Error::Invalid {
+            nth,
+            part: Part::Position,
+        };
+        sync_refused(&past, "changes", invalid_change)
     })?;
     Ok(WatchStateChange {
         user_id: change.user_id,
