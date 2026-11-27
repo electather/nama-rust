@@ -106,7 +106,7 @@ fn named_addresses(
     let Some((own, under)) = names.split_first() else {
         return Vec::new();
     };
-    let relay_name = format!("relay.{own}");
+    let relay_name = relay_name(own);
     under
         .iter()
         .filter_map(|name| {
@@ -114,6 +114,12 @@ fn named_addresses(
             Some(format!("https://{name}:{port}"))
         })
         .collect()
+}
+
+/// The name the Hub gives the Relay the Server dials out to, under the Server's own name `own`
+/// (`nama-hub`'s `links/names.rs`).
+pub(crate) fn relay_name(own: &str) -> String {
+    format!("relay.{own}")
 }
 
 /// The Server Addresses the Hub is told: the Server URL `url` holds, the LAN address `lan`, the

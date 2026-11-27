@@ -97,14 +97,9 @@ pub(super) async fn start_account_sign_in(
     listening: SocketAddr,
     relay: Option<SocketAddr>,
 ) -> ServiceResult<StartAccountSignInResponse> {
-    // Read from the Link kept, not asked of the Hub; without it only the narrower set passes.
-    let names = match linking.server_link().await {
-        Ok(Link::Linked {
-            reachability: Some(found),
-            ..
-        }) => found.names,
-        _ => Vec::new(),
-    };
+    // Without names, as before the Hub answers the first report since starting, only the narrower
+    // set passes.
+    let names = (linking.named().await).map_or_default(|found| found.names);
     // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
     refuse_unless_own_address(return_url, server_url, listening, relay, &names)?;
     let started =
