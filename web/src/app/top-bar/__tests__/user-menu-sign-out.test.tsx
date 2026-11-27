@@ -11,8 +11,6 @@ afterEach(cleanup);
 /** What `fail` is until the Server is asked to sign the Device out. */
 const unasked = (_error: Error) => {};
 
-const hubFailed = "The Hub couldn’t sign you out just now. Try again.";
-
 /** A fake Server whose `revokeDevice` fails, as when it can't be reached. */
 function unreachableServer() {
   return fakeServer(
@@ -31,7 +29,10 @@ test("at the Hub, a failed sign-out says so and leaves the Account signed in", a
 
   await pickFromMenu(`${ada.email}’s menu`, "Sign out");
 
-  await expect(screen.findByRole("alert")).resolves.toHaveProperty("textContent", hubFailed);
+  await expect(screen.findByRole("alert")).resolves.toHaveProperty(
+    "textContent",
+    "The Hub couldn’t sign you out just now. Try again.",
+  );
   expect(screen.getByText("Not signed out")).toBeDefined();
   expect(screen.getByRole("button", { name: `${ada.email}’s menu` })).toBeDefined();
 });
