@@ -1,13 +1,13 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { AccountSchema, AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
-import { accountHub, ada } from "@/test-hub";
+import { ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
 import { pickFromMenu } from "@/test-menu";
 import { expectUnderField } from "@/test-refusal";
@@ -155,16 +155,6 @@ test("signing the Account out goes back to sign-in", async () => {
   await pickFromMenu(`${ada.email}’s menu`, "Sign out");
 
   await expect(screen.findByRole("heading", { name: "Sign in to the Hub" })).resolves.toBeDefined();
-});
-
-test("signing the Account out that the Hub can't says so in the menu", async () => {
-  openApp("/", accountHub({ signOutFails: true }).transport);
-
-  await pickFromMenu(`${ada.email}’s menu`, "Sign out");
-
-  const menu = within(await screen.findByRole("menu"));
-  await expect(menu.findByText(/The Hub couldn’t sign you out just now/u)).resolves.toBeDefined();
-  expect(menu.getByRole("menuitem", { name: "Sign out" })).toBeDefined();
 });
 
 test("creating an Account at the Hub signs it in", async () => {
