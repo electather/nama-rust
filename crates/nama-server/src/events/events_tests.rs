@@ -20,8 +20,8 @@ use futures_util::{Stream, StreamExt, future::join_all};
 use url::Url;
 
 use super::{
-    AgeCheck, Audience, EventBus, Filter, MatchRatings, Viewer, classify, deliver, event,
-    ratings::Ratings, users_to_tell,
+    Audience, EventBus, Filter, MatchRatings, Viewer, classify, deliver, event, ratings::Ratings,
+    users_to_tell,
 };
 use crate::{
     content_ratings::MaximumAge,
@@ -30,9 +30,9 @@ use crate::{
     plugins::{ExtensionPoints, ProviderError, without_secrets},
     server_settings::{ServerUrl, web_push_key},
     users::{
-        LibraryAccess, Permissions, User, list_inbox, personal_settings_of,
+        LibraryAccess, Permissions, Reach, User, list_inbox, personal_settings_of,
         replace_personal_settings, set_notification_preference,
-        testing::{insert_device, insert_user, insert_user_holding},
+        testing::{insert_device, insert_user, insert_user_holding, reach_of},
     },
     web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
@@ -149,7 +149,7 @@ fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
     ];
 
     for (subscriber, expected) in table {
-        let viewer = Viewer::of(&subscriber, LibraryAccess::All, MaximumAge::default());
+        let viewer = Viewer::of(&subscriber, Reach::everything());
         let got = [&with_path, &requested, &followed, &played]
             .map(|published| viewer.sees(published.clone()));
         assert_eq!(
@@ -170,10 +170,10 @@ fn a_viewer_gets_library_events_only_about_the_libraries_they_see() {
             ..Default::default()
         })
     };
+    let chosen = LibraryAccess::Only(std::iter::once(1).collect());
     let viewer = Viewer::of(
         &user(1, Permissions::ADMIN),
-        LibraryAccess::Only(std::iter::once(1).collect()),
-        MaximumAge::default(),
+        reach_of(chosen, MaximumAge::default()),
     );
 
     assert_eq!(viewer.sees(added(1)), Some(added(1)));
@@ -228,7 +228,7 @@ async fn a_viewer_is_told_of_a_match_only_if_their_maximum_age_allows_its_rating
 
     for (permissions, max_age, rating, told) in table {
         let (_data_dir, ratings) = ratings_of_matches(rated(rating)).await;
-        let viewer = Viewer::of(&user(1, permissions), LibraryAccess::All, max_age);
+        let viewer = Viewer::of(&user(1, permissions), reach_of(LibraryAccess::All, max_age));
         let got = viewer.allows_title_of(&ratings, &alien_matched()).await;
         assert_eq!(got, told, "{max_age:?} and {rating:?}");
     }
@@ -243,7 +243,10 @@ async fn a_capped_viewer_is_not_told_of_a_match_whose_rating_cant_be_read() {
         age: Some(18),
         allow_unrated: true,
     };
-    let viewer = Viewer::of(&user(1, Permissions::NEW_USER), LibraryAccess::All, max_age);
+    let viewer = Viewer::of(
+        &user(1, Permissions::NEW_USER),
+        reach_of(LibraryAccess::All, max_age),
+    );
 
     assert!(!viewer.allows_title_of(&ratings, &alien_matched()).await);
 }
@@ -646,11 +649,8 @@ async fn seen_by(bus: &EventBus, subscribers: &[User], published: Vec<Event>) ->
         .map(|subscriber| {
             let subscription = bus.subscribe(
                 subscriber,
-                LibraryAccess::All,
-                AgeCheck {
-                    max_age: MaximumAge::default(),
-                    matches: super::ratings::unread_matches(),
-                },
+                Reach::everything(),
+                super::ratings::unread_matches(),
                 Filter::default(),
             );
             read_until_played(&bus.db, subscriber.id, Box::pin(subscription))

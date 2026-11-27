@@ -258,7 +258,7 @@ _Avoid_: maintenance, housekeeping, garbage collection
 ## Media
 
 **Library**:
-A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order. Its name is unique on its Server, ignoring case. A User sees every Library, those added later included, or only a list chosen for them by a User who may Manage Users, which never grows by itself. A User who may Manage Libraries sees every one.
+A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order. Its name is unique on its Server, ignoring case. A User sees every Library, those added later included, or only a list chosen for them by a User who may Manage Users, which never grows by itself. A User who may Manage Libraries sees every one. When several Libraries hold the same title, a User finds it in the oldest Library they see that holds it, and their Maximum Age judges that copy's Content Rating; a title only Libraries they don't see hold is kept from them, as if no Library held it.
 _Avoid_: collection, section
 
 **Item**:
@@ -300,6 +300,10 @@ _Avoid_: certification, age rating, parental rating, maturity rating
 **Maximum Age**:
 The highest age a title's Content Rating may call for and still reach a User, set for them by an Admin, who also chooses whether a title with no Content Rating reaches them. A User without one is kept from no title by its Content Rating.
 _Avoid_: age cap, age limit, parental controls, rating cap
+
+**Reach**:
+What a User may see: the Libraries they see and the titles their Maximum Age lets through, together. Every screen and stream judges a title by it.
+_Avoid_: view, visibility, access (that's which Libraries alone)
 
 **Score**:
 How well a Movie's or Show's audience liked it, from 0 to 10, as the title source it is Matched to averages it. A title nobody has voted on has none.

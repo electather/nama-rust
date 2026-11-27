@@ -10,7 +10,7 @@ use futures_util::StreamExt;
 use nama_proto::nama::v1::{EventService, EventType, SubscribeRequest, SubscribeResponse};
 
 use crate::{
-    events::{AgeCheck, EventBus, Filter, MatchRatings},
+    events::{EventBus, Filter, MatchRatings},
     library::Contents,
     users::Users,
 };
@@ -20,9 +20,8 @@ use super::{caller, database_failed, unknown_enum_value};
 /// `nama.v1.EventService`: live updates.
 pub(super) struct EventServiceHandler {
     pub(super) events: EventBus,
-    /// Whose sign-outs end the streams their Devices opened, and whose Permission, Library access
-    /// and Maximum Age changes end the streams they opened, so a stream never sees what its User
-    /// no longer may.
+    /// Whose sign-outs end the streams their Devices opened, and whose Permission and Reach
+    /// changes end the streams they opened, so a stream never sees what its User no longer may.
     pub(super) users: Users,
     /// Where the Content Rating of a Matched title is read, for a capped subscriber's Maximum Age.
     pub(super) contents: Contents,
@@ -54,21 +53,13 @@ impl EventService for EventServiceHandler {
             let signed_out = users.signed_out(caller.device.id, caller.user.id);
             let permissions_changed =
                 users.permissions_changed(caller.user.id, caller.user.permissions);
-            let watched = users.library_access_watched(caller.user.id).await;
-            let (libraries, library_access_changed) = watched.map_err(database_failed)?;
-            let max_age_watched = users.maximum_age_watched(caller.user.id).await;
-            let (max_age, maximum_age_changed) = max_age_watched.map_err(database_failed)?;
+            let watched = users.reach_watched(caller.user.id).await;
+            let (reach, reach_changed) = watched.map_err(database_failed)?;
             let events = events
-                .subscribe(
-                    &caller.user,
-                    libraries,
-                    AgeCheck { max_age, matches },
-                    filter,
-                )
+                .subscribe(&caller.user, reach, matches, filter)
                 .take_until(signed_out)
                 .take_until(permissions_changed)
-                .take_until(library_access_changed)
-                .take_until(maximum_age_changed);
+                .take_until(reach_changed);
             let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
         }

@@ -18,12 +18,11 @@ use super::followed::{load_followed, open_followed_show, open_followed_show_by_a
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
-    content_ratings::MaximumAge,
     library::{
         Candidate, ImageRef, Metadata, SearchQuery, Source, SourceEpisode, SourceSeason,
-        SourceShow, TitleKind, Unanswered, library_with_movie, library_with_show, matched_episodes,
+        SourceShow, TitleKind, Unanswered, Whereabouts, matched_episodes,
     },
-    users::{LibraryAccess, User, library_access, maximum_age},
+    users::{Reach, User, reach},
 };
 
 /// A Movie the title source has, and how close it is to being on the Server.
@@ -34,7 +33,7 @@ pub(crate) struct Found<M> {
     /// The Plugin whose title source gave the Movie, which its image paths are for.
     pub(crate) plugin: PluginId,
     pub(crate) movie: M,
-    /// The oldest Library with the Movie Matched, if any.
+    /// The Library the viewer sees it in, as [`Whereabouts`] says, if any.
     pub(crate) library: Option<i64>,
     /// The Movie's open Request, if it has one the viewer may see.
     pub(crate) request: Option<Request>,
@@ -44,7 +43,7 @@ pub(crate) struct Found<M> {
 #[derive(Debug)]
 pub(crate) struct ShowToRequest {
     pub(crate) hit: Hit,
-    /// The oldest Library with an Episode of it Matched, if any.
+    /// The Library the viewer sees it in, as [`Whereabouts`] says, if any.
     pub(crate) library: Option<i64>,
     /// The open Request for its earliest Season with one the viewer may see, if any.
     pub(crate) request: Option<Request>,
@@ -115,8 +114,7 @@ impl Requests {
         title: String,
     ) -> Result<Vec<Found<Candidate>>, Error> {
         let candidates = self.find(TitleKind::Movie, title).await?;
-        let seen = library_access(&self.db, viewer.id).await?;
-        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let reach = reach(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
@@ -126,12 +124,14 @@ impl Requests {
             candidate,
         } in candidates
         {
-            let movie = self
-                .look_around(&mut conn, viewer, id, plugin, candidate)
-                .await?;
-            if shown_hit(&seen, max_age, movie.library) {
-                found.push(movie);
+            let placed = Whereabouts::of_title(&mut conn, &reach, TitleKind::Movie, &id).await?;
+            if !shown_hit(&reach, &placed) {
+                continue;
             }
+            let library = placed.reached();
+            let movie =
+                (self.look_around(&mut conn, viewer, id, plugin, candidate, library)).await?;
+            found.push(movie);
         }
         Ok(found)
     }
@@ -166,16 +166,19 @@ impl Requests {
             return Ok(None);
         }
         let hits = self.search_shows(query.to_owned()).await?;
-        let seen = library_access(&self.db, viewer.id).await?;
-        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let reach = reach(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(hits.len());
         // ponytail: a few queries per Show found, more with open Season Requests the viewer can't
         // see, and a search caps them at a page of 20.
         for hit in hits {
-            let show = self.look_around_show(&mut conn, viewer, hit).await?;
-            if shown_hit(&seen, max_age, show.library) {
-                found.push(show);
+            let placed = Whereabouts::of_title(&mut conn, &reach, TitleKind::Show, &hit.id).await?;
+            if shown_hit(&reach, &placed) {
+                let library = placed.reached();
+                found.push(
+                    self.look_around_show(&mut conn, viewer, hit, library)
+                        .await?,
+                );
             }
         }
         Ok(Some(ranked(found, in_libraries, show_standing)))
@@ -210,8 +213,7 @@ impl Requests {
     }
 
     /// The Show `asked` and each of its Seasons, fetched now, as `viewer` sees them:
-    /// [`Error::NoSuchShow`] if only a Library they don't see has it, or their Maximum Age keeps it
-    /// from them.
+    /// [`Error::NoSuchShow`] if it is kept from them ([`judged`]).
     pub(crate) async fn look_up_show(
         &self,
         viewer: &User,
@@ -219,11 +221,10 @@ impl Requests {
     ) -> Result<FoundShow, Error> {
         let (source, show) = self.show(asked).await?;
         let id = kept_under(asked, &show.ids);
-        if self.hidden_from(viewer, TitleKind::Show, &id).await?
-            || self
-                .kept_from(viewer, show.content_rating.as_deref())
-                .await?
-        {
+        let reach = reach(&self.db, viewer.id).await?;
+        let placed = self.placed(&reach, TitleKind::Show, &id).await?;
+        let rating = show.content_rating.as_deref();
+        if matches!(judged(placed, &reach, rating), Whereabouts::KeptFrom) {
             return Err(Error::NoSuchShow(asked.clone()));
         }
         // ponytail: every Season from the title source on each call, and the web app calls again
@@ -335,31 +336,27 @@ impl Requests {
         Ok(seasons)
     }
 
-    /// The Movie `asked`, fetched now, as `viewer` sees it: [`Error::NoSuchMovie`] if only a
-    /// Library they don't see has it, or their Maximum Age keeps it from them.
+    /// The Movie `asked`, fetched now, as `viewer` sees it, in the Library they see it in:
+    /// [`Error::NoSuchMovie`] if it is kept from them ([`judged`]).
     pub(crate) async fn look_up(
         &self,
         viewer: &User,
         asked: &ExternalId,
     ) -> Result<Found<Metadata>, Error> {
         let movie = self.fetch(asked).await?;
-        if self
-            .kept_from(viewer, movie.content_rating.as_deref())
-            .await?
-        {
-            return Err(Error::NoSuchMovie(asked.clone()));
-        }
-        let seen = library_access(&self.db, viewer.id).await?;
+        let id = kept_under(asked, &movie.ids);
+        let reach = reach(&self.db, viewer.id).await?;
+        let placed = self.placed(&reach, TitleKind::Movie, &id).await?;
+        let library = match judged(placed, &reach, movie.content_rating.as_deref()) {
+            Whereabouts::KeptFrom => return Err(Error::NoSuchMovie(asked.clone())),
+            Whereabouts::In(library) => Some(library),
+            Whereabouts::Nowhere => None,
+        };
         let mut conn = self.db.reader().acquire().await?;
         let plugin = movie.plugin.clone();
-        let id = kept_under(asked, &movie.ids);
-        let found = self
-            .look_around(&mut conn, viewer, id, plugin, movie)
-            .await?;
-        if hidden(&seen, found.library) {
-            return Err(Error::NoSuchMovie(asked.clone()));
-        }
-        Ok(found)
+        Ok(self
+            .look_around(&mut conn, viewer, id, plugin, movie, library)
+            .await?)
     }
 
     /// The Movie `id` from the title source keeping titles under its namespace, else the first one
@@ -376,8 +373,8 @@ impl Requests {
             .map_err(|err| looking_up(err, Error::NoSuchMovie(id.clone())))
     }
 
-    /// `movie`, the Movie `id` as `plugin`'s title source gave it, with the Library that has it and
-    /// its open Request, if `viewer` may see it.
+    /// `movie`, the Movie `id` as `plugin`'s title source gave it, with `library`, the one the
+    /// viewer sees it in, and its open Request, if `viewer` may see it.
     #[expect(
         clippy::too_many_arguments,
         reason = "`Found` takes the Movie as a search or lookup gives it, in three parts"
@@ -389,8 +386,8 @@ impl Requests {
         id: ExternalId,
         plugin: PluginId,
         movie: M,
+        library: Option<i64>,
     ) -> Result<Found<M>, sqlx::Error> {
-        let library = library_with_movie(conn, &id).await?;
         let request = self.visible_open_request(conn, viewer, &id, None).await?;
         Ok(Found {
             id,
@@ -401,17 +398,17 @@ impl Requests {
         })
     }
 
-    /// The Show `hit` with the Library that has an Episode of it, and its open Season Request and
-    /// Followed Show, if `viewer` may see them.
+    /// The Show `hit` with `library`, the one the viewer sees it in, and its open Season Request
+    /// and Followed Show, if `viewer` may see them.
     async fn look_around_show(
         &self,
         conn: &mut SqliteConnection,
         viewer: &User,
         hit: Hit,
+        library: Option<i64>,
     ) -> Result<ShowToRequest, sqlx::Error> {
         let mut ids = hit.candidate.ids.clone();
         ids.insert(hit.id.clone());
-        let library = library_with_show(conn, &hit.id).await?;
         let request = self.visible_open_season_request(conn, viewer, &ids).await?;
         let followed = self.sees_followed_show(conn, viewer, &ids).await?;
         Ok(ShowToRequest {
@@ -439,9 +436,9 @@ impl Requests {
         else {
             return Ok(false);
         };
-        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let reach = reach(&self.db, viewer.id).await?;
         let requesters = &followed.requesters;
-        title_seen(conn, viewer, max_age, Asked::FollowedShow, id, requesters).await
+        title_seen(conn, viewer, &reach, Asked::FollowedShow, id, requesters).await
     }
 
     /// Each of `seasons`, of the Show `show`, as `viewer` sees it: whether a Library has it, and its
@@ -483,21 +480,15 @@ impl Requests {
         Ok(found)
     }
 
-    /// Whether only a Library `viewer` doesn't see has the title of `kind` known by `id`: to them
-    /// there is no such title, neither to look up nor to Request.
-    pub(super) async fn hidden_from(
+    /// Where the title of `kind` known by `id` is for a viewer whose Reach is `reach`.
+    pub(super) async fn placed(
         &self,
-        viewer: &User,
+        reach: &Reach,
         kind: TitleKind,
         id: &ExternalId,
-    ) -> Result<bool, sqlx::Error> {
-        let seen = library_access(&self.db, viewer.id).await?;
+    ) -> Result<Whereabouts<i64>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let library = match kind {
-            TitleKind::Movie => library_with_movie(&mut conn, id).await?,
-            TitleKind::Show => library_with_show(&mut conn, id).await?,
-        };
-        Ok(hidden(&seen, library))
+        Whereabouts::of_title(&mut conn, reach, kind, id).await
     }
 
     /// Whether `viewer`'s Maximum Age keeps from them a title the title source rates `rating`:
@@ -507,26 +498,33 @@ impl Requests {
         viewer: &User,
         rating: Option<&str>,
     ) -> Result<bool, sqlx::Error> {
-        Ok(!maximum_age(&self.db, viewer.id).await?.allows(rating))
+        Ok(!reach(&self.db, viewer.id).await?.allows_rating(rating))
     }
 }
 
-/// Whether a title the Library `library` has, if any has it, is one a viewer who sees `seen`
-/// doesn't: neither shown to them nor theirs to Request.
-// ponytail: `library` is the oldest Library with the title, so one a newer Library they see also
-// has is hidden too; ask for the oldest Library they see if Libraries come to share titles.
-fn hidden(seen: &LibraryAccess, library: Option<i64>) -> bool {
-    library.is_some_and(|library| !seen.sees(library))
+/// `placed`, for a viewer whose Reach is `reach`, with a title in no Library judged by `rating`,
+/// the title source's: [`Whereabouts::KeptFrom`] means that to them there is no such title,
+/// neither to look up nor to Request.
+pub(super) fn judged(
+    placed: Whereabouts<i64>,
+    reach: &Reach,
+    rating: Option<&str>,
+) -> Whereabouts<i64> {
+    match placed {
+        Whereabouts::Nowhere if !reach.allows_rating(rating) => Whereabouts::KeptFrom,
+        Whereabouts::In(_) | Whereabouts::KeptFrom | Whereabouts::Nowhere => placed,
+    }
 }
 
-/// Whether a title source's hit, which the Library `library` has if any does, reaches a viewer
-/// who sees `seen` and whose Maximum Age is `max_age`. A hit has no Content Rating, so it counts as
-/// unrated, and one on the Server is left to Browse's search, which knows its stored one.
-fn shown_hit(seen: &LibraryAccess, max_age: MaximumAge, library: Option<i64>) -> bool {
-    if max_age.lets_every_title() {
-        return !hidden(seen, library);
+/// Whether a title source's hit, `placed` for a viewer whose Reach is `reach`, shows in their
+/// search. A hit has no Content Rating, so it counts as unrated, and one in a Library is left to
+/// Browse's search, which knows its stored one, unless no Maximum Age judges it.
+fn shown_hit(reach: &Reach, placed: &Whereabouts<i64>) -> bool {
+    match placed {
+        Whereabouts::In(_) => reach.lets_every_rating(),
+        Whereabouts::KeptFrom => false,
+        Whereabouts::Nowhere => reach.allows_unrated(),
     }
-    max_age.allows(None) && library.is_none()
 }
 
 /// The year of a `YYYY-MM-DD` date.

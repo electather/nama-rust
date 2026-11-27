@@ -27,7 +27,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     backup::Backups,
-    browse::Browse,
+    browse::Browsing,
     diagnostics::Sharing,
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
@@ -62,7 +62,7 @@ pub(super) struct ServerServiceHandler {
     /// Asked about the Server's Link.
     pub(super) linking: Linking,
     /// Lists each Library's Recently Added row for the default Home layout.
-    pub(super) browse: Browse,
+    pub(super) browse: Browsing,
     pub(super) settings: server_settings::Settings,
     pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
@@ -454,10 +454,10 @@ fn play_to_proto(play: PlayNow) -> Play {
 }
 
 impl ServerServiceHandler {
-    /// The default Home layout with every Home row Home could show now, as the API has it.
+    /// The default Home layout, every User's, with every Library's Home rows, as the API has it.
     async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
         let placeable = self.home_rows.placeable().await.map_err(database_failed)?;
-        let recently_added = recently_added_rows(&self.browse).await?;
+        let recently_added = recently_added_rows(&self.browse.everything()).await?;
         let with_proto =
             |(id, heading): (HomeRowId, String)| (id.clone(), layout_row_to_proto(id, heading));
         let rows = std::iter::once(with_proto((HomeRowId::ContinueWatching, String::new())))

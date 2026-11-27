@@ -3,7 +3,6 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::Arc,
 };
 
 use buffa::EnumValue;
@@ -20,7 +19,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    db::Database,
+    browse::Browsing,
     library::{
         Contents, FolderProblem, ImageSources, LastScan, Libraries, Library, LibraryError,
         LibraryKind, NewestBackdrop, Order, ShownImages, TitleSources, TitleTarget as Target,
@@ -29,12 +28,11 @@ use crate::{
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner, TakenAlong, ToDelete},
     signed_urls::signed_by,
-    users::library_access,
 };
 
 use super::{
     Refused,
-    browse::{Fields, not_found},
+    browse::{Fields, not_found, refused, seen_by},
     caller, database_failed, external_id_from_proto, external_id_to_proto, proto_number, refuse,
     required_id, shown_images, title_kind_from_proto, unknown_enum_value, url_signer,
 };
@@ -55,8 +53,8 @@ pub(super) struct LibraryServiceHandler {
     pub(super) plugins: ExtensionPoints,
     /// Says what each title source keeps.
     pub(super) plugin_settings: PluginSettings,
-    /// Says which Libraries the caller sees.
-    pub(super) db: Arc<Database>,
+    /// Lists the Libraries the caller sees.
+    pub(super) browse: Browsing,
 }
 
 /// What each Library is shown by: see [`ShownImages::of_library`].
@@ -115,10 +113,8 @@ impl LibraryService for LibraryServiceHandler {
         // such as the last Scan, as #1125 decided.
         let user = &caller(&ctx)?.user;
         let manages_libraries = user.permissions.allow(Permission::ManageLibraries);
-        let seen = library_access(&self.db, user.id).await;
-        let seen = seen.map_err(database_failed)?;
-        let mut libraries = self.libraries.list().await?;
-        libraries.retain(|library| seen.sees(library.id));
+        let browse = seen_by(&self.browse, user.id).await?;
+        let libraries = browse.libraries().await.map_err(refused(Fields::NONE))?;
         let backdrops = self.backdrops(&ctx).await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries

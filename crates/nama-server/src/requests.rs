@@ -17,11 +17,7 @@ use nama_plugin_api::{PluginId, metadata::ExternalId};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
-    db::Database,
-    events::EventBus,
-    library::{Contents, TitleSources},
-    page,
-    plugins::ExtensionPoints,
+    db::Database, events::EventBus, library::TitleSources, page, plugins::ExtensionPoints,
 };
 
 mod apply;
@@ -94,7 +90,6 @@ pub(crate) enum Error {
 #[derive(Debug, Clone)]
 pub(crate) struct Requests {
     db: Arc<Database>,
-    contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     metadata: TitleSources,
     /// What [`Self::apply`] publishes the changes its writes make on.
@@ -117,7 +112,6 @@ impl Requests {
     pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: ExtensionPoints) -> Self {
         let progress = Progress::new(Arc::clone(&db), events.clone(), plugins.clone());
         Self {
-            contents: Contents::new(Arc::clone(&db)),
             metadata: TitleSources::new(plugins.clone()),
             hand_off: HandOff::new(
                 Arc::clone(&db),

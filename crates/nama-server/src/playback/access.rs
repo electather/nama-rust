@@ -27,7 +27,7 @@ use crate::{
     db::{Database, now},
     library::Contents,
     signed_urls::{SignedGrant, Viewer},
-    users::{Caller, acts_as, library_access, maximum_age, remote_cap},
+    users::{Caller, acts_as, reach, remote_cap},
 };
 
 /// Judges who may fetch playback media, against the plans running and the Users and Library in
@@ -286,18 +286,18 @@ pub(crate) const fn viewer_of_caller(caller: &Caller) -> Viewer {
     }
 }
 
-/// Whether the User `user` sees the Library of the Version `version`, and their Maximum Age lets
-/// through each title it holds, as they must to play it. One there is no such Version of is for
+/// Whether each title the Version `version` holds reaches the User `user`, as it must for them to
+/// play it. One there is no such Version of is for
 /// the caller to refuse.
 pub(super) async fn sees_version(
     db: &Arc<Database>,
     user: i64,
     version: i64,
 ) -> Result<bool, sqlx::Error> {
-    let seen = library_access(db, user).await?;
-    let max_age = maximum_age(db, user).await?;
-    let contents = Contents::new(Arc::clone(db));
-    contents.lets_play(version, &seen, max_age).await
+    let reach = reach(db, user).await?;
+    Contents::new(Arc::clone(db))
+        .lets_play(version, &reach)
+        .await
 }
 
 /// The 500 for a failed lookup of `what`, logged.

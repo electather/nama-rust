@@ -4,7 +4,7 @@ use nama_proto::nama::v1::PageRequest;
 
 use super::{BY_TITLE, library_with_alien};
 use crate::{
-    browse::{Browse, Error},
+    browse::{Browsing, Error},
     db::Database,
     library::{
         Contents, Listing, TitleSort, Watched,
@@ -23,7 +23,7 @@ async fn a_page_token_is_refused_under_another_sort_or_filter_or_library() {
     MatchedMovie::store(&contents, alien.library, "/media/Heat.mkv", heat).await;
     let other = tempfile::tempdir().unwrap();
     let elsewhere = MatchedMovie::new(&db, other.path(), tmdb_movie(1, "Up")).await;
-    let browse = Browse::new(db, ExtensionPoints::default());
+    let browse = Browsing::new(db, ExtensionPoints::default()).everything();
     let by_title = BY_TITLE;
     let first = PageRequest {
         size: 1,

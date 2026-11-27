@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use crate::{
     browse::{
-        Browse, Started, Target,
+        Browse, Browsing, Started, Target,
         tests::{KNIGHT_TMDB_ID, ada, knight_episode, knight_match, library, store},
     },
     db::{self, Database},
@@ -41,7 +41,7 @@ impl Knight {
         let (library, root) = library(&db, "Shows", LibraryKind::Shows, &folder).await;
         let knight = Self {
             user: ada(&db).await,
-            browse: Browse::new(Arc::clone(&db), ExtensionPoints::default()),
+            browse: Browsing::new(Arc::clone(&db), ExtensionPoints::default()).everything(),
             db,
             library,
             root,

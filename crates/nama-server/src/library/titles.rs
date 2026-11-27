@@ -1,7 +1,7 @@
 //! Finding a title of a Library by any of its External IDs (ADR 0042), for Browse and for deleting
-//! media alike, and which Library has the titles some ids name, for Home rows and Similar titles.
+//! media alike, and which Library has the titles some ids name, for `whereabouts.rs`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
@@ -154,22 +154,6 @@ impl OnServer {
         Ok(found)
     }
 
-    /// As [`Self::find`], but in the order of `ids`, a title named by two of them once, at the
-    /// first.
-    pub(crate) async fn in_order_of(
-        contents: &Contents,
-        libraries: &[Library],
-        kind: Kind,
-        ids: &[ExternalId],
-    ) -> Result<Vec<Self>, sqlx::Error> {
-        let mut found = Self::find(contents, libraries, kind, ids).await?;
-        let mut shown = HashSet::new();
-        Ok((ids.iter())
-            .filter_map(|id| found.remove(id))
-            .filter(|title| shown.insert(title.id().clone()))
-            .collect())
-    }
-
     /// Adds it to `found` under each of its ids among `ids` that an older Library's title didn't
     /// take.
     fn add_to(&self, found: &mut HashMap<ExternalId, Self>, ids: &[ExternalId]) {
@@ -203,7 +187,7 @@ impl OnServer {
     }
 
     /// The id browsing finds it by in its Library.
-    fn id(&self) -> &ExternalId {
+    pub(super) fn id(&self) -> &ExternalId {
         match self {
             Self::Movie(movie) => &movie.id,
             Self::Show(show) => &show.id,
@@ -283,7 +267,3 @@ pub(crate) fn named_episodes<'a>(
 pub(crate) fn episode_name<V>(show: &str, episode: &Episode<V>) -> String {
     format!("{show} S{:02}E{:02}", episode.season, episode.number)
 }
-
-#[cfg(test)]
-#[path = "titles_tests.rs"]
-mod tests;

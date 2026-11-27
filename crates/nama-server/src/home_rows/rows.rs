@@ -21,10 +21,7 @@ use super::{
     refreshes::{Adapter, MIN_TTL, Scope},
     to_json,
 };
-use crate::{
-    content_ratings::MaximumAge, plugins::Answer, requests, server_settings::HomeRowId,
-    users::LibraryAccess,
-};
+use crate::{plugins::Answer, requests, server_settings::HomeRowId, users::Reach};
 
 /// The Home rows Plugins give, shared and each User's own.
 #[derive(Debug, Clone)]
@@ -272,10 +269,7 @@ impl Rows {
             .collect();
         let titles: Vec<Title> = titles.into_iter().collect();
         // Every Library counts: a title any of them has needs no lookup, whoever reads the row.
-        let every_title = MaximumAge::default();
-        let on_server = (self.0)
-            .on_server(&titles, &LibraryAccess::All, every_title)
-            .await?;
+        let on_server = self.0.on_server(&titles, &Reach::everything()).await?;
         let mut before: HashMap<Title, Missing> = (self.stored_missing(scope).await?)
             .into_iter()
             .map(|missing| (missing.title.clone(), missing))

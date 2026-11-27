@@ -20,6 +20,7 @@ mod titles;
 mod versions;
 mod watch_states;
 mod watch_sync;
+mod whereabouts;
 
 pub use artwork::{Artwork, Error as ArtworkError};
 pub(crate) use artwork::{Picked, router as artwork_router};
@@ -29,8 +30,8 @@ pub(crate) use contents::{
     LocalImageFile, LocalRole, MatchedTo, Metadata, Movie as LibraryMovie, Name, Named,
     NewestBackdrop, NfoFile, NfoHints, NfoItem, PersonRole, Pin, Season as LibrarySeason,
     Show as LibraryShow, Stored, StoredBoxSet, TiedTitle, TitleSort, TitlesIn, Unmatched,
-    UnmatchedReason, Version as LibraryVersion, Watched, library_with_movie, library_with_show,
-    matched_episodes, matched_ids, primary_id,
+    UnmatchedReason, Version as LibraryVersion, Watched, library_with_movie, matched_episodes,
+    matched_ids, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
@@ -68,3 +69,4 @@ pub(crate) use watch_sync::{
     delete_plugins_import_cursors, import_cursor, imported as imported_watch_states,
     keep_import_cursor,
 };
+pub(crate) use whereabouts::Whereabouts;

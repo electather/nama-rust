@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    Contents, ImageRef, ItemKind, Stored, any_library::library_with_movie, details, ids_from_json,
-    ids_json, ids_sql, library_titles, parse_hint, primary_id_in,
+    Contents, ImageRef, ItemKind, Stored, details, ids_from_json, ids_json, ids_sql,
+    library_titles, parse_hint, primary_id_in,
 };
 use crate::library::title_source::Trailer;
 
@@ -392,15 +392,6 @@ impl Contents {
             };
             (row.path, stored)
         }))
-    }
-
-    /// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any.
-    pub(crate) async fn library_with_movie(
-        &self,
-        id: &ExternalId,
-    ) -> Result<Option<i64>, sqlx::Error> {
-        let mut conn = self.db.reader().acquire().await?;
-        library_with_movie(&mut conn, id).await
     }
 
     /// By title, ignoring case, each as `library_titles` groups it: every Movie, or only those

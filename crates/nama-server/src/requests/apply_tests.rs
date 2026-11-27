@@ -18,7 +18,7 @@ use crate::requests::testing::{
 use crate::{
     events::Filter,
     images::ImageStore,
-    library::{Change, CopiesAhead, Item, Libraries, LibraryKind, ScanLocks},
+    library::{Change, Contents, CopiesAhead, Item, Libraries, LibraryKind, ScanLocks},
     matching::Matcher,
     plugins::Registry,
     users::Permissions,
@@ -173,8 +173,9 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
         modified_ns: 0,
         items: vec![heat],
     };
-    requests.contents.apply(library, vec![store]).await.unwrap();
-    let item = requests.contents.files(library).await.unwrap()[0].items[0].id;
+    let contents = Contents::new(Arc::clone(&requests.db));
+    contents.apply(library, vec![store]).await.unwrap();
+    let item = contents.files(library).await.unwrap()[0].items[0].id;
     let images = ImageStore::new(data.path(), Arc::clone(&requests.db));
     let pinning = Matcher::new(
         Arc::clone(&requests.db),

@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use tracing::{Instrument as _, Span};
 
 use crate::{
-    browse::{Browse, PersonPage},
+    browse::{Browse, Browsing, PersonPage},
     library::{
         Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, OnServer,
         Role, ShownImages, TitleImage, TitleKind,
@@ -45,9 +45,15 @@ const MAX_LIMIT: usize = 100;
 /// `nama.v1.SearchService`: finding titles, for any signed-in User.
 #[derive(Clone)]
 pub(super) struct SearchServiceHandler {
-    pub(super) browse: Browse,
+    pub(super) browse: Browsing,
     pub(super) requests: Requests,
     pub(super) images: ImageSources,
+}
+
+/// One search, as its viewer sees it.
+struct Searching {
+    browse: Browse,
+    requests: Requests,
 }
 
 #[expect(
@@ -69,9 +75,9 @@ impl SearchService for SearchServiceHandler {
             .ok()
             .filter(|&limit| limit > 0)
             .map_or(DEFAULT_LIMIT, |limit| limit.min(MAX_LIMIT));
-        let seen = Self {
+        let seen = Searching {
             browse: seen_by(&self.browse, viewer.id).await?,
-            ..self.clone()
+            requests: self.requests.clone(),
         };
         let found = seen.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
@@ -155,7 +161,7 @@ impl Sent {
 /// gone, when nobody needs the rest.
 type Parts = UnboundedSender<Result<SearchResponse, ConnectError>>;
 
-impl SearchServiceHandler {
+impl Searching {
     /// Sends what the stream sends after the Libraries' batch to `parts`: the title source's batch
     /// of each kind, then each Search source's, then `Done`. A failure other than those `Done`
     /// names ends it with its error, after the batches before it.
@@ -252,7 +258,7 @@ impl SearchServiceHandler {
 
 /// What each Search source's batch in one search reads, read once.
 struct SourceBatches<'a> {
-    handler: &'a SearchServiceHandler,
+    handler: &'a Searching,
     viewer: &'a User,
     images: &'a ShownImages,
     limit: usize,
@@ -263,11 +269,7 @@ struct SourceBatches<'a> {
 }
 
 impl<'a> SourceBatches<'a> {
-    async fn new(
-        handler: &'a SearchServiceHandler,
-        searched: &'a Searched,
-        images: &'a ShownImages,
-    ) -> Self {
+    async fn new(handler: &'a Searching, searched: &'a Searched, images: &'a ShownImages) -> Self {
         let viewer = &searched.viewer;
         let requests = &handler.requests;
         let (movie_namespaces, show_namespaces) = future::join(
