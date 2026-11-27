@@ -1,7 +1,7 @@
 //! A Hub serving the API on a random local port, on a database `#[sqlx::test]` made for the test,
-//! for tests that call it the way clients do, forwarding what Servers share to a fake backend and
-//! naming Servers in a fake zone, and trying public ports over TCP, or with a fake the test
-//! answers.
+//! for tests that call it the way clients do, forwarding what Servers share to a fake backend,
+//! naming Servers in a fake zone whose next write the test may hold, and trying public ports over
+//! TCP, or with a fake the test answers.
 
 use std::{
     collections::BTreeMap,
@@ -51,52 +51,68 @@ pub(crate) struct TestHub {
     _stop: oneshot::Sender<()>,
 }
 
-/// The fake DNS provider: the zone's address records, its TXT records by name, and whether it
-/// fails, as if down.
+/// The fake DNS provider: the zone's address records, its TXT records by name, whether it fails,
+/// as if down, and where to hand its next write if the test holds it.
 #[derive(Debug, Default)]
 struct FakeZone {
     records: Mutex<Vec<Record>>,
     texts: Mutex<BTreeMap<String, Vec<String>>>,
     down: AtomicBool,
+    hold_next: Mutex<Option<oneshot::Sender<HeldWrite>>>,
 }
 
 impl FakeZone {
-    /// A failure, while it is down.
-    fn failure(&self) -> Option<Writing<'_>> {
-        let refused = DnsError::Refused {
-            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
-            body: String::new(),
-        };
-        let down = self.down.load(Ordering::Relaxed);
-        down.then(|| -> Writing<'_> { Box::pin(future::ready(Err(refused))) })
+    /// Fails while the zone is down, else makes `write`, once the test releases it if it holds it.
+    fn write<'a>(&'a self, write: impl FnOnce(&Self) + Send + 'a) -> Writing<'a> {
+        if self.down.load(Ordering::Relaxed) {
+            return Box::pin(future::ready(Err(DnsError::Refused {
+                status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+                body: String::new(),
+            })));
+        }
+        let released = (self.hold_next.lock())
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .and_then(|hold| {
+                let (release, released) = oneshot::channel();
+                hold.send(release).ok().map(|()| released)
+            });
+        Box::pin(async move {
+            if let Some(released) = released {
+                let _released_or_dropped = released.await;
+            }
+            write(self);
+            Ok(())
+        })
     }
 }
 
 impl Records for FakeZone {
     fn replace(&self, name: &str, records: Vec<Record>) -> Writing<'_> {
-        if let Some(failure) = self.failure() {
-            return failure;
-        }
-        let under = format!(".{name}");
-        let mut zone = self.records.lock().unwrap_or_else(PoisonError::into_inner);
-        zone.retain(|record| record.name != name && !record.name.ends_with(&under));
-        zone.extend(records);
-        Box::pin(future::ready(Ok(())))
+        let name = name.to_owned();
+        self.write(move |zone| {
+            let under = format!(".{name}");
+            let mut zone = zone.records.lock().unwrap_or_else(PoisonError::into_inner);
+            zone.retain(|record| record.name != name && !record.name.ends_with(&under));
+            zone.extend(records);
+        })
     }
 
     fn replace_texts(&self, name: &str, values: Vec<String>) -> Writing<'_> {
-        if let Some(failure) = self.failure() {
-            return failure;
-        }
-        let mut texts = self.texts.lock().unwrap_or_else(PoisonError::into_inner);
-        if values.is_empty() {
-            texts.remove(name);
-        } else {
-            texts.insert(name.to_owned(), values);
-        }
-        Box::pin(future::ready(Ok(())))
+        let name = name.to_owned();
+        self.write(move |zone| {
+            let mut texts = zone.texts.lock().unwrap_or_else(PoisonError::into_inner);
+            if values.is_empty() {
+                texts.remove(&name);
+            } else {
+                texts.insert(name, values);
+            }
+        })
     }
 }
+
+/// A write to the zone the fake holds pending, until the test sends on it or drops it.
+pub(crate) type HeldWrite = oneshot::Sender<()>;
 
 /// The fake Diagnostics backend: each batch it was sent, oldest first.
 #[derive(Debug, Default)]
@@ -207,6 +223,13 @@ impl TestHub {
         (self.zone.texts.lock())
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    /// Holds the zone's next write pending, and hands it to the test on the receiver.
+    pub(crate) fn hold_next_write(&self) -> oneshot::Receiver<HeldWrite> {
+        let (hold, write) = oneshot::channel();
+        *(self.zone.hold_next.lock()).unwrap_or_else(PoisonError::into_inner) = Some(hold);
+        write
     }
 
     /// Has writing the zone fail while `down`, as if the DNS provider were, and work again after.

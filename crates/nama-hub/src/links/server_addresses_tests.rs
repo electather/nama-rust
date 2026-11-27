@@ -1,10 +1,6 @@
-use uuid::Uuid;
-
 use super::*;
 
-const ID: Uuid = Uuid::from_u128(0x0193_b6f2_c4d8_7a1e_9f3c_5b2a_1d0e_4f67);
-
-/// [`ID`]'s own name in the zone `zone`.
+/// A Server's own name in the zone `zone`.
 const OWN: &str = "0193b6f2c4d87a1e9f3c5b2a1d0e4f67.zone";
 
 const RELAY: &str = "198.51.100.4:443";
@@ -26,11 +22,10 @@ const NOTHING: Report = Report {
 };
 
 impl Report {
-    /// The Server Addresses this report gives, named in `zone` unless it is none.
-    fn addresses(&self, zone: Option<&str>) -> ServerAddresses<'_> {
+    /// The Server Addresses this report gives, named under [`OWN`] if `named`.
+    fn addresses(&self, named: bool) -> ServerAddresses<'_> {
         ServerAddresses::new(
-            LinkedServerId(ID),
-            zone,
+            named.then(|| OWN.to_owned()),
             self.url,
             &self.lan,
             self.public.map(|public| public.parse().unwrap()),
@@ -137,7 +132,7 @@ fn the_list_goes_server_url_public_relay_then_lan() {
     };
 
     assert_eq!(
-        report.addresses(Some("zone")).listed(),
+        report.addresses(true).listed(),
         [
             "https://nama.example".to_owned(),
             "http://[2001:db8::7]:7980".to_owned(),
@@ -164,11 +159,11 @@ fn a_server_url_at_the_relays_origin_lists_it_once() {
     };
 
     assert_eq!(
-        default_port.addresses(Some("zone")).listed(),
+        default_port.addresses(true).listed(),
         [format!("https://relay.{OWN}")]
     );
     assert_eq!(
-        other_port.addresses(Some("zone")).listed(),
+        other_port.addresses(true).listed(),
         [format!("https://relay.{OWN}:8443")]
     );
 }
@@ -180,9 +175,9 @@ fn a_relay_has_no_address_while_the_hub_names_no_server() {
         ..NOTHING
     };
 
-    assert_eq!(report.addresses(None).listed(), Vec::<String>::new());
+    assert_eq!(report.addresses(false).listed(), Vec::<String>::new());
     assert_eq!(
-        report.addresses(Some("zone")).listed(),
+        report.addresses(true).listed(),
         [format!("https://relay.{OWN}:443")]
     );
     // A Server URL at the Relay's origin is kept, as sent, all the same.
@@ -191,7 +186,7 @@ fn a_relay_has_no_address_while_the_hub_names_no_server() {
         ..report
     };
     assert_eq!(
-        at_relays_origin.addresses(None).listed(),
+        at_relays_origin.addresses(false).listed(),
         [format!("https://relay.{OWN}")]
     );
 }
@@ -214,11 +209,11 @@ fn a_lan_address_at_an_earlier_addresss_origin_is_listed_once() {
     };
 
     assert_eq!(
-        at_server_url.addresses(Some("zone")).listed(),
+        at_server_url.addresses(true).listed(),
         ["http://192.168.1.11:7980", "http://192.168.1.10:7980"]
     );
     assert_eq!(
-        internationalised.addresses(Some("zone")).listed(),
+        internationalised.addresses(true).listed(),
         ["https://bücher.example"]
     );
 }
@@ -236,7 +231,7 @@ fn a_sign_in_returns_to_the_server_url_lan_addresses_their_names_and_the_relay_o
         public: Some("203.0.113.7:7980"),
         relay: Some("198.51.100.4:8443"),
     };
-    let returns = |url: &str| report.addresses(Some("zone")).is_return_address(url);
+    let returns = |url: &str| report.addresses(true).is_return_address(url);
 
     assert!(returns("https://nama.example/sign-in"));
     assert!(returns("http://192.168.1.10:7980/sign-in"));
@@ -259,7 +254,7 @@ fn a_hub_naming_no_server_returns_only_to_the_addresses_sent() {
         relay: Some(RELAY),
         ..NOTHING
     };
-    let none = report.addresses(None);
+    let none = report.addresses(false);
 
     assert!(none.is_return_address("https://nama.example/sign-in"));
     assert!(none.is_return_address("http://192.168.1.10:7980/sign-in"));
@@ -284,7 +279,7 @@ fn each_private_ipv4_lan_address_gets_a_name_carrying_it_once() {
     };
 
     assert_eq!(
-        report.addresses(Some("zone")).records(),
+        report.addresses(true).records(),
         [
             record(&format!("10-0-0-5.{OWN}"), "10.0.0.5"),
             record(&format!("192-168-1-10.{OWN}"), "192.168.1.10"),
@@ -302,7 +297,7 @@ fn the_own_name_points_at_the_public_ip_reached_and_the_relay_name_at_the_relay(
     };
 
     assert_eq!(
-        report.addresses(Some("zone")).records(),
+        report.addresses(true).records(),
         [
             record(OWN, "2001:db8::7"),
             record(&format!("10-0-0-5.{OWN}"), "10.0.0.5"),
@@ -329,8 +324,8 @@ fn a_server_is_told_its_own_name_first_reached_or_not() {
         format!("relay.{OWN}"),
     ];
 
-    assert_eq!(unreached.addresses(Some("zone")).names(), told);
-    assert_eq!(reached.addresses(Some("zone")).names(), told);
+    assert_eq!(unreached.addresses(true).names(), told);
+    assert_eq!(reached.addresses(true).names(), told);
 }
 
 /// A Server URL at the Relay's origin, as a Server behind CGNAT sends it.
@@ -372,7 +367,7 @@ fn each_combination_lists_each_origin_once_and_returns_where_it_lists() {
             public: Some("[2001:db8::7]:7980"),
             relay: relay.then_some(RELAY),
         };
-        let addresses = report.addresses(named.then_some("zone"));
+        let addresses = report.addresses(named);
         let case = format!("named {named}, Relay {relay}, Server URL {url}");
         let returns = |return_url: &str| addresses.is_return_address(return_url);
 

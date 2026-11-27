@@ -18,7 +18,7 @@ use std::{
 
 use reqwest::Url;
 
-use super::{Error, LinkedServer, LinkedServerId, Links, ListedServer, names};
+use super::{Error, LinkedServer, LinkedServerId, Links, ListedServer};
 use crate::{accounts::AccountId, dns::Record};
 
 /// The most characters a Server Address may have.
@@ -50,7 +50,8 @@ pub(crate) struct ReportedAddresses<'a> {
 pub(crate) struct Checked {
     /// Where it tried to reach the Server from outside, if the Server has a public port.
     pub(crate) public: Option<PublicAddress>,
-    /// The Server's names, its own first, or none while the Hub names no Server.
+    /// The Server's names, its own first, or none while the Hub names no Server or once it is
+    /// found Unlinked.
     pub(crate) names: Vec<String>,
 }
 
@@ -81,8 +82,7 @@ impl Links {
             .map(|server| {
                 let id = LinkedServerId(server.id);
                 let addresses = ServerAddresses::new(
-                    id,
-                    self.zone(),
+                    self.names.own_name(id).ok(),
                     &server.server_url,
                     &server.lan_addresses,
                     stored_public(&server.public_address),
@@ -102,8 +102,8 @@ impl Links {
 
     /// Replaces the Server Addresses `server` reported before with its Server URL, LAN addresses
     /// and Relay at once, then with its public address once the Hub has tried to connect there,
-    /// and names it after them all. Any part of the report that isn't valid is refused with
-    /// [`Error::AddressInvalid`] before anything is stored.
+    /// and names it after them all (`names.rs`). Any part of the report that isn't valid is
+    /// refused with [`Error::AddressInvalid`] before anything is stored.
     pub(crate) async fn set_addresses(
         &self,
         server: &LinkedServer,
@@ -132,22 +132,17 @@ impl Links {
         let reached = probed
             .filter(|&(_, reachable)| reachable)
             .map(|(address, _)| address);
-        let public_as_stored = reached.map_or_else(String::new, public_address);
-        // Stored before naming too, so a DNS provider that is down holds back only the names.
-        self.store_public_address(server.id, &public_as_stored)
-            .await?;
-        let addresses =
-            ServerAddresses::new(server.id, self.zone(), url, lan_addresses, reached, relay);
-        let names = self.write_names(server.id, &addresses).await?;
-        // Stored again after naming, so a Server Unlinked meanwhile is found gone here and its
-        // names go again; no transaction waits on the DNS provider holding one of the pool's
-        // connections.
-        if !self
-            .store_public_address(server.id, &public_as_stored)
-            .await?
-        {
-            self.forget_names(server.id).await?;
-        }
+        // Stored before naming, so a DNS provider that is down holds back only the names.
+        sqlx::query!(
+            "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
+            reached.map_or_else(String::new, public_address),
+            server.id.0,
+        )
+        .execute(&self.db)
+        .await?;
+        let own = self.names.own_name(server.id).ok();
+        let addresses = ServerAddresses::new(own, url, lan_addresses, reached, relay);
+        let names = self.names.publish_report(server.id, &addresses).await?;
         Ok(Checked {
             public: probed.map(|(address, reachable)| PublicAddress {
                 address: public_address(address),
@@ -171,35 +166,13 @@ impl Links {
         .fetch_one(&self.db)
         .await?;
         let addresses = ServerAddresses::new(
-            server,
-            self.zone(),
+            self.names.own_name(server).ok(),
             &stored.server_url,
             &stored.lan_addresses,
             stored_public(&stored.public_address),
             stored_relay(&stored.relay),
         );
         Ok(addresses.is_return_address(return_url))
-    }
-
-    /// The Server-names zone, or none while the Hub names no Server.
-    fn zone(&self) -> Option<&str> {
-        self.names.as_ref().map(|names| names.zone.as_str())
-    }
-
-    /// Stores `address` as `server`'s public address, and answers whether it is still Linked.
-    async fn store_public_address(
-        &self,
-        server: LinkedServerId,
-        address: &str,
-    ) -> Result<bool, sqlx::Error> {
-        let stored = sqlx::query!(
-            "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
-            address,
-            server.0,
-        )
-        .execute(&self.db)
-        .await?;
-        Ok(stored.rows_affected() > 0)
     }
 }
 
@@ -219,22 +192,17 @@ pub(super) struct ServerAddresses<'a> {
 }
 
 impl<'a> ServerAddresses<'a> {
-    /// `server`'s Server Addresses, named in `zone` unless it is none. A report makes them from
-    /// what it just checked, and a read from one row, so the two can't differ.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the facts the Server Addresses are made from, each one of a different kind"
-    )]
+    /// A Server's Server Addresses, named under `own`, its own name, unless it is none. A report
+    /// makes them from what it just checked, and a read from one row, so the two can't differ.
     pub(super) fn new(
-        server: LinkedServerId,
-        zone: Option<&str>,
+        own: Option<String>,
         url: &'a str,
         lan_addresses: &'a [String],
         public: Option<SocketAddr>,
         relay: Option<SocketAddr>,
     ) -> Self {
         Self {
-            own: zone.map(|zone| names::own_name(server, zone)),
+            own,
             url,
             lan_addresses,
             public,
