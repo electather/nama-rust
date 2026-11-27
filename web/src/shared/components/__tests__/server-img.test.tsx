@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { ServerImg } from "@/shared/components/server-img";
 import {
   type ServerImage,
@@ -10,6 +11,8 @@ import {
   stillOf,
   thumbnailOf,
 } from "@/shared/lib/server-image";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { onServerAt } from "@/test-server-at";
 
 afterEach(cleanup);
@@ -33,6 +36,24 @@ async function shownImage() {
 }
 
 describe("an image the Server sent", () => {
+  test("on a page offers the widths the page's Server lists for its kind", async () => {
+    const posterUrl = "/media/artwork/tmdb/%2Falien.jpg";
+    const { transport } = fakeServer(
+      {
+        signedIn: newUser,
+        libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }],
+        info: { imageWidths: [320, 480, 640], posterWidths: [320, 480] },
+      },
+      { BrowseService: { listMovies: () => ({ movies: [{ title: "Alien", posterUrl }] }) } },
+    );
+    openApp("/libraries/1", transport);
+
+    const link = await screen.findByRole("link", { name: "Alien" });
+    expect(link.querySelector("img")?.getAttribute("srcset")).toBe(
+      `${posterUrl}?width=320 320w, ${posterUrl}?width=480 480w`,
+    );
+  });
+
   test("loads from its own Server at only the widths its kind is made at", async () => {
     show([poster]);
 

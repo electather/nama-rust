@@ -3,10 +3,11 @@ import { useServerInfo } from "@/shared/hooks/use-server-info";
 import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { type ServerImage, srcSetOf, widthsOf } from "@/shared/lib/server-image";
 
-/** How a `ServerImg` shows: its box's classes, how wide it shows, and what it says. */
+/** How a `ServerImg` shows: the image's classes, how wide it shows, and what it says. */
 export interface ServerImgLook {
   /** How wide it shows, for its `srcset`. */
   sizes: string;
+  /** The `<img>`'s own classes; its box is the caller's. */
   className: string;
   /** What it shows, for assistive technology: nothing unless given, as its shell names it. */
   alt?: string;
@@ -14,7 +15,10 @@ export interface ServerImgLook {
   largest?: boolean;
 }
 
-/** `image` over its thumbhash, as `ServerImg` shows it. Only this reads the Server's widths. */
+/**
+ * `image` over its thumbhash, as `ServerImg` shows it. Apart from `ServerImg`, so only an image
+ * shown reads the Server's widths: an error page may show because the Server can't be reached.
+ */
 export function ShownServerImg({
   image,
   look: { sizes, className, alt = "", largest = false },
