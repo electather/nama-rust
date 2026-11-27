@@ -80,46 +80,6 @@ async fn deleting_a_user_deletes_their_subscriptions() {
 }
 
 #[tokio::test]
-async fn signing_a_user_out_of_a_device_deletes_its_subscriptions_and_pushes_stop_going_there() {
-    let (_dir, db) = open().await;
-    let ada = insert_user(&db, "ada").await;
-    let (laptop, phone) = (insert_device(&db, ada).await, insert_device(&db, ada).await);
-    let (laptops_endpoint, laptop_got) = push_service(StatusCode::CREATED).await;
-    let (phones_endpoint, phone_got) = push_service(StatusCode::CREATED).await;
-    subscribe(&db, ada, laptop, browser(&laptops_endpoint))
-        .await
-        .unwrap();
-    subscribe(&db, ada, phone, browser(&phones_endpoint))
-        .await
-        .unwrap();
-
-    // As `Users::revoke` does, from the phone or an Admin's page.
-    db.write(move |tx| {
-        Box::pin(async move {
-            sqlx::query("DELETE FROM device_users WHERE device_id = ? AND user_id = ?")
-                .bind(laptop)
-                .bind(ada)
-                .execute(&mut **tx)
-                .await
-        })
-    })
-    .await
-    .unwrap();
-    let pusher = Pusher::new(new_key()).unwrap();
-    push(
-        &db,
-        &pusher,
-        vec![(ada, InboxNotification::default())],
-        None,
-    )
-    .await;
-
-    assert_eq!(endpoints_of(&db, ada).await, [phones_endpoint]);
-    assert!(laptop_got.lock().unwrap().is_empty());
-    assert_eq!(phone_got.lock().unwrap().len(), 1);
-}
-
-#[tokio::test]
 async fn each_subscription_is_pushed_to_and_a_gone_one_deleted_while_a_silent_one_waits() {
     let (_dir, db) = open().await;
     let db = Arc::new(db);

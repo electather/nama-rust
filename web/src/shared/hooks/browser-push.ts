@@ -4,8 +4,7 @@ import { callUnaryMethod } from "@connectrpc/connect-query";
 import { WebPushService } from "@/gen/nama/v1/web_push_pb";
 import { browserSubscription, encryptionKey } from "@/shared/lib/web-push";
 
-// This browser's push subscription follows whoever is signed in to it (#2314,
-// `proto/nama/v1/web_push.proto`).
+// `web/src/AGENTS.md`, "Web Push follows the signed-in User".
 
 /**
  * Sends the Server this browser's `subscription` for the User signed in. If the Server refuses,
@@ -36,7 +35,8 @@ export async function moveBrowserPush(transport: Transport) {
       await subscribeAtServer(transport, subscription);
     }
   } catch {
-    // A refused subscription was unsubscribed in the browser too, so it shows off for them.
+    // A refused subscription was unsubscribed in the browser too, so it shows off for them. A
+    // failed read leaves the browser as it was: nothing more can be done from here.
   }
 }
 

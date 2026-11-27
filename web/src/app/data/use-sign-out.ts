@@ -8,7 +8,8 @@ import { leaveBrowserPush } from "@/shared/hooks/browser-push";
 
 /**
  * Signs the User out of this Device, leaving its other Users signed in, stops this browser's
- * notifications for them, forgets everything cached for them, and opens the User picker, which goes on to sign-in once nobody is left (ADR 0106).
+ * notifications for them, forgets everything cached for them, and opens the User picker, which
+ * goes on to sign-in once nobody is left (ADR 0106).
  */
 export function useSignOut() {
   const queryClient = useQueryClient();

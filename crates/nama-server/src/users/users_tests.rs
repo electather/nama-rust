@@ -678,3 +678,46 @@ async fn a_device_signed_in_before_upgrading_to_device_users_still_acts_as_its_u
         [1]
     );
 }
+
+/// Signs the User `user` in to a new Device whose session is `token`, and returns its id.
+async fn new_device_of(users: &Users, user: i64, token: &'static str) -> i64 {
+    let device = users.db.write(move |tx| {
+        Box::pin(
+            async move { insert_device(tx, user, None, 0, laptop(), &hash_token(token)).await },
+        )
+    });
+    device.await.unwrap().id
+}
+
+#[tokio::test]
+async fn revoking_a_device_or_signing_it_out_stops_web_push_to_its_browser() {
+    use axum::http::StatusCode;
+    use nama_proto::nama::v1::InboxNotification;
+
+    use crate::{
+        server_settings::web_push_key,
+        web_push::{Pusher, browser, push_service, push_to_subscriptions, subscribe},
+    };
+
+    let data_dir = tempfile::tempdir().unwrap();
+    let (users, ada) = ada(data_dir.path()).await;
+    let (mut devices, mut received) = (Vec::new(), Vec::new());
+    for token in ["nama_laptop", "nama_phone", "nama_tv"] {
+        let device = new_device_of(&users, ada.id, token).await;
+        let (endpoint, got) = push_service(StatusCode::CREATED).await;
+        subscribe(&users.db, ada.id, device, browser(&endpoint))
+            .await
+            .unwrap();
+        devices.push(device);
+        received.push(got);
+    }
+
+    users.revoke(&admin(), ada.id, devices[0]).await.unwrap();
+    users.sign_out(devices[1]).await.unwrap();
+    let pusher = Pusher::new(web_push_key(&users.db).await.unwrap()).unwrap();
+    let stored = vec![(ada.id, InboxNotification::default())];
+    push_to_subscriptions(&users.db, &pusher, stored, None).await;
+
+    let delivered = received.iter().map(|got| got.lock().unwrap().len());
+    assert_eq!(delivered.collect::<Vec<_>>(), [0, 0, 1]);
+}
