@@ -3,7 +3,7 @@
 //! through the generated `UserService` client, over a real socket and against a real SQLite
 //! database.
 
-use crate::support::{refused, server};
+use crate::support::{permissions::set_permissions, refused, server};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -12,8 +12,8 @@ use nama_proto::nama::v1::{
     ChangePasswordRequest, CreateUserRequest, DeleteUserRequest, Device,
     GetDefaultPermissionsRequest, LibraryKind, ListDevicesRequest, ListUsersRequest, Permission,
     RefusalReason, ResetPasswordRequest, RevokeDeviceRequest, SessionDelivery,
-    SetDefaultPermissionsRequest, SetPermissionsRequest, SignInRequest, SignInResponse,
-    SignInServiceClient, User, UserServiceClient, WhoAmIRequest,
+    SetDefaultPermissionsRequest, SignInRequest, SignInResponse, SignInServiceClient, User,
+    UserServiceClient, WhoAmIRequest,
 };
 use refused::{assert_refused, refusal_of};
 use server::{PASSWORD, Subscription, TestServer, subscribe};
@@ -125,21 +125,6 @@ async fn create_user(
         })
         .await?;
     Ok(response.into_owned().id)
-}
-
-async fn set_permissions(
-    client: &UserServiceClient<HttpClient>,
-    user_id: i64,
-    permissions: &[Permission],
-) -> Result<(), ConnectError> {
-    client
-        .set_permissions(SetPermissionsRequest {
-            user_id,
-            permissions: permissions.iter().map(|&p| p.into()).collect(),
-            ..Default::default()
-        })
-        .await?;
-    Ok(())
 }
 
 async fn default_permissions(
@@ -434,9 +419,13 @@ async fn a_user_given_a_permission_may_use_it_on_their_next_request() {
         RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
     );
 
-    set_permissions(&fixture.client, grace, &[Permission::ManageUsers])
-        .await
-        .unwrap();
+    set_permissions(
+        &fixture.server.client_config(),
+        grace,
+        &[Permission::ManageUsers],
+    )
+    .await
+    .unwrap();
 
     admin_rpc(&as_grace).await.unwrap();
 }
@@ -450,7 +439,7 @@ async fn a_demoted_admin_loses_admin_rpcs_on_their_next_request_but_stays_signed
     admin_rpc(&as_grace).await.unwrap();
 
     let requests_only = [Permission::Request, Permission::ViewRequests];
-    set_permissions(&fixture.client, grace, &requests_only)
+    set_permissions(&fixture.server.client_config(), grace, &requests_only)
         .await
         .unwrap();
 
@@ -476,7 +465,12 @@ async fn removing_admin_from_the_last_user_with_it_is_refused_and_leaves_their_s
     let admin = fixture.first_admin_id().await;
     let mut admins_events = subscribe(&fixture.server.client_config(), &[]).await;
 
-    let demoted = set_permissions(&fixture.client, admin, &[Permission::ManageUsers]).await;
+    let demoted = set_permissions(
+        &fixture.server.client_config(),
+        admin,
+        &[Permission::ManageUsers],
+    )
+    .await;
 
     assert_refused(
         demoted,
@@ -495,7 +489,7 @@ async fn an_admin_may_demote_themselves_while_another_admin_exists() {
     let grace = fixture.server.user("Grace", &[Permission::Admin]).await;
     let (grace, token) = (grace.id, grace.token);
 
-    let demoted = set_permissions(&fixture.client, admin, &[]).await;
+    let demoted = set_permissions(&fixture.server.client_config(), admin, &[]).await;
 
     assert_eq!(code(demoted), None);
     assert_eq!(admin_ids(&fixture.client_as(&token)).await, [grace]);
@@ -508,10 +502,12 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
     let grace = fixture.server.user("Grace", &[Permission::Admin]).await;
     let (grace, token) = (grace.id, grace.token);
     let as_grace = fixture.client_as(&token);
+    let graces_config = fixture.server.client_config_as(&token);
+    let admins_config = fixture.server.client_config();
 
     let (grace_demoted, admin_demoted) = tokio::join!(
-        set_permissions(&fixture.client, grace, &[]),
-        set_permissions(&as_grace, admin, &[]),
+        set_permissions(&admins_config, grace, &[]),
+        set_permissions(&graces_config, admin, &[]),
     );
 
     let (survivor, lost) = match (grace_demoted, admin_demoted) {
@@ -540,7 +536,7 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
 async fn setting_the_permissions_of_an_unknown_user_is_not_found() {
     let fixture = Fixture::start().await;
 
-    let changed = set_permissions(&fixture.client, 999, &[Permission::Admin]).await;
+    let changed = set_permissions(&fixture.server.client_config(), 999, &[Permission::Admin]).await;
 
     let refusal = assert_refused(
         changed,
@@ -572,7 +568,7 @@ async fn a_user_who_manages_users_sets_the_permissions_of_others_who_arent_admin
     let kim = fixture.create("Kim", PASSWORD).await.unwrap();
 
     let set = set_permissions(
-        &fixture.client_as(&token),
+        &fixture.server.client_config_as(&token),
         kim,
         &[Permission::ManageLibraries],
     )
@@ -589,12 +585,12 @@ async fn a_user_who_manages_users_cant_make_anyone_an_admin_or_change_their_own_
         .user("Grace", &[Permission::ManageUsers])
         .await;
     let (grace, token) = (grace.id, grace.token);
-    let as_grace = fixture.client_as(&token);
+    let graces_config = fixture.server.client_config_as(&token);
     let kim = fixture.create("Kim", PASSWORD).await.unwrap();
 
-    assert_admin_required(set_permissions(&as_grace, kim, &[Permission::Admin]).await);
+    assert_admin_required(set_permissions(&graces_config, kim, &[Permission::Admin]).await);
     let more = [Permission::ManageUsers, Permission::ManageLibraries];
-    assert_admin_required(set_permissions(&as_grace, grace, &more).await);
+    assert_admin_required(set_permissions(&graces_config, grace, &more).await);
     assert_eq!(
         admin_ids(&fixture.client).await,
         [fixture.first_admin_id().await]
@@ -612,8 +608,9 @@ async fn a_user_who_manages_users_cant_change_reset_delete_or_sign_out_an_admin(
         .await
         .token;
     let as_grace = fixture.client_as(&token);
+    let graces_config = fixture.server.client_config_as(&token);
 
-    assert_admin_required(set_permissions(&as_grace, admin, &[]).await);
+    assert_admin_required(set_permissions(&graces_config, admin, &[]).await);
     assert_admin_required(reset_password(&as_grace, admin, "battery staple horse").await);
     assert_admin_required(delete_user(&as_grace, admin).await);
     assert_admin_required(revoke_device(&as_grace, Some(admin), admin_device).await);
@@ -631,7 +628,7 @@ async fn setting_an_unspecified_permission_is_refused_and_changes_nothing() {
     let admin = fixture.first_admin_id().await;
 
     let changed = set_permissions(
-        &fixture.client,
+        &fixture.server.client_config(),
         admin,
         &[Permission::Admin, Permission::Unspecified],
     )
@@ -767,9 +764,13 @@ async fn setting_a_users_permissions_ends_their_streams_at_once_and_keeps_them_s
     let mut graces_events = subscribe(&fixture.server.client_config_as(&grace.token), &[]).await;
     let mut admins_events = subscribe(&fixture.server.client_config(), &[]).await;
 
-    set_permissions(&fixture.client, grace.id, &[Permission::ViewRequests])
-        .await
-        .unwrap();
+    set_permissions(
+        &fixture.server.client_config(),
+        grace.id,
+        &[Permission::ViewRequests],
+    )
+    .await
+    .unwrap();
 
     assert!(ended(&mut graces_events).await, "the stream is still open");
     let admins_open = still_open(&fixture, &mut admins_events).await;
