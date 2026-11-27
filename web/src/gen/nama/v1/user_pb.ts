@@ -1695,7 +1695,9 @@ export const UserService: GenService<{
    * Replaces a User's Permissions and cap for remote playback, which apply from their next
    * request. Their Devices stay signed in. Fails with `invalid_argument` for
    * `PERMISSION_UNSPECIFIED` or a value the Server doesn't know, `not_found` if no User has the ID,
-   * and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`.
+   * and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`, or with
+   * `REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY` if it gives `PERMISSION_MANAGE_USERS`
+   * without `PERMISSION_MANAGE_LIBRARIES` to a User who sees only a chosen list of Libraries.
    *
    * @generated from rpc nama.v1.UserService.SetPermissions
    */
@@ -1708,8 +1710,10 @@ export const UserService: GenService<{
    * Replaces which Libraries a User sees, from their next request: browsing, search, Home rows,
    * Plugin rows, Similar titles, title pages, playback and Requests leave out the titles of any
    * other. Without `PERMISSION_ADMIN`, the caller may change neither an Admin's nor their own, so
-   * a User can't lift their own. Fails with `not_found` if no User has the ID, and
-   * `permission_denied` for an Admin's or the caller's own without `PERMISSION_ADMIN`.
+   * a User can't lift their own. Fails with `not_found` if no User has the ID,
+   * `permission_denied` for an Admin's or the caller's own without `PERMISSION_ADMIN`, and
+   * `failed_precondition` with `REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY` for a chosen list
+   * for a User holding `PERMISSION_MANAGE_USERS` without `PERMISSION_MANAGE_LIBRARIES`.
    *
    * @generated from rpc nama.v1.UserService.SetLibraryAccess
    */
@@ -1724,7 +1728,8 @@ export const UserService: GenService<{
    * Rating calls for an older age, and one with no Content Rating, or one the Server doesn't know,
    * unless they allow unrated titles. A Request search's hit not on the Server has no Content
    * Rating, so it counts as unrated. Without `PERMISSION_ADMIN`, the caller may change neither an
-   * Admin's nor their own. Fails as `SetLibraryAccess` does.
+   * Admin's nor their own. Fails with `not_found` and `permission_denied` as `SetLibraryAccess`
+   * does.
    *
    * @generated from rpc nama.v1.UserService.SetMaximumAge
    */

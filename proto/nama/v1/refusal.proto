@@ -356,4 +356,8 @@ enum RefusalReason {
   // `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
   // already. `field` is `hub_token`.
   REFUSAL_REASON_HUB_TOKEN_REFUSED = 107;
+  // `failed_precondition`: a User who sees only a chosen list of Libraries can't hold
+  // `PERMISSION_MANAGE_USERS` unless `PERMISSION_MANAGE_LIBRARIES` lets them see every one, so no
+  // Library hidden from them is named to them as they edit another User's.
+  REFUSAL_REASON_MANAGE_USERS_NEEDS_EVERY_LIBRARY = 108;
 }
