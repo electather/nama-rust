@@ -107,7 +107,7 @@ async fn a_capped_viewer_sees_a_show_hit_followed_only_if_theirs_or_its_rating_p
             candidate: candidate(show.clone(), "Show"),
         };
         let mut conn = db.reader().acquire().await.unwrap();
-        let found = requests.look_around_show(&mut conn, bob, hit).await;
+        let found = requests.look_around_show(&mut conn, bob, hit, None).await;
         found.unwrap().followed
     })
     .await;

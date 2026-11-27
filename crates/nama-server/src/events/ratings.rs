@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{Event, event};
 use tracing::{error, warn};
 
 use super::{About, Viewer, classify, lock};
-use crate::{content_ratings::MaximumAge, db::Database, users};
+use crate::{db::Database, users};
 
 /// Reads the Content Rating of the title the Item it's given is Matched to, `None` for one
 /// without, failing if the Item is no longer Matched to a title of the name it's given, so a
@@ -21,13 +21,6 @@ use crate::{content_ratings::MaximumAge, db::Database, users};
 pub(crate) type MatchRatings = Arc<
     dyn Fn(i64, String) -> BoxFuture<'static, Result<Option<String>, sqlx::Error>> + Send + Sync,
 >;
-
-/// A subscriber's Maximum Age, and where the Content Rating of each Matched title it judges is
-/// read.
-pub(crate) struct AgeCheck {
-    pub(crate) max_age: MaximumAge,
-    pub(crate) matches: MatchRatings,
-}
 
 /// Reads no Match's Content Rating, for a subscriber whose Maximum Age lets every title through.
 #[cfg(test)]
@@ -95,16 +88,16 @@ impl Ratings {
 }
 
 impl Viewer {
-    /// Whether this viewer's Maximum Age lets `event` reach them: one about another User's Request
-    /// or Followed Show, or any `ItemMatched`, of a title over it doesn't, as their lists leave
-    /// those out. One whose rating can't be read, logged, doesn't either.
+    /// Whether this viewer's Reach lets the title of `event` reach them: one about another User's
+    /// Request or Followed Show, or any `ItemMatched`, of a title over their Maximum Age doesn't,
+    /// as their lists leave those out. One whose rating can't be read, logged, doesn't either.
     pub(super) async fn allows_title_of(&self, ratings: &Ratings, event: &Event) -> bool {
-        if self.max_age.lets_every_title() {
+        if self.reach.lets_every_rating() {
             return true;
         }
         if let Some(event::Event::ItemMatched(matched)) = &event.event {
             return match ratings.of_match(matched.item_id, &matched.title).await {
-                Ok(rating) => self.max_age.allows(rating.as_deref()),
+                Ok(rating) => self.reach.allows_rating(rating.as_deref()),
                 Err(err) => {
                     warn!(
                         item = matched.item_id,
@@ -129,7 +122,7 @@ impl Viewer {
             _ => return true,
         };
         match ratings.of(row).await {
-            Ok(Some(rating)) => self.max_age.allows(rating.as_deref()),
+            Ok(Some(rating)) => self.reach.allows_rating(rating.as_deref()),
             Ok(None) => false,
             Err(err) => {
                 error!("could not read the Content Rating of {row:?} for a subscriber: {err}");

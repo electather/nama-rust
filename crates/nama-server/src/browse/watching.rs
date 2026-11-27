@@ -58,7 +58,7 @@ impl Browse {
         version: i64,
         progress: Progress,
     ) -> Result<(), Error> {
-        if !(self.contents.lets_play(version, &self.seen, self.max_age)).await? {
+        if !self.contents.lets_play(version, &self.reach).await? {
             return Err(NotFound::NoSuchVersion.into());
         }
         let titles = match self.contents.titles_in(version).await? {

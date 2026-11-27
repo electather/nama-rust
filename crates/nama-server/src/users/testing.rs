@@ -1,8 +1,13 @@
 //! A bare User row, and a Device signed in as one, for in-file tests across the Server ("One
 //! in-file fixture", crate AGENTS.md).
 
-use super::permissions::Permissions;
-use crate::{db::Database, server_settings::PlaybackLimit};
+use super::{LibraryAccess, Reach, permissions::Permissions};
+use crate::{content_ratings::MaximumAge, db::Database, server_settings::PlaybackLimit};
+
+/// The Reach of a User who sees `libraries` under `max_age`, without a User to read it from.
+pub(crate) const fn reach_of(libraries: LibraryAccess, max_age: MaximumAge) -> Reach {
+    Reach { libraries, max_age }
+}
 
 /// Inserts a User named `name` with no permissions and returns their id.
 pub(crate) async fn insert_user(db: &Database, name: &str) -> i64 {

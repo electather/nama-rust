@@ -42,7 +42,7 @@ mod titles_sql;
 #[cfg(test)]
 pub(crate) use testing::{File, FileItem, Recorded};
 
-pub(crate) use any_library::{library_with_movie, library_with_show, matched_episodes};
+pub(crate) use any_library::{copies_of, library_with_movie, library_with_show, matched_episodes};
 pub(crate) use backdrops::NewestBackdrop;
 pub(crate) use box_sets::StoredBoxSet;
 use decisions::insert_decisions;

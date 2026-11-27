@@ -4,6 +4,7 @@ use nama_plugin_api::metadata::ExternalId;
 use tempfile::TempDir;
 
 use super::{Browse, Error, PersonTitle};
+use crate::browse::Browsing;
 use crate::{
     db::Database,
     library::{
@@ -32,7 +33,7 @@ impl Fixture {
             folder,
             library,
             contents: Contents::new(Arc::clone(&db)),
-            browse: Browse::new(db, ExtensionPoints::default()),
+            browse: Browsing::new(db, ExtensionPoints::default()).everything(),
         }
     }
 

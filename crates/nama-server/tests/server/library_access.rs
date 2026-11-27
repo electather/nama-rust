@@ -675,3 +675,68 @@ async fn an_offline_change_to_a_title_also_in_a_seen_library_is_taken_there() {
 
     assert_eq!(position(&vasquez, newer.id, ALIEN).await, Some(60_000));
 }
+
+/// The Library the test Plugin's "picks" row shows Alien in to `who`, if it shows it on the Server.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn alien_picked_in(who: &ClientConfig) -> Option<i64> {
+    let client = browse(who);
+    let titles = client.list_home_row_titles(ListHomeRowTitlesRequest {
+        plugin_id: "test-plugin".to_owned(),
+        key: "picks".to_owned(),
+        ..Default::default()
+    });
+    (titles.await.unwrap().into_owned().titles.into_iter()).find_map(|title| {
+        match title.movie_or_show {
+            Some(MovieOrShow::Movie(movie)) if movie.id.value == ALIEN.to_string() => {
+                Some(movie.library_id)
+            }
+            _ => None,
+        }
+    })
+}
+
+#[tokio::test]
+async fn a_title_an_older_hidden_library_shares_is_in_the_newer_one_on_every_screen() {
+    let fx = Fixture::start().await;
+    let newer = (fx.server)
+        .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_FILE])
+        .await;
+    let admin = fx.server.client_config();
+    set_access(&admin, fx.vasquez.id, Some(&[fx.heat.id, newer.id]))
+        .await
+        .unwrap();
+    fx.server.enable_test_plugin("home-rows").await;
+    let started = Instant::now();
+    while picks(&admin).await.len() < 4 {
+        assert!(started.elapsed() < WAIT, "the row never refreshed");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let vasquez = fx.vasquez.client_config();
+    let requests = RequestServiceClient::new(HttpClient::plaintext(), vasquez.clone());
+
+    let picked_in = alien_picked_in(&vasquez).await;
+    let found = search::movies(&vasquez, "Alien").await;
+    let looked_up = requests.look_up_movie(LookUpMovieRequest {
+        movie_id: tmdb_id(ALIEN).into(),
+        ..Default::default()
+    });
+    let looked_up = looked_up.await.unwrap().into_owned().movie.into_option();
+    let asked = requests.create_request(CreateRequestRequest {
+        movie_id: tmdb_id(ALIEN).into(),
+        ..Default::default()
+    });
+
+    assert_eq!(picked_in, Some(newer.id));
+    let alien = ALIEN.to_string();
+    let found = found.iter().find(|hit| hit.id.value == alien);
+    assert_eq!(found.unwrap().library_id, Some(newer.id));
+    assert_eq!(looked_up.unwrap().library_id, Some(newer.id));
+    assert_refused(
+        asked.await.map(drop),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_ALREADY_IN_LIBRARY,
+    );
+}

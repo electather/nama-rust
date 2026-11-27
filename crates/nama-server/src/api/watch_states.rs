@@ -23,7 +23,7 @@ use super::{
 
 /// `nama.v1.WatchStateService`: each signed-in User's progress through what they play.
 pub(super) struct WatchStateServiceHandler {
-    pub(super) browse: browse::Browse,
+    pub(super) browse: browse::Browsing,
     pub(super) running: RunningPlans,
 }
 

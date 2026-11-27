@@ -17,7 +17,7 @@ use super::availability::{availability, today};
 use super::deciding::approve;
 use super::followed::{cover, followed_by};
 use super::listing::load_one;
-use super::lookup::looking_up;
+use super::lookup::{judged, looking_up};
 use super::quality::{NewQuality, quality_columns, show_requests};
 use super::state::{open_request, stored};
 use super::{Error, Requests, qualities};
@@ -26,10 +26,10 @@ use crate::{
     diagnostics::{self, Usage},
     events::event,
     library::{
-        DEFAULT_ORDER, Metadata, SourceSeason, TitleKind, library_with_movie, matched_episodes,
-        primary_id,
+        DEFAULT_ORDER, Metadata, SourceSeason, TitleKind, Whereabouts, library_with_movie,
+        matched_episodes, primary_id,
     },
-    users::User,
+    users::{Reach, User, reach},
 };
 
 /// What a new Request asks for, as the title source gave it.
@@ -75,37 +75,35 @@ impl Requests {
     /// Publishes what changed, if anything did.
     ///
     /// Refuses a `chosen` Quality from an `asker` who may not choose one, or that the Movie
-    /// Fulfiller doesn't offer, even when joining, and with [`Error::NoSuchMovie`] a Movie only
-    /// a Library `asker` doesn't see has, or their Maximum Age keeps from them.
+    /// Fulfiller doesn't offer, even when joining, with [`Error::InLibrary`] a Movie in a Library
+    /// they see, and with [`Error::NoSuchMovie`] one kept from them ([`judged`]).
     pub(crate) async fn create(
         &self,
         asker: &User,
         id: &ExternalId,
         chosen: Option<i64>,
     ) -> Result<Request, Error> {
-        // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
-        // that Matched the Movie meanwhile. One only a Library `asker` doesn't see has is no
-        // Movie to them, as looking it up says.
-        if self.hidden_from(asker, TitleKind::Movie, id).await? {
-            return Err(Error::NoSuchMovie(id.clone()));
-        }
-        if self.contents.library_with_movie(id).await?.is_some() {
-            return Err(Error::InLibrary(id.clone()));
+        // Refuses before asking TMDB, which may be down or slow; the write places it again for a
+        // scan that Matched the Movie meanwhile. One kept from `asker` is no Movie to them, as
+        // looking it up says.
+        let reach = reach(&self.db, asker.id).await?;
+        match self.placed(&reach, TitleKind::Movie, id).await? {
+            Whereabouts::In(_) => return Err(Error::InLibrary(id.clone())),
+            Whereabouts::KeptFrom => return Err(Error::NoSuchMovie(id.clone())),
+            Whereabouts::Nowhere => {}
         }
         let quality = self.quality::<Movies>(asker, chosen).await?;
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(id).await?;
-        if self
-            .kept_from(asker, movie.content_rating.as_deref())
-            .await?
-        {
+        if !reach.allows_rating(movie.content_rating.as_deref()) {
             return Err(Error::NoSuchMovie(id.clone()));
         }
         let wanted = Wanted::movie(id, movie, quality);
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
-        let made = self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)));
+        let made =
+            self.apply(move |tx| Box::pin(ask_movie_reached(tx, user, reach, wanted, state)));
         made.await
             .inspect(|_| diagnostics::record(Usage::RequestMade))
     }
@@ -115,7 +113,7 @@ impl Requests {
     /// `AUTO_APPROVE_TV` and the Fulfiller for Shows. Asks for none if a Library has any of them:
     /// every aired Episode Matched. New Requests take the Show's Quality if it has one, refusing
     /// another `chosen` one, else as [`Self::create`] picks one. [`Error::NoSuchShow`] for a Show
-    /// only a Library `asker` doesn't see has, or their Maximum Age keeps from them.
+    /// kept from `asker` ([`judged`]).
     pub(crate) async fn create_seasons(
         &self,
         asker: &User,
@@ -123,16 +121,16 @@ impl Requests {
         numbers: &BTreeSet<u32>,
         chosen: Option<i64>,
     ) -> Result<Vec<Request>, Error> {
-        // As looking it up says, a Show only a Library `asker` doesn't see has is none to them.
-        if self.hidden_from(asker, TitleKind::Show, show_id).await? {
+        // As looking it up says, a Show kept from `asker` is none to them.
+        let reach = reach(&self.db, asker.id).await?;
+        let placed = self.placed(&reach, TitleKind::Show, show_id).await?;
+        if matches!(placed, Whereabouts::KeptFrom) {
             return Err(Error::NoSuchShow(show_id.clone()));
         }
         let quality = self.quality::<Shows>(asker, chosen).await?;
         let (source, show) = self.show(show_id).await?;
-        if self
-            .kept_from(asker, show.content_rating.as_deref())
-            .await?
-        {
+        let rating = show.content_rating.as_deref();
+        if matches!(judged(placed, &reach, rating), Whereabouts::KeptFrom) {
             return Err(Error::NoSuchShow(show_id.clone()));
         }
         let id = kept_under(show_id, &show.ids);
@@ -213,6 +211,22 @@ pub(super) async fn ask_movie(
         return Err(Error::InLibrary(wanted.id));
     }
     ask_approving(conn, user, wanted, state).await
+}
+
+/// [`ask_movie`], unless the Movie `wanted` is kept from `reach`, `user`'s, placed again on `conn`
+/// for a scan that Matched it since they asked.
+async fn ask_movie_reached(
+    conn: &mut SqliteConnection,
+    user: i64,
+    reach: Reach,
+    wanted: Wanted,
+    state: RequestState,
+) -> Result<Applied<Request>, Error> {
+    let placed = Whereabouts::of_title(conn, &reach, TitleKind::Movie, &wanted.id).await?;
+    if matches!(placed, Whereabouts::KeptFrom) {
+        return Err(Error::NoSuchMovie(wanted.id));
+    }
+    ask_movie(conn, user, wanted, state).await
 }
 
 /// Asks for each of the Seasons `show` as `user`, whose new Requests open in `state`, unless a

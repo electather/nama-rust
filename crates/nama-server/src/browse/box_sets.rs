@@ -1,5 +1,5 @@
 //! Box Sets as a User sees them (`GLOSSARY.md`): on a Movie's page, on their own page and in a
-//! Movies Library's list. Every read applies [`TitlePages::seen`], so the rule of who sees a Box
+//! Movies Library's list. Every read applies `TitlePages::seen`, so the rule of who sees a Box
 //! Set and which of its Movies lives once.
 
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use nama_plugin_api::{PluginId, metadata::ExternalId};
 use nama_proto::nama::v1::{PageRequest, PageResponse, Permission};
 
-use super::{Error, Movie, TitlePages};
+use super::{Browse, Error, Movie, TitlePages};
 use crate::{
     home_rows::RowTitle,
     library::{
@@ -32,10 +32,11 @@ impl TitlePages {
     /// see, if it has one they can see.
     pub(super) async fn box_set_of(
         &self,
+        browse: &Browse,
         user: &User,
         movie: &Movie,
     ) -> Result<Option<SeenBoxSet>, Error> {
-        let Some(id) = self.browse.contents.movie_box_set(movie).await? else {
+        let Some(id) = browse.contents.movie_box_set(movie).await? else {
             return Ok(None);
         };
         match self.box_set(user, &id).await {
@@ -48,10 +49,10 @@ impl TitlePages {
     /// The Box Set `id` as `user` sees it, with each missing Movie's open Request they may see.
     /// [`NotFound::NoSuchBoxSet`] if they can't see it.
     pub(crate) async fn box_set(&self, user: &User, id: &ExternalId) -> Result<SeenBoxSet, Error> {
-        let seen_by = self.seen_by(user).await?;
-        let stored = self.browse.contents.box_set(id).await?;
+        let browse = self.browsing.seen_by(user.id).await?;
+        let stored = browse.contents.box_set(id).await?;
         let seen = match stored {
-            Some(stored) => seen_by.seen(user, stored).await?,
+            Some(stored) => self.seen(&browse, user, stored).await?,
             None => None,
         };
         let SeenBoxSet { box_set, movies } = seen.ok_or(NotFound::NoSuchBoxSet)?;
@@ -80,8 +81,8 @@ impl TitlePages {
         library: i64,
         asked: &PageRequest,
     ) -> Result<(Vec<StoredBoxSet>, PageResponse), Error> {
-        let this = self.seen_by(user).await?;
-        let library = this.browse.library(library).await?;
+        let browse = self.browsing.seen_by(user.id).await?;
+        let library = browse.library(library).await?;
         if library.kind != LibraryKind::Movies {
             return Err(NotFound::WrongKind {
                 wanted: LibraryKind::Movies,
@@ -94,11 +95,11 @@ impl TitlePages {
         // ponytail: reads every Box Set of the Library, and its Movies in every Library, to page
         // in memory by place, so one added between two pages can skip or repeat one. Store which
         // Box Sets each User sees if a Library's grow to hundreds.
-        for id in self.browse.contents.box_sets_in(library.id).await? {
-            let Some(stored) = self.browse.contents.box_set(&id).await? else {
+        for id in browse.contents.box_sets_in(library.id).await? {
+            let Some(stored) = browse.contents.box_set(&id).await? else {
                 continue;
             };
-            if let Some(shown) = this.seen(user, stored).await? {
+            if let Some(shown) = self.seen(&browse, user, stored).await? {
                 seen.push(shown.box_set);
             }
         }
@@ -118,18 +119,24 @@ impl TitlePages {
         ))
     }
 
-    /// `stored` as `user` sees it, `None` if they can't: they see a Box Set only when a Library
-    /// has one of the Movies naming it and they see at least two, counting those it lacks only if
-    /// they may Request Movies and their Maximum Age lets unrated titles through. Its Movies come
-    /// in its title source's order, with the others naming it placed among them by release date.
-    async fn seen(&self, user: &User, stored: StoredBoxSet) -> Result<Option<SeenBoxSet>, Error> {
+    /// `stored` as `user`, whose Reach `browse` reads through, sees it, `None` if they can't: they
+    /// see a Box Set only when a Library has one of the Movies naming it and they see at least two,
+    /// counting those it lacks only if they may Request Movies and their Reach lets unrated titles
+    /// through. Its Movies come in its title source's order, with the others naming it placed
+    /// among them by release date.
+    async fn seen(
+        &self,
+        browse: &Browse,
+        user: &User,
+        stored: StoredBoxSet,
+    ) -> Result<Option<SeenBoxSet>, Error> {
         let mut ids = stored.listed.clone();
         ids.extend(
             (stored.named_by.iter())
                 .filter(|id| !stored.listed.contains(id))
                 .cloned(),
         );
-        let mut on_server: Vec<Option<FoundMovie>> = (self.browse)
+        let mut on_server: Vec<Option<FoundMovie>> = browse
             .in_libraries(TitleKind::Movie, &ids)
             .await?
             .into_iter()
@@ -139,7 +146,7 @@ impl TitlePages {
             })
             .collect();
         let may_request =
-            user.permissions.allow(Permission::RequestMovie) && self.browse.max_age.allows(None);
+            user.permissions.allow(Permission::RequestMovie) && browse.reach.allows_unrated();
         let looked_up: HashMap<&str, &ListedMovie> = (stored.looked_up.iter())
             .map(|listed| (listed.listed_as.as_str(), listed))
             .collect();

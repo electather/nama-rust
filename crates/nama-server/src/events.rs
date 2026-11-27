@@ -40,18 +40,17 @@ use self::{
     ratings::Ratings,
 };
 use crate::{
-    content_ratings::MaximumAge,
     db::Database,
     link::{LinkChange, Linking, Whose},
     plugins::{self, ExtensionPoints},
     server_settings::{ServerUrl, web_push_key},
-    users::{self, LibraryAccess, User, every_notification_turned_off, every_user, store_in_inbox},
+    users::{self, Reach, User, every_notification_turned_off, every_user, store_in_inbox},
     web_push::{Pusher, push_to_subscriptions},
 };
 
 mod notifying;
 mod ratings;
-pub(crate) use ratings::{AgeCheck, MatchRatings, Rated, Removed};
+pub(crate) use ratings::{MatchRatings, Rated, Removed};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -107,16 +106,14 @@ pub(crate) struct Filter {
 #[derive(Debug)]
 struct Viewer {
     /// Who they are, who alone sees their inbox's events, and who gets events about their own
-    /// Requests and Followed Shows whatever [`Self::max_age`] says, as the list shows them those.
+    /// Requests and Followed Shows whatever [`Self::reach`] says, as the list shows them those.
     user: i64,
-    /// Only Library events about these Libraries.
-    libraries: LibraryAccess,
+    /// Only Library events about the Libraries this sees, and only events about others' Requests
+    /// and Followed Shows, and `ItemMatched` events, of titles this lets through.
+    reach: Reach,
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
     requester: Option<i64>,
-    /// Only events about others' Requests and Followed Shows, and `ItemMatched` events, of titles
-    /// this lets through.
-    max_age: MaximumAge,
     /// Only playback events about this User's playing; `None` means every User's.
     player: Option<i64>,
     /// Whether they see where a Library's files are on the Server.
@@ -305,20 +302,20 @@ impl EventBus {
         self.sender.subscribe()
     }
 
-    /// The events published from now on that `user`, who sees `libraries` and whose Maximum Age
-    /// `age_check` checks, may see and `filter` lets through, as `user` may see them, with a
-    /// `Lagged` wherever the subscriber fell too far behind. Ends when the bus is closed.
+    /// The events published from now on that `user`, whose Reach is `reach`, may see and
+    /// `filter` lets through, as `user` may see them, with a `Lagged` wherever the subscriber fell
+    /// too far behind, reading Matches' Content Ratings through `matches`. Ends when the bus is
+    /// closed.
     pub(crate) fn subscribe(
         &self,
         user: &User,
-        libraries: LibraryAccess,
-        age_check: AgeCheck,
+        reach: Reach,
+        matches: MatchRatings,
         filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
-        // Fixed for the stream's life: `api::events` ends it when its User's Permissions, Library
-        // access or Maximum Age change.
-        let viewer = Viewer::of(user, libraries, age_check.max_age);
-        self.stream(viewer, age_check.matches, filter)
+        // Fixed for the stream's life: `api::events` ends it when its User's Permissions or Reach
+        // change.
+        self.stream(Viewer::of(user, reach), matches, filter)
     }
 
     /// [`Self::subscribe`]'s stream, for `viewer`.
@@ -361,7 +358,7 @@ impl EventBus {
             permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
-        let viewer = Viewer::of(&admin, LibraryAccess::All, MaximumAge::default());
+        let viewer = Viewer::of(&admin, Reach::everything());
         self.stream(viewer, ratings::unread_matches(), filter)
     }
 
@@ -636,12 +633,11 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 }
 
 impl Viewer {
-    fn of(user: &User, libraries: LibraryAccess, max_age: MaximumAge) -> Self {
+    fn of(user: &User, reach: Reach) -> Self {
         Self {
             user: user.id,
-            libraries,
+            reach,
             requester: user.whose_requests(),
-            max_age,
             player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
         }
@@ -653,7 +649,7 @@ impl Viewer {
     fn sees(&self, mut event: Event) -> Option<Event> {
         let (_, about) = classify(&event)?;
         let visible = match about {
-            About::Library(library) => self.libraries.sees(library),
+            About::Library(library) => self.reach.sees(library),
             About::Request(request) => users::may_see(self.requester, &request.requesters),
             About::FollowedShow(followed) => users::may_see(self.requester, &followed.requesters),
             About::Player(user) => self.player.is_none_or(|player| player == user),

@@ -6,8 +6,12 @@ use nama_proto::nama::v1::{self as proto, home_row::KernelOrPlugin};
 
 use super::{Fields, refusals::home_rows_refused, refused};
 use crate::{
-    api::libraries::kind_to_proto, browse::Browse, home_rows::HomeRows, library::Library,
-    server_settings::HomeRowId, users::User,
+    api::libraries::kind_to_proto,
+    browse::{Browse, Browsing},
+    home_rows::HomeRows,
+    library::Library,
+    server_settings::HomeRowId,
+    users::User,
 };
 
 /// Every Home row `reader` could see now, in no layout's order: Continue Watching, each
@@ -15,7 +19,7 @@ use crate::{
 /// `reader` sees it.
 pub(in crate::api) async fn home_rows_of(
     home_rows: &HomeRows,
-    browse: &Browse,
+    browse: &Browsing,
     reader: &User,
 ) -> Result<Vec<(HomeRowId, KernelOrPlugin)>, ConnectError> {
     let plugin_rows = home_rows.list(reader).await.map_err(home_rows_refused)?;

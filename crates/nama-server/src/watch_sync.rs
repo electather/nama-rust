@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, warn};
 
 use crate::{
-    browse::Browse,
+    browse::{Browse, Browsing},
     db::Database,
     library::{import_cursor, imported_watch_states, keep_import_cursor},
     plugins::{ExtensionPoints, without_secrets},
@@ -33,7 +33,7 @@ impl WatchSyncImports {
     /// Imports into what `db` holds through the Plugins of `points`.
     pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
         Self {
-            browse: Browse::new(Arc::clone(&db), points.clone()),
+            browse: Browsing::new(Arc::clone(&db), points.clone()).everything(),
             db,
             points,
         }
