@@ -10,7 +10,7 @@ use super::{
     Caller, DEVICE_LIFETIME, Device, Error, NewDevice, Permissions, Proved, SignedIn, User, Users,
     codes::new_token, hash_token, proved::proved_user,
 };
-use crate::db::now;
+use crate::db::{Database, now};
 
 impl Users {
     /// Signs `device`, whose name has been checked, in as whoever `proved` says. A Device already
@@ -93,6 +93,19 @@ impl Users {
             .await
             .map(drop)
     }
+}
+
+/// Whether the Device `device` acts as the User `user` now, which a plan they started there, and a
+/// URL signed for them, needs (ADR 0106).
+pub(crate) async fn acts_as(db: &Database, device: i64, user: i64) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?)
+                   AS "exists!: bool""#,
+        device,
+        user
+    )
+    .fetch_one(db.reader())
+    .await
 }
 
 /// Makes the Device `device` act as the User `user`, as [`Users::switch`] does, returning its id

@@ -47,6 +47,7 @@ pub(crate) mod testing;
 pub use codes::SetupCode;
 use codes::new_token;
 pub(crate) use codes::random_secret;
+pub(crate) use device_users::acts_as;
 use device_users::insert_device;
 pub(crate) use home_layout::{AskedHomeLayout, UserHomeLayout};
 pub(crate) use inbox::{
@@ -564,26 +565,14 @@ impl Users {
     ) -> impl Future<Output = ()> + Send + 'static {
         // Listening before looking `device` up means no sign-out falls between the two.
         let sign_outs = self.sign_outs.subscribe();
-        let users = self.clone();
+        let db = Arc::clone(&self.db);
+        // One that can't be looked up is taken to have stopped, so what it opened ends rather than
+        // outlive it.
         until_heard(sign_outs, device, async move || {
-            users.still_acting_as(device, user).await
-        })
-    }
-
-    /// Whether the Device `device` still acts as the User `user`. If that can't be found out, it is
-    /// taken not to, so what it opened ends rather than outlive it.
-    pub(crate) async fn still_acting_as(&self, device: i64, user: i64) -> bool {
-        let found = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?)
-                   AS "exists!: bool""#,
-            device,
-            user
-        )
-        .fetch_one(self.db.reader())
-        .await;
-        found.unwrap_or_else(|err| {
-            tracing::error!("could not look up a Device: {err}");
-            false
+            let acting = acts_as(&db, device, user).await;
+            acting
+                .inspect_err(|err| tracing::error!("could not look up a Device: {err}"))
+                .unwrap_or(false)
         })
     }
 

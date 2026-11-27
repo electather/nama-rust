@@ -45,12 +45,16 @@ use serde_json::json;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
-use super::{Fallback, Method, NAMED_LIMITS, Plans, Playing, direct_play::serve_file};
+use super::{
+    Fallback, Method, NAMED_LIMITS, Plans, Playing, access::viewer_of_caller,
+    direct_play::serve_file,
+};
 use crate::{
     db, diagnostics,
     ffmpeg::{Ffmpeg, RunError, Transcode},
     library::Contents,
     server_settings::PlaybackSettings,
+    signed_urls::Viewer,
     users::Caller,
 };
 
@@ -100,7 +104,7 @@ struct Download {
     version: i64,
     /// Who asked, which alone is answered about it: a Device may act as several Users (ADR 0106),
     /// and another of them may not see the Version.
-    asker: Asker,
+    asker: Viewer,
     file: PathBuf,
     /// What it counts against the budget: the most it can take while it's made, then its size.
     bytes: u64,
@@ -167,7 +171,7 @@ impl TranscodeDownloads {
     /// its id.
     async fn start(
         &self,
-        asker: Asker,
+        asker: Viewer,
         version: i64,
         (transcode, duration_ms, fallback): (Transcode, i64, Option<Fallback>),
     ) -> Result<u64, StartError> {
@@ -260,7 +264,7 @@ impl TranscodeDownloads {
     }
 
     /// The file `id` as `asker` may know of it, and where it is, if it's theirs and kept.
-    async fn find(&self, id: u64, asker: Option<Asker>) -> Option<(Stage, Progress, PathBuf)> {
+    async fn find(&self, id: u64, asker: Option<Viewer>) -> Option<(Stage, Progress, PathBuf)> {
         self.delete_expired().await;
         let downloads = lock(&self.inner.downloads);
         let download = (downloads.get(&id)).filter(|download| Some(download.asker) == asker)?;
@@ -330,22 +334,6 @@ impl TranscodeDownloads {
             crate::server_settings::Settings::new(Arc::clone(db), folder.join("transcodes"));
         let contents = Contents::new(Arc::clone(db));
         Self::new(Arc::default(), settings.playback(), contents, u64::MAX)
-    }
-}
-
-/// The User and Device that asked for a file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Asker {
-    user: i64,
-    device: i64,
-}
-
-impl From<&Caller> for Asker {
-    fn from(caller: &Caller) -> Self {
-        Self {
-            user: caller.user.id,
-            device: caller.device.id,
-        }
     }
 }
 
@@ -442,7 +430,7 @@ async fn ask(
         return (StatusCode::CONFLICT, why.join(". ")).into_response();
     };
     match (downloads.start(
-        Asker::from(caller),
+        viewer_of_caller(caller),
         version,
         (transcode, duration_ms, fallback),
     ))
@@ -527,8 +515,8 @@ async fn fetch(
 }
 
 /// Who `request` is from, as its session says.
-fn asker_of(request: &Request) -> Option<Asker> {
-    request.extensions().get::<Caller>().map(Asker::from)
+fn asker_of(request: &Request) -> Option<Viewer> {
+    request.extensions().get::<Caller>().map(viewer_of_caller)
 }
 
 /// How many bytes a response with `parts` sends if they end with a file's last byte: a whole

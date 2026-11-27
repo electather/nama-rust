@@ -80,11 +80,8 @@ impl RunningPlans {
     }
 
     /// Cancelled once an Admin stops `viewer`'s last plan of the Version `version`, to cut off a
-    /// response serving its file, and at once while that stop holds; never without a Viewer.
-    pub(crate) fn stopped(&self, version: i64, viewer: Option<Viewer>) -> CancellationToken {
-        let Some(viewer) = viewer else {
-            return CancellationToken::new();
-        };
+    /// response serving its file, and at once while that stop holds.
+    pub(in crate::playback) fn stopped(&self, version: i64, viewer: Viewer) -> CancellationToken {
         let mut stopped = lock(&self.inner.stopped);
         stopped.entry((version, viewer)).or_default().child_token()
     }

@@ -17,7 +17,7 @@ use nama_plugin_api::{
 
 use super::{
     Sidecar, Sidecars, Track,
-    direct_play::sees_version,
+    access::sees_version,
     sidecars::{codec_of, names_language, subtitle},
 };
 use crate::{
