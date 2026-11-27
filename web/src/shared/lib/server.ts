@@ -18,7 +18,13 @@ export function serverTransport(origin: string, interceptors: Interceptor[]) {
  * protocol-relative URL, and `""`, stay as they are.
  */
 export function onServer(transport: Transport, path: string) {
-  return "origin" in transport && typeof transport.origin === "string" && /^\/(?!\/)/u.test(path)
-    ? `${transport.origin}${path}`
-    : path;
+  return /^\/(?!\/)/u.test(path) ? `${originOf(transport)}${path}` : path;
+}
+
+/**
+ * The origin of the Server `transport` talks to, as `serverTransport` made it, or `""` for the
+ * page's own, as for a test's fake Server.
+ */
+export function originOf(transport: Transport) {
+  return "origin" in transport && typeof transport.origin === "string" ? transport.origin : "";
 }

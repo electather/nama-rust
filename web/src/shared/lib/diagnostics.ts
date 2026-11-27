@@ -1,31 +1,60 @@
-import type { Interceptor } from "@connectrpc/connect";
+import type { Interceptor, Transport } from "@connectrpc/connect";
 import type { AnyRouter } from "@tanstack/react-router";
 
-// Nothing here imports OpenTelemetry, so the SDK is downloaded only when the Server exports
+import { originOf } from "@/shared/lib/server";
+
+// Nothing here imports OpenTelemetry, so the SDK is downloaded only when a Server exports
 // Diagnostics (ADR 0054).
-type Recorder = Awaited<ReturnType<typeof load>>;
+type Sdk = Awaited<ReturnType<typeof load>>;
+type Recorder = ReturnType<Sdk["recorderAt"]>;
 
+// The headers each Server that exports Diagnostics takes them with, by origin, `""` for the page's
+// own: at the Hub each Server's admin decides for that Server's alone (ADR 0054, ADR 0105).
 // oxlint-disable-next-line vitest/require-hook -- module state, not test setup
-let exporting = false;
-let loading: Promise<Recorder> | undefined;
-let recorder: Recorder | undefined;
+const exporting = new Map<string, Record<string, string>>();
+const recorders = new Map<string, Recorder>();
+let loading: Promise<Sdk> | undefined;
+let sdk: Sdk | undefined;
+// The origin of the Server the current route shows. On the Hub's own pages it's the Hub's, which
+// exports nothing, so their spans are dropped.
+// oxlint-disable-next-line vitest/require-hook -- module state, not test setup
+let routeOrigin = "";
 
-function active() {
-  return exporting ? recorder : undefined;
+/** The recorder for the Server at `origin`, made the first time, while that Server exports. */
+function recorderFor(origin: string) {
+  const headers = exporting.get(origin);
+  if (sdk && headers && !recorders.has(origin)) {
+    // Asked at each post, so it posts with the session the page signed in with last.
+    recorders.set(
+      origin,
+      sdk.recorderAt(origin, () => exporting.get(origin) ?? headers),
+    );
+  }
+  return headers ? recorders.get(origin) : undefined;
+}
+
+function routeRecorder() {
+  return recorderFor(routeOrigin);
 }
 
 /**
- * Records the web app's Diagnostics from now on if the Server `exportsDiagnostics`, loading the SDK
- * only then. Only for a signed-in Device: the Server refuses anyone else's.
+ * Records the web app's Diagnostics for the Server at `origin`, `""` for the page's own, from now
+ * on if it `exportsDiagnostics`, loading the SDK only then. Only for a Device signed in there, with
+ * its session `token` at the Hub: the Server refuses anyone else's.
  */
-export async function recordDiagnosticsIfExported(exportsDiagnostics: boolean) {
-  exporting = exportsDiagnostics;
-  if (!exporting) {
+export async function recordDiagnosticsIfExported(
+  exportsDiagnostics: boolean,
+  origin = "",
+  token?: string,
+) {
+  if (!exportsDiagnostics) {
+    exporting.delete(origin);
     return;
   }
+  exporting.set(origin, token === undefined ? {} : { authorization: `Bearer ${token}` });
   loading ??= load();
   try {
-    recorder = await loading;
+    sdk = await loading;
   } catch {
     // Diagnostics are never worth breaking the page for, such as when a deploy removed the chunk.
   }
@@ -33,8 +62,10 @@ export async function recordDiagnosticsIfExported(exportsDiagnostics: boolean) {
 
 async function load() {
   const loaded = await import("@/shared/lib/diagnostics-recorder");
-  addEventListener("error", (event) => active()?.recordError(kindOf(event.error)));
-  addEventListener("unhandledrejection", (event) => active()?.recordError(kindOf(event.reason)));
+  addEventListener("error", (event) => routeRecorder()?.recordError(kindOf(event.error)));
+  addEventListener("unhandledrejection", (event) =>
+    routeRecorder()?.recordError(kindOf(event.reason)),
+  );
   return loaded;
 }
 
@@ -42,11 +73,16 @@ function kindOf(error: unknown) {
   return error instanceof Error ? error.name : typeof error;
 }
 
-/** Traces each ConnectRPC call while Diagnostics are recorded, sending its `traceparent`. */
-export const traceCalls: Interceptor = (next) => async (request) => {
-  const response = await (active()?.traceCall(next)(request) ?? next(request));
-  return response;
-};
+/**
+ * Traces each ConnectRPC call to the Server at `origin`, `""` for the page's own, while it exports
+ * Diagnostics, sending its `traceparent`.
+ */
+export function traceCallsTo(origin: string): Interceptor {
+  return (next) => async (request) => {
+    const response = await (recorderFor(origin)?.traceCall(next)(request) ?? next(request));
+    return response;
+  };
+}
 
 // When the last route change started; 0, the page's own start, before any.
 // oxlint-disable-next-line vitest/require-hook -- module state, not test setup
@@ -58,9 +94,14 @@ export function traceRouteChanges(router: AnyRouter) {
     navigatedAt = performance.now();
   });
   router.subscribe("onResolved", () => {
+    const page = router.state.matches.at(-1);
+    // At the Hub a Server's pages put the transport to it in their context (ADR 0105). A page that
+    // threw `notFound` before its context was made has none, whatever its type says.
+    const transport: Transport | undefined = page?.context.transport;
+    routeOrigin = transport ? originOf(transport) : "";
     // The route's id, such as `/_member/libraries/$libraryId`, names the page without its ids.
-    const route = router.state.matches.at(-1)?.routeId ?? "unknown";
-    active()?.recordSpan("route change", navigatedAt, { "app.route": route });
+    const route = page?.routeId ?? "unknown";
+    routeRecorder()?.recordSpan("route change", navigatedAt, { "app.route": route });
   });
 }
 
@@ -84,7 +125,7 @@ export function firstFramePlayed() {
   if (playPressedAt === undefined) {
     return;
   }
-  active()?.recordSpan("playback start", playPressedAt);
+  routeRecorder()?.recordSpan("playback start", playPressedAt);
   playPressedAt = undefined;
 }
 
@@ -106,7 +147,7 @@ export function stallEnded() {
   if (stalledAt === undefined) {
     return;
   }
-  active()?.recordSpan("playback stall", stalledAt);
+  routeRecorder()?.recordSpan("playback stall", stalledAt);
   stalledAt = undefined;
 }
 
@@ -125,5 +166,5 @@ export function videoFailed(error: MediaError | null) {
 
 /** Records a playback error of `kind`, such as hls.js's `bufferStalledError`, never its message. */
 export function playbackFailed(kind: string) {
-  active()?.recordError(kind, "playback error");
+  routeRecorder()?.recordError(kind, "playback error");
 }

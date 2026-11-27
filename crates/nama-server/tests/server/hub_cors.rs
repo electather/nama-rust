@@ -12,6 +12,9 @@ use server::TestServer;
 
 const WHO_AM_I: &str = "/nama.v1.SignInService/WhoAmI";
 
+/// Where the web app posts its own Diagnostics, which at the Hub go to each Server it calls.
+const BROWSER_SPANS: &str = "/diagnostics/v1/traces";
+
 /// A Server Linked with a fake Hub, and that Hub.
 async fn linked() -> (TestServer, FakeHub) {
     let hub = FakeHub::start().await;
@@ -20,14 +23,19 @@ async fn linked() -> (TestServer, FakeHub) {
     (server, hub)
 }
 
-/// A browser's preflight from `origin` for a bearer RPC, presenting `cookie_token`, if any, in the
-/// session cookie, which a browser never does.
+/// A browser's preflight from `origin` for a bearer post to `path`, presenting `cookie_token`, if
+/// any, in the session cookie, which a browser never does.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn preflight(server: &TestServer, origin: &str, cookie_token: Option<&str>) -> Reply {
-    let request = Request::options(WHO_AM_I)
+async fn preflight(
+    server: &TestServer,
+    path: &str,
+    origin: &str,
+    cookie_token: Option<&str>,
+) -> Reply {
+    let request = Request::options(path)
         .header("origin", origin)
         .header("access-control-request-method", "POST")
         .header(
@@ -73,7 +81,7 @@ fn approvals(reply: &Reply) -> Vec<&str> {
 async fn a_preflight_from_the_hub_for_a_bearer_request_is_allowed() {
     let (server, hub) = linked().await;
 
-    let reply = preflight(&server, &hub.url(), None).await;
+    let reply = preflight(&server, WHO_AM_I, &hub.url(), None).await;
 
     assert!((200..300).contains(&reply.status), "{}", reply.status);
     assert_eq!(reply.header("access-control-allow-origin"), hub.url());
@@ -105,7 +113,7 @@ async fn a_preflight_from_another_origin_is_refused() {
     let (server, _hub) = linked().await;
 
     for origin in ["https://elsewhere.example", "null"] {
-        let reply = preflight(&server, origin, None).await;
+        let reply = preflight(&server, WHO_AM_I, origin, None).await;
 
         assert!(
             !(200..300).contains(&reply.status),
@@ -126,10 +134,16 @@ async fn a_preflight_asking_for_credentials_is_refused() {
 
     // A browser sends a preflight without credentials and refuses a credentialed request unless the
     // answer allows them.
-    let bearer = preflight(&server, &hub.url(), None).await;
+    let bearer = preflight(&server, WHO_AM_I, &hub.url(), None).await;
     assert_eq!(bearer.header("access-control-allow-credentials"), "");
 
-    let cookie = preflight(&server, &hub.url(), Some(server.admin_token.as_str())).await;
+    let cookie = preflight(
+        &server,
+        WHO_AM_I,
+        &hub.url(),
+        Some(server.admin_token.as_str()),
+    )
+    .await;
     assert!(!(200..300).contains(&cookie.status), "{}", cookie.status);
     assert!(approvals(&cookie).is_empty(), "{:?}", cookie.headers);
 }
@@ -139,8 +153,25 @@ async fn an_unlinked_server_allows_no_origin() {
     let hub = FakeHub::start().await;
     let server = TestServer::builder().config(hub.config()).start().await;
 
-    let reply = preflight(&server, &hub.url(), None).await;
+    let reply = preflight(&server, WHO_AM_I, &hub.url(), None).await;
 
     assert!(!(200..300).contains(&reply.status), "{}", reply.status);
     assert!(approvals(&reply).is_empty(), "{:?}", reply.headers);
+}
+
+#[tokio::test]
+async fn browser_spans_answer_a_preflight_from_the_hub_and_no_other_origin() {
+    let (server, hub) = linked().await;
+
+    let from_hub = preflight(&server, BROWSER_SPANS, &hub.url(), None).await;
+    let elsewhere = preflight(&server, BROWSER_SPANS, "https://elsewhere.example", None).await;
+
+    assert!((200..300).contains(&from_hub.status), "{}", from_hub.status);
+    assert_eq!(from_hub.header("access-control-allow-origin"), hub.url());
+    assert!(
+        !(200..300).contains(&elsewhere.status),
+        "{}",
+        elsewhere.status
+    );
+    assert!(approvals(&elsewhere).is_empty(), "{:?}", elsewhere.headers);
 }
