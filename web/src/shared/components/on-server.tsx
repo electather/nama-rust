@@ -4,10 +4,7 @@ import type { ReactNode } from "react";
 
 import type { TitleServer } from "@/shared/lib/title-server";
 
-/**
- * `children`, a title's art and actions, run against its Server `on`: at the Hub, a Linked Server,
- * or on a Server's own web app, the page's own.
- */
+/** `children`, a title's art and actions, run against its Server `on`. */
 export function OnServer({ on, children }: { on: TitleServer; children: ReactNode }) {
   return <TransportProvider transport={on.transport}>{children}</TransportProvider>;
 }
