@@ -20,8 +20,7 @@ export function TitleHero({
       className="relative isolate -mt-18 flex flex-col justify-end overflow-hidden pt-28 data-art:min-h-184"
       data-art={art ? "" : undefined}
     >
-      <Backdrop url={backdrop.url} thumbhash={backdrop.thumbhash} />
-      {art && <div aria-hidden className="absolute inset-0 -z-10 title-scrim" />}
+      <Backdrop url={backdrop.url} thumbhash={backdrop.thumbhash} sizes="100vw" />
       <div className="mx-auto w-full max-w-350 px-5 pb-10">
         <div className="flex max-w-140 flex-col gap-3.5">{children}</div>
       </div>

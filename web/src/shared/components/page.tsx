@@ -26,8 +26,14 @@ export function Page({
         className="relative isolate flex items-center gap-6 data-banner:h-48 data-banner:items-end data-banner:overflow-hidden data-banner:rounded-3xl data-banner:p-5 sm:data-banner:h-64"
         data-banner={banner ? "" : undefined}
       >
-        {banner && <Backdrop url={backdrop.url} thumbhash={backdrop.thumbhash} />}
-        {banner && <div aria-hidden className="absolute inset-0 -z-10 title-scrim" />}
+        {backdrop !== undefined && (
+          // The column is at most 1024px wide, less its 24px sides.
+          <Backdrop
+            url={backdrop.url}
+            thumbhash={backdrop.thumbhash}
+            sizes="(min-width: 1024px) 976px, 100vw"
+          />
+        )}
         {art}
         <h1 className="text-2xl font-semibold tracking-tight text-balance">{heading}</h1>
       </div>

@@ -8,7 +8,6 @@ import { firstPageOf, listingFromSearch } from "@/features/library/lib/title-lis
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { libraryFromParam, libraryIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
-import { useLibraries } from "@/shared/hooks/use-libraries";
 import { pagedQuery } from "@/shared/hooks/use-paged";
 import { deletedFromSearch } from "@/shared/lib/deleted-search";
 
@@ -65,9 +64,7 @@ export const Route = createFileRoute("/_member/_server/libraries/$libraryId/")({
 });
 
 function Library() {
-  const loaded = Route.useLoaderData();
-  // The loader's copy doesn't hear Settings change the Library, such as its Backdrop; the query does.
-  const library = useLibraries().find(({ id }) => id === loaded.id) ?? loaded;
+  const library = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   return (
