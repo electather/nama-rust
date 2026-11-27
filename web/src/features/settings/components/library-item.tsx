@@ -8,6 +8,7 @@ import { ItemRow } from "@/features/settings/components/item-row";
 import { type Library, LibraryKind } from "@/gen/nama/v1/library_pb";
 import { IconTile } from "@/shared/components/icon-tile";
 import { kindName } from "@/shared/lib/library-kind";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /**
  * One Library on the list: its name over what it holds, its folders and its last scan, and at the
@@ -23,7 +24,7 @@ export function LibraryItem({ library }: { library: Library }) {
   const name = (
     <Link
       to="."
-      search={(rest) => ({ ...rest, library: String(library.id) })}
+      search={(rest) => ({ ...rest, ...detailSearch({ kind: "library", id: String(library.id) }) })}
       className="outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
     >
       {library.name}

@@ -2,10 +2,10 @@
 //! file into the [`Cache`](super::Cache), so the file is read once for all of them rather than
 //! once for each (#829). [`TextPasses`] runs it for each Version after Probing, one at a time and
 //! only while nothing plays, so subtitles are cached before anyone turns them on (#1649), image
-//! ones included, which take minutes to read out of a big file on their own (#1124). A fetch of a
-//! text one or a font not cached yet starts a pass in the background and waits for it, so a fetch
-//! given up on, as by a reverse proxy, doesn't stop it; an image one fetched before its pass is
-//! read out on its own.
+//! ones included, which take minutes to read out of a big file on their own (#1124), until the
+//! cache nears its limit (#2495). A fetch of a text one or a font not cached yet starts a pass in
+//! the background and waits for it, so a fetch given up on, as by a reverse proxy, doesn't stop
+//! it; an image one fetched before its pass is read out on its own.
 
 use std::{
     io,
@@ -31,15 +31,20 @@ use crate::{
         read_failures::{Read, ReadFailure},
         tracks::Probe,
     },
+    server_settings::PlaybackSettings,
 };
 
 /// What a pass that would fail again leaves in the Version's cache folder, saying why, so none is
 /// tried again until the file changes, and its cache folder with it.
-const FAILED: &str = "failed";
+pub(super) const FAILED: &str = "failed";
 
 /// The folder in the Version's cache folder that ffmpeg writes into, as what it writes is whole
 /// only once it's done. Its name starts with `.`, which no cached file's does.
 const PARTIAL: &str = ".pass";
+
+/// How full, in percent of its limit, the background passes may fill the cache (`AGENTS.md`): a
+/// fetch's eviction leaves it just under its limit, so they don't read again what it deleted.
+const AHEAD_UP_TO_PERCENT: u64 = 80;
 
 impl Subtitles {
     /// The text subtitle or font cached at `key` for the Version `probed` is of, by its path, its
@@ -107,8 +112,9 @@ pub(crate) struct TextPasses {
 }
 
 impl TextPasses {
-    /// Finds Versions in `db` and reads them with `ffmpeg` on `reads` into `cache`, each time
-    /// `passed` is notified, waiting while `running` plays anything.
+    /// Finds Versions in `db` and reads them with `ffmpeg` on `reads` into `cache`, within the
+    /// limit `settings` holds, each time `passed` is notified, waiting while `running` plays
+    /// anything.
     #[expect(
         clippy::too_many_arguments,
         reason = "each is a separate handle the passes are built from; a struct bundling them \
@@ -121,9 +127,10 @@ impl TextPasses {
         cache: super::Cache,
         reads: WholeFileReads,
         passed: Arc<Notify>,
+        settings: PlaybackSettings,
     ) -> Self {
         Self {
-            subtitles: Subtitles::new(db, ffmpeg, cache, reads),
+            subtitles: Subtitles::new(db, ffmpeg, cache, reads, settings),
             running,
             passed,
             tasks: TaskTracker::new(),
@@ -165,14 +172,25 @@ impl TextPasses {
         }
     }
 
-    /// Runs the pass of each Version that needs one, one at a time.
+    /// Runs the pass of each Version that needs one, one at a time, until the cache is nearly
+    /// full.
     async fn read_needed(&self) -> Result<(), Error> {
         for version in self.needed().await? {
+            if self.is_nearly_full().await? {
+                tracing::info!("the subtitle cache is nearly full, so no more is read ahead");
+                break;
+            }
             if let Err(err) = self.pass_while_nothing_plays(version).await {
                 tracing::error!(version, "could not run a Version's text pass: {err}");
             }
         }
         Ok(())
+    }
+
+    /// Whether the cache holds [`AHEAD_UP_TO_PERCENT`] of its limit or more.
+    async fn is_nearly_full(&self) -> io::Result<bool> {
+        let limit = self.subtitles.settings.subtitle_cache_bytes();
+        Ok(self.subtitles.cache.size().await? >= limit / 100 * AHEAD_UP_TO_PERCENT)
     }
 
     /// The Versions with a subtitle Track the pass reads in their file, whose file as it is now has

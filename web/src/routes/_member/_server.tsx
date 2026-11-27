@@ -4,7 +4,7 @@ import { createFileRoute, redirect, retainSearchParams } from "@tanstack/react-r
 import { ServerLayout } from "@/app/server-layout";
 import type { ServerToReach } from "@/features/servers/data/server-reach";
 import { onlyReachedServer, serverToBrowse } from "@/features/servers/data/server-to-browse";
-import { idParam } from "@/features/settings/lib/sections";
+import { idParam } from "@/shared/lib/settings-address";
 
 const noOtherServers: ServerToReach[] = [];
 

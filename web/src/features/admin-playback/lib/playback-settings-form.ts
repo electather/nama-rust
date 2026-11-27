@@ -18,7 +18,12 @@ export interface PlaybackValues {
   hardwareAcceleration: string;
   maxTranscodes: string;
   remotePlaybackLimit: string;
+  /** The most disk the subtitle cache takes, in MiB, as its dropdown is valued. */
+  subtitleCacheMib: string;
 }
+
+// What the Server keeps when the setting is unset.
+const DEFAULT_SUBTITLE_CACHE_MIB = 5120;
 
 /** The `saved` Playback settings as their fields hold them, given the hardware that `passed` its test. */
 export function savedPlayback(saved: PlaybackSettings, passed: Hardware[]): PlaybackValues {
@@ -28,6 +33,7 @@ export function savedPlayback(saved: PlaybackSettings, passed: Hardware[]): Play
     hardwareAcceleration: hardwareValue(savedHardware(saved, hardwareChoices(passed))),
     maxTranscodes: String(saved.maxTranscodes ?? ""),
     remotePlaybackLimit: String(saved.remotePlaybackLimit),
+    subtitleCacheMib: String(saved.subtitleCacheMib ?? DEFAULT_SUBTITLE_CACHE_MIB),
   };
 }
 
@@ -41,11 +47,21 @@ export function playbackSettings(values: PlaybackValues) {
     ...(keepBehindMinutes !== "" && { keepBehindMinutes: Number(keepBehindMinutes) }),
     ...typedHardware(values.hardwareAcceleration),
     remotePlaybackLimit: limitPicked(values.remotePlaybackLimit),
+    subtitleCacheMib: Number(values.subtitleCacheMib),
   };
 }
 
+/** The Playback settings a refusal can be said under. */
+export type PlaybackField =
+  | "segmentFolder"
+  | "keepBehindMinutes"
+  | "hardwareAcceleration"
+  | "maxTranscodes";
+
 /** Why the Server refused a Playback setting `error` is about, said under its field. */
-export function playbackRefusals(error: unknown): Partial<Record<RefusalReason, FormErrors>> {
+export function playbackRefusals(
+  error: unknown,
+): Partial<Record<RefusalReason, FormErrors<PlaybackField>>> {
   return {
     [RefusalReason.FOLDER_NOT_ABSOLUTE]: { segmentFolder: serverMessage(error) },
     [RefusalReason.FOLDER_NOT_WRITABLE]: { segmentFolder: serverMessage(error) },

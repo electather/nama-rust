@@ -5,36 +5,15 @@ import type { SubmitEvent } from "react";
 import { RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
 import { permissionLabel } from "@/shared/lib/permissions";
 
-/** Why a form was refused: next to one of its fields, or for the `form` as a whole. */
-export interface FormErrors {
-  form?: string;
-  /** Not wrong, but too soon, such as after too many tries: shown as waiting, not as an error. */
-  wait?: string;
-  setupCode?: string;
-  name?: string;
-  email?: string;
-  note?: string;
-  password?: string;
-  deviceName?: string;
-  signInCode?: string;
-  linkCode?: string;
-  newPassword?: string;
-  switchPin?: string;
-  folders?: string;
-  titleSources?: string;
-  recognisers?: string;
-  segmentSources?: string;
-  serverUrl?: string;
-  segmentFolder?: string;
-  maxTranscodes?: string;
-  keepBehindMinutes?: string;
-  backupFolder?: string;
-  backupsKept?: string;
-  resizedCacheMib?: string;
-  hardwareAcceleration?: string;
-  language?: string;
-  schedule?: string;
-}
+/**
+ * Why a form was refused: next to one of its `Field`s, or for the `form` as a whole. Each form
+ * names its own fields, so a message under a field it doesn't draw doesn't type-check. A `wait`
+ * isn't wrong, but too soon, such as after too many tries: shown as waiting, not as an error.
+ */
+// oxlint-disable-next-line typescript/consistent-indexed-object-style -- a Record, or an intersection with `form` and `wait`, won't take `{ form }` while `Field` is generic
+export type FormErrors<Field extends string = never> = {
+  [Name in Field | "form" | "wait"]?: string;
+};
 
 /** The attribute `useAutoSubmit` marks a form with, which saves as each field is changed. */
 export const SAVES_ON_CHANGE = "data-saves-on-change";
@@ -75,19 +54,20 @@ export function formText(form: FormData, name: string) {
  * refused, so it has none.
  */
 // oxlint-disable-next-line max-params -- 35 callers pass these in order; an options object is a change of its own
-export function refusal(
+export function refusal<Field extends string = never>(
   error: unknown,
   attempt: string,
-  byCode: Partial<Record<Code, FormErrors>>,
-  byReason: Partial<Record<RefusalReason, FormErrors>> = {},
-): FormErrors {
+  // NoInfer: a form names its `Field`s, as keys inferred from these maps would take any field.
+  byCode: Partial<Record<Code, FormErrors<NoInfer<Field>>>>,
+  byReason: Partial<Record<RefusalReason, FormErrors<NoInfer<Field>>>> = {},
+): FormErrors<Field> {
   const { code } = ConnectError.from(error);
   if (code === Code.Canceled) {
     return {};
   }
   // Still missing after "Confirm it’s you", it shares `failed_precondition` with refusals forms
   // explain by code, such as "the only Admin".
-  const reasons: Partial<Record<RefusalReason, FormErrors>> = {
+  const reasons: Partial<Record<RefusalReason, FormErrors<Field>>> = {
     [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: { form: serverMessage(error) },
     [RefusalReason.PERMISSION_REQUIRED]: { form: permissionRequired(error) },
     [RefusalReason.FOLDER_READ_ONLY]: { form: folderReadOnly(error) },
@@ -142,9 +122,14 @@ export function endSentence(text: string) {
  * `error`'s message next to the field of `fields` its Refusal names, or for the whole form when
  * it names none of them.
  */
-export function refusedFieldErrors(error: unknown, fields: (keyof FormErrors)[]): FormErrors {
-  const field = fields.find((each) => each === refusedField(error)) ?? "form";
-  return { [field]: serverMessage(error) };
+export function refusedFieldErrors<Field extends string = never>(
+  error: unknown,
+  fields: NoInfer<Field>[],
+): FormErrors<Field> {
+  const errors: FormErrors<Field> = {};
+  // oxlint-disable-next-line unicorn/no-immediate-mutation -- `{ [field]: … }` widens a generic key to an index signature, which FormErrors won't take
+  errors[fields.find((each) => each === refusedField(error)) ?? "form"] = serverMessage(error);
+  return errors;
 }
 
 /** The form field the Refusal on `error` is about, or `""` if it names none. */
@@ -163,12 +148,12 @@ export function refusalOf(error: unknown) {
 }
 
 /** Why the Server refused the `attempt` to ask for a title, as `byReason` explains it or else by code. */
-export function askRefusal(
+export function askRefusal<Field extends string = never>(
   error: unknown,
   attempt: string,
-  byReason: Parameters<typeof refusal>[3],
+  byReason: Partial<Record<RefusalReason, FormErrors<NoInfer<Field>>>>,
 ) {
-  return refusal(
+  return refusal<Field>(
     error,
     attempt,
     { [Code.Unavailable]: { form: "The title source didn’t answer. Try again in a moment." } },

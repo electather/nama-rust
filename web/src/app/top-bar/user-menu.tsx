@@ -11,7 +11,7 @@ import {
 import { useSignOut } from "@/app/data/use-sign-out";
 import { SignOutToast } from "@/app/top-bar/sign-out-toast";
 import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
-import { allSections, sectionSearch } from "@/features/settings/lib/sections";
+import { allSections, sectionSearch } from "@/shared/lib/settings-address";
 
 const watchlistLink = <Link to="/watchlist" />;
 

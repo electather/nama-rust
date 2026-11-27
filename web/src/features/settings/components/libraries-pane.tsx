@@ -1,9 +1,9 @@
-import { useSearch } from "@tanstack/react-router";
-
 import { LibraryDetail } from "@/features/settings/components/library-detail";
 import { LibraryList } from "@/features/settings/components/library-list";
 import { NewLibrary } from "@/features/settings/components/new-library";
 import { useLibraries } from "@/shared/hooks/use-libraries";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import { openedId } from "@/shared/lib/settings-address";
 
 /**
  * The Server's Libraries, for a User who manages them: the list of them, or in its place the form
@@ -11,7 +11,7 @@ import { useLibraries } from "@/shared/hooks/use-libraries";
  */
 export function LibrariesPane() {
   const libraries = useLibraries();
-  const asked = useSearch({ strict: false, select: ({ library }) => library });
+  const asked = openedId(useSettingsAddress().detail, "library");
   // An id no Library has shows the list, as an address from before one was deleted would.
   const open = libraries.find((library) => String(library.id) === asked);
   if (asked === "new") {

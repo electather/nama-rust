@@ -12,16 +12,17 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useReachedServers } from "@/features/home/data/use-reached-servers";
 import { entryCard } from "@/features/home/lib/continue-watching-cards";
 import type { ReachedServer } from "@/features/home/lib/hub-rows";
 import { cardOn, mergeContinueWatching } from "@/features/home/lib/hub-titles";
+import { useReachedServers } from "@/features/servers/data/use-reached-servers";
 import {
   BrowseService,
   type ListContinueWatchingResponse,
   ListContinueWatchingResponseSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
+import { useLinkedServers } from "@/shared/hooks/use-linked-servers";
 
 const pageSize = 20;
 
@@ -31,12 +32,12 @@ const pageSize = 20;
  * for a Server's first page, or `complete`; and its `next` pages, each Server's, as it scrolls.
  */
 export function useHubContinueWatching() {
-  const reached = useReachedServers();
+  const { reached } = useReachedServers(useLinkedServers());
   const queryClient = useQueryClient();
   // How many pages past its first each Server's shelf has asked for, by the Server's id.
   const [asked, setAsked] = useState<Record<string, number>>({});
   const pages = reached.flatMap((on) => pageQueries(queryClient, on, asked[on.server.id] ?? 0));
-  // Not suspended, as `useReachedServers` isn't.
+  // Not suspended, as the servers feature's `useReachedServers` isn't.
   const answers = useQueries({ queries: pages.map(({ query }) => query) });
   const servers = reached.map((on) =>
     serverSoFar(

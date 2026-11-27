@@ -1,11 +1,12 @@
 // fallow-ignore-next-line policy-violation:feature-layout/data-hooks -- no query is built here: a picked Server's Settings run against its transport, as `_member/_server` hands a Server's pages theirs
 import { TransportProvider, useTransport } from "@connectrpc/connect-query";
-import { useSearch } from "@tanstack/react-router";
 
 import { ServerPicker } from "@/features/settings/components/server-picker";
 import { SettingsBody } from "@/features/settings/components/settings-body";
 import { useAdminServers } from "@/features/settings/data/use-admin-servers";
-import { type SettingsPage, groupsFor } from "@/features/settings/lib/sections";
+import { groupsFor } from "@/features/settings/lib/sections";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import type { SettingsPage } from "@/shared/lib/settings-address";
 
 /**
  * Settings at the Hub: the Account's own, or, once `?manage=` picks one of the Servers its User is
@@ -20,10 +21,10 @@ export function HubSettings({
 }) {
   const hub = useTransport();
   const servers = useAdminServers();
-  const manage = useSearch({ strict: false, select: (search) => search.manage });
+  const pickedId = useSettingsAddress().server;
   // ponytail: a picked Server not reached yet, as on reload, shows the Account's until it is;
   // wait for it if that flash bothers anyone.
-  const picked = servers.find(({ server }) => server.id === manage);
+  const picked = servers.find(({ server }) => server.id === pickedId);
   const user = picked?.signedIn.user;
   const picker = <ServerPicker servers={servers} picked={picked} />;
   return (

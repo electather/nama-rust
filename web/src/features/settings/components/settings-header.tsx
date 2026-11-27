@@ -12,8 +12,9 @@ import { ResetHomeLayout } from "@/features/settings/components/reset-home-layou
 import { SettingsCrumb } from "@/features/settings/components/settings-crumb";
 import { UserCrumbs } from "@/features/settings/components/user-crumbs";
 import { CrumbsRoot } from "@/features/settings/hooks/crumbs-root";
-import { type Section, sectionTitles } from "@/features/settings/lib/sections";
+import { sectionTitles } from "@/features/settings/lib/sections";
 import { ErrorBoundary } from "@/shared/components/error-boundary";
+import type { Section } from "@/shared/lib/settings-address";
 
 // The sections that open one of their things in place of their list, whose crumbs then name it.
 const openedCrumbs: Partial<Record<Section, ComponentType>> = {

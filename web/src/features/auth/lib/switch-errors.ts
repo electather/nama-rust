@@ -9,7 +9,7 @@ export function needsSwitchPin(error: unknown) {
 }
 
 /** The refusals of switching to `name`, as errors under the Switch PIN or for the whole page. */
-export function switchErrors(error: unknown, name = "That User"): FormErrors {
+export function switchErrors(error: unknown, name = "That User"): FormErrors<"switchPin"> {
   return refusal(
     error,
     "switch",
@@ -24,7 +24,7 @@ export function switchErrors(error: unknown, name = "That User"): FormErrors {
 }
 
 /** Why `name`'s Switch PIN was refused: how many tries are left, or that the last one signed them out. */
-function wrongPin(error: unknown, name: string): FormErrors {
+function wrongPin(error: unknown, name: string): FormErrors<"switchPin"> {
   const { triesLeft } = refusalOf(error).params;
   if (triesLeft === "0") {
     return {

@@ -4,8 +4,8 @@ import { PaneFailed } from "@/features/settings/components/pane-failed";
 import { PaneFrame } from "@/features/settings/components/pane-frame";
 import { PaneSkeleton } from "@/features/settings/components/pane-skeleton";
 import { useRetryReads } from "@/features/settings/data/use-retry-reads";
-import type { Section } from "@/features/settings/lib/sections";
 import { ErrorBoundary } from "@/shared/components/error-boundary";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * A part of a pane that reads on its own: `rows` of skeleton while it loads, and if it doesn't,

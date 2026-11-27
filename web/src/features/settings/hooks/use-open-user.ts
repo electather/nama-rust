@@ -1,5 +1,4 @@
-import { useSearch } from "@tanstack/react-router";
-
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 import { useUsers } from "@/shared/hooks/use-users";
 
 /**
@@ -7,6 +6,6 @@ import { useUsers } from "@/shared/hooks/use-users";
  * before they were deleted, so the list shows then.
  */
 export function useOpenUser() {
-  const asked = useSearch({ strict: false, select: ({ user }) => user });
-  return useUsers().find((user) => Number(user.id) === asked);
+  const { detail } = useSettingsAddress();
+  return useUsers().find((user) => detail?.kind === "user" && Number(user.id) === detail.id);
 }

@@ -4,8 +4,8 @@ import { DropdownMenuLinkItem } from "nama-ui/components/dropdown-menu";
 
 import { useMarkRead } from "@/features/inbox/data/use-mark-read";
 import { notificationText } from "@/features/inbox/lib/notification-text";
-import { sectionSearch } from "@/features/settings/lib/sections";
 import type { InboxNotification } from "@/gen/nama/v1/inbox_pb";
+import { sectionSearch } from "@/shared/lib/settings-address";
 
 /**
  * A notification, marked while unread, opening its Request among the User's Requests in Settings

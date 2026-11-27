@@ -1,10 +1,10 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
 
 import { useServerDefined } from "@/features/settings/data/use-server-defined";
 import { openingSection } from "@/features/settings/lib/history-state";
 import { phoneWidth } from "@/features/settings/lib/phone-width";
-import { type SectionGroup, sectionSearch } from "@/features/settings/lib/sections";
+import type { SectionGroup } from "@/features/settings/lib/sections";
 import {
   type Findable,
   findableId,
@@ -12,6 +12,8 @@ import {
   matching,
 } from "@/features/settings/lib/setting-search";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import { sectionSearch } from "@/shared/lib/settings-address";
 
 /** Settings' search as it's typed in: what's typed, what it found, and the result picked. */
 export type SearchState = ReturnType<typeof useSettingsSearch>;
@@ -25,10 +27,7 @@ export function useSettingsSearch(groups: SectionGroup[], user: User | undefined
   // By identity, so a result stays picked as the Server's settings join around it.
   const [pickedId, setPickedId] = useState<string>();
   const navigate = useNavigate();
-  const opened = useSearch({
-    strict: false,
-    select: ({ settings, setting }) => ({ settings, setting }),
-  });
+  const opened = useSettingsAddress();
   const results = matching(findables(groups, user, useServerDefined(typed !== "", groups)), typed);
   const at = Math.max(
     0,
@@ -42,7 +41,7 @@ export function useSettingsSearch(groups: SectionGroup[], user: User | undefined
 
   async function landOn({ section, key }: Findable) {
     // As the sections' own links open them.
-    const opening = openingSection(opened.settings, phoneWidth());
+    const opening = openingSection(opened.page, phoneWidth());
     const go = async (setting?: string) => {
       await navigate({
         to: ".",
@@ -51,7 +50,7 @@ export function useSettingsSearch(groups: SectionGroup[], user: User | undefined
       });
     };
     // Asked for again, the setting open would leave the address as it is and land nowhere.
-    if (key !== undefined && opened.settings === section && opened.setting === key) {
+    if (key !== undefined && opened.page === section && opened.setting === key) {
       await go();
     }
     await go(key);

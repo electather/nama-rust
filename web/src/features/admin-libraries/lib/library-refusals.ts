@@ -9,8 +9,11 @@ import {
   serverMessage,
 } from "@/shared/lib/forms";
 
+/** The fields of a Library's form a refusal can name. */
+export type LibraryField = "name" | "folders" | "titleSources" | "recognisers" | "segmentSources";
+
 /** Why the Server refused to `attempt` (such as "create the Library"), next to its field. */
-export function libraryErrors(error: unknown, attempt: string): FormErrors {
+export function libraryErrors(error: unknown, attempt: string): FormErrors<LibraryField> {
   return refusal(
     error,
     attempt,
@@ -40,7 +43,7 @@ function orderRefused(
   error: unknown,
   field: string,
   key: "recognisers" | "segmentSources",
-): FormErrors {
+): FormErrors<LibraryField> {
   const onTheField = new RegExp(`^${field}_(?:ids|order)\\b`, "u").test(refusalOf(error).field);
   return onTheField ? { [key]: serverMessage(error) } : { form: serverMessage(error) };
 }

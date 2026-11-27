@@ -8,8 +8,9 @@ import { serverMessage } from "@/shared/lib/forms";
  * that field, anything else in the pane's toast.
  */
 export function serverRefusal(refused: Refused | undefined) {
-  const byReason = refused && {
-    [RefusalReason.NOT_A_URL]: { serverUrl: serverMessage(refused.failure) },
-  };
-  return refusedWords(refused, serverLabels, byReason);
+  return refusedWords<"serverUrl">(
+    refused,
+    serverLabels,
+    refused && { [RefusalReason.NOT_A_URL]: { serverUrl: serverMessage(refused.failure) } },
+  );
 }

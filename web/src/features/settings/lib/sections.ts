@@ -1,84 +1,11 @@
 import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/shared/lib/permissions";
-import { settingsDetailParams } from "@/shared/lib/settings-detail-params";
-
-/** Each section of Settings, by the word `?settings=` opens it with. */
-const sections = [
-  "signin",
-  "devices",
-  "playback",
-  "home",
-  "requests",
-  "connections",
-  "libraries",
-  "needs-a-match",
-  "now-playing",
-  "jobs",
-  "server",
-  "users",
-  "backups",
-  "default-home",
-  "server-playback",
-  "plugins",
-  "account",
-  "account-signin",
-  "account-sessions",
-  "account-servers",
-  "account-history",
-] as const;
-
-/** A section of Settings. */
-export type Section = (typeof sections)[number];
-
-/** The section Settings opens on when asked for one it doesn't have. */
-const firstSection: Section = "playback";
-
-/** What `?settings=all` opens: on a phone the list of sections, wider the first one beside it. */
-export const allSections = "all";
-
-/** What `?settings=` opens: one section, or all of them. */
-export type SettingsPage = Section | typeof allSections;
-
-/**
- * What `?settings=` asks for: nothing without it, all the sections for `all`, and the first section
- * for a word no section has.
- */
-export function sectionParam(value: unknown): SettingsPage | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value === allSections) {
-    return allSections;
-  }
-  return sections.find((each) => each === value) ?? firstSection;
-}
-
-/**
- * The Plugin `?plugin=` asks the Plugins section to open, the Job `?job=` asks the Jobs section to
- * open, the Library `?library=` asks Libraries to, or the setting `?setting=` asks for: none without it.
- */
-export function idParam(value: unknown) {
-  // The router reads an id made of digits as a number.
-  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
-}
-
-/** The address with Settings closed: no section, no detail open in one, and no Server picked. */
-export const closedSearch = { settings: undefined, manage: undefined, ...settingsDetailParams };
-
-/**
- * The address of `section` in Settings, at its `setting` if one is asked for. A detail open in
- * another Section closes; the Server picked at the Hub stays.
- */
-export function sectionSearch(section: SettingsPage, setting?: string) {
-  return { ...settingsDetailParams, settings: section, setting };
-}
-
-/** The User `?user=` asks the Users section to open: none without it. */
-export function userParam(value: unknown) {
-  // A number, as the router writes a string of digits quoted: `user=%222%22`, not `user=2`.
-  const id = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
-  return Number.isSafeInteger(id) ? id : undefined;
-}
+import {
+  type Section,
+  type SettingsPage,
+  allSections,
+  firstSection,
+} from "@/shared/lib/settings-address";
 
 /** Each section's name, in the sidebar and over its pane. */
 export const sectionTitles: Record<Section, string> = {

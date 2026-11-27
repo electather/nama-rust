@@ -6,7 +6,7 @@ import { DeviceCode } from "@/features/settings/components/device-code";
 import type { FormErrors } from "@/shared/lib/forms";
 
 type Step =
-  | { step: "code"; code?: string; refused?: FormErrors }
+  | { step: "code"; code?: string; refused?: FormErrors<"signInCode"> }
   | { step: "approve"; code: string; deviceName: string };
 
 /**

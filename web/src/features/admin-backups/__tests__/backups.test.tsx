@@ -11,7 +11,7 @@ import {
   type UpdateBackupSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fill } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
 import { admin, fakeServer, newUser } from "@/test-server";
 import type { Answers } from "@/test-server-api";
@@ -127,6 +127,26 @@ describe("backup status and restoring", () => {
     await expect(screen.findByText("The Server doesn’t back itself up")).resolves.toBeDefined();
     expect(screen.getByRole("link", { name: "Enable Upkeep" })).toBeDefined();
     expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
+  });
+
+  test("enable Upkeep, from a Setting search found, opens Plugins with only Upkeep", async () => {
+    const router = openApp(
+      "/code?settings=backups&setting=schedule",
+      fakeServer(
+        { signedIn: admin },
+        {
+          ServerService: {
+            getBackups: () => ({ folder: "/data/backups", settings: {}, backups: [] }),
+          },
+        },
+      ).transport,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: "Enable Upkeep" }));
+
+    await waitFor(() => {
+      expect(router.state.location.href).toBe("/code?settings=plugins&plugin=upkeep");
+    });
   });
 
   test("the Back up Job's Change link opens it in Settings' Jobs section", async () => {

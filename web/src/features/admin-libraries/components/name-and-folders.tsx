@@ -5,6 +5,7 @@ import {
   foldersTyped,
   foldersWith,
 } from "@/features/admin-libraries/lib/library-form";
+import type { LibraryField } from "@/features/admin-libraries/lib/library-refusals";
 import { FolderPicker } from "@/shared/components/folder-picker";
 import { Choices } from "@/shared/components/form-field/choices";
 import { FormField } from "@/shared/components/form-field/form-field";
@@ -20,7 +21,7 @@ const kinds: [value: string, label: string][] = [
  * A new Library's name, what it holds, which can't change after, and its folders, where a folder
  * picked beside them is added as a new line unless it's listed already.
  */
-export function NameAndFolders({ errors }: { errors: FormErrors }) {
+export function NameAndFolders({ errors }: { errors: FormErrors<LibraryField> }) {
   const [folders, setFolders] = useState("");
   const typed = foldersTyped(folders);
   return (

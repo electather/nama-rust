@@ -7,12 +7,16 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::{Values, read};
-use crate::ffmpeg::Accel;
+use super::{Invalid, Settings, Values, read};
+use crate::ffmpeg::{Accel, Hardware};
 
 /// How many minutes behind playback a running plan keeps its files while none is set: about 1 GB
 /// behind a 4K Remux, which a small tmpfs holds (#671).
 const DEFAULT_KEEP_BEHIND_MINUTES: u32 = 5;
+
+/// How many MiB the subtitle cache takes while no limit is set: image Tracks are tens of MB a
+/// Blu-ray rip, and each one deleted is a whole-file read to make again (#2495).
+const DEFAULT_SUBTITLE_CACHE_MIB: u32 = 5120;
 
 /// A Playback Limit below Original: the picture a Transcode fits the video in, and the bitrate it
 /// sends it at, which Users never see.
@@ -67,6 +71,8 @@ pub(crate) struct PlaybackValues {
     /// The Playback Limit for a Device outside the local network until its User picks one,
     /// `None` being Original.
     pub(crate) remote_limit: Option<PlaybackLimit>,
+    /// The most MiB the subtitle cache takes, or `None` for [`DEFAULT_SUBTITLE_CACHE_MIB`].
+    pub(crate) subtitle_cache_mib: Option<NonZeroU32>,
 }
 
 /// A change to the Playback settings, replacing all of them, as a client asked for it.
@@ -81,6 +87,8 @@ pub(crate) struct PlaybackChange<'a> {
     /// A picked GPU's name is ignored: the Server names it.
     pub(crate) hardware: HardwareChoice,
     pub(crate) remote_limit: Option<PlaybackLimit>,
+    /// `None` for the default; 0 is refused.
+    pub(crate) subtitle_cache_mib: Option<u32>,
 }
 
 /// The Playback settings in use, for planning and running plans. Clones share them.
@@ -114,10 +122,46 @@ impl PlaybackSettings {
         i64::from(minutes) * 60_000
     }
 
+    /// The most bytes the subtitle cache takes now: the limit set, or else the default.
+    pub(crate) fn subtitle_cache_bytes(&self) -> u64 {
+        let mib = (read(&self.values).playback.subtitle_cache_mib)
+            .map_or(DEFAULT_SUBTITLE_CACHE_MIB, NonZeroU32::get);
+        u64::from(mib) * 1024 * 1024
+    }
+
     /// The folders an earlier run may have left segment files in that this one can know of: the
     /// one set, and the default.
     pub(crate) fn leftover_paths(&self) -> [PathBuf; 2] {
         [self.path(), self.default_folder.clone()]
+    }
+}
+
+impl Settings {
+    /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
+    /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
+    pub(super) fn offered_gpu(
+        &self,
+        accel: Accel,
+        id: &str,
+        passed: &[Hardware],
+    ) -> Result<PickedGpu, Invalid> {
+        let found = (passed.iter())
+            .find(|hardware| hardware.is_pair(accel, id))
+            .and_then(|hardware| hardware.gpu.as_ref());
+        if let Some(gpu) = found {
+            return Ok(PickedGpu {
+                id: id.to_owned(),
+                name: gpu.name(),
+            });
+        }
+        match &read(&self.values).playback.hardware {
+            HardwareChoice::Api(stored, Some(gpu)) if *stored == accel && gpu.id == id => {
+                Ok(gpu.clone())
+            }
+            HardwareChoice::Automatic | HardwareChoice::Off | HardwareChoice::Api(..) => {
+                Err(Invalid::GpuNotOffered { id: id.to_owned() })
+            }
+        }
     }
 }
 
