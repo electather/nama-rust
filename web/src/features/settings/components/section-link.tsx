@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { SectionIcon } from "@/features/settings/components/section-icon";
 import { usePhoneWidth } from "@/features/settings/hooks/use-phone-width";
 import { openingSection } from "@/features/settings/lib/history-state";
-import { sectionTitles } from "@/features/settings/lib/sections";
+import { definitions } from "@/features/settings/lib/sections";
 import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 import { type Section, sectionSearch } from "@/shared/lib/settings-address";
 
@@ -23,6 +23,7 @@ export function SectionLink({ section, current }: { section: Section; current: b
   const phone = usePhoneWidth();
   const { page } = useSettingsAddress();
   const marked = current && !phone;
+  const { title, icon } = definitions[section];
   return (
     <Link
       to="."
@@ -31,8 +32,8 @@ export function SectionLink({ section, current }: { section: Section; current: b
       aria-current={marked ? "page" : undefined}
       className={marked ? CURRENT : OTHER}
     >
-      <SectionIcon section={section} marked={marked} />
-      {sectionTitles[section]}
+      <SectionIcon icon={icon} marked={marked} />
+      {title}
       <ChevronRight
         aria-hidden
         strokeWidth={1.5}

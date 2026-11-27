@@ -14,7 +14,7 @@ import { may } from "@/shared/lib/permissions";
  */
 export function ConnectionsPane({ user }: { user: User | undefined }) {
   return (
-    <PaneFrame section="connections">
+    <PaneFrame>
       <SectionBoundary what="your Connections">
         <ConnectionList managesPlugins={may(user, Permission.MANAGE_SETTINGS)} />
       </SectionBoundary>

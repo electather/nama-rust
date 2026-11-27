@@ -5,7 +5,6 @@ import { PaneFrame } from "@/features/settings/components/pane-frame";
 import { PaneSkeleton } from "@/features/settings/components/pane-skeleton";
 import { useRetryReads } from "@/features/settings/data/use-retry-reads";
 import { ErrorBoundary } from "@/shared/components/error-boundary";
-import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * A part of a pane that reads on its own: `rows` of skeleton while it loads, and if it doesn't,
@@ -15,16 +14,15 @@ import type { Section } from "@/shared/lib/settings-address";
 export function SectionBoundary({
   what,
   rows = 1,
-  pane,
+  pane = false,
   children,
 }: {
   what: string;
   rows?: number;
-  pane?: Section;
+  pane?: boolean;
   children: ReactNode;
 }) {
-  const around = (shown: ReactElement) =>
-    pane === undefined ? shown : <PaneFrame section={pane}>{shown}</PaneFrame>;
+  const around = (shown: ReactElement) => (pane ? <PaneFrame>{shown}</PaneFrame> : shown);
   const [tries, setTries] = useState(0);
   const retry = useRetryReads();
   const failed = around(

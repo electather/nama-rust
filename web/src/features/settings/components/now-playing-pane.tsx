@@ -7,7 +7,7 @@ import { PlayItem } from "@/features/settings/components/play-item";
 export function NowPlayingPane() {
   const plays = usePlays().filter((play) => hasPlayback(play));
   return (
-    <PaneFrame section="now-playing">
+    <PaneFrame>
       {plays.length === 0 ? (
         <p className="py-3.5 text-sm text-muted-foreground">Nothing is playing.</p>
       ) : (

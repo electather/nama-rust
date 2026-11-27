@@ -22,7 +22,7 @@ export function JobsPane() {
     </div>
   );
   return (
-    <PaneFrame section="jobs">
+    <PaneFrame>
       {jobs.length === 0 ? (
         <p className="py-3.5 text-sm text-muted-foreground">No enabled Plugin has Jobs.</p>
       ) : (

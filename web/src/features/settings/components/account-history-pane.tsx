@@ -9,7 +9,7 @@ import { SectionBoundary } from "@/features/settings/components/section-boundary
  */
 export function AccountHistoryPane() {
   return (
-    <PaneFrame section="account-history">
+    <PaneFrame>
       <SectionBoundary what="whether your plays are counted">
         <PoolingRow />
       </SectionBoundary>

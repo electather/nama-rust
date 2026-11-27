@@ -6,7 +6,7 @@ import { accountSessionLabels } from "@/features/settings/lib/pane-labels";
 /** Where the Account signed in at the Hub is signed in, and signing out the others. */
 export function AccountSessionsPane() {
   return (
-    <PaneFrame section="account-sessions">
+    <PaneFrame>
       <SettingGroup setting="sessions" title={accountSessionLabels.sessions.label}>
         <SessionItems />
       </SettingGroup>

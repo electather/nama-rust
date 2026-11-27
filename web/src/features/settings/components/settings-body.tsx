@@ -7,8 +7,9 @@ import { SettingsPane } from "@/features/settings/components/settings-pane";
 import { SettingsSide } from "@/features/settings/components/settings-side";
 import { UpdateServer } from "@/features/settings/components/update-server";
 import type { AdminServer } from "@/features/settings/data/use-admin-servers";
+import { OpenSection } from "@/features/settings/hooks/open-section";
 import { usePhoneWidth } from "@/features/settings/hooks/use-phone-width";
-import { type SectionGroup, openSection, sectionTitles } from "@/features/settings/lib/sections";
+import { type SectionGroup, definitions, openSection } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
 import { type Section, type SettingsPage, allSections } from "@/shared/lib/settings-address";
@@ -43,7 +44,8 @@ export function SettingsBody({
     picked,
     served,
   );
-  const title = `Settings: ${sectionTitles[shown]} – Nama`;
+  const open = { section: shown, title: definitions[shown].title };
+  const title = `Settings: ${open.title} – Nama`;
   const side = (
     <SettingsSide groups={groups} section={shown} user={user}>
       {picker}
@@ -53,17 +55,19 @@ export function SettingsBody({
   const headerKey = `header-${picked?.server.id}`;
   if (phone) {
     return (
-      <PhoneSettings
-        listing={section === allSections}
-        shown={{ section: shown, title, served }}
-        side={side}
-        pane={shownPane}
-        header={{ key: headerKey, ...header }}
-      />
+      <OpenSection value={open}>
+        <PhoneSettings
+          listing={section === allSections}
+          shown={{ section: shown, title, served }}
+          side={side}
+          pane={shownPane}
+          header={{ key: headerKey, ...header }}
+        />
+      </OpenSection>
     );
   }
   return (
-    <>
+    <OpenSection value={open}>
       {/* Each page's `PageTitle` gives the tab way to this while Settings is open. */}
       <title>{title}</title>
       {side}
@@ -72,7 +76,7 @@ export function SettingsBody({
         <SettingsHeader key={headerKey} section={shown} served={served} {...header} />
         {shownPane}
       </div>
-    </>
+    </OpenSection>
   );
 }
 

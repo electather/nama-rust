@@ -1,6 +1,6 @@
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { ListCrumb } from "@/features/settings/components/list-crumb";
-import { sectionTitles } from "@/features/settings/lib/sections";
+import { useOpenSection } from "@/features/settings/hooks/open-section";
 import { useLibraries } from "@/shared/hooks/use-libraries";
 import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 import { openedId } from "@/shared/lib/settings-address";
@@ -10,11 +10,12 @@ import { openedId } from "@/shared/lib/settings-address";
  * list, as the pane does.
  */
 export function LibraryCrumbs() {
+  const { title } = useOpenSection();
   const asked = openedId(useSettingsAddress().detail, "library");
   const open = useLibraries().find((library) => String(library.id) === asked);
   const name = asked === "new" ? "New Library" : open?.name;
   if (name === undefined) {
-    return <Crumbs current={sectionTitles.libraries} />;
+    return <Crumbs current={title} />;
   }
-  return <Crumbs parent={<ListCrumb section="libraries" />} current={name} />;
+  return <Crumbs parent={<ListCrumb />} current={name} />;
 }

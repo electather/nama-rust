@@ -1,5 +1,5 @@
 import { MarkedLabel } from "@/features/settings/components/marked-label";
-import { sectionTitles } from "@/features/settings/lib/sections";
+import { definitions } from "@/features/settings/lib/sections";
 import type { Findable } from "@/features/settings/lib/setting-search";
 import { keepInView } from "@/shared/lib/keep-in-view";
 
@@ -21,7 +21,7 @@ export function SearchResult({
   picked: boolean;
   onOpen: (result: Findable) => void;
 }) {
-  const section = sectionTitles[result.section];
+  const section = definitions[result.section].title;
   const isSection = result.key === undefined;
   return (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the field takes the keys for every result (`use-settings-search.ts`)

@@ -24,7 +24,7 @@ export function SigninPane({ user }: { user: User | undefined }) {
     </SettingRow>
   );
   return (
-    <PaneFrame section="signin">
+    <PaneFrame>
       {/* Last in its own box, so the row gives back its bottom padding before "Password". */}
       <div>{usernameRow}</div>
       <SettingGroup title="Password">

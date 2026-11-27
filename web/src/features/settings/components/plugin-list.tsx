@@ -3,13 +3,13 @@ import { useId, useState } from "react";
 import { PluginGroup } from "@/features/settings/components/plugin-group";
 import { PluginToolbar } from "@/features/settings/components/plugin-toolbar";
 import { SaveToast } from "@/features/settings/components/save-toast";
+import { useOpenSection } from "@/features/settings/hooks/open-section";
 import { usePluginSwitch } from "@/features/settings/hooks/use-plugin-switch";
 import {
   type KindFilter,
   matchingPlugins,
   pluginGroups,
 } from "@/features/settings/lib/plugin-list";
-import { sectionTitles } from "@/features/settings/lib/sections";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 
 /**
@@ -18,6 +18,7 @@ import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
  */
 export function PluginList({ summaries }: { summaries: PluginSummary[] }) {
   const titleId = useId();
+  const { title } = useOpenSection();
   const [typed, setTyped] = useState("");
   const [kind, setKind] = useState<KindFilter>("all");
   const { refused, dismiss, flip } = usePluginSwitch();
@@ -40,7 +41,7 @@ export function PluginList({ summaries }: { summaries: PluginSummary[] }) {
       <section aria-labelledby={titleId} className="flex flex-col">
         {/* The toolbar is the top of this pane, so its title is only said. */}
         <h3 id={titleId} className="sr-only">
-          {sectionTitles.plugins}
+          {title}
         </h3>
         <PluginToolbar typed={typed} kind={kind} onType={setTyped} onKind={setKind} />
         {listed}

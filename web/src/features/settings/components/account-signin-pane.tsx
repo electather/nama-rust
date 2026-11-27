@@ -7,7 +7,7 @@ import { accountSigninLabels } from "@/features/settings/lib/pane-labels";
 /** How the Account signed in at the Hub signs in: its password and its passkeys. */
 export function AccountSigninPane() {
   return (
-    <PaneFrame section="account-signin">
+    <PaneFrame>
       <SettingGroup setting="password" title={accountSigninLabels.password.label}>
         <AccountPasswordForm />
       </SettingGroup>

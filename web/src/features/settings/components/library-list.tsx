@@ -5,7 +5,7 @@ import type { Library } from "@/gen/nama/v1/library_pb";
 /** Every Library on the Server, each opening in place of the list. */
 export function LibraryList({ libraries }: { libraries: Library[] }) {
   return (
-    <PaneFrame section="libraries">
+    <PaneFrame>
       {libraries.length === 0 ? (
         <p className="py-3.5 text-sm text-muted-foreground">No Libraries yet.</p>
       ) : (

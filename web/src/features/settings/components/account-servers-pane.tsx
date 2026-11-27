@@ -11,7 +11,7 @@ import { PaneFrame } from "@/features/settings/components/pane-frame";
  */
 export function AccountServersPane() {
   return (
-    <PaneFrame section="account-servers">
+    <PaneFrame>
       <LinkedServersGroup />
       <LinkServerForm />
       <LinkedUsersGroup />
