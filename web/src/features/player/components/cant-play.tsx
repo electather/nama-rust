@@ -27,7 +27,12 @@ export function CantPlay({
   const other = otherVersion(versions, playable);
   return (
     <div className="fixed inset-0 flex overflow-y-auto bg-background px-5 py-12">
-      <ServerImg images={[art]} sizes="100vw" className="absolute inset-0 size-full object-cover" />
+      <ServerImg
+        images={[art]}
+        sizes="100vw"
+        largest
+        className="absolute inset-0 size-full object-cover"
+      />
       <div aria-hidden className="absolute inset-0 bg-scrim" />
       <div className="absolute inset-x-0 top-0 flex p-5">
         <BackButton back={back} />

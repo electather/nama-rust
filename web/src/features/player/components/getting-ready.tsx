@@ -32,7 +32,12 @@ export function GettingReady({
   }, []);
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
-      <ServerImg images={[art]} sizes="100vw" className="absolute inset-0 size-full object-cover" />
+      <ServerImg
+        images={[art]}
+        sizes="100vw"
+        largest
+        className="absolute inset-0 size-full object-cover"
+      />
       <div aria-hidden className="absolute inset-0 bg-scrim" />
       <div className="relative">
         <TopBar title={heading ?? title} line={line} back={back} shaded={false} />

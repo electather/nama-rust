@@ -19,7 +19,7 @@ export function FirstFrameCover({
       data-framed={framed}
       className="pointer-events-none absolute inset-0 isolate transition-opacity duration-300 ease-out-expo data-[framed=true]:opacity-0 motion-reduce:transition-none"
     >
-      <ServerImg images={[art]} sizes="100vw" className="size-full object-cover" />
+      <ServerImg images={[art]} sizes="100vw" largest className="size-full object-cover" />
     </div>
   );
 }

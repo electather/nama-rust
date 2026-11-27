@@ -3,7 +3,7 @@ import { useServerInfo } from "@/shared/hooks/use-server-info";
 import { useServerUrl } from "@/shared/hooks/use-server-url";
 import { type ServerImage, srcSetOf, widthsOf } from "@/shared/lib/server-image";
 
-/** How a `ServerImg` shows: the image's classes, how wide it shows, and what it says. */
+/** How a `ServerImg` shows: the image's classes, how wide it shows, what it says and when it loads. */
 export interface ServerImgLook {
   /** How wide it shows, for its `srcset`. */
   sizes: string;

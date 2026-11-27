@@ -83,6 +83,18 @@ describe("an image the Server sent", () => {
     );
   });
 
+  test("as the page's largest paint loads first, not once near the view", async () => {
+    render(<ServerImg images={[poster]} sizes="100vw" className="size-full" alt="Art" largest />, {
+      wrapper: onServerAt(friend),
+    });
+
+    const img = await screen.findByRole("img", { name: "Art" });
+    expect([img.getAttribute("loading"), img.getAttribute("fetchpriority")]).toStrictEqual([
+      null,
+      "high",
+    ]);
+  });
+
   test("a Plugin logo offers no srcset", async () => {
     show([pluginLogoOf({ logoUrl: "/media/plugin-logos/tmdb/v1" })]);
 

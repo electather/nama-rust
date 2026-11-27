@@ -2,7 +2,6 @@ import { cn } from "cn";
 
 import { ServerImg } from "@/shared/components/server-img";
 import { type EditableImage, shapes } from "@/shared/lib/editable-image";
-import { artworkOf } from "@/shared/lib/server-image";
 
 /** How wide each shape's frame shows. */
 const sizes = { poster: "96px", backdrop: "160px" };
@@ -12,7 +11,7 @@ export function Preview({ image }: { image: EditableImage }) {
   return (
     <div className={cn("shrink-0 overflow-hidden rounded-lg border bg-muted", shapes[image.shape])}>
       <ServerImg
-        images={[artworkOf(image.url)]}
+        images={[image.shown]}
         sizes={sizes[image.shape]}
         alt={image.name}
         className="size-full object-cover"

@@ -22,7 +22,7 @@ export interface ServerImage {
 }
 
 /** The Server's width list for each kind, or `undefined` for one shown only as stored. */
-const lists = {
+const widthLists = {
   poster: "posterWidths",
   backdrop: "backdropWidths",
   // The Server makes a Trailer's thumbnail ahead as a Backdrop (#2561).
@@ -40,7 +40,7 @@ const lists = {
 
 /** The widths `info`'s Server offers an image of `kind` at: none for one it doesn't resize. */
 export function widthsOf(kind: ImageKind, info: GetServerInfoResponse): number[] {
-  const list = lists[kind];
+  const list = widthLists[kind];
   if (list === undefined) {
     return [];
   }
@@ -118,7 +118,12 @@ export function pluginLogoOf(plugin: { logoUrl: string }) {
   return image("pluginLogo", plugin.logoUrl);
 }
 
-/** An image an Artwork list offers, or one "Edit images" shows as it is now. */
-export function artworkOf(url: string | undefined) {
+/** An image an Artwork list offers. */
+export function artworkOf(url: string) {
+  return image("artwork", url);
+}
+
+/** A title's or Library's image as "Edit images" shows it now, its own or a Custom Image. */
+export function imageToEditOf(url: string | undefined) {
   return image("artwork", url);
 }
