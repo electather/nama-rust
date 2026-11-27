@@ -3,6 +3,7 @@
 
 use crate::support::hub::{TestHub, ZONE};
 use crate::support::linking::*;
+use crate::support::mail::fake_mail;
 use crate::support::refused::assert_refused;
 use connectrpc::{ConnectError, ErrorCode};
 use nama_hub::dns::Record;
@@ -200,6 +201,46 @@ async fn a_report_the_dns_provider_fails_still_lists_the_public_address_reached(
         listed.servers[0].addresses,
         [format!("http://127.0.0.1:{port}")]
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_unlinked_while_the_hub_probes_its_port_is_told_no_names_and_keeps_none(
+    db: PgPool,
+) {
+    let (mail, mut inbox) = fake_mail();
+    let (hub, mut probes) = TestHub::start_holding_probes(db, Some(mail)).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+
+    let report = names_after_reporting(&hub, &living_room, &["http://192.168.1.10:7980"], 7980);
+    let unlinked_while_probing = async {
+        let held = probes.recv().await.unwrap();
+        unlink(&hub, &living_room).await.unwrap();
+        held.send(true).unwrap();
+    };
+    let (names, ()) = tokio::join!(report, unlinked_while_probing);
+
+    assert_eq!(names.unwrap(), Vec::<String>::new());
+    assert_eq!(hub.zone(), []);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_unlinked_while_its_certificate_challenge_is_written_keeps_none(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let held = hub.hold_next_write();
+
+    let challenge = set_challenge(&hub, &living_room, &CHALLENGES);
+    let unlinked_while_writing = async {
+        let write = held.await.unwrap();
+        unlink(&hub, &living_room).await.unwrap();
+        write.send(()).unwrap();
+    };
+    let (published, ()) = tokio::join!(challenge, unlinked_while_writing);
+
+    published.unwrap();
+    assert!(hub.texts().is_empty(), "{:?}", hub.texts());
 }
 
 #[sqlx::test(migrations = false)]
