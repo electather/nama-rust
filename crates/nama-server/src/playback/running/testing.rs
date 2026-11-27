@@ -175,6 +175,11 @@ pub(in crate::playback) fn direct_play_of(version: i64) -> Plan {
 }
 
 impl RunningPlans {
+    /// How many cut-offs it keeps, by Version and by Version and Viewer.
+    pub(in crate::playback) fn cut_offs_kept(&self) -> usize {
+        lock(&self.inner.served).len() + lock(&self.inner.stopped).len()
+    }
+
     /// Starts a Remux of the Version `version` for `viewer` whose runs write nothing, on paused
     /// time so the wait for its first file ends at once, and returns its id.
     pub(in crate::playback) async fn start_faked_remux(&self, viewer: Viewer, version: i64) -> u64 {

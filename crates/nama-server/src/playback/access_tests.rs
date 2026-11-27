@@ -473,6 +473,31 @@ async fn only_a_viewer_who_may_have_media_gets_it_on_the_terms_its_plans_set() {
     w.running.shutdown().await;
 }
 
+#[tokio::test]
+async fn asking_for_made_up_ids_keeps_nothing() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let w = World::new(&db, data.path()).await;
+    let kept = w.running.cut_offs_kept();
+
+    for asked in [
+        Asked::File(MADE_UP),
+        Asked::Media(MADE_UP),
+        Asked::Download(MADE_UP),
+        Asked::Plan(999),
+    ] {
+        let judged = w.access.judge(World::session(w.ada_tv), asked, Some(AWAY));
+        assert_eq!(
+            answer(judged.await),
+            Err(StatusCode::NOT_FOUND),
+            "{asked:?}"
+        );
+    }
+
+    assert_eq!(w.running.cut_offs_kept(), kept);
+    w.running.shutdown().await;
+}
+
 #[test]
 fn a_path_under_a_version_or_a_plan_or_a_versions_download_is_judged_and_any_other_is_not() {
     let judged = |path| Asked::of(path).map(|asked| format!("{asked:?}"));
