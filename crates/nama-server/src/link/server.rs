@@ -74,7 +74,8 @@ pub(super) struct Kept {
     /// The Account's email, as the Hub's signed token named it; `None` if the token couldn't be
     /// checked when the credential came.
     account: Option<String>,
-    /// The Server's id at the Hub; `None` until a token the Hub signed named it.
+    /// The Server's id at the Hub; `None` until a token the Hub signed, or its answer to a report,
+    /// named it.
     server_id: Option<String>,
 }
 
@@ -303,7 +304,8 @@ impl ServerLink {
             return Ok(());
         }
         let told = addresses.clone();
-        let Some(reachability) = self.call(|hub| hub.set_addresses(told)).await? else {
+        let Some((reachability, server_id)) = self.call(|hub| hub.set_addresses(told)).await?
+        else {
             return Ok(());
         };
         *self
@@ -312,6 +314,8 @@ impl ServerLink {
             .unwrap_or_else(PoisonError::into_inner) =
             reachability.map(|reachability| (kept.credential.clone(), reachability));
         self.found.send_replace(());
+        // Before the report is kept as told, so a failure learns it on the next.
+        self.learn_answered_id(&kept, server_id).await?;
         *reported = Some(Reported {
             credential: kept.credential,
             addresses,
@@ -591,6 +595,32 @@ impl ServerLink {
                 })
             })
             .await
+    }
+
+    /// Keeps `server_id`, which the Hub answered a report through the Link `kept` with, as the
+    /// Server's id there while `kept` has none. The answer came to the Link's credential, so unlike
+    /// a token a page hands over, it can't be another Server's.
+    async fn learn_answered_id(
+        &self,
+        kept: &Kept,
+        server_id: Option<String>,
+    ) -> Result<(), Failure> {
+        let Some(server_id) = server_id else {
+            return Ok(());
+        };
+        match kept.server_id.as_deref() {
+            None => {
+                self.learn_server_id(kept.credential.clone(), server_id)
+                    .await
+            }
+            Some(own) if own != server_id => {
+                tracing::warn!(
+                    "the Hub named the Server by an id its Link doesn't keep: kept its own"
+                );
+                Ok(())
+            }
+            Some(_) => Ok(()),
+        }
     }
 
     /// Keeps `server_id` as the Server's id at the Hub, for the Link holding `credential`.

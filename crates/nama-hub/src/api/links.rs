@@ -560,9 +560,10 @@ impl LinkedServerService for LinkedServerServiceHandler {
             public: public_address(&ctx, request.public_port)?,
             relay: parse_relay(request.relay)?,
         };
+        let server = linked_server(&ctx)?;
         let checked = self
             .links
-            .set_addresses(linked_server(&ctx)?, reported)
+            .set_addresses(server, reported)
             .await
             .map_err(refused)?;
         let probed = checked.public.unwrap_or_default();
@@ -570,6 +571,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
             public_address: probed.address,
             reachable: probed.reachable,
             names: checked.names,
+            server_id: server.id.to_string(),
             ..Default::default()
         })
     }
