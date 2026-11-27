@@ -165,6 +165,8 @@ pub(crate) struct Trailer {
     pub(crate) url: String,
     /// Its thumbnail's path, to pass to the title source's `image`, which artwork keeps while
     /// some Match stores the title.
+    // `match_images.rs` finds it by this name in `title_details.trailers`' JSON: renaming it
+    // drops every stored thumbnail.
     pub(crate) thumbnail: Option<String>,
 }
 
