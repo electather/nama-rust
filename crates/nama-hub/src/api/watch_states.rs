@@ -10,9 +10,9 @@ use nama_hub_proto::nama::hub::v1::{
 use super::{
     hub_failed,
     links::{LinkedServerServiceHandler, linked_server},
-    refuse,
+    refuse, sync_refused,
 };
-use crate::sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange};
+use crate::sync::{MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange};
 
 pub(super) async fn push_watch_states(
     handler: &LinkedServerServiceHandler,
@@ -21,11 +21,9 @@ pub(super) async fn push_watch_states(
 ) -> ServiceResult<PushWatchStatesResponse> {
     let server = linked_server(ctx)?;
     let changes = changes_from_proto(request.changes)?;
-    handler
-        .watch_states
-        .push(&handler.links, server, changes)
+    (handler.watch_states.push(&handler.links, server, changes))
         .await
-        .map_err(|err| hub_failed(&err))?;
+        .map_err(|err| sync_refused(&err, "changes", invalid_change))?;
     Response::ok(PushWatchStatesResponse::default())
 }
 
@@ -45,16 +43,11 @@ pub(super) async fn pull_watch_states(
     })
 }
 
-/// `changes` as `sync` takes them, or the refusal of the first limit they break.
+/// `changes` as `sync` takes them, or the refusal of the first that a `WatchStateChange` can't
+/// hold. `sync` checks the rest.
 pub(super) fn changes_from_proto(
     changes: Vec<proto::WatchStateChange>,
 ) -> Result<Vec<WatchStateChange>, ConnectError> {
-    if changes.len() > MAX_CHANGES {
-        return Err(invalid_change(
-            "changes",
-            format!("a push holds up to {MAX_CHANGES} changes"),
-        ));
-    }
     (changes.into_iter().enumerate())
         .map(|(nth, change)| change_from_proto(nth, change))
         .collect()
@@ -66,28 +59,12 @@ fn change_from_proto(
     change: proto::WatchStateChange,
 ) -> Result<WatchStateChange, ConnectError> {
     let field = |name: &str| format!("changes[{nth}].{name}");
-    let id_fits = |id: &String| !id.is_empty() && id.chars().count() <= MAX_ID_LENGTH;
-    if !(1..=MAX_IDS).contains(&change.ids.len()) || !change.ids.iter().all(id_fits) {
-        return Err(invalid_change(
-            &field("ids"),
-            format!(
-                "a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters"
-            ),
-        ));
-    }
     let duration_ms = i64::try_from(change.duration_ms)
         .map_err(|_too_long| invalid_change(&field("duration_ms"), "the duration is too long"))?;
-    let position_ms = (i64::try_from(change.position_ms).ok())
-        .filter(|&position_ms| position_ms <= duration_ms)
-        .ok_or_else(|| {
-            invalid_change(&field("position_ms"), "the position is past the duration")
-        })?;
-    if !(0..=MAX_CHANGED_AT_MS).contains(&change.changed_at_ms) {
-        return Err(invalid_change(
-            &field("changed_at_ms"),
-            "a change is dated from 1970 to the end of 9999",
-        ));
-    }
+    // Too long for a duration, so past any.
+    let position_ms = i64::try_from(change.position_ms).map_err(|_too_long| {
+        invalid_change(&field("position_ms"), "the position is past the duration")
+    })?;
     Ok(WatchStateChange {
         user_id: change.user_id,
         episode: change.episode,

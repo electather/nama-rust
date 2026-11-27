@@ -35,6 +35,44 @@ pub(crate) const MAX_TITLE_LENGTH: usize = 1000;
 /// 0058).
 const MAX_WATCHLISTED: i64 = 200;
 
+/// Why a Linked Server's push or Watchlist was refused whole.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum Error {
+    #[error("a push holds up to {MAX_CHANGES} changes")]
+    TooManyChanges,
+    #[error("a Watchlist holds up to {MAX_WATCHLIST_ENTRIES} entries")]
+    TooManyEntries,
+    /// The `nth` change or entry breaks a limit at `part`.
+    #[error("{part}")]
+    Invalid { nth: usize, part: Part },
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+}
+
+/// The part of a change or Watchlist entry that broke a limit, as its message names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub(crate) enum Part {
+    #[error("a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters")]
+    Ids,
+    #[error("the position is past the duration")]
+    Position,
+    #[error("a change is dated from 1970 to the end of 9999")]
+    ChangedAt,
+    #[error(
+        "a Movie's or Show's Preference names its External ID of 1 to {MAX_ID_LENGTH} \
+         characters, and the User's own none"
+    )]
+    TitleId,
+    #[error("the language is too long")]
+    Language,
+    #[error("the title is too long")]
+    Title,
+    #[error("an entry's External ID has 1 to {MAX_ID_LENGTH} characters")]
+    EntryId,
+    #[error("an entry is dated from 1970 to the end of 9999")]
+    EntryChangedAt,
+}
+
 /// One User's Watch State of a Movie or Episode, as a change on their Server left it.
 #[derive(Debug, Clone)]
 pub(crate) struct WatchStateChange {
@@ -53,6 +91,21 @@ pub(crate) struct WatchStateChange {
     pub(crate) changed_at_ms: i64,
 }
 
+impl WatchStateChange {
+    /// The first part of it that breaks a limit, if one does.
+    fn broken(&self) -> Option<Part> {
+        if !(1..=MAX_IDS).contains(&self.ids.len()) || !self.ids.iter().all(|id| id_fits(id)) {
+            Some(Part::Ids)
+        } else if !(0..=self.duration_ms).contains(&self.position_ms) {
+            Some(Part::Position)
+        } else if !dated_in_range(self.changed_at_ms) {
+            Some(Part::ChangedAt)
+        } else {
+            None
+        }
+    }
+}
+
 /// The Accounts' merged Watch State.
 #[derive(Clone)]
 pub(crate) struct WatchStates {
@@ -66,16 +119,18 @@ impl WatchStates {
     }
 
     /// Merges `changes`, made on `server`, into the Accounts `links` finds its Users Linked to.
+    /// Merges none if one breaks a limit, even one of a User who isn't Linked.
     pub(crate) async fn push(
         &self,
         links: &Links,
         server: &LinkedServer,
         changes: Vec<WatchStateChange>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), Error> {
+        check_watch_states(&changes)?;
         let changes = links
             .linked_accounts(server, changes, |change| change.user_id)
             .await?;
-        self.merge(changes).await
+        Ok(self.merge(changes).await?)
     }
 
     /// Merges each change into the Account it is paired with, in one transaction. In order, so of
@@ -148,6 +203,19 @@ pub(crate) struct WatchlistEntry {
     pub(crate) changed_at_ms: i64,
 }
 
+impl WatchlistEntry {
+    /// The first part of it that breaks a limit, if one does.
+    fn broken(&self) -> Option<Part> {
+        if !id_fits(&self.id) {
+            Some(Part::EntryId)
+        } else if !dated_in_range(self.changed_at_ms) {
+            Some(Part::EntryChangedAt)
+        } else {
+            None
+        }
+    }
+}
+
 /// A title on many Accounts' Watchlists.
 #[derive(Debug)]
 pub(crate) struct WatchlistedTitle {
@@ -174,16 +242,17 @@ impl Watchlists {
 
     /// Syncs `entries`, `server`'s User `user_id`'s whole Watchlist, with the Account `links`
     /// finds them Linked to, as [`Self::sync_account`] does; empty, and nothing kept, if they
-    /// aren't Linked.
+    /// aren't Linked. Keeps none if one breaks a limit, even of a User who isn't Linked.
     pub(crate) async fn sync(
         &self,
         links: &Links,
         server: &LinkedServer,
         user_id: i64,
         entries: Vec<WatchlistEntry>,
-    ) -> Result<Vec<WatchlistEntry>, sqlx::Error> {
+    ) -> Result<Vec<WatchlistEntry>, Error> {
+        check_watchlist(&entries)?;
         match links.linked_account(server, user_id).await? {
-            Some(account) => self.sync_account(account, entries).await,
+            Some(account) => Ok(self.sync_account(account, entries).await?),
             None => Ok(Vec::new()),
         }
     }
@@ -304,6 +373,30 @@ pub(crate) struct TrackPreferenceChange {
     pub(crate) changed_at_ms: i64,
 }
 
+impl TrackPreferenceChange {
+    /// The first part of it that breaks a limit, if one does.
+    fn broken(&self) -> Option<Part> {
+        let title_id_fits = match &self.kept_for {
+            PreferenceFor::User => true,
+            PreferenceFor::Movie(id) | PreferenceFor::Show(id) => id_fits(id),
+        };
+        let (language, title) = (self.like.as_ref()).map_or(("", ""), |like| {
+            (like.language.as_str(), like.title.as_str())
+        });
+        if !title_id_fits {
+            Some(Part::TitleId)
+        } else if language.chars().count() > MAX_LANGUAGE_LENGTH {
+            Some(Part::Language)
+        } else if title.chars().count() > MAX_TITLE_LENGTH {
+            Some(Part::Title)
+        } else if !dated_in_range(self.changed_at_ms) {
+            Some(Part::ChangedAt)
+        } else {
+            None
+        }
+    }
+}
+
 /// What a Track Preference is kept for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PreferenceFor {
@@ -360,16 +453,18 @@ impl TrackPreferences {
     }
 
     /// Merges `changes`, made on `server`, into the Accounts `links` finds its Users Linked to.
+    /// Merges none if one breaks a limit, even one of a User who isn't Linked.
     pub(crate) async fn push(
         &self,
         links: &Links,
         server: &LinkedServer,
         changes: Vec<TrackPreferenceChange>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), Error> {
+        check_track_preferences(&changes)?;
         let changes = links
             .linked_accounts(server, changes, |change| change.user_id)
             .await?;
-        self.merge(changes).await
+        Ok(self.merge(changes).await?)
     }
 
     /// Merges each change into the Account it is paired with, in one transaction. In order, so of
@@ -502,6 +597,47 @@ async fn merge_watch_state(
     .execute(conn)
     .await?;
     Ok(())
+}
+
+/// Refuses `changes`, a push of Watch States, at the first limit they break.
+fn check_watch_states(changes: &[WatchStateChange]) -> Result<(), Error> {
+    if changes.len() > MAX_CHANGES {
+        return Err(Error::TooManyChanges);
+    }
+    first_broken(changes, WatchStateChange::broken)
+}
+
+/// Refuses `changes`, a push of Track Preferences, at the first limit they break.
+fn check_track_preferences(changes: &[TrackPreferenceChange]) -> Result<(), Error> {
+    if changes.len() > MAX_CHANGES {
+        return Err(Error::TooManyChanges);
+    }
+    first_broken(changes, TrackPreferenceChange::broken)
+}
+
+/// Refuses `entries`, a whole Watchlist, at the first limit they break.
+fn check_watchlist(entries: &[WatchlistEntry]) -> Result<(), Error> {
+    if entries.len() > MAX_WATCHLIST_ENTRIES {
+        return Err(Error::TooManyEntries);
+    }
+    first_broken(entries, WatchlistEntry::broken)
+}
+
+/// Refuses at the first of `held` that `broken` finds a part of breaking a limit.
+fn first_broken<T>(held: &[T], broken: impl Fn(&T) -> Option<Part>) -> Result<(), Error> {
+    (held.iter().enumerate())
+        .find_map(|(nth, item)| broken(item).map(|part| Error::Invalid { nth, part }))
+        .map_or(Ok(()), Err)
+}
+
+/// Whether `id` has 1 to [`MAX_ID_LENGTH`] characters.
+fn id_fits(id: &str) -> bool {
+    (1..=MAX_ID_LENGTH).contains(&id.chars().count())
+}
+
+/// Whether `changed_at_ms` is from 1970 to [`MAX_CHANGED_AT_MS`].
+fn dated_in_range(changed_at_ms: i64) -> bool {
+    (0..=MAX_CHANGED_AT_MS).contains(&changed_at_ms)
 }
 
 #[cfg(test)]

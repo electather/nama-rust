@@ -11,11 +11,9 @@ use nama_hub_proto::nama::hub::v1::{
 use super::{
     hub_failed,
     links::{LinkedServerServiceHandler, linked_server},
-    refuse,
+    refuse, sync_refused,
 };
-use crate::sync::{
-    MAX_CHANGED_AT_MS, MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle,
-};
+use crate::sync::{MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle};
 
 pub(super) async fn sync_watchlist(
     handler: &LinkedServerServiceHandler,
@@ -24,11 +22,10 @@ pub(super) async fn sync_watchlist(
 ) -> ServiceResult<SyncWatchlistResponse> {
     let server = linked_server(ctx)?;
     let entries = watchlist_from_proto(request.entries)?;
-    let merged = handler
-        .watchlists
+    let merged = (handler.watchlists)
         .sync(&handler.links, server, request.user_id, entries)
         .await
-        .map_err(|err| hub_failed(&err))?;
+        .map_err(|err| sync_refused(&err, "entries", invalid_watchlist))?;
     Response::ok(SyncWatchlistResponse {
         entries: merged.into_iter().map(watchlist_entry_to_proto).collect(),
         ..Default::default()
@@ -49,16 +46,11 @@ pub(super) async fn list_most_watchlisted_titles(
     })
 }
 
-/// `entries` as `sync` takes them, or the refusal of the first limit they break.
+/// `entries` as `sync` takes them, or the refusal of the first that is neither a Movie nor a
+/// Show. `sync` checks the rest.
 pub(super) fn watchlist_from_proto(
     entries: Vec<proto::WatchlistEntry>,
 ) -> Result<Vec<WatchlistEntry>, ConnectError> {
-    if entries.len() > MAX_WATCHLIST_ENTRIES {
-        return Err(invalid_watchlist(
-            "entries",
-            format!("a Watchlist holds up to {MAX_WATCHLIST_ENTRIES} entries"),
-        ));
-    }
     (entries.into_iter().enumerate())
         .map(|(nth, entry)| watchlist_entry_from_proto(nth, entry))
         .collect()
@@ -69,29 +61,16 @@ fn watchlist_entry_from_proto(
     nth: usize,
     entry: proto::WatchlistEntry,
 ) -> Result<WatchlistEntry, ConnectError> {
-    let field = |name: &str| format!("entries[{nth}].{name}");
     let show = match entry.kind.as_known() {
         Some(proto::TitleKind::TITLE_KIND_MOVIE) => false,
         Some(proto::TitleKind::TITLE_KIND_SHOW) => true,
         Some(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
             return Err(invalid_watchlist(
-                &field("kind"),
+                &format!("entries[{nth}].kind"),
                 "an entry is a Movie or a Show",
             ));
         }
     };
-    if !(1..=MAX_ID_LENGTH).contains(&entry.id.chars().count()) {
-        return Err(invalid_watchlist(
-            &field("id"),
-            format!("an entry's External ID has 1 to {MAX_ID_LENGTH} characters"),
-        ));
-    }
-    if !(0..=MAX_CHANGED_AT_MS).contains(&entry.changed_at_ms) {
-        return Err(invalid_watchlist(
-            &field("changed_at_ms"),
-            "an entry is dated from 1970 to the end of 9999",
-        ));
-    }
     Ok(WatchlistEntry {
         show,
         id: entry.id,

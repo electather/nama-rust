@@ -2,7 +2,11 @@ use std::time::Instant;
 
 use sqlx::PgPool;
 
-use super::{WatchStateChange, WatchStates, WatchlistEntry, Watchlists};
+use super::{
+    Error, Like, MAX_CHANGED_AT_MS, Part, PreferenceFor, TrackPreferenceChange, WatchStateChange,
+    WatchStates, WatchlistEntry, Watchlists, check_track_preferences, check_watch_states,
+    check_watchlist,
+};
 use crate::{
     accounts::{AccountId, AccountSession, Accounts, Caller},
     db,
@@ -348,4 +352,224 @@ async fn an_account_with_pooling_off_isnt_counted_in_the_most_watchlisted(db: Pg
     viewing.set_pooling(accounts[0], false).await.unwrap();
 
     assert_eq!(most_watchlisted_ids(&watchlists).await, []);
+}
+
+/// Where `checked` was refused: the change or entry, and its part, that broke a limit.
+fn broken_at(checked: Result<(), Error>) -> Option<(usize, Part)> {
+    if let Some(Error::Invalid { nth, part }) = checked.err() {
+        Some((nth, part))
+    } else {
+        None
+    }
+}
+
+/// [`alien_at`]'s change, which keeps every limit, then `change`.
+fn alien_then(change: WatchStateChange) -> Result<(), Error> {
+    check_watch_states(&[alien_at(7, 3000, 1_000), change])
+}
+
+/// An External ID of `length` characters.
+fn id_of(length: usize) -> String {
+    "é".repeat(length)
+}
+
+#[test]
+fn a_push_of_500_watch_states_passes_and_501_are_refused() {
+    let aliens = |count| vec![alien_at(7, 3000, 1_000); count];
+
+    check_watch_states(&aliens(500)).unwrap();
+    assert!(matches!(
+        check_watch_states(&aliens(501)),
+        Err(Error::TooManyChanges)
+    ));
+}
+
+#[test]
+fn a_watch_state_names_1_to_20_external_ids() {
+    let naming = |count| WatchStateChange {
+        ids: (0..count).map(|nth| format!("tmdb-{nth}")).collect(),
+        ..alien_at(7, 3000, 1_000)
+    };
+
+    alien_then(naming(20)).unwrap();
+    assert_eq!(broken_at(alien_then(naming(0))), Some((1, Part::Ids)));
+    assert_eq!(broken_at(alien_then(naming(21))), Some((1, Part::Ids)));
+}
+
+#[test]
+fn a_watch_states_external_ids_have_1_to_100_characters() {
+    let naming = |id| WatchStateChange {
+        ids: vec!["tmdb-348".to_owned(), id],
+        ..alien_at(7, 3000, 1_000)
+    };
+
+    alien_then(naming(id_of(100))).unwrap();
+    assert_eq!(
+        broken_at(alien_then(naming(id_of(101)))),
+        Some((1, Part::Ids))
+    );
+    assert_eq!(
+        broken_at(alien_then(naming(String::new()))),
+        Some((1, Part::Ids))
+    );
+}
+
+#[test]
+fn a_watch_states_position_is_at_most_its_duration() {
+    alien_then(alien_at(7, 7000, 1_000)).unwrap();
+    assert_eq!(
+        broken_at(alien_then(alien_at(7, 7001, 1_000))),
+        Some((1, Part::Position))
+    );
+}
+
+#[test]
+fn a_watch_state_is_dated_from_1970_to_the_end_of_9999() {
+    alien_then(alien_at(7, 3000, 0)).unwrap();
+    alien_then(alien_at(7, 3000, MAX_CHANGED_AT_MS)).unwrap();
+    assert_eq!(
+        broken_at(alien_then(alien_at(7, 3000, -1))),
+        Some((1, Part::ChangedAt))
+    );
+    assert_eq!(
+        broken_at(alien_then(alien_at(7, 3000, MAX_CHANGED_AT_MS + 1))),
+        Some((1, Part::ChangedAt))
+    );
+}
+
+/// The User 7's Subtitle Preference for the Movie `tmdb-348`: English, changed at 1000.
+fn english_for_alien() -> TrackPreferenceChange {
+    TrackPreferenceChange {
+        user_id: 7,
+        audio: false,
+        kept_for: PreferenceFor::Movie("tmdb-348".to_owned()),
+        like: Some(Like {
+            language: "en".to_owned(),
+            ..Like::default()
+        }),
+        foreign_audio_only: false,
+        changed_at_ms: 1_000,
+    }
+}
+
+/// [`english_for_alien`], which keeps every limit, then `change`.
+fn english_then(change: TrackPreferenceChange) -> Result<(), Error> {
+    check_track_preferences(&[english_for_alien(), change])
+}
+
+#[test]
+fn a_push_of_500_track_preferences_passes_and_501_are_refused() {
+    let preferences = |count| vec![english_for_alien(); count];
+
+    check_track_preferences(&preferences(500)).unwrap();
+    assert!(matches!(
+        check_track_preferences(&preferences(501)),
+        Err(Error::TooManyChanges)
+    ));
+}
+
+#[test]
+fn a_movies_or_shows_preference_names_an_external_id_of_1_to_100_characters() {
+    let kept_for = |kept_for| TrackPreferenceChange {
+        kept_for,
+        ..english_for_alien()
+    };
+
+    english_then(kept_for(PreferenceFor::Show(id_of(100)))).unwrap();
+    english_then(kept_for(PreferenceFor::User)).unwrap();
+    assert_eq!(
+        broken_at(english_then(kept_for(PreferenceFor::Movie(String::new())))),
+        Some((1, Part::TitleId))
+    );
+    assert_eq!(
+        broken_at(english_then(kept_for(PreferenceFor::Show(id_of(101))))),
+        Some((1, Part::TitleId))
+    );
+}
+
+#[test]
+fn a_preferences_language_has_at_most_100_characters_and_its_title_1000() {
+    let liking = |language: usize, title: usize| TrackPreferenceChange {
+        like: Some(Like {
+            language: "e".repeat(language),
+            title: "t".repeat(title),
+            ..Like::default()
+        }),
+        ..english_for_alien()
+    };
+
+    english_then(liking(100, 1000)).unwrap();
+    assert_eq!(
+        broken_at(english_then(liking(101, 0))),
+        Some((1, Part::Language))
+    );
+    assert_eq!(
+        broken_at(english_then(liking(0, 1001))),
+        Some((1, Part::Title))
+    );
+}
+
+#[test]
+fn a_track_preference_is_dated_from_1970_to_the_end_of_9999() {
+    let dated = |changed_at_ms| TrackPreferenceChange {
+        changed_at_ms,
+        ..english_for_alien()
+    };
+
+    english_then(dated(MAX_CHANGED_AT_MS)).unwrap();
+    assert_eq!(
+        broken_at(english_then(dated(-1))),
+        Some((1, Part::ChangedAt))
+    );
+    assert_eq!(
+        broken_at(english_then(dated(MAX_CHANGED_AT_MS + 1))),
+        Some((1, Part::ChangedAt))
+    );
+}
+
+/// [`the_matrix`]'s entry, which keeps every limit, then `entry`.
+fn the_matrix_then(entry: WatchlistEntry) -> Result<(), Error> {
+    check_watchlist(&[the_matrix(false, 1_000), entry])
+}
+
+#[test]
+fn a_watchlist_of_5000_entries_passes_and_5001_are_refused() {
+    let entries = |count| vec![the_matrix(false, 1_000); count];
+
+    check_watchlist(&entries(5000)).unwrap();
+    assert!(matches!(
+        check_watchlist(&entries(5001)),
+        Err(Error::TooManyEntries)
+    ));
+}
+
+#[test]
+fn a_watchlist_entrys_external_id_has_1_to_100_characters() {
+    let named = |id| WatchlistEntry {
+        id,
+        ..the_matrix(false, 1_000)
+    };
+
+    the_matrix_then(named(id_of(100))).unwrap();
+    assert_eq!(
+        broken_at(the_matrix_then(named(String::new()))),
+        Some((1, Part::EntryId))
+    );
+    assert_eq!(
+        broken_at(the_matrix_then(named(id_of(101)))),
+        Some((1, Part::EntryId))
+    );
+}
+
+#[test]
+fn a_watchlist_entry_is_dated_from_1970_to_the_end_of_9999() {
+    the_matrix_then(the_matrix(true, MAX_CHANGED_AT_MS)).unwrap();
+    assert_eq!(
+        broken_at(the_matrix_then(the_matrix(false, -1))),
+        Some((1, Part::EntryChangedAt))
+    );
+    assert_eq!(
+        broken_at(the_matrix_then(the_matrix(false, MAX_CHANGED_AT_MS + 1))),
+        Some((1, Part::EntryChangedAt))
+    );
 }

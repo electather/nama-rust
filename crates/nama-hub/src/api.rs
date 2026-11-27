@@ -49,7 +49,7 @@ use crate::{
     probe::{Probe, Tcp},
     recommendations::Recommendations,
     signing::Keys,
-    sync::{TrackPreferences, WatchStates, Watchlists},
+    sync::{self, Part, TrackPreferences, WatchStates, Watchlists},
     viewing::Viewing,
 };
 
@@ -488,6 +488,32 @@ fn recent_authentication_required(err: &RecentAuthenticationRequired) -> Refused
         err.to_string(),
     )
     .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
+}
+
+/// The error a Linked Server gets for a push or Watchlist `sync` couldn't merge: `invalid`'s
+/// refusal at the change or entry in the request's `list` that broke a limit, or at `list` for
+/// one that holds too many.
+fn sync_refused(
+    err: &sync::Error,
+    list: &str,
+    invalid: impl Fn(&str, String) -> ConnectError,
+) -> ConnectError {
+    match err {
+        sync::Error::TooManyChanges | sync::Error::TooManyEntries => invalid(list, err.to_string()),
+        sync::Error::Invalid { nth, part } => {
+            let field = match part {
+                Part::Ids => "ids",
+                Part::Position => "position_ms",
+                Part::TitleId => "title_id",
+                Part::Language => "language",
+                Part::Title => "title",
+                Part::EntryId => "id",
+                Part::ChangedAt | Part::EntryChangedAt => "changed_at_ms",
+            };
+            invalid(&format!("{list}[{nth}].{field}"), err.to_string())
+        }
+        sync::Error::Database(_) => hub_failed(err),
+    }
 }
 
 /// The error a client gets for a failure on the Hub's side: logged, not sent, since it says
