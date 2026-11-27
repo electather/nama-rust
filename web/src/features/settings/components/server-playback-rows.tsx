@@ -4,10 +4,11 @@ import { Programs } from "@/features/admin-playback/components/programs";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
 import { SettingGroup } from "@/features/settings/components/setting-group";
+import { SubtitleSpaceRow } from "@/features/settings/components/subtitle-space-row";
 import type { GetPlaybackStatusResponse } from "@/gen/nama/v1/server_pb";
 import type { FormErrors } from "@/shared/lib/forms";
 
-/** The Server Playback pane's groups: what the Server found, then the settings that save as they're changed. */
+/** The Server Playback pane's groups: what the Server found, then the settings that save as they're changed, the subtitle cache's last. */
 export function ServerPlaybackRows({
   status,
   values,
@@ -29,6 +30,14 @@ export function ServerPlaybackRows({
       </SettingGroup>
       <SettingGroup title="Remuxes and Transcodes">
         <PlaybackSettingsFields values={values} errors={errors} onEdit={onEdit} />
+      </SettingGroup>
+      <SettingGroup title="Subtitles">
+        <SubtitleSpaceRow
+          value={values.subtitleCacheMib}
+          onChange={(subtitleCacheMib) => {
+            onEdit({ subtitleCacheMib });
+          }}
+        />
       </SettingGroup>
     </>
   );

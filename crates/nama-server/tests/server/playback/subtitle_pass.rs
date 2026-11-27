@@ -3,6 +3,7 @@
 //! one is fetched before then (#829).
 
 use super::*;
+use nama_proto::nama::v1::GetPlaybackSettingsRequest;
 
 /// Alien's Tracks as the fake ffprobe reads them: 2 is an SRT, 3 an ASS and 4 a PGS subtitle.
 const SRT: usize = 2;
@@ -489,4 +490,56 @@ async fn a_pass_that_couldnt_write_its_cache_is_tried_again() {
     // The background pass, then one for each fetch.
     assert_eq!([first.0, again.0], [500; 2]);
     assert_eq!(ffmpeg_runs(bin.path()).len(), 3);
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn reading_ahead_stops_at_a_nearly_full_cache_and_a_fetch_deletes_the_least_recently_served()
+{
+    let bin = tempfile::tempdir().unwrap();
+    let ffmpeg = ffmpeg_reading_subtitles_after(bin.path(), "");
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    let one_mib = PlaybackSettings {
+        subtitle_cache_mib: Some(1),
+        ..Default::default()
+    };
+    (client.update_playback_settings(UpdatePlaybackSettingsRequest {
+        settings: one_mib.into(),
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
+    fx.write(ALIEN_2160P, b"video");
+    fx.scan_and_match().await;
+    let [earlier_version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("not one Version");
+    };
+    until_cached(&fx, "fonts/0").await;
+    let [earlier] = &fx.cached_subtitles()[..] else {
+        panic!("not one Version cached: {:?}", fx.cached_subtitles());
+    };
+    // As if Alien in 4K had picture subtitles taking all the cache's limit.
+    fs::write(earlier.join(format!("{PGS}.sup")), vec![0; 1024 * 1024]).unwrap();
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let version = (fx.version_ids(ALIEN).await.into_iter())
+        .find(|&version| version != earlier_version)
+        .unwrap();
+    // Longer than the background work takes to see the probe pass.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let runs_ahead = ffmpeg_runs(bin.path()).len();
+
+    let srt = fx.fetched(&subtitle_url(version, SRT)).await;
+
+    assert_eq!(runs_ahead, 1);
+    assert_eq!(srt, (200, "WEBVTT".to_owned()));
+    assert!(!earlier.exists(), "the earlier Version's subtitles stayed");
+    let measured = (client.get_playback_settings(GetPlaybackSettingsRequest::default()))
+        .await
+        .unwrap()
+        .into_owned()
+        .subtitle_cache_bytes;
+    assert!((1..1024).contains(&measured), "{measured} bytes");
 }

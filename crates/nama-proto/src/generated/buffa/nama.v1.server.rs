@@ -4805,6 +4805,16 @@ pub struct GetPlaybackSettingsResponse {
         PlaybackSettings,
         ::buffa::Inline<PlaybackSettings>,
     >,
+    /// The disk, in bytes, the subtitle cache takes now, which `settings.subtitle_cache_mib` limits.
+    ///
+    /// Field 2: `subtitle_cache_bytes`
+    #[serde(
+        rename = "subtitleCacheBytes",
+        alias = "subtitle_cache_bytes",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub subtitle_cache_bytes: u64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4813,6 +4823,7 @@ impl ::core::fmt::Debug for GetPlaybackSettingsResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("GetPlaybackSettingsResponse")
             .field("settings", &self.settings)
+            .field("subtitle_cache_bytes", &self.subtitle_cache_bytes)
             .finish()
     }
 }
@@ -4851,6 +4862,12 @@ impl ::buffa::Message for GetPlaybackSettingsResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.subtitle_cache_bytes != 0u64 {
+            size
+                += 1u64
+                    + ::buffa::types::uint64_encoded_len(self.subtitle_cache_bytes)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4868,6 +4885,9 @@ impl ::buffa::Message for GetPlaybackSettingsResponse {
                 buf,
             );
             self.settings.write_to(__cache, buf);
+        }
+        if self.subtitle_cache_bytes != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.subtitle_cache_bytes, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4893,6 +4913,13 @@ impl ::buffa::Message for GetPlaybackSettingsResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.subtitle_cache_bytes = ::buffa::types::decode_uint64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4902,6 +4929,7 @@ impl ::buffa::Message for GetPlaybackSettingsResponse {
     }
     fn clear(&mut self) {
         self.settings = ::buffa::MessageField::none();
+        self.subtitle_cache_bytes = 0u64;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5304,6 +5332,20 @@ pub struct PlaybackSettings {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub keep_behind_minutes: ::core::option::Option<u32>,
+    /// The most disk, in MiB, the subtitle cache takes, at least 1: each Version's subtitles and fonts,
+    /// read out of its file ahead of time or when first fetched. Once a fetch adds to it past this,
+    /// the Versions' subtitles served least recently are deleted until it fits. Reading ahead stops
+    /// while it holds 80% of this, so it never deletes what was read before. Unset for the default,
+    /// 5120.
+    ///
+    /// Field 7: `subtitle_cache_mib`
+    #[serde(
+        rename = "subtitleCacheMib",
+        alias = "subtitle_cache_mib",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub subtitle_cache_mib: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5317,6 +5359,7 @@ impl ::core::fmt::Debug for PlaybackSettings {
             .field("hardware_acceleration", &self.hardware_acceleration)
             .field("gpu", &self.gpu)
             .field("keep_behind_minutes", &self.keep_behind_minutes)
+            .field("subtitle_cache_mib", &self.subtitle_cache_mib)
             .finish()
     }
 }
@@ -5340,6 +5383,13 @@ impl PlaybackSettings {
     ///Sets [`Self::keep_behind_minutes`] to `Some(value)`, consuming and returning `self`.
     pub fn with_keep_behind_minutes(mut self, value: u32) -> Self {
         self.keep_behind_minutes = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::subtitle_cache_mib`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_subtitle_cache_mib(mut self, value: u32) -> Self {
+        self.subtitle_cache_mib = Some(value);
         self
     }
 }
@@ -5394,6 +5444,9 @@ impl ::buffa::Message for PlaybackSettings {
         if let Some(v) = self.keep_behind_minutes {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if let Some(v) = self.subtitle_cache_mib {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5432,6 +5485,9 @@ impl ::buffa::Message for PlaybackSettings {
         }
         if let Some(v) = self.keep_behind_minutes {
             ::buffa::types::put_uint32_field(6u32, v, buf);
+        }
+        if let Some(v) = self.subtitle_cache_mib {
+            ::buffa::types::put_uint32_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5500,6 +5556,15 @@ impl ::buffa::Message for PlaybackSettings {
                     ::buffa::types::decode_uint32(buf)?,
                 );
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.subtitle_cache_mib = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5514,6 +5579,7 @@ impl ::buffa::Message for PlaybackSettings {
         self.hardware_acceleration = ::buffa::EnumValue::from(0);
         self.gpu = ::buffa::MessageField::none();
         self.keep_behind_minutes = ::core::option::Option::None;
+        self.subtitle_cache_mib = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -1037,9 +1037,9 @@ pub trait ServerService: Send + Sync + 'static {
     /// Replaces how the Server plays Versions it changes, for plans made from then on, and for
     /// running ones too for `keep_behind_minutes`. Needs `PERMISSION_ADMIN`. A `segment_folder` that
     /// isn't an absolute path is refused with `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a
-    /// `max_transcodes` or `keep_behind_minutes` set to 0 with `REFUSAL_REASON_FIELD_REQUIRED` naming
-    /// it, a `segment_folder` the Server can't create or write a file in with
-    /// `REFUSAL_REASON_FOLDER_NOT_WRITABLE` naming it, and nothing changes.
+    /// `max_transcodes`, `keep_behind_minutes` or `subtitle_cache_mib` set to 0 with
+    /// `REFUSAL_REASON_FIELD_REQUIRED` naming it, a `segment_folder` the Server can't create or write
+    /// a file in with `REFUSAL_REASON_FOLDER_NOT_WRITABLE` naming it, and nothing changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

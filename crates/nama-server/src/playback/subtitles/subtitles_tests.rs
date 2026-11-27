@@ -1,8 +1,12 @@
 use std::{
+    fs::{File, FileTimes},
     io,
-    path::Path,
-    sync::atomic::{AtomicUsize, Ordering},
-    time::Duration,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::{Duration, SystemTime},
 };
 
 use super::{Cache, cache_key, fonts_key};
@@ -79,4 +83,133 @@ async fn a_burn_in_reads_from_the_cache_only_once_its_ass_and_every_font_are_the
         fonts: folder.join("fonts").display().to_string(),
     };
     assert_eq!(cached, Some(expected));
+}
+
+/// Caches 6 bytes at `key`, written at the epoch and last served `secs` seconds after it, and
+/// returns where.
+async fn put_served_at(cache: &Cache, key: &str, secs: u64) -> PathBuf {
+    put(cache, Path::new(key)).await;
+    let path = cache.dir.join(key);
+    let served = SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
+    let times = FileTimes::new()
+        .set_modified(SystemTime::UNIX_EPOCH)
+        .set_accessed(served);
+    File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(times)
+        .unwrap();
+    path
+}
+
+/// A cache of three Versions: `a`, 12 bytes last served at 4, `b`, 6 at 2, and `c`, 6 at 3. Returns
+/// the path of each one's file served last.
+async fn three_versions(cache: &Cache) -> [PathBuf; 3] {
+    put_served_at(cache, "versions/a/2.sup", 1).await;
+    let a = put_served_at(cache, "versions/a/3.sup", 4).await;
+    let b = put_served_at(cache, "versions/b/2.sup", 2).await;
+    let c = put_served_at(cache, "versions/c/2.sup", 3).await;
+    [a, b, c]
+}
+
+fn cached_versions(cache: &Cache) -> Vec<String> {
+    let mut versions: Vec<String> = std::fs::read_dir(cache.dir.join("versions"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    versions.sort();
+    versions
+}
+
+#[tokio::test]
+async fn the_versions_served_least_recently_go_until_the_cache_fits_by_their_files_served_last() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [a, ..] = three_versions(&cache).await;
+    let before = cache.size().await.unwrap();
+
+    cache.evict(13, &a).await.unwrap();
+
+    assert_eq!(before, 24);
+    assert_eq!(cached_versions(&cache), ["a"]);
+    assert_eq!(cache.size().await.unwrap(), 12);
+}
+
+#[tokio::test]
+async fn the_version_just_served_stays_even_when_it_was_served_least_recently() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [_, b, _] = three_versions(&cache).await;
+
+    cache.evict(13, &b).await.unwrap();
+
+    assert_eq!(cached_versions(&cache), ["b"]);
+}
+
+#[tokio::test]
+async fn a_version_being_made_stays() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [a, b, _] = three_versions(&cache).await;
+    // As a text pass over `b` holds it.
+    let making = Arc::clone(
+        cache
+            .making_locks()
+            .entry(b.parent().unwrap().to_owned())
+            .or_default(),
+    );
+
+    cache.evict(13, &a).await.unwrap();
+    drop(making);
+
+    assert_eq!(cached_versions(&cache), ["a", "b"]);
+}
+
+#[tokio::test]
+async fn a_cache_that_fits_its_limit_keeps_everything() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [a, ..] = three_versions(&cache).await;
+
+    cache.evict(24, &a).await.unwrap();
+
+    assert_eq!(cached_versions(&cache), ["a", "b", "c"]);
+}
+
+#[tokio::test]
+async fn an_empty_cache_takes_no_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+
+    assert_eq!(Cache::new(dir.path()).size().await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn a_version_read_ahead_and_never_served_goes_before_any_served() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [a, ..] = three_versions(&cache).await;
+    // Written by a pass just now, so newer than any served.
+    put(&cache, Path::new("versions/d/2.sup")).await;
+
+    cache.evict(24, &a).await.unwrap();
+
+    assert_eq!(cached_versions(&cache), ["a", "b", "c"]);
+}
+
+#[tokio::test]
+async fn a_version_whose_pass_failed_stays_so_its_file_isnt_read_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache = Cache::new(dir.path());
+    let [a, ..] = three_versions(&cache).await;
+    put_served_at(
+        &cache,
+        &format!("versions/b/{}", super::text_pass::FAILED),
+        2,
+    )
+    .await;
+
+    cache.evict(13, &a).await.unwrap();
+
+    assert_eq!(cached_versions(&cache), ["a", "b"]);
 }

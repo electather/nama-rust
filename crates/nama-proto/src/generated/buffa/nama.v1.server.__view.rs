@@ -8124,6 +8124,10 @@ pub struct GetPlaybackSettingsResponseView<'a> {
     pub settings: ::buffa::MessageFieldView<
         super::super::__buffa::view::PlaybackSettingsView<'a>,
     >,
+    /// The disk, in bytes, the subtitle cache takes now, which `settings.subtitle_cache_mib` limits.
+    ///
+    /// Field 2: `subtitle_cache_bytes`
+    pub subtitle_cache_bytes: u64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetPlaybackSettingsResponseView<'a> {
@@ -8177,6 +8181,13 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackSettingsResponseView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.subtitle_cache_bytes = ::buffa::types::decode_uint64(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -8214,6 +8225,7 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackSettingsResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            subtitle_cache_bytes: self.subtitle_cache_bytes,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -8233,6 +8245,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackSettingsResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.subtitle_cache_bytes != 0u64 {
+            size
+                += 1u64
+                    + ::buffa::types::uint64_encoded_len(self.subtitle_cache_bytes)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8251,6 +8269,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackSettingsResponseView<'a> {
                 buf,
             );
             self.settings.write_to(__cache, buf);
+        }
+        if self.subtitle_cache_bytes != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.subtitle_cache_bytes, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8277,6 +8298,13 @@ impl<'__a> ::serde::Serialize for GetPlaybackSettingsResponseView<'__a> {
             if let ::core::option::Option::Some(__v) = self.settings.as_option() {
                 __map.serialize_entry("settings", __v)?;
             }
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.subtitle_cache_bytes) {
+            __map
+                .serialize_entry(
+                    "subtitleCacheBytes",
+                    &::buffa::json_helpers::ProtoJson(&self.subtitle_cache_bytes),
+                )?;
         }
         __map.end()
     }
@@ -8381,6 +8409,13 @@ impl GetPlaybackSettingsResponseOwnedView {
         super::super::__buffa::view::PlaybackSettingsView<'_>,
     > {
         &self.0.reborrow().settings
+    }
+    /// The disk, in bytes, the subtitle cache takes now, which `settings.subtitle_cache_mib` limits.
+    ///
+    /// Field 2: `subtitle_cache_bytes`
+    #[must_use]
+    pub fn subtitle_cache_bytes(&self) -> u64 {
+        self.0.reborrow().subtitle_cache_bytes
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetPlaybackSettingsResponseView<'static>>>
@@ -9069,6 +9104,14 @@ pub struct PlaybackSettingsView<'a> {
     ///
     /// Field 6: `keep_behind_minutes`
     pub keep_behind_minutes: ::core::option::Option<u32>,
+    /// The most disk, in MiB, the subtitle cache takes, at least 1: each Version's subtitles and fonts,
+    /// read out of its file ahead of time or when first fetched. Once a fetch adds to it past this,
+    /// the Versions' subtitles served least recently are deleted until it fits. Reading ahead stops
+    /// while it holds 80% of this, so it never deletes what was read before. Unset for the default,
+    /// 5120.
+    ///
+    /// Field 7: `subtitle_cache_mib`
+    pub subtitle_cache_mib: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
@@ -9163,6 +9206,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                     ::buffa::types::decode_uint32(&mut cur)?,
                 );
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.subtitle_cache_mib = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -9199,6 +9249,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                 None => ::buffa::MessageField::none(),
             },
             keep_behind_minutes: self.keep_behind_minutes,
+            subtitle_cache_mib: self.subtitle_cache_mib,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -9241,6 +9292,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
         if let Some(v) = self.keep_behind_minutes {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if let Some(v) = self.subtitle_cache_mib {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9280,6 +9334,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
         }
         if let Some(v) = self.keep_behind_minutes {
             ::buffa::types::put_uint32_field(6u32, v, buf);
+        }
+        if let Some(v) = self.subtitle_cache_mib {
+            ::buffa::types::put_uint32_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9331,6 +9388,13 @@ impl<'__a> ::serde::Serialize for PlaybackSettingsView<'__a> {
             __map
                 .serialize_entry(
                     "keepBehindMinutes",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.subtitle_cache_mib {
+            __map
+                .serialize_entry(
+                    "subtitleCacheMib",
                     &::buffa::json_helpers::ProtoJson(&__v),
                 )?;
         }
@@ -9493,6 +9557,17 @@ impl PlaybackSettingsOwnedView {
     #[must_use]
     pub fn keep_behind_minutes(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().keep_behind_minutes
+    }
+    /// The most disk, in MiB, the subtitle cache takes, at least 1: each Version's subtitles and fonts,
+    /// read out of its file ahead of time or when first fetched. Once a fetch adds to it past this,
+    /// the Versions' subtitles served least recently are deleted until it fits. Reading ahead stops
+    /// while it holds 80% of this, so it never deletes what was read before. Unset for the default,
+    /// 5120.
+    ///
+    /// Field 7: `subtitle_cache_mib`
+    #[must_use]
+    pub fn subtitle_cache_mib(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().subtitle_cache_mib
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSettingsView<'static>>>

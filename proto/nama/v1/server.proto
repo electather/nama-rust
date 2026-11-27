@@ -35,9 +35,9 @@ service ServerService {
   // Replaces how the Server plays Versions it changes, for plans made from then on, and for
   // running ones too for `keep_behind_minutes`. Needs `PERMISSION_ADMIN`. A `segment_folder` that
   // isn't an absolute path is refused with `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a
-  // `max_transcodes` or `keep_behind_minutes` set to 0 with `REFUSAL_REASON_FIELD_REQUIRED` naming
-  // it, a `segment_folder` the Server can't create or write a file in with
-  // `REFUSAL_REASON_FOLDER_NOT_WRITABLE` naming it, and nothing changes.
+  // `max_transcodes`, `keep_behind_minutes` or `subtitle_cache_mib` set to 0 with
+  // `REFUSAL_REASON_FIELD_REQUIRED` naming it, a `segment_folder` the Server can't create or write
+  // a file in with `REFUSAL_REASON_FOLDER_NOT_WRITABLE` naming it, and nothing changes.
   rpc UpdatePlaybackSettings(UpdatePlaybackSettingsRequest) returns (UpdatePlaybackSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -382,6 +382,8 @@ message GetPlaybackSettingsRequest {}
 
 message GetPlaybackSettingsResponse {
   PlaybackSettings settings = 1;
+  // The disk, in bytes, the subtitle cache takes now, which `settings.subtitle_cache_mib` limits.
+  uint64 subtitle_cache_bytes = 2;
 }
 
 message UpdatePlaybackSettingsRequest {
@@ -427,6 +429,12 @@ message PlaybackSettings {
   // kept files take room in `segment_folder`, memory on a tmpfs, which must fit them: about 1 GB
   // per 4K Remux at the default.
   optional uint32 keep_behind_minutes = 6;
+  // The most disk, in MiB, the subtitle cache takes, at least 1: each Version's subtitles and fonts,
+  // read out of its file ahead of time or when first fetched. Once a fetch adds to it past this,
+  // the Versions' subtitles served least recently are deleted until it fits. Reading ahead stops
+  // while it holds 80% of this, so it never deletes what was read before. Unset for the default,
+  // 5120.
+  optional uint32 subtitle_cache_mib = 7;
 }
 
 message GetImageSettingsRequest {}

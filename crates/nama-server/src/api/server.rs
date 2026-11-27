@@ -33,7 +33,9 @@ use crate::{
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     link::Linking,
-    playback::{MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto},
+    playback::{
+        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, SubtitleCache, accel_to_proto,
+    },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
         self, BackupValues, HomeLayout, HomeRowId, ImageValues, Invalid, PlacedRow, PlaybackChange,
@@ -78,6 +80,8 @@ pub(super) struct ServerServiceHandler {
     /// Says whether the web app's Diagnostics go anywhere, so it records its own.
     pub(super) browser_spans: BrowserSpans,
     pub(super) running: RunningPlans,
+    /// Measured for the Playback settings.
+    pub(super) subtitles: SubtitleCache,
     pub(super) listening: std::net::SocketAddr,
 }
 
@@ -208,17 +212,20 @@ impl ServerService for ServerServiceHandler {
         })
     }
 
-    fn get_playback_settings<'a>(
-        &'a self,
+    async fn get_playback_settings(
+        &self,
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetPlaybackSettingsRequest>,
-    ) -> impl Future<
-        Output = ServiceResult<impl Encodable<GetPlaybackSettingsResponse> + Send + use<'a>>,
-    > + Send {
-        future::ready(Response::ok(GetPlaybackSettingsResponse {
+    ) -> ServiceResult<GetPlaybackSettingsResponse> {
+        let subtitle_cache_bytes = self.subtitles.size().await.map_err(|err| {
+            tracing::error!("measuring the subtitle cache failed: {err}");
+            ConnectError::internal("the Server couldn't measure its subtitle cache")
+        })?;
+        Response::ok(GetPlaybackSettingsResponse {
             settings: playback_settings_to_proto(self.settings.now().playback).into(),
+            subtitle_cache_bytes,
             ..Default::default()
-        }))
+        })
     }
 
     async fn update_playback_settings(
@@ -246,6 +253,7 @@ impl ServerService for ServerServiceHandler {
             keep_behind_minutes: settings.keep_behind_minutes,
             hardware,
             remote_limit: limit_from_proto(settings.remote_playback_limit),
+            subtitle_cache_mib: settings.subtitle_cache_mib,
         };
         let passed = self.abilities.can_do().await.hardware;
         let stored = (self.settings.change_playback(change, &passed).await)
@@ -680,6 +688,12 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
         )
         .field("settings.keep_behind_minutes")
         .param("minMinutes", &1),
+        Refused(Invalid::NoSubtitleCache) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the subtitle cache must be allowed at least 1 MiB",
+        )
+        .field("settings.subtitle_cache_mib")
+        .param("minMib", &1),
         Refused(Invalid::NoResizedCache) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the resized copies must be allowed at least 1 MiB",

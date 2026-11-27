@@ -21,6 +21,7 @@ pub(super) fn playback_settings_to_proto(settings: PlaybackValues) -> proto::Pla
         segment_folder: settings.segment_folder,
         max_transcodes: settings.max_transcodes.map(NonZeroU32::get),
         keep_behind_minutes: settings.keep_behind_minutes.map(NonZeroU32::get),
+        subtitle_cache_mib: settings.subtitle_cache_mib.map(NonZeroU32::get),
         remote_playback_limit: limit_to_proto(settings.remote_limit).into(),
         hardware_acceleration: hardware_choice_to_proto(&settings.hardware).into(),
         gpu: (settings.hardware.gpu())
