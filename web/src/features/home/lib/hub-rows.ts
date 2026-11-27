@@ -1,5 +1,3 @@
-import type { Transport } from "@connectrpc/connect";
-
 import type { LinkedServer } from "@/gen/nama/hub/v1/link_pb";
 import {
   type HomeRow,
@@ -8,15 +6,10 @@ import {
   type RecentlyAddedHomeRow,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-
-/** One of the Account's Servers the page at the Hub is signed in to. */
-export interface ReachedServer {
-  server: LinkedServer;
-  transport: Transport;
-}
+import type { TitleServer } from "@/shared/lib/title-server";
 
 /** A Home row as one Server gives it. */
-export type RowOn<Row> = ReachedServer & { row: Row };
+export type RowOn<Row> = TitleServer<LinkedServer> & { row: Row };
 
 /** One row of Home at the Hub: a kind of row, merged from each Server that has it. */
 type HubRow =
@@ -29,7 +22,7 @@ type HubRow =
  * Continue Watching, each Plugin's row by its Plugin and key, and Recently Added by Library kind.
  * A Kernel row this app doesn't know is left out.
  */
-export function mergeRows(servers: (ReachedServer & { rows: HomeRow[] })[]) {
+export function mergeRows(servers: (TitleServer<LinkedServer> & { rows: HomeRow[] })[]) {
   const merged = new Map<string, HubRow>();
   for (const { rows, ...server } of servers) {
     for (const { kernelOrPlugin: row } of rows) {

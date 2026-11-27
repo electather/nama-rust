@@ -25,6 +25,8 @@ export interface Row {
   poster?: string | null;
   /** An Episode's Still, which it leads with in place of its `poster`. */
   still?: StillArt | undefined;
+  /** At the Hub, the Linked Server its art is drawn from, by id. */
+  server?: string | undefined;
   /** What it is or is set to, in a pill beside the label. */
   badge?: string;
   /** A title's open Request, whose pill shows beside the label. */

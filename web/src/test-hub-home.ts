@@ -18,6 +18,7 @@ import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import { openApp } from "@/test-app";
 import { continueWatchingRow } from "@/test-home-rows";
 import { accountHub } from "@/test-hub";
+import { atOrigin } from "@/test-server-at";
 
 const basement = create(LinkedServerSchema, {
   id: "basement",
@@ -45,7 +46,9 @@ export function fakeLinkedServer(
   return (interceptors: Interceptor[]) =>
     createRouterTransport(
       (router) => {
-        router.service(ServerService, { getServerInfo: () => ({ version: "0.3.0" }) });
+        router.service(ServerService, {
+          getServerInfo: () => ({ version: "0.3.0", imageWidths: [320] }),
+        });
         router.service(SignInService, {
           signInWithHubToken: () => ({ token: "session" }),
           whoAmI: () => ({ user: { id: 1n, name: "Ada" } }),
@@ -81,7 +84,7 @@ export function openHub(at: Record<string, ReturnType<typeof fakeLinkedServer>>)
   const { transport } = accountHub({ servers: [basement, cabin] });
   openApp("/", transport, undefined, (origin, interceptors) => {
     const server = at[origin];
-    return server ? server(interceptors) : unreachable;
+    return server ? atOrigin(server(interceptors), origin) : unreachable;
   });
 }
 

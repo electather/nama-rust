@@ -1,18 +1,14 @@
 import type { Transport } from "@connectrpc/connect";
 
-import type { LinkedServer } from "@/gen/nama/hub/v1/link_pb";
 import type { HomeRowTitle } from "@/gen/nama/v1/browse_pb";
 import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import type { WatchlistTitle } from "@/gen/nama/v1/watchlist_pb";
 import type { RowTitle } from "@/shared/lib/row-titles";
 import { titleParam } from "@/shared/lib/title-param";
+import type { TitleServer } from "@/shared/lib/title-server";
 
-/** One Server's Watchlist, `server` unset for the Server that served the page. */
-export interface WatchlistOnServer {
-  transport: Transport;
-  server: LinkedServer | undefined;
-  titles: WatchlistTitle[];
-}
+/** One Server's Watchlist. */
+export type WatchlistOnServer = TitleServer & { titles: WatchlistTitle[] };
 
 /** A title as one Server's Watchlist keeps it: the id `RemoveFromWatchlist` takes it off by. */
 export interface Listing {
@@ -21,17 +17,8 @@ export interface Listing {
   id: ExternalId;
 }
 
-/**
- * A title on the Watchlist page: how it shows, on which Server and through its `transport`, and
- * each place it's listed.
- */
-export interface WatchlistEntry {
-  key: string;
-  title: RowTitle;
-  server: LinkedServer | undefined;
-  transport: Transport;
-  listed: Listing[];
-}
+/** A title on the Watchlist page: how it shows, on which Server, and each place it's listed. */
+export type WatchlistEntry = TitleServer & { key: string; title: RowTitle; listed: Listing[] };
 
 /**
  * `watchlists` merged, each title once by its kind and either the External ID it's listed by or

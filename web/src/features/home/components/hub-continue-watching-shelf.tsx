@@ -1,10 +1,10 @@
 import { ContinueWatchingCard } from "@/features/home/components/continue-watching-card";
-import { OnServer } from "@/features/home/components/on-server";
 import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import { useHubCardActions } from "@/features/home/data/use-hub-card-actions";
 import type { useHubContinueWatching } from "@/features/home/data/use-hub-continue-watching";
 import { backdropTile } from "@/features/home/lib/shelf-tiles";
+import { OnServer } from "@/shared/components/on-server";
 
 /**
  * The Hub's Continue Watching `cards`, each opening on its Server, its skeleton while there are
@@ -23,7 +23,7 @@ export function HubContinueWatchingShelf({
   const tiles = cards.map((merged) => ({
     key: `${merged.server.id}/${merged.card.key}`,
     tile: (
-      <OnServer transport={merged.transport}>
+      <OnServer on={merged}>
         <ContinueWatchingCard
           card={merged.card}
           actions={{

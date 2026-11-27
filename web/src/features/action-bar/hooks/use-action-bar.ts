@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
 
 import { useFound } from "@/features/action-bar/data/use-found";
@@ -13,6 +13,7 @@ import type { FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
+import { linkOn } from "@/shared/lib/title-server";
 
 /** What a search from each frame asks the Server for. */
 const kinds = {
@@ -21,6 +22,29 @@ const kinds = {
   show: TitleKind.SHOW,
   shortcuts: TitleKind.UNSPECIFIED,
 } satisfies Record<Frame, TitleKind>;
+
+function requestPage({ kind, titleId }: FoundTitle): LinkOptions {
+  return kind === "movie"
+    ? { to: "/movies/$movieId", params: { movieId: titleId } }
+    : { to: "/shows/$showId", params: { showId: titleId } };
+}
+
+/**
+ * Where `title` opens: its page in its Library, at an Episode's Season, or else its request page.
+ */
+function titleLink(title: FoundTitle): LinkOptions {
+  const { kind, libraryId, titleId, season } = title;
+  if (libraryId === undefined) {
+    return requestPage(title);
+  }
+  return kind === "movie"
+    ? { to: "/libraries/$libraryId/movies/$movieId", params: { libraryId, movieId: titleId } }
+    : {
+        to: "/libraries/$libraryId/shows/$showId",
+        params: { libraryId, showId: titleId },
+        search: season === undefined ? {} : { season },
+      };
+}
 
 /** The row selected: the one picked, while it's still listed, or else the first. */
 function activeOf(rows: readonly Row[], picked: string | undefined) {
@@ -66,35 +90,19 @@ export function useActionBar({
     dialog.close();
     void navigate({ to: "/libraries/$libraryId", params: { libraryId: String(id) } });
   }
-  // At the Hub, each opens on the Server it was found on.
-  function openToRequest({ kind, titleId, server }: FoundTitle) {
-    void (kind === "movie"
-      ? navigate({ to: "/movies/$movieId", params: { movieId: titleId }, search: { server } })
-      : navigate({ to: "/shows/$showId", params: { showId: titleId }, search: { server } }));
-  }
-  function openPerson({ personId, server }: FoundPerson) {
+  // At the Hub, each opens on the Server it was found on, by the id a Recent keeps.
+  function openOn(link: LinkOptions, { server }: { server?: string | undefined }) {
     dialog.close();
-    void navigate({ to: "/people/$personId", params: { personId }, search: { server } });
+    void navigate(linkOn(link, { server: server === undefined ? undefined : { id: server } }));
+  }
+  function openPerson(person: FoundPerson) {
+    openOn({ to: "/people/$personId", params: { personId: person.personId } }, person);
   }
   function open(title: FoundTitle) {
-    dialog.close();
-    const { libraryId, titleId, season, server } = title;
-    if (libraryId === undefined) {
-      openToRequest(title);
-      return;
+    if (title.libraryId !== undefined) {
+      remember(title);
     }
-    remember(title);
-    void (title.kind === "movie"
-      ? navigate({
-          to: "/libraries/$libraryId/movies/$movieId",
-          params: { libraryId, movieId: titleId },
-          search: { server },
-        })
-      : navigate({
-          to: "/libraries/$libraryId/shows/$showId",
-          params: { libraryId, showId: titleId },
-          search: season === undefined ? { server } : { season, server },
-        }));
+    openOn(titleLink(title), title);
   }
 
   const groups = groupsOf(
@@ -126,6 +134,8 @@ export function useActionBar({
     active,
     slow,
     note: search.note,
+    /** The Server searched that a row's art is drawn from, or none for a Recent whose isn't reached. */
+    serverOf: (id: string | undefined) => search.servers.find(({ server }) => server?.id === id),
     handleClose: dialog.close,
     handleBack: back,
     pick: setPicked,
