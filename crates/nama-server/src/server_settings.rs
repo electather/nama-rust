@@ -27,7 +27,7 @@ use url::Url;
 use crate::{
     db::{BoxFuture, Database},
     diagnostics::{self, Sharing},
-    ffmpeg::{Accel, Hardware},
+    ffmpeg::Hardware,
     web_push::VapidKey,
 };
 
@@ -584,33 +584,6 @@ impl Settings {
             move |values| values.default_home_layout.forget(&gone),
         )
         .await
-    }
-
-    /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
-    /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
-    fn offered_gpu(
-        &self,
-        accel: Accel,
-        id: &str,
-        passed: &[Hardware],
-    ) -> Result<PickedGpu, Invalid> {
-        let found = (passed.iter())
-            .find(|hardware| hardware.is_pair(accel, id))
-            .and_then(|hardware| hardware.gpu.as_ref());
-        if let Some(gpu) = found {
-            return Ok(PickedGpu {
-                id: id.to_owned(),
-                name: gpu.name(),
-            });
-        }
-        match &read(&self.values).playback.hardware {
-            HardwareChoice::Api(stored, Some(gpu)) if *stored == accel && gpu.id == id => {
-                Ok(gpu.clone())
-            }
-            HardwareChoice::Automatic | HardwareChoice::Off | HardwareChoice::Api(..) => {
-                Err(Invalid::GpuNotOffered { id: id.to_owned() })
-            }
-        }
     }
 
     /// Runs `upsert`, which writes only its own group's columns, then `merge`s the same values

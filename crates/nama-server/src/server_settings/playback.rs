@@ -7,8 +7,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::{Values, read};
-use crate::ffmpeg::Accel;
+use super::{Invalid, Settings, Values, read};
+use crate::ffmpeg::{Accel, Hardware};
 
 /// How many minutes behind playback a running plan keeps its files while none is set: about 1 GB
 /// behind a 4K Remux, which a small tmpfs holds (#671).
@@ -118,6 +118,35 @@ impl PlaybackSettings {
     /// one set, and the default.
     pub(crate) fn leftover_paths(&self) -> [PathBuf; 2] {
         [self.path(), self.default_folder.clone()]
+    }
+}
+
+impl Settings {
+    /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
+    /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
+    pub(super) fn offered_gpu(
+        &self,
+        accel: Accel,
+        id: &str,
+        passed: &[Hardware],
+    ) -> Result<PickedGpu, Invalid> {
+        let found = (passed.iter())
+            .find(|hardware| hardware.is_pair(accel, id))
+            .and_then(|hardware| hardware.gpu.as_ref());
+        if let Some(gpu) = found {
+            return Ok(PickedGpu {
+                id: id.to_owned(),
+                name: gpu.name(),
+            });
+        }
+        match &read(&self.values).playback.hardware {
+            HardwareChoice::Api(stored, Some(gpu)) if *stored == accel && gpu.id == id => {
+                Ok(gpu.clone())
+            }
+            HardwareChoice::Automatic | HardwareChoice::Off | HardwareChoice::Api(..) => {
+                Err(Invalid::GpuNotOffered { id: id.to_owned() })
+            }
+        }
     }
 }
 
