@@ -2,7 +2,7 @@
 //! accepting one, through the generated clients, over a real socket and against a real SQLite
 //! database.
 
-use crate::support::{refused, server};
+use crate::support::{permissions::set_permissions, refused, server};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -120,21 +120,6 @@ async fn list(client: &UserServiceClient<HttpClient>) -> (Vec<Invite>, bool) {
         .unwrap()
         .into_owned();
     (listed.invites, listed.server_url_set)
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn set_permissions(server: &TestServer, user: i64, permissions: &[Permission]) {
-    users(server.client_config())
-        .set_permissions(SetPermissionsRequest {
-            user_id: user,
-            permissions: permissions.iter().map(|&p| p.into()).collect(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
 }
 
 fn permissions_of(permissions: &[buffa::EnumValue<Permission>]) -> Vec<Permission> {
@@ -287,9 +272,17 @@ async fn an_invite_stops_working_for_good_once_its_creator_cant_manage_users() {
         .await
         .unwrap();
 
-    set_permissions(&server, creator.id, &[Permission::Request]).await;
+    set_permissions(&server.client_config(), creator.id, &[Permission::Request])
+        .await
+        .unwrap();
     let listed = list(&users(server.client_config())).await.0;
-    set_permissions(&server, creator.id, &[Permission::ManageUsers]).await;
+    set_permissions(
+        &server.client_config(),
+        creator.id,
+        &[Permission::ManageUsers],
+    )
+    .await
+    .unwrap();
 
     assert_eq!(listed, Vec::new());
     assert_invite_not_found(accept(&server, &token_of(&created), "Mum").await);
@@ -341,11 +334,12 @@ async fn a_creator_who_loses_a_permission_cant_pass_it_on() {
         .unwrap();
 
     set_permissions(
-        &server,
+        &server.client_config(),
         creator.id,
         &[Permission::ManageUsers, Permission::ViewRequests],
     )
-    .await;
+    .await
+    .unwrap();
     let listed = list(&users(server.client_config())).await.0;
     let accepted = accept(&server, &token_of(&created), "Mum").await.unwrap();
 
