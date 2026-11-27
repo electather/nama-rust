@@ -5,8 +5,8 @@ import { useRef } from "react";
 import { StateLabel } from "@/shared/components/state-label";
 
 /**
- * The toast over the foot of a pane that makes each change as it's asked, or of the page after the
- * user menu's Sign out, there only once one fails: `says` why, until it's dismissed or retried.
+ * The toast over the foot of a flex column, such as a pane that makes each change as it's asked,
+ * there only once something fails: `says` why, until it's dismissed or retried.
  */
 export function SaveToast({
   label = "Not saved",
