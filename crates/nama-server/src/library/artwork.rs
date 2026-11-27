@@ -737,5 +737,9 @@ fn content_type(path: &str) -> &'static str {
 }
 
 #[cfg(test)]
+#[path = "artwork_pick_tests.rs"]
+mod pick_tests;
+
+#[cfg(test)]
 #[path = "artwork_tests.rs"]
 mod tests;
