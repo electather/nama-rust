@@ -10,8 +10,8 @@ import { accountHub, hubRefused } from "@/test-hub";
 
 afterEach(cleanup);
 
-test("an Account with no Linked User is told to set up a Server or ask for an Invite", async () => {
-  openApp("/", accountHub().transport);
+test("in Settings, an Account with no Linked User is told to set up a Server or ask for an Invite", async () => {
+  openApp("/?settings=account-servers", accountHub().transport);
 
   await expect(screen.findByText(/ask a Server’s Admin for an Invite/u)).resolves.toBeDefined();
 });
@@ -25,7 +25,7 @@ const grace = create(UserInviteSchema, {
 
 test("a User waiting for the Account shows instead of the notice, and accepting Links them", async () => {
   const { hub, transport } = accountHub({ invites: [grace] });
-  openApp("/", transport);
+  openApp("/?settings=account-servers", transport);
 
   const accept = await screen.findByRole("button", { name: "Accept Grace on Cabin" });
   expect(screen.queryByText(/ask a Server’s Admin for an Invite/u)).toBeNull();
@@ -40,7 +40,7 @@ test("a User waiting for the Account shows instead of the notice, and accepting 
 
 test("an Account whose email isn't proven is offered a Sign-in Link before accepting", async () => {
   const acceptRefusal = hubRefused(Code.FailedPrecondition, RefusalReason.EMAIL_NOT_PROVEN);
-  openApp("/", accountHub({ invites: [grace], acceptRefusal }).transport);
+  openApp("/?settings=account-servers", accountHub({ invites: [grace], acceptRefusal }).transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Accept Grace on Cabin" }));
 
@@ -49,7 +49,7 @@ test("an Account whose email isn't proven is offered a Sign-in Link before accep
 });
 
 test("linking a User by code takes the notice away", async () => {
-  openApp("/", accountHub().transport);
+  openApp("/?settings=account-servers", accountHub().transport);
   await screen.findByText(/ask a Server’s Admin for an Invite/u);
 
   const form = within(screen.getByRole("form", { name: "Link a User" }));
