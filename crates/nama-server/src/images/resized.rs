@@ -1,14 +1,13 @@
-//! Resized copies of stored images, as JPEG or JPEG XL: made on one thread, one at a time, and
-//! kept in a cache that drops the least recently sent once it passes its limit (ADR 0039).
+//! Resized copies of stored images, as JPEG or JPEG XL, made on one thread, one at a time (ADR
+//! 0039): the pixel work the resized cache (`resized_cache.rs`) calls.
 
 use std::{
     error::Error,
-    fs::{File, FileTimes},
+    fs::File,
     io::{self, BufReader, Seek as _, Write as _},
     panic::{AssertUnwindSafe, catch_unwind},
-    path::{Path, PathBuf},
+    path::Path,
     sync::mpsc,
-    time::SystemTime,
 };
 
 use fast_image_resize::{MulDiv, ResizeOptions, Resizer};
@@ -16,7 +15,6 @@ use image::{
     DynamicImage, ImageDecoder as _, ImageReader, codecs::jpeg::JpegEncoder, metadata::Orientation,
 };
 use jixel::{EncodeConfig, Speed};
-use walkdir::WalkDir;
 
 use super::write_now;
 
@@ -191,9 +189,6 @@ pub(super) fn make_copy(
     // ponytail: so each such request waits for the resize thread to read the original's header;
     // remember which widths go as JPEG if that queue grows long.
     if format != asked && copy.try_exists()? {
-        if let Err(err) = touch(&copy) {
-            tracing::warn!("could not mark {} as sent: {err}", copy.display());
-        }
         return Ok(Copied::Found(format));
     }
     let mut source = DynamicImage::from_decoder(decoder)?;
@@ -279,72 +274,6 @@ const fn turns_sideways(orientation: Orientation) -> bool {
             | Orientation::Rotate90FlipH
             | Orientation::Rotate270FlipH
     )
-}
-
-/// Marks the copy at `copy` as just sent, so it is the last [`evict`] deletes.
-///
-/// # Errors
-///
-/// [`io::ErrorKind::NotFound`] if no copy is there.
-pub(super) fn touch(copy: &Path) -> io::Result<()> {
-    // Set explicitly, as mounts with `noatime` or `relatime` don't update it on every read. Opened
-    // for writing, as Windows refuses to set a file's times through a read-only handle.
-    File::options()
-        .write(true)
-        .open(copy)?
-        .set_times(FileTimes::new().set_accessed(SystemTime::now()))
-}
-
-/// The bytes the copies in `cache` take.
-///
-/// # Errors
-///
-/// If the cache can't be read.
-pub(super) fn size(cache: &Path) -> io::Result<u64> {
-    Ok(copies(cache)?.iter().map(|(_, size, _)| size).sum())
-}
-
-/// Deletes the copies in `cache` sent least recently until they take at most `limit` bytes, never
-/// `made`, the copy about to be sent. Returns the bytes those left take.
-///
-/// # Errors
-///
-/// If the cache can't be read or a copy deleted.
-// ponytail: lists the whole cache after each new copy, which costs about a stat per copy; keep
-// a running total if a cache of tens of thousands of copies makes resizes slow.
-pub(super) fn evict(cache: &Path, limit: u64, made: &Path) -> io::Result<u64> {
-    let mut copies = copies(cache)?;
-    let mut total: u64 = copies.iter().map(|(_, size, _)| size).sum();
-    copies.sort_unstable();
-    for (_, size, path) in copies {
-        if total <= limit {
-            break;
-        }
-        if path == made {
-            continue;
-        }
-        std::fs::remove_file(path)?;
-        total -= size;
-    }
-    Ok(total)
-}
-
-/// Each copy in `cache`, as when it was last sent, its size and its path.
-fn copies(cache: &Path) -> io::Result<Vec<(SystemTime, u64, PathBuf)>> {
-    let mut copies = Vec::new();
-    for entry in WalkDir::new(cache) {
-        let entry = match entry {
-            Ok(entry) if entry.file_type().is_file() => entry,
-            Ok(_) => continue,
-            Err(err) if err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound) => {
-                continue;
-            }
-            Err(err) => return Err(err.into()),
-        };
-        let metadata = entry.metadata()?;
-        copies.push((metadata.accessed()?, metadata.len(), entry.into_path()));
-    }
-    Ok(copies)
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ use tower::ServiceExt;
 use super::{Artwork, Error, KEPT_DIR, Picked, pick};
 use crate::{
     db::Database,
-    images::{ImageStore, MAX_SVG_BYTES},
+    images::{BACKDROP_WIDTHS, ImageStore, MAX_SVG_BYTES, Resize},
     library::{
         CustomImages, FoundImages, LocalImages, Metadata, Role,
         contents::{Contents, ImageRef, LocalImageFile, LocalRole},
@@ -110,6 +110,35 @@ async fn deleting_unused_images_does_not_wait_for_a_download() {
     let swept = tokio::time::timeout(Duration::from_secs(1), artwork.drop_unused(&contents)).await;
 
     assert!(swept.is_ok(), "the sweep waited for the download");
+}
+
+#[tokio::test]
+async fn deleting_unused_images_while_their_copies_are_made_ahead_leaves_none_of_them() {
+    let data = tempfile::tempdir().unwrap();
+    let mut wide = Cursor::new(Vec::new());
+    (RgbImage::new(2000, 1000).write_to(&mut wide, ImageFormat::Png)).unwrap();
+    let wide = wide.into_inner();
+    let artwork = artwork_on(&data, Router::new().fallback(|| async { wide })).await;
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let images = ServerSettings::new(Arc::clone(&db), data.path().to_owned()).images();
+    let copies = Resize::each(&BACKDROP_WIDTHS, &images);
+    let image = ("tmdb".to_owned(), "/swept.jpg".to_owned());
+    let ahead = HashMap::from([(image.clone(), copies.as_slice())]);
+    let sweep_once_stored = async {
+        while artwork.store.list(KEPT_DIR).await.unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        artwork.drop_unused(&Contents::new(db)).await;
+    };
+
+    tokio::join!(artwork.download(vec![image], &ahead), sweep_once_stored);
+
+    let cached = walkdir::WalkDir::new(data.path().join("resized")).into_iter();
+    let left: Vec<_> = (cached.filter_map(Result::ok))
+        .filter(|entry| entry.file_type().is_file())
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
+    assert_eq!(artwork.thumbhashes().await.unwrap(), HashMap::new());
 }
 
 #[tokio::test]

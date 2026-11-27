@@ -439,15 +439,12 @@ impl Artwork {
         {
             Err(err) => tracing::warn!(path, "could not download an image: {err}"),
             Ok(sweeping) => {
+                // A sweep deleting the image meanwhile leaves none of its copies: the store sees
+                // to that.
                 drop(sweeping);
-                let key = key(KEPT_DIR, &plugin, &path);
-                for copy in copies {
-                    // Held through each width's copies, as a request's resize holds it, so a sweep
-                    // deleting the image meanwhile can't leave a copy and its thumbhash behind,
-                    // yet waits on one width's, not all of them, with image requests behind it.
-                    let _sweeping = self.sweeping.read().await;
-                    self.store.copy_ahead(&key, &[copy]).await;
-                }
+                (self.store)
+                    .copy_ahead(&key(KEPT_DIR, &plugin, &path), &copies)
+                    .await;
             }
         }
     }
