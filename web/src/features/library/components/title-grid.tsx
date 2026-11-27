@@ -1,5 +1,4 @@
-import { Button } from "nama-ui/components/button";
-
+import { NoMatches } from "@/features/library/components/no-matches";
 import { VirtualPosterGrid } from "@/features/library/components/virtual-poster-grid";
 import type { GridProps, Jump } from "@/features/library/lib/titles-props";
 import { ShowMore } from "@/shared/components/show-more";
@@ -10,16 +9,7 @@ import { ShowMore } from "@/shared/components/show-more";
  */
 export function TitleGrid({ titles, paged, posters, clear, jump }: GridProps & { jump?: Jump }) {
   if (posters.length === 0) {
-    return (
-      <div className="flex flex-col items-start gap-2.5 py-12">
-        <p className="font-medium">No {titles.many} match these filters</p>
-        {clear && (
-          <Button variant="secondary" onClick={clear}>
-            Clear filters
-          </Button>
-        )}
-      </div>
-    );
+    return <NoMatches titles={titles.many} clear={clear} />;
   }
   return (
     <>
