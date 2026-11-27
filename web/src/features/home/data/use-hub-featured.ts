@@ -1,16 +1,21 @@
+import { createQueryOptions } from "@connectrpc/connect-query";
 import { useQueries } from "@tanstack/react-query";
 
-import { featuredQuery } from "@/features/home/data/use-featured";
 import { useReachedServers } from "@/features/home/data/use-reached-servers";
 import { featuredPanels } from "@/features/home/lib/featured-panels";
 import { mergeFeatured, panelOn } from "@/features/home/lib/hub-titles";
+import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 /** Featured at the Hub, each Server's in turn, from the Servers that have answered so far. */
 export function useHubFeatured() {
   const reached = useReachedServers();
   // Not suspended, so a slow or failing Server holds up neither Featured nor the rest.
   return useQueries({
-    queries: reached.map(({ transport }) => featuredQuery(transport)),
+    queries: reached.map(({ transport }) => ({
+      ...createQueryOptions(BrowseService.method.listFeatured, {}, { transport }),
+      staleTime: loaderStaleTime,
+    })),
     combine: (answers) =>
       mergeFeatured(
         reached.map((server, at) =>
