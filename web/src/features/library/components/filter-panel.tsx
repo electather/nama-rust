@@ -2,13 +2,12 @@ import { Button } from "nama-ui/components/button";
 
 import { GenreChips } from "@/features/library/components/genre-chips";
 import { WatchStateChoice } from "@/features/library/components/watch-state-choice";
-import { YearRange } from "@/features/library/components/year-range";
 import type { BarProps } from "@/features/library/lib/listing-bar";
 import { isFiltered, unfiltered } from "@/features/library/lib/title-listing";
 
 const heading = "text-sm font-medium";
 
-/** What the Filter button opens: genres, then Watch State, then years, and Clear filters. */
+/** What the Filter button opens: genres, then Watch State, and Clear filters. */
 export function FilterPanel({ genres, ...bar }: BarProps & { genres: string[] }) {
   const clear = isFiltered(bar.listing) && (
     <div className="-mt-1 flex justify-end">
@@ -29,10 +28,6 @@ export function FilterPanel({ genres, ...bar }: BarProps & { genres: string[] })
       <div className="flex flex-col gap-2.5">
         <p className={heading}>Watch State</p>
         <WatchStateChoice {...bar} />
-      </div>
-      <div className="flex flex-col gap-2.5">
-        <p className={heading}>Year</p>
-        <YearRange {...bar} />
       </div>
       {clear}
     </div>

@@ -31,13 +31,13 @@ function RadioRow({ children, ...props }: RadioPrimitive.Root.Props) {
 
 /**
  * Choices in one pill, of which one is chosen, the shape `TabsList` draws: for a choice that
- * isn't a view, such as a filter's. Its segments share its width.
+ * isn't a view, such as a filter's. Each segment is as wide as its words.
  */
 function RadioSegments(props: RadioGroupPrimitive.Props) {
   return (
     <RadioGroupPrimitive
       data-slot="radio-segments"
-      className="flex h-9 w-full items-center gap-0.5 rounded-lg bg-muted p-0.75"
+      className="flex h-9 w-fit items-center gap-0.5 rounded-lg bg-muted p-0.75"
       {...props}
     />
   );
@@ -48,7 +48,7 @@ function RadioSegment(props: RadioPrimitive.Root.Props) {
   return (
     <RadioPrimitive.Root
       data-slot="radio-segment"
-      className="inline-flex h-full min-w-0 flex-1 cursor-pointer items-center justify-center rounded-md border border-transparent px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:border-input data-checked:bg-input/30 data-checked:shadow-xs"
+      className="inline-flex h-full flex-none cursor-pointer items-center justify-center rounded-md border border-transparent px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:border-input data-checked:bg-input/30 data-checked:shadow-xs"
       {...props}
     />
   );

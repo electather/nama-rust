@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import {
@@ -96,19 +96,13 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Filter" }));
   fireEvent.click(await screen.findByRole("radio", { name: "Not started" }));
   await screen.findByRole("button", { name: "Filter, 1 on" });
-  act(() => {
-    fireEvent.change(screen.getByRole("textbox", { name: "From year" }), {
-      target: { value: "1990" },
-    });
-  });
 
   await waitFor(() => {
-    expect(asked.at(-1)?.filter?.minYear).toBe(1990);
+    expect(asked.some(({ filter }) => filter?.watched === WatchedFilter.NOT_STARTED)).toBe(true);
   });
-  const last = asked.at(-1);
+  const last = asked.find(({ filter }) => filter?.watched === WatchedFilter.NOT_STARTED);
   expect(last?.sort).toBe(MovieSort.ADDED);
   expect(last?.direction).toBe(SortDirection.DESCENDING);
-  expect(last?.filter?.watched).toBe(WatchedFilter.NOT_STARTED);
   expect(last?.page?.token).toBe("");
 });
 
