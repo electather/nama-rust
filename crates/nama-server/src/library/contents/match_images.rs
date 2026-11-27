@@ -44,12 +44,27 @@ impl Contents {
                                                                     'title', 'show')
                                               AND keyed.namespace = title_roles.namespace
                                               AND keyed.value = title_roles.value))
-                   -- ponytail: reads every Trailer of `plugin`'s titles; index the thumbnails in a
-                   -- table of their own if serving them gets slow.
-                   OR EXISTS (SELECT 1 FROM title_details, json_each(title_details.trailers) AS trailer
+               AS "stored!: bool""#,
+            plugin,
+            image
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
+    /// Whether `image` is the thumbnail of a Trailer of a title some Match of `plugin`'s stores.
+    pub(crate) async fn stores_trailer_thumbnail(
+        &self,
+        plugin: &str,
+        image: &str,
+    ) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            // ponytail: reads every Trailer of `plugin`'s titles; index the thumbnails in a table
+            // of their own if serving them gets slow.
+            r#"SELECT EXISTS (SELECT 1 FROM title_details, json_each(title_details.trailers) AS trailer
                               WHERE title_details.plugin = ?1
                                 AND json_extract(trailer.value, '$.thumbnail') = ?2
-                                -- As a headshot is kept.
+                                -- As `stores_image` keeps a headshot.
                                 AND EXISTS (SELECT 1 FROM item_match_ids AS keyed
                                             JOIN item_matches
                                               ON item_matches.item_id = keyed.item_id

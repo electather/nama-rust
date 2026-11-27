@@ -122,7 +122,11 @@ async fn a_trailer_thumbnail_is_stored_and_listed_to_resize_only_while_its_title
     let stored = || async {
         let images = fx.contents.images(Some(fx.library)).await.unwrap();
         let listed = images.contains(&("tmdb".to_owned(), thumbnail.to_owned()));
-        let served = fx.contents.stores_image("tmdb", thumbnail).await.unwrap();
+        let served = fx
+            .contents
+            .stores_trailer_thumbnail("tmdb", thumbnail)
+            .await
+            .unwrap();
         let resized_ahead = fx.contents.trailer_thumbnails(fx.library).await.unwrap();
         (listed, served, resized_ahead.len())
     };

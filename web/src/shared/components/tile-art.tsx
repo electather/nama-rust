@@ -20,7 +20,7 @@ export function TileArt({
    * radius, for its hairline.
    */
   look: { sizes: string; radius: string; widths: OfferedWidths };
-  onError?: () => void;
+  onError?: (() => void) | undefined;
 }) {
   const src = useServerUrl(url);
   const srcSet = useSrcSet(url, look.widths);

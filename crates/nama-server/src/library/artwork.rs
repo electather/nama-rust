@@ -4,10 +4,11 @@
 //! A Match stores its title's images as paths a title source handed out, along with the Plugin
 //! whose title source that was. Once a Match is stored, its images are downloaded through that
 //! title source in the background, and kept in the [`ImageStore`] while some Match stores them. One
-//! asked for before it arrived is downloaded on the spot. Images a search or lookup offered and no
-//! Match stores go to a cache of their own, which can be deleted at any time (ADR 0037). Callers
-//! should only ask for images some Match stores, or that a search or lookup offered to clients,
-//! so clients can't use the store to fetch arbitrary images.
+//! asked for before it arrived is downloaded on the spot, except a Trailer thumbnail: its host may
+//! hear only of a Match refresh (GLOSSARY "Trailer"), so until then it is not found. Images a
+//! search or lookup offered and no Match stores go to a cache of their own, which can be deleted
+//! at any time (ADR 0037). Callers should only ask for images some Match stores, or that a search
+//! or lookup offered to clients, so clients can't use the store to fetch arbitrary images.
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
 //! are not RPC), which is served to anyone with a session. A title source's path names bytes that
@@ -546,6 +547,24 @@ impl Artwork {
             .serve(&key(dir, plugin, path), content_type(path), resize, request)
             .await?)
     }
+
+    /// `plugin`'s kept image at `path` as the answer to `request`, never downloaded for it.
+    async fn serve_kept(
+        &self,
+        plugin: &str,
+        path: &str,
+        resize: Option<Resize>,
+        request: Request,
+    ) -> Result<Response, Error> {
+        let key = key(KEPT_DIR, plugin, path);
+        let _sweeping = self.sweeping.read().await;
+        if !self.store.contains(&key).await? {
+            return Err(Error::NotFound);
+        }
+        Ok((self.store)
+            .serve(&key, content_type(path), resize, request)
+            .await?)
+    }
 }
 
 /// The copies [`Artwork::download_missing`] makes of each kind of image ahead of the web app
@@ -659,8 +678,8 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
 }
 
 /// Serves `GET` [`url()`]s, 404 unless `artwork` offered the image or `contents` has a Match that
-/// stores it, resized as `images` says. Whether the caller has a session is up to the layers the
-/// router is put behind.
+/// stores it, resized as `images` says. A Trailer thumbnail is 404 until it is kept. Whether the
+/// caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings) -> Router {
     Router::new()
         .route("/media/artwork/{plugin}/{path}", get(serve))
@@ -677,19 +696,18 @@ async fn serve(
         Ok(resize) => resize,
         Err(refused) => return refused.into_response(),
     };
-    let dir = match contents.stores_image(&plugin, &path).await {
-        Ok(true) => KEPT_DIR,
-        Ok(false) if artwork.was_offered(&plugin, &path) => OFFERED_DIR,
-        Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+    let served = match servable(&artwork, &contents, &plugin, &path).await {
+        Ok(Some(Servable::Downloading(dir))) => {
+            (artwork.serve_image((dir, &plugin, &path), resize, request)).await
+        }
+        Ok(Some(Servable::KeptOnly)) => artwork.serve_kept(&plugin, &path, resize, request).await,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
             tracing::error!("could not look up a stored image: {err}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    match artwork
-        .serve_image((dir, &plugin, &path), resize, request)
-        .await
-    {
+    match served {
         Ok(response) => response,
         Err(Error::NotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(err @ Error::Unavailable(_)) => {
@@ -701,6 +719,32 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// How [`serve`] may answer with an image.
+enum Servable {
+    /// From the store's folder, downloaded there first if it isn't yet (ADR 0037).
+    Downloading(&'static str),
+    /// Only once kept: a Trailer thumbnail.
+    KeptOnly,
+}
+
+/// How [`serve`] may answer with `plugin`'s image at `path`, or `None` if it may not.
+async fn servable(
+    artwork: &Artwork,
+    contents: &Contents,
+    plugin: &str,
+    path: &str,
+) -> Result<Option<Servable>, sqlx::Error> {
+    Ok(if contents.stores_image(plugin, path).await? {
+        Some(Servable::Downloading(KEPT_DIR))
+    } else if artwork.was_offered(plugin, path) {
+        Some(Servable::Downloading(OFFERED_DIR))
+    } else if contents.stores_trailer_thumbnail(plugin, path).await? {
+        Some(Servable::KeptOnly)
+    } else {
+        None
+    })
 }
 
 /// `svg` as [`clean_svg`] leaves it, if it is at most [`MAX_SVG_BYTES`] and an SVG document: a
@@ -743,3 +787,7 @@ mod pick_tests;
 #[cfg(test)]
 #[path = "artwork_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "artwork_trailers_tests.rs"]
+mod trailers_tests;

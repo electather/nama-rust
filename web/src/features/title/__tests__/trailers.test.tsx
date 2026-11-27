@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, assert, expect, test } from "vite-plus/test";
 
 import { BrowseService, type MovieSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
@@ -78,4 +78,26 @@ test("a Trailer's card shows its own thumbnail from the Server, and the title's 
   const row = await screen.findByRole("region", { name: "Trailers" });
   const art = [...row.querySelectorAll("li img")].map((image) => image.getAttribute("src"));
   expect(art).toStrictEqual([thumbnail, backdrop]);
+});
+
+test("a Trailer's card whose thumbnail fails to load shows the title's Backdrop", async () => {
+  const backdrop = "/media/artwork/tmdb/%2Fparasite-backdrop.jpg";
+  openMovie({
+    backdropUrl: backdrop,
+    trailers: [
+      {
+        name: "Official Trailer",
+        url: "https://www.youtube.com/watch?v=isOGD_7hNIY",
+        thumbnailUrl:
+          "/media/artwork/tmdb/https%3A%2F%2Fi.ytimg.com%2Fvi%2FisOGD_7hNIY%2Fmaxresdefault.jpg",
+      },
+    ],
+  });
+  const row = await screen.findByRole("region", { name: "Trailers" });
+  const thumbnail = row.querySelector("li img");
+  assert(thumbnail);
+
+  fireEvent.error(thumbnail);
+
+  expect(row.querySelector("li img")?.getAttribute("src")).toBe(backdrop);
 });
