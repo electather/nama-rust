@@ -420,7 +420,7 @@ impl Links {
         .await?;
         self.accounts.delete(session).await?;
         (self.names)
-            .forget_deleted(owned.into_iter().map(LinkedServerId).collect())
+            .forget_deleted(owned.into_iter().map(LinkedServerId))
             .await;
         Ok(())
     }

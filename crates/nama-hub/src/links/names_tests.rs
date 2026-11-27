@@ -29,7 +29,7 @@ async fn a_hub_without_a_zone_names_no_server_and_still_unlinks(db: PgPool) {
         Ok(())
     };
     names.unlink(server, unlinking).await.unwrap();
-    names.forget_deleted(vec![server]).await;
+    names.forget_deleted([server]).await;
 
     assert!(matches!(own, Err(Error::NamesOff)), "{own:?}");
     assert_eq!(told, Vec::<String>::new());

@@ -5,8 +5,6 @@
 //! checks the Server is still Linked before and after, and removes what it wrote if not. Which
 //! records go under the own name is the Server Addresses' (`server_addresses.rs`).
 
-use std::future::Future;
-
 use sqlx::PgPool;
 
 use super::{Error, LinkedServerId, server_addresses::ServerAddresses};
@@ -23,19 +21,20 @@ const CHALLENGE_VALUE_LENGTH: usize = 43;
 #[derive(Clone)]
 pub(super) struct Names {
     db: PgPool,
-    zone: Option<ServerNames>,
+    server_names: Option<ServerNames>,
 }
 
 impl Names {
-    /// Names Servers in `zone`, checking on `db` that they are still Linked, or names none.
-    pub(super) fn new(db: PgPool, zone: Option<ServerNames>) -> Self {
-        Self { db, zone }
+    /// Names Servers in `server_names`' zone, checking on `db` that they are still Linked, or
+    /// names none without it.
+    pub(super) fn new(db: PgPool, server_names: Option<ServerNames>) -> Self {
+        Self { db, server_names }
     }
 
     /// `server`'s own name, or [`Error::NamesOff`] while the Hub names no Server.
     pub(super) fn own_name(&self, server: LinkedServerId) -> Result<String, Error> {
-        let zone = self.zone.as_ref().ok_or(Error::NamesOff)?;
-        Ok(own_name(server, &zone.zone))
+        let server_names = self.server_names.as_ref().ok_or(Error::NamesOff)?;
+        Ok(own_name(server, &server_names.zone))
     }
 
     /// Makes the records of `addresses` the only ones under `server`'s own name, and answers the
@@ -46,14 +45,17 @@ impl Names {
         server: LinkedServerId,
         addresses: &ServerAddresses<'_>,
     ) -> Result<Vec<String>, Error> {
-        let Some(zone) = &self.zone else {
+        let Some(server_names) = &self.server_names else {
             return Ok(Vec::new());
         };
         if !self.is_linked(server).await? {
             return Ok(Vec::new());
         }
-        let own = own_name(server, &zone.zone);
-        zone.records.replace(&own, addresses.records()).await?;
+        let own = own_name(server, &server_names.zone);
+        server_names
+            .records
+            .replace(&own, addresses.records())
+            .await?;
         if !self.is_linked(server).await? {
             self.forget(server).await?;
             return Ok(Vec::new());
@@ -72,12 +74,12 @@ impl Names {
         if values.len() > MAX_CHALLENGE_VALUES || !values.iter().all(|value| is_challenge(value)) {
             return Err(Error::ChallengeInvalid);
         }
-        let zone = self.zone.as_ref().ok_or(Error::NamesOff)?;
+        let server_names = self.server_names.as_ref().ok_or(Error::NamesOff)?;
         if !self.is_linked(server).await? {
             return Ok(());
         }
-        let own = own_name(server, &zone.zone);
-        (zone.records)
+        let own = own_name(server, &server_names.zone);
+        (server_names.records)
             .replace_texts(&challenge_name(&own), values)
             .await?;
         if !self.is_linked(server).await? {
@@ -104,7 +106,7 @@ impl Names {
 
     /// Removes the names of `servers`, which deleting their Account Unlinked. A failure is only
     /// logged, as the deletion can't wait for the DNS provider (ADR 0104).
-    pub(super) async fn forget_deleted(&self, servers: Vec<LinkedServerId>) {
+    pub(super) async fn forget_deleted(&self, servers: impl IntoIterator<Item = LinkedServerId>) {
         for server in servers {
             if let Err(err) = self.forget(server).await {
                 tracing::error!(%server, "the names of a deleted Account's Server stay: {err}");
@@ -114,12 +116,12 @@ impl Names {
 
     /// Removes every record under `server`'s own name, its certificate challenge's included.
     async fn forget(&self, server: LinkedServerId) -> Result<(), Error> {
-        let Some(zone) = &self.zone else {
+        let Some(server_names) = &self.server_names else {
             return Ok(());
         };
-        let own = own_name(server, &zone.zone);
-        zone.records.replace(&own, Vec::new()).await?;
-        (zone.records)
+        let own = own_name(server, &server_names.zone);
+        server_names.records.replace(&own, Vec::new()).await?;
+        (server_names.records)
             .replace_texts(&challenge_name(&own), Vec::new())
             .await?;
         Ok(())
