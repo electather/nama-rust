@@ -113,6 +113,7 @@ describe("the Settings address", () => {
     ["an empty User", { settings: "users", user: "" }],
     ["a Job without its Plugin", { settings: "jobs", job: "back-up" }],
     ["an id that's no word", { settings: "plugins", plugin: ["tmdb"] }],
+    ["an empty Library", { settings: "libraries", library: "" }],
   ])("%s opens no detail", (_, search) => {
     expect(parseSettings(search).detail).toBeUndefined();
   });

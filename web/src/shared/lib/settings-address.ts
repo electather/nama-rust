@@ -113,7 +113,7 @@ export function sectionSearch(page: SettingsPage, setting?: string) {
   return { ...noDetail, settings: page, setting };
 }
 
-/** Settings open on `detail` in its Section, with no other detail. The picked Server stays. */
+/** Settings open on `detail` in its Section, with no other detail or setting. The picked Server stays. */
 export function detailSearch(detail: SettingsDetail) {
   return { ...noDetail, ...detailWords(detail) };
 }
@@ -133,8 +133,9 @@ export function openedId(
 
 /** An id the address holds, such as a Plugin's or a Server's: none for a value that isn't one. */
 export function idParam(value: unknown) {
-  // The router reads an id made of digits as a number.
-  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+  // The router reads an id made of digits as a number, and an empty word (`?library=`) names none.
+  const id = typeof value === "string" || typeof value === "number" ? String(value) : "";
+  return id === "" ? undefined : id;
 }
 
 /** The words that open `detail` in its Section. */
