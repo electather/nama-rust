@@ -3,6 +3,7 @@ import { useParams } from "@tanstack/react-router";
 import { EpisodeCaption } from "@/features/title/components/episode-caption";
 import { EpisodeMoreLoader } from "@/features/title/components/episode-more-loader";
 import { episodeCardLabel } from "@/features/title/lib/episode-card-label";
+import { type RowLook, cardArt } from "@/features/title/lib/row-look";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
 import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
@@ -10,16 +11,18 @@ import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 /**
  * An Episode by its Still, which plays its largest Version, with its caption over
  * the Still and a "…" to mark it watched or delete it, as Continue Watching's cards are drawn. It is
- * the card at `place.index` of the `place.of` in its row.
+ * the card at `place.index` of the `place.of` in its row, drawn as the row's `look` says.
  */
 export function EpisodeCard({
   libraryId,
   episode,
   place,
+  look,
 }: {
   libraryId: bigint;
   episode: Episode;
   place: { index: number; of: number };
+  look: RowLook;
 }) {
   // Without its own ID there's nothing to mark or delete.
   const episodeId = episode.id;
@@ -34,8 +37,7 @@ export function EpisodeCard({
     >
       <BackdropCard
         art={{
-          url: episode.stillUrl,
-          thumbhash: episode.stillThumbhash,
+          ...cardArt({ url: episode.stillUrl, thumbhash: episode.stillThumbhash }, look),
           sizes: backdropTileSizes,
           // Stills have no prerendered width list.
           widths: "imageWidths",
@@ -49,7 +51,7 @@ export function EpisodeCard({
           },
         }}
         label={episodeCardLabel(episode)}
-        tall={episode.overview !== undefined}
+        tall={look.tall}
         caption={<EpisodeCaption episode={episode} />}
         menu={
           episodeId && (

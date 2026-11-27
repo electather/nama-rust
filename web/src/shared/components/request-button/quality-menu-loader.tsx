@@ -1,7 +1,6 @@
 import { type ComponentProps, Suspense, lazy } from "react";
 
 import { ErrorBoundary } from "@/shared/components/error-boundary";
-import { QualityChevron } from "@/shared/components/request-button/quality-chevron";
 import type { QualityMenu as Menu } from "@/shared/components/request-button/quality-menu";
 
 // Base UI's menu and the Qualities load after the page, so Request shows without waiting for them.
@@ -11,15 +10,14 @@ const QualityMenu = lazy(async () => {
 });
 
 /**
- * The Quality menu once its code and the Qualities have loaded, its chevron disabled until then,
- * so Request doesn't shift when it arrives. Nothing if they fail: Request still asks at the User's
- * Quality.
+ * The Quality menu once its code and the Qualities have loaded, nothing until then: most often
+ * there's no choice and it never shows, so a placeholder would only flash and go. Nothing if they
+ * fail either: Request still asks at the User's Quality.
  */
 export function QualityMenuLoader(props: ComponentProps<typeof Menu>) {
-  const loading = <QualityChevron what={props.what} variant={props.variant} disabled />;
   return (
     <ErrorBoundary failed={null}>
-      <Suspense fallback={loading}>
+      <Suspense fallback={null}>
         <QualityMenu {...props} />
       </Suspense>
     </ErrorBoundary>

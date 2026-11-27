@@ -14,10 +14,26 @@ function clockFit(duration: number) {
   return { long, width: long ? "min-w-17" : "min-w-12" };
 }
 
+/** Where the bar is held; `from`, set once let go, is the time the `<video>` reported then. */
+interface Held {
+  seconds: number;
+  from?: number;
+}
+
+/** The held time until the `<video>` reports a time other than the one it had when let go. */
+function shownTime(held: Held | undefined, time: number) {
+  if (held === undefined || (held.from !== undefined && held.from !== time)) {
+    return time;
+  }
+  return held.seconds;
+}
+
 /**
  * Where it's playing: the time played, the seek bar, and the time left. A drag holds the bar and
  * the times where the pointer is and seeks once, when it ends: following the `<video>` instead, the
- * thumb would wait on each seek and jump back to the time it last reported. The bar is split into
+ * thumb would wait on each seek and jump back to the time it last reported. Let go, it stays there
+ * until the `<video>` reports another time: its `seeking` comes a task later, and the bar would
+ * flash back to where it played meanwhile. The bar is split into
  * the `seekBar`'s sections, and its hover card shows the frame, section and time under the pointer.
  */
 export function SeekRow({
@@ -28,8 +44,8 @@ export function SeekRow({
   seekBar: SeekBar;
 }) {
   const { time, duration, buffered } = video.state;
-  const [held, setHeld] = useState<number>();
-  const at = held ?? time;
+  const [held, setHeld] = useState<Held>();
+  const at = shownTime(held, time);
   const { long, width } = clockFit(duration);
   return (
     <div
@@ -65,12 +81,14 @@ export function SeekRow({
             sheets={sheets}
           />
         )}
-        onValueChange={setHeld}
+        onValueChange={(seconds) => {
+          setHeld({ seconds });
+        }}
         onValueCommitted={(seconds) => {
           video.control((element) => {
             element.currentTime = seconds;
           });
-          setHeld(undefined);
+          setHeld({ seconds, from: time });
         }}
       />
       <span className={`${width} text-end`}>−{clock(Math.max(0, duration - at))}</span>

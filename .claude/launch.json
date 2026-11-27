@@ -41,7 +41,7 @@
       "name": "hub-web",
       "runtimeExecutable": "mise",
       "cwd": "web",
-      "runtimeArgs": ["exec", "--", "vp", "dev", "--port", "5174", "--strictPort"],
+      "runtimeArgs": ["exec", "--", "vp", "dev", "--host", "127.0.0.1", "--port", "5174", "--strictPort"],
       "env": {
         "NAMA_HUB_URL": "http://localhost:7981",
         "NAMA_SERVER_URL": "http://localhost:7980"

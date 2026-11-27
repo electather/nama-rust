@@ -27,6 +27,24 @@ export function dayOf(seconds: bigint) {
 }
 
 /**
+ * Whether `date`, a `YYYY-MM-DD` day, comes after today. Read in this browser's time zone, as the
+ * title source's dates name a local day, not UTC's.
+ */
+export function isLaterDay(date: string) {
+  return localMidnight(date).getTime() > Date.now();
+}
+
+/** `date`, a `YYYY-MM-DD` day, as this browser writes dates. */
+export function calendarDay(date: string) {
+  return localMidnight(date).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+/** `date`'s first moment here: without a `Z`, a date-time is read as local time, a bare date as UTC. */
+function localMidnight(date: string) {
+  return new Date(`${date}T00:00:00`);
+}
+
+/**
  * A runtime in whole hours and minutes, each left out when 0: in plain words, such as "2 h 16 min",
  * or short, "2h 16m". Nothing when it isn't known.
  */

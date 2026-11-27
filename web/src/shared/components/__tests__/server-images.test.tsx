@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 test("a poster's art loads from the Server the page talks to", async () => {
   const poster = "/media/artwork/tmdb/%2Fposter.jpg";
-  const look = { sizes: "150px", radius: "rounded-3xl", widths: "posterWidths" } as const;
+  const look = { sizes: "150px", radius: "rounded-xl", widths: "posterWidths" } as const;
   const { container } = render(<TileArt url={poster} thumbhash={undefined} look={look} />, {
     wrapper: onServerAt(),
   });

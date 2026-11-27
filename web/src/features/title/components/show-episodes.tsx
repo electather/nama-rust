@@ -2,12 +2,14 @@ import type { Ref, RefObject } from "react";
 
 import { EpisodeRow } from "@/features/title/components/episode-row";
 import { SeasonBar } from "@/features/title/components/season-bar";
+import type { CardArt } from "@/features/title/lib/row-look";
 import type { RowScroller } from "@/features/title/lib/season-row";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 
 /**
  * A Show's Episodes in one row, Season after Season, Specials last, under the name of the Season
- * it's on, `current`, a menu that scrolls it to another of `seasons`.
+ * it's on, `current`, a menu that scrolls it to another of `seasons`. The Show's `backdrop` stands
+ * in for a missing Still.
  */
 export function ShowEpisodes({
   row,
@@ -18,6 +20,7 @@ export function ShowEpisodes({
   episodes,
   current,
   onPick,
+  backdrop,
 }: {
   row: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
@@ -27,6 +30,7 @@ export function ShowEpisodes({
   episodes: RowEpisode[];
   current: number;
   onPick: (season: number) => void;
+  backdrop: CardArt;
 }) {
   return (
     <section aria-label="Episodes" className="flex flex-col gap-4">
@@ -37,6 +41,7 @@ export function ShowEpisodes({
         libraryId={libraryId}
         episodes={episodes}
         opening={opening}
+        backdrop={backdrop}
       />
     </section>
   );

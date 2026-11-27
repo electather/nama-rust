@@ -23,7 +23,7 @@ export function Page({
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
       <PageTitle name={heading} />
       <div
-        className="relative isolate flex items-center gap-6 data-banner:h-48 data-banner:items-end data-banner:overflow-hidden data-banner:rounded-3xl data-banner:p-5 sm:data-banner:h-64"
+        className="relative isolate flex items-center gap-6 data-banner:h-48 data-banner:items-end data-banner:overflow-hidden data-banner:rounded-xl data-banner:p-5 sm:data-banner:h-64"
         data-banner={banner ? "" : undefined}
       >
         {/* Only a page with a Backdrop asks the Server for its image widths: an error page may

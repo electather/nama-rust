@@ -6,7 +6,7 @@ import { TileArt } from "@/shared/components/tile-art";
 /** The `sizes` of a shelf's poster, as wide as `w-tile-poster`. */
 const shelfSizes = "(max-width: 1071px) 150px, (max-width: 1500px) 14vw, 210px";
 
-const radius = "rounded-3xl";
+const radius = "rounded-xl";
 
 /**
  * A Movie's, Show's or Box Set's poster alone, opening `link`: its name, `title`, and `detail`,
