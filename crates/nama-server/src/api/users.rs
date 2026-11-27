@@ -13,36 +13,34 @@ use nama_proto::nama::v1::{
     DeletePersonalSettingsResponse, DeletePluginConnectionRequest, DeletePluginConnectionResponse,
     DeleteUserRequest, DeleteUserResponse, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetHomeLayoutRequest, GetHomeLayoutResponse, GetUserLinkRequest,
-    GetUserLinkResponse, HomeLayoutRow, ListDevicesRequest, ListDevicesResponse,
-    ListInvitesRequest, ListInvitesResponse, ListNotificationPreferencesRequest,
-    ListNotificationPreferencesResponse, ListPersonalSettingsRequest, ListPersonalSettingsResponse,
-    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
-    ListUsersResponse, NotificationKind, NotificationPreference, Permission, PluginConnection,
-    PluginConnectionState, PollWatchSyncLinkRequest, PollWatchSyncLinkResponse, RefusalReason,
-    ReorderHomeRowsRequest, ReorderHomeRowsResponse, ResetHomeLayoutRequest,
-    ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
-    SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
-    SetLibraryAccessRequest, SetLibraryAccessResponse, SetMaximumAgeRequest, SetMaximumAgeResponse,
-    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
-    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    StartUserLinkRequest, StartUserLinkResponse, StartWatchSyncLinkRequest,
-    StartWatchSyncLinkResponse, UnlinkUserRequest, UnlinkUserResponse,
-    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
-    home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
+    GetUserLinkResponse, ListDevicesRequest, ListDevicesResponse, ListInvitesRequest,
+    ListInvitesResponse, ListNotificationPreferencesRequest, ListNotificationPreferencesResponse,
+    ListPersonalSettingsRequest, ListPersonalSettingsResponse, ListPluginConnectionsRequest,
+    ListPluginConnectionsResponse, ListUsersRequest, ListUsersResponse, NotificationKind,
+    NotificationPreference, Permission, PluginConnection, PluginConnectionState,
+    PollWatchSyncLinkRequest, PollWatchSyncLinkResponse, RefusalReason, ReorderHomeRowsRequest,
+    ReorderHomeRowsResponse, ResetHomeLayoutRequest, ResetHomeLayoutResponse, ResetPasswordRequest,
+    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse, RevokeInviteRequest,
+    RevokeInviteResponse, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
+    SetHomeLayoutRequest, SetHomeLayoutResponse, SetLibraryAccessRequest, SetLibraryAccessResponse,
+    SetMaximumAgeRequest, SetMaximumAgeResponse, SetNotificationPreferenceRequest,
+    SetNotificationPreferenceResponse, SetPermissionsRequest, SetPermissionsResponse,
+    StartPluginConnectionRequest, StartPluginConnectionResponse, StartUserLinkRequest,
+    StartUserLinkResponse, StartWatchSyncLinkRequest, StartWatchSyncLinkResponse,
+    UnlinkUserRequest, UnlinkUserResponse, UpdatePersonalSettingsRequest,
+    UpdatePersonalSettingsResponse, UserService,
 };
 
 use crate::{
-    browse::Browsing,
+    browse::HomeLayouts,
     connections::{self, Connections},
     content_ratings::MaximumAge,
     db::Database,
-    home_rows::HomeRows,
     images::PluginLogos,
     link::Linking,
     playback::limit_to_proto,
     plugin_settings::PluginSettings,
-    server_settings::{ServerUrl, Settings},
+    server_settings::ServerUrl,
     users::{
         self, AskedHomeLayout, Caller, LibraryAccess, Permissions, User, UserHomeLayout, Users,
         notification_preferences_of, set_notification_preference,
@@ -50,7 +48,7 @@ use crate::{
 };
 
 use super::{
-    browse::home_rows_of,
+    browse::{home_layout_refused, home_layout_to_proto},
     caller, calling_device, database_failed,
     personal_settings::{self, personal_to_proto},
     playback::cap_from_proto,
@@ -77,14 +75,10 @@ pub(super) struct UserServiceHandler {
     pub(super) db: Arc<Database>,
     /// What Invites' links start with.
     pub(super) server_url: ServerUrl,
-    /// Lists the Home rows a User's Home layout shows or hides.
-    pub(super) home_rows: HomeRows,
-    /// Holds the default Home layout, which each User's follows but for what they change.
-    pub(super) settings: Settings,
+    /// Reads and saves each User's Home layout.
+    pub(super) home_layouts: HomeLayouts,
     /// Asked to Link the caller to an Account, and to Unlink a deleted User.
     pub(super) linking: Linking,
-    /// Lists each Library's Recently Added row for a User's Home layout.
-    pub(super) browse: Browsing,
 }
 
 #[expect(
@@ -562,8 +556,9 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetHomeLayoutRequest>,
     ) -> ServiceResult<GetHomeLayoutResponse> {
+        let layout = self.home_layouts.of(&caller(&ctx)?.user).await;
         Response::ok(GetHomeLayoutResponse {
-            layout: self.home_layout(&caller(&ctx)?.user).await?.into(),
+            layout: home_layout_to_proto(layout.map_err(home_layout_refused)?).into(),
             ..Default::default()
         })
     }
@@ -580,13 +575,9 @@ impl UserService for UserServiceHandler {
             featured_shown: featured_hidden.map(|hidden| !hidden),
             rows: home_layout_from_proto(layout)?.rows,
         };
-        let seen = home_rows_of(&self.home_rows, &self.browse, reader).await?;
-        let seen = seen.into_iter().map(|(row, _)| row).collect();
-        let default = self.settings.now().default_home_layout;
-        (UserHomeLayout::save(&self.db, reader.id, asked, seen, default).await)
-            .map_err(database_failed)?;
+        let saved = self.home_layouts.save(reader, asked).await;
         Response::ok(SetHomeLayoutResponse {
-            layout: self.home_layout(reader).await?.into(),
+            layout: home_layout_to_proto(saved.map_err(home_layout_refused)?).into(),
             ..Default::default()
         })
     }
@@ -600,13 +591,9 @@ impl UserService for UserServiceHandler {
         let asked = (request.to_owned_message().rows.iter())
             .map(|row| home_row_from_proto(row, "rows"))
             .collect::<Result<Vec<_>, _>>()?;
-        let seen = home_rows_of(&self.home_rows, &self.browse, reader).await?;
-        let seen = seen.into_iter().map(|(row, _)| row).collect();
-        let default = self.settings.now().default_home_layout;
-        (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen, default).await)
-            .map_err(database_failed)?;
+        let reordered = self.home_layouts.reorder(reader, &asked).await;
         Response::ok(ReorderHomeRowsResponse {
-            layout: self.home_layout(reader).await?.into(),
+            layout: home_layout_to_proto(reordered.map_err(home_layout_refused)?).into(),
             ..Default::default()
         })
     }
@@ -658,38 +645,6 @@ impl UserServiceHandler {
         } else {
             signed_out(M::default(), ctx)
         })
-    }
-
-    /// `reader`'s Home layout with every Home row they could see now, as the API has it.
-    async fn home_layout(&self, reader: &User) -> Result<proto::HomeLayout, ConnectError> {
-        let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
-        let own = UserHomeLayout::of(&self.db, reader.id).await;
-        let own = own.map_err(database_failed)?;
-        let default = self.settings.now().default_home_layout;
-        Ok(proto::HomeLayout {
-            featured_hidden: Some(!own.shows_featured(&default)),
-            rows: (own.arrange(&default, rows).into_iter())
-                .map(|((_, row), shown)| seen_row_to_proto(row, shown))
-                .collect(),
-            ..Default::default()
-        })
-    }
-}
-
-/// A Home row a User sees, as their Home layout has it.
-fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
-    let row = match row {
-        KernelOrPlugin::Kernel(kernel) => LayoutRow::Kernel(kernel),
-        KernelOrPlugin::Plugin(mut plugin) => {
-            plugin.library_id = None;
-            LayoutRow::Plugin(plugin)
-        }
-        KernelOrPlugin::RecentlyAdded(library) => LayoutRow::RecentlyAdded(library),
-    };
-    HomeLayoutRow {
-        row: Some(row),
-        hidden: !shown,
-        ..Default::default()
     }
 }
 

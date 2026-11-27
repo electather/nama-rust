@@ -71,6 +71,7 @@ function titleRows(
     icon: title.kind === "movie" ? "movie" : "show",
     poster: title.poster ?? null,
     still: title.still,
+    server: title.server,
     ...badgeOf(title),
     action: "Open",
     run: () => {

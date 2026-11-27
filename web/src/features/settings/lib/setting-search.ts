@@ -13,17 +13,13 @@ import {
 } from "@/features/settings/lib/pane-labels";
 import { playbackLabels } from "@/features/settings/lib/playback-values";
 import { answers, typedWords } from "@/features/settings/lib/search-words";
-import {
-  type Section,
-  type SectionGroup,
-  sectionTitles,
-  sectionWords,
-} from "@/features/settings/lib/sections";
+import { type SectionGroup, sectionTitles, sectionWords } from "@/features/settings/lib/sections";
 import { serverLabels } from "@/features/settings/lib/server-values";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { homeLabels } from "@/shared/lib/home-layout";
 import { may } from "@/shared/lib/permissions";
 import type { SettingText } from "@/shared/lib/setting-text";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * A setting, or a Section, that Settings' search finds: its Section, the key `?setting=` finds its

@@ -23,7 +23,7 @@ import {
   Users,
 } from "lucide-react";
 
-import type { Section } from "@/features/settings/lib/sections";
+import type { Section } from "@/shared/lib/settings-address";
 
 const icons: Record<Section, LucideIcon> = {
   signin: Shield,

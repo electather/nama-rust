@@ -16,7 +16,7 @@ use axum::{
 use tower_http::services::ServeFile;
 
 use super::{WholeFileReads, access::FileLease, subtitles};
-use crate::{db::Database, ffmpeg::Ffmpeg};
+use crate::{db::Database, ffmpeg::Ffmpeg, server_settings::PlaybackSettings};
 
 pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
@@ -25,14 +25,16 @@ pub(super) fn direct_play_url(version: i64) -> String {
 /// Serves `GET /media/versions/<id>`, and `GET /media/downloads/<id>` to keep, with the file of the
 /// Version `id` as leased by the layers the router is put behind, and the subtitles plans offer,
 /// found in `db`, read with `ffmpeg`, those in a Version's file in a background pass on `reads`,
-/// and cached in `cache`.
+/// and cached in `cache` within the limit `settings` holds.
 pub(crate) fn router(
     db: &Arc<Database>,
     ffmpeg: Arc<Ffmpeg>,
     cache: subtitles::Cache,
     reads: WholeFileReads,
+    settings: PlaybackSettings,
 ) -> Router {
-    let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, cache, reads));
+    let subtitles = subtitles::Subtitles::new(db, ffmpeg, cache, reads, settings);
+    let subtitles = subtitles::router(subtitles);
     Router::new()
         .route("/media/versions/{id}", get(serve))
         .route("/media/downloads/{id}", get(serve))

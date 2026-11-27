@@ -220,6 +220,7 @@ impl Alien {
             keep_behind_minutes: None,
             hardware: HardwareChoice::Automatic,
             remote_limit: None,
+            subtitle_cache_mib: None,
         };
         self.settings.change_playback(change, &[]).await.unwrap();
     }

@@ -5,7 +5,7 @@ use nama_plugin_api::contract::{HomeRow, TitleKind};
 use super::kept;
 use crate::home_rows::{
     Kind, Title,
-    tests::{given, movie, row, titled},
+    scripted::{given, movie, row, titled},
 };
 
 /// An answer of `count` rows keyed `row-1` to `row-{count}`, each with no titles.

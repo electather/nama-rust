@@ -1,6 +1,6 @@
 //! Searching the titles of the Libraries Browse sees.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
@@ -9,8 +9,9 @@ use crate::library::{Found, TitleKind, Whereabouts};
 
 impl Browse {
     /// The best `limit` Movies, Shows and Episodes of the Libraries it sees that a search for
-    /// `query` finds, of `kind` only if it's set, as `Contents::search` finds them. A copy its
-    /// Reach lets through is still left out when its title is [`Whereabouts::KeptFrom`] it.
+    /// `query` finds, of `kind` only if it's set, as `Contents::search` finds them. A title is
+    /// found only in the Library its [`Whereabouts`] places it in, so once at most, and not at all
+    /// when it is kept from the User.
     pub(crate) async fn search(
         &self,
         query: &str,
@@ -18,16 +19,12 @@ impl Browse {
         limit: usize,
     ) -> Result<Vec<Found>, Error> {
         let reaches = |found: &Found| self.reach.reaches(found.library(), found.content_rating());
-        if self.reach.lets_everything() {
-            return Ok(self.contents.search(query, kind, limit, reaches).await?);
-        }
-        // Every copy, so leaving out those of titles kept from them can't shorten the page.
-        let mut found = self
-            .contents
+        // Every copy, so leaving out those found elsewhere can't shorten the page.
+        let mut found = (self.contents)
             .search(query, kind, usize::MAX, reaches)
             .await?;
         let libraries = self.libraries.list().await.map_err(finding_failed)?;
-        let mut kept_from = HashSet::new();
+        let mut placed_in = HashMap::new();
         for of in [TitleKind::Movie, TitleKind::Show] {
             let ids: Vec<ExternalId> = (found.iter().map(title_of))
                 .filter(|&(title_kind, _)| title_kind == of)
@@ -35,15 +32,15 @@ impl Browse {
                 .collect();
             let (reach, kind_in) = (&self.reach, library_kind(of));
             let placed = Whereabouts::of_titles(&self.contents, &libraries, reach, kind_in, &ids);
-            kept_from.extend(
+            placed_in.extend(
                 (placed.await?.into_iter())
-                    .filter(|(_, placed)| matches!(placed, Whereabouts::KeptFrom))
-                    .map(|(id, _)| (of, id)),
+                    .map(|(id, placed)| ((of, id), placed.reached().map(|title| title.library()))),
             );
         }
         found.retain(|found| {
             let (of, ids) = title_of(found);
-            !ids.iter().any(|id| kept_from.contains(&(of, id)))
+            (ids.iter().filter_map(|id| placed_in.get(&(of, id))))
+                .all(|&library| library == Some(found.library()))
         });
         found.truncate(limit);
         Ok(found)

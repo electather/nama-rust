@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { createRouterTransport } from "@connectrpc/connect";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -22,7 +23,12 @@ test.each([
       hint: "",
       request: create(RequestSchema, { state }),
     };
-    const bar = { active: { id: activeId, label: "", hint: "" }, pick: () => {} };
+    const bar = {
+      active: { id: activeId, label: "", hint: "" },
+      pick: () => {},
+      // On a Server's own web app, every row is on the page's own Server.
+      serverOf: () => ({ server: undefined, transport: createRouterTransport(() => {}) }),
+    };
     render(<ActionRow row={row} bar={bar} listId="list" />);
     const pill = screen.getByText(label);
     const has = (name: string) => pill.classList.contains(name);

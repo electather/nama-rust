@@ -23,8 +23,8 @@ import { ServerPane } from "@/features/settings/components/server-pane";
 import { ServerPlaybackPane } from "@/features/settings/components/server-playback-pane";
 import { SigninPane } from "@/features/settings/components/signin-pane";
 import { UsersPane } from "@/features/settings/components/users-pane";
-import type { Section } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import type { Section } from "@/shared/lib/settings-address";
 
 const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   signin: SigninPane,

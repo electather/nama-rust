@@ -9,7 +9,7 @@ export function EnterCode({
 }: {
   scanned: string | undefined;
   /** A code the Server just refused to approve, kept, with why. */
-  refused: { code: string; errors: FormErrors } | undefined;
+  refused: { code: string; errors: FormErrors<"signInCode"> } | undefined;
 }) {
   const { lookUp, code = refused?.code } = useScannedLookUp(scanned);
   return (

@@ -11,6 +11,7 @@ import { RECOGNISERS, SEGMENT_SOURCES } from "@/features/admin-libraries/lib/rec
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { formText, onSubmitted } from "@/shared/lib/forms";
+import { detailSearch } from "@/shared/lib/settings-address";
 
 /** The form an Admin creates a Library with, which then opens it in its place. */
 export function CreateLibrary() {
@@ -40,7 +41,10 @@ export function CreateLibrary() {
             onSuccess: ({ library }) => {
               void navigate({
                 to: ".",
-                search: (rest) => ({ ...rest, library: String(library?.id) }),
+                search: (rest) => ({
+                  ...rest,
+                  ...detailSearch({ kind: "library", id: String(library?.id) }),
+                }),
                 replace: true,
               });
             },

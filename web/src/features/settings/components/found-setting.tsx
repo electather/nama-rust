@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 
 import { useFoundSetting } from "@/features/settings/hooks/use-found-setting";
-import type { Section } from "@/features/settings/lib/sections";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * Lands on the setting the address names in the `pane` of `section`. It draws nothing: it sits

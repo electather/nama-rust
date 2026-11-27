@@ -15,6 +15,7 @@ import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
+import { atOrigin } from "@/test-server-at";
 
 afterEach(() => {
   cleanup();
@@ -38,6 +39,20 @@ const aliens = {
 const alienNation = {
   case: "show",
   value: { libraryId: 8n, id: tmdb("4089"), title: "Alien Nation" },
+} as const;
+/** Alien Nation's first Episode, in its second Season. */
+const alienNationEpisode = {
+  case: "episode",
+  value: {
+    libraryId: 8n,
+    id: tmdb("4090"),
+    showId: tmdb("4089"),
+    seasonNumber: 2,
+    episodeNumber: 1,
+    title: "Pilot",
+    showTitle: "Alien Nation",
+    showPosterUrl: "/alien-nation.jpg",
+  },
 } as const;
 
 /** A search that finds `titles`, in one batch, then says it's done. */
@@ -76,7 +91,7 @@ function searching(search: Search, interceptors: Interceptor[], up: Promise<void
       router.service(ServerService, {
         getServerInfo: async () => {
           await up;
-          return { version: "0.3.0" };
+          return { version: "0.3.0", imageWidths: [320] };
         },
       });
       router.service(SignInService, {
@@ -118,7 +133,9 @@ function openAtHub(at: Record<string, Search>, up = Promise.resolve()) {
   const searches = new Map(Object.entries(at).map(([id, search]) => [origin(id), search]));
   return openApp("/", transport, undefined, (server, interceptors) => {
     const search = searches.get(server);
-    return search === undefined ? unreachable() : searching(search, interceptors, up);
+    return search === undefined
+      ? unreachable()
+      : atOrigin(searching(search, interceptors, up), server);
   });
 }
 
@@ -202,5 +219,21 @@ test("a search typed before any Server is reached waits for them at the Hub", as
 
   await waitFor(() => {
     expect(rows()).toStrictEqual(["AliensOpen"]);
+  });
+});
+
+test("an Episode found at the Hub opens its Show at its Season on its Server, its poster from there", async () => {
+  const router = openAtHub({ basement: finds(aliens), cabin: finds(alienNationEpisode) });
+  await searchFor("alien");
+  const found = await screen.findByRole("option", { name: /Pilot/u });
+  const poster = found.querySelector("img");
+
+  expect([poster?.getAttribute("src"), poster?.getAttribute("srcset")]).toStrictEqual([
+    "https://cabin.example/alien-nation.jpg",
+    "https://cabin.example/alien-nation.jpg?width=320 320w",
+  ]);
+  fireEvent.click(found);
+  await waitFor(() => {
+    expect(router.state.location.href).toBe("/libraries/8/shows/tmdb-4089?season=2&server=cabin");
   });
 });

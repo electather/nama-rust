@@ -12,16 +12,18 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useReachedServers } from "@/features/home/data/use-reached-servers";
 import { entryCard } from "@/features/home/lib/continue-watching-cards";
-import type { ReachedServer } from "@/features/home/lib/hub-rows";
 import { cardOn, mergeContinueWatching } from "@/features/home/lib/hub-titles";
+import { useReachedServers } from "@/features/servers/data/use-reached-servers";
+import type { LinkedServer } from "@/gen/nama/hub/v1/link_pb";
 import {
   BrowseService,
   type ListContinueWatchingResponse,
   ListContinueWatchingResponseSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
+import { useLinkedServers } from "@/shared/hooks/use-linked-servers";
+import type { TitleServer } from "@/shared/lib/title-server";
 
 const pageSize = 20;
 
@@ -31,12 +33,12 @@ const pageSize = 20;
  * for a Server's first page, or `complete`; and its `next` pages, each Server's, as it scrolls.
  */
 export function useHubContinueWatching() {
-  const reached = useReachedServers();
+  const { reached } = useReachedServers(useLinkedServers());
   const queryClient = useQueryClient();
   // How many pages past its first each Server's shelf has asked for, by the Server's id.
   const [asked, setAsked] = useState<Record<string, number>>({});
   const pages = reached.flatMap((on) => pageQueries(queryClient, on, asked[on.server.id] ?? 0));
-  // Not suspended, as `useReachedServers` isn't.
+  // Not suspended, as the servers feature's `useReachedServers` isn't.
   const answers = useQueries({ queries: pages.map(({ query }) => query) });
   const servers = reached.map((on) =>
     serverSoFar(
@@ -71,7 +73,7 @@ export function useHubContinueWatching() {
  * page before last answered with. A page refetched with a new token moves the next one on with it,
  * so a card that slides to a later page is neither lost nor listed twice.
  */
-function pageQueries(queryClient: QueryClient, on: ReachedServer, after: number) {
+function pageQueries(queryClient: QueryClient, on: TitleServer<LinkedServer>, after: number) {
   let query = pageQuery(queryClient, on, { at: 0, token: "" });
   const pages = [{ on, query }];
   for (let at = 1; at <= after; at += 1) {
@@ -91,7 +93,7 @@ function pageQueries(queryClient: QueryClient, on: ReachedServer, after: number)
  */
 function pageQuery(
   queryClient: QueryClient,
-  on: ReachedServer,
+  on: TitleServer<LinkedServer>,
   { at, token }: { at: number; token: string },
 ) {
   const method = BrowseService.method.listContinueWatching;
@@ -129,7 +131,7 @@ function latestAnswer(queryClient: QueryClient, queryKey: unknown[]) {
 type Page = UseQueryResult<ListContinueWatchingResponse>;
 
 /** One Server's Continue Watching from its `pages` so far, in order. */
-function serverSoFar(on: ReachedServer, pages: Page[]) {
+function serverSoFar(on: TitleServer<LinkedServer>, pages: Page[]) {
   const failed = pages.some(({ isError }) => isError);
   const last = pages.at(-1);
   const next = !failed && tokenAfter(last?.data) !== undefined;

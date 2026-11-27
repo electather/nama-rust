@@ -16,6 +16,7 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { WatchlistService, type WatchlistTitleSchema } from "@/gen/nama/v1/watchlist_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
+import { atOrigin } from "@/test-server-at";
 
 afterEach(() => {
   cleanup();
@@ -119,7 +120,9 @@ function serverAtHub(...watchlist: Parameters<typeof watchlistOf>) {
   return (interceptors: Interceptor[]) =>
     createRouterTransport(
       (router) => {
-        router.service(ServerService, { getServerInfo: () => ({ version: "0.3.0" }) });
+        router.service(ServerService, {
+          getServerInfo: () => ({ version: "0.3.0", imageWidths: [320] }),
+        });
         router.service(SignInService, {
           signInWithHubToken: () => ({ token: "session" }),
           whoAmI: () => ({ user: { id: 1n, name: "Ada" } }),
@@ -153,7 +156,7 @@ function openAtHub(at: Record<string, ReturnType<typeof serverAtHub>>) {
   });
   openApp("/watchlist", transport, undefined, (origin, interceptors) => {
     const server = at[origin] ?? unreachable;
-    return server(interceptors);
+    return atOrigin(server(interceptors), origin);
   });
 }
 
@@ -232,4 +235,25 @@ test("at the Hub, a Server refusing a removal leaves the title only on its Watch
     expect(posters()).toStrictEqual([["Alien", "/movies/tmdb-348?server=basement"]]);
   });
   expect(cabin).toStrictEqual(["imdb-tt0078748"]);
+});
+
+test("at the Hub, each poster is drawn from the Server it shows from", async () => {
+  const movie = { id: alienId, title: "Alien", libraryId: 1n, posterUrl: "/alien.jpg" };
+  const show = { id: dark.id, title: "Dark", libraryId: 2n, posterUrl: "/dark.jpg" };
+  openAtHub({
+    "https://basement.example": serverAtHub([
+      { id: alienId, title: { movieOrShow: { case: "movie", value: movie } } },
+    ]),
+    "https://cabin.example": serverAtHub([
+      { id: dark.id, title: { movieOrShow: { case: "show", value: show } } },
+    ]),
+  });
+
+  await vi.waitFor(() => {
+    const images = screen.getByRole("list", { name: "Your Watchlist" }).querySelectorAll("img");
+    expect(Array.from(images, (img) => [img.src, img.getAttribute("srcset")])).toStrictEqual([
+      ["https://basement.example/alien.jpg", "https://basement.example/alien.jpg?width=320 320w"],
+      ["https://cabin.example/dark.jpg", "https://cabin.example/dark.jpg?width=320 320w"],
+    ]);
+  });
 });

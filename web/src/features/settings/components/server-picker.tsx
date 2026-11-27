@@ -3,7 +3,7 @@ import { useId } from "react";
 
 import { SelectBox } from "@/features/settings/components/select-box";
 import type { AdminServer } from "@/features/settings/data/use-admin-servers";
-import { settingsDetailParams } from "@/shared/lib/settings-detail-params";
+import { pickedServerSearch } from "@/shared/lib/settings-address";
 
 /**
  * At the Hub, picks whose Settings show: the Account's own, or those of one of `servers`, where its
@@ -37,11 +37,7 @@ export function ServerPicker({
         onChange={(id) => {
           void navigate({
             to: ".",
-            search: (rest) => ({
-              ...rest,
-              ...settingsDetailParams,
-              manage: id === "" ? undefined : id,
-            }),
+            search: (rest) => ({ ...rest, ...pickedServerSearch(id === "" ? undefined : id) }),
             // As a Section's link does, so Back closes Settings.
             replace: true,
           });

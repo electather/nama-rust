@@ -105,3 +105,12 @@ pub(in crate::api) fn home_rows_refused(err: home_rows::Error) -> ConnectError {
         home_rows::Error::Libraries(err) => err.into(),
     }
 }
+
+/// The Connect error a client gets when a User's Home, or the default Home layout, couldn't be
+/// read or saved. Database failures are logged, not sent.
+pub(in crate::api) fn home_layout_refused(err: browse::HomeLayoutError) -> ConnectError {
+    match err {
+        browse::HomeLayoutError::HomeRows(err) => home_rows_refused(err),
+        browse::HomeLayoutError::Browse(err) => refused(Fields::NONE)(err),
+    }
+}

@@ -19,7 +19,7 @@ declare module "@tanstack/history" {
     /** For `/code/approve`: the code looked up, and the Device it signs in. */
     lookedUp?: { code: string; deviceName: string };
     /** For `/code`, after the Server refused to approve `code`: why. */
-    refusedCode?: { code: string; errors: FormErrors };
+    refusedCode?: { code: string; errors: FormErrors<"signInCode"> };
     /** For `/code/done`: the Device just signed in. */
     signedInDevice?: string;
     /** For `/sign-in-link-sent`: the email a Sign-in Link went to, if an Account has it. */

@@ -12,7 +12,7 @@ use tower::Layer as _;
 
 use crate::{
     backup::Backups,
-    browse::{Browsing, TitlePages},
+    browse::{Browsing, HomeLayouts, TitlePages},
     config::Config,
     connections::Connections,
     db::Database,
@@ -126,13 +126,19 @@ pub(crate) fn router(
         preferences.clone(),
         Arc::clone(&db),
     );
-    let media = crate::playback::router(&db, Arc::clone(&ffmpeg), subtitles, reads)
-        .merge(running_router())
-        .merge(preview_frames_router(preview_frames))
-        .merge(transcode_downloads_router(
-            plans.clone(),
-            transcode_downloads,
-        ));
+    let media = crate::playback::router(
+        &db,
+        Arc::clone(&ffmpeg),
+        subtitles.clone(),
+        reads,
+        settings.playback(),
+    )
+    .merge(running_router())
+    .merge(preview_frames_router(preview_frames))
+    .merge(transcode_downloads_router(
+        plans.clone(),
+        transcode_downloads,
+    ));
     let playback_access = PlaybackAccess::new(running.clone(), Arc::clone(&db));
     let images = ImageSources {
         custom_images: custom_images.clone(),
@@ -148,23 +154,29 @@ pub(crate) fn router(
         requests.clone(),
         similar,
     );
+    let home_layouts = HomeLayouts::new(
+        Arc::clone(&db),
+        Browsing::new(Arc::clone(&db), plugins.clone()),
+        home_rows.clone(),
+        settings.clone(),
+    );
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
             linking: users.linking().clone(),
-            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
+            home_layouts: home_layouts.clone(),
             settings: settings.clone(),
             abilities,
             ffmpeg,
             images: image_store.clone(),
             points: plugins.clone(),
-            home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
             browser_spans: browser_spans.clone(),
             running: running.clone(),
+            subtitles,
             listening,
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
@@ -187,7 +199,7 @@ pub(crate) fn router(
             browse: Browsing::new(Arc::clone(&db), plugins.clone()),
             pages: pages.clone(),
             home_rows: home_rows.clone(),
-            settings: settings.clone(),
+            home_layouts: home_layouts.clone(),
             images: images.clone(),
             db: Arc::clone(&db),
         }))
@@ -210,7 +222,7 @@ pub(crate) fn router(
             db: Arc::clone(&db),
             requests: requests.clone(),
             syncing,
-            home_rows: home_rows.clone(),
+            home_rows,
             images: images.clone(),
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
@@ -231,7 +243,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(plugins::PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),
-            settings: settings.clone(),
+            settings,
             plugin_logos: plugin_logos.clone(),
         }))
         .add_service(Arc::new(libraries::LibraryServiceHandler {
@@ -242,7 +254,7 @@ pub(crate) fn router(
             title_sources: TitleSources::new(plugins.clone()),
             plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
-            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
+            browse: Browsing::new(Arc::clone(&db), plugins),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
             events,
@@ -255,11 +267,9 @@ pub(crate) fn router(
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
             linking: users.linking().clone(),
-            browse: Browsing::new(Arc::clone(&db), plugins),
             db,
             server_url,
-            home_rows,
-            settings,
+            home_layouts,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);

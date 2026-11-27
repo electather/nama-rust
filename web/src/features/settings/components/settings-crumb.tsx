@@ -1,6 +1,6 @@
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 
-import { allSections, sectionSearch } from "@/features/settings/lib/sections";
+import { allSections, sectionSearch } from "@/shared/lib/settings-address";
 
 /**
  * A phone's "Settings" crumb over a section's page, back to the list of sections: Back, when the

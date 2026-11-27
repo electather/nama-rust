@@ -1,10 +1,12 @@
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
 import { SectionIcon } from "@/features/settings/components/section-icon";
 import { usePhoneWidth } from "@/features/settings/hooks/use-phone-width";
 import { openingSection } from "@/features/settings/lib/history-state";
-import { type Section, sectionSearch, sectionTitles } from "@/features/settings/lib/sections";
+import { sectionTitles } from "@/features/settings/lib/sections";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import { type Section, sectionSearch } from "@/shared/lib/settings-address";
 
 const LINK =
   "flex h-11 flex-none items-center gap-2.5 rounded-sm px-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-7";
@@ -19,13 +21,13 @@ const OTHER = `${LINK} text-muted-foreground hover:bg-muted hover:text-foregroun
  */
 export function SectionLink({ section, current }: { section: Section; current: boolean }) {
   const phone = usePhoneWidth();
-  const settings = useSearch({ strict: false, select: (search) => search.settings });
+  const { page } = useSettingsAddress();
   const marked = current && !phone;
   return (
     <Link
       to="."
       search={(rest) => ({ ...rest, ...sectionSearch(section) })}
-      {...openingSection(settings, phone)}
+      {...openingSection(page, phone)}
       aria-current={marked ? "page" : undefined}
       className={marked ? CURRENT : OTHER}
     >

@@ -2,7 +2,7 @@ import { FormField } from "@/shared/components/form-field/form-field";
 import type { FormErrors } from "@/shared/lib/forms";
 
 /** A new User's name and starting password, with any refusal under each. */
-export function NewUserFields({ errors }: { errors: FormErrors }) {
+export function NewUserFields({ errors }: { errors: FormErrors<"name" | "password"> }) {
   return (
     <>
       <FormField

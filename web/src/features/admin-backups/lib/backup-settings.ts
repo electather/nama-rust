@@ -1,6 +1,6 @@
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import type { BackupSettings } from "@/gen/nama/v1/server_pb";
-import { serverMessage } from "@/shared/lib/forms";
+import { type FormErrors, serverMessage } from "@/shared/lib/forms";
 import type { SettingText } from "@/shared/lib/setting-text";
 
 /** Where Backups go and how many are kept, as their fields hold them. */
@@ -48,8 +48,13 @@ export function backupSettings({ folder, keep }: BackupValues) {
   return { folder, ...(keep !== "" && { keep: Number(keep) }) };
 }
 
+/** The Backup settings a refusal can be said under. */
+export type BackupField = "backupFolder" | "backupsKept";
+
 /** Which field the Server's `failure` to save the Backup settings is said under, by its reason. */
-export function backupRefusalFields(failure: unknown) {
+export function backupRefusalFields(
+  failure: unknown,
+): Partial<Record<RefusalReason, FormErrors<BackupField>>> {
   const message = serverMessage(failure);
   return {
     [RefusalReason.FOLDER_NOT_ABSOLUTE]: { backupFolder: message },

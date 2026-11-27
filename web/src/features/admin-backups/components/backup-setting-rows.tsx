@@ -1,4 +1,5 @@
 import {
+  type BackupField,
   backupLabels,
   type BackupValues,
   keepProblem,
@@ -19,7 +20,7 @@ export function BackupSettingRows({
   inUse: string;
   values: BackupValues;
   /** Why the Server refused a change, under the field it's about. */
-  refused: FormErrors;
+  refused: FormErrors<BackupField>;
   onEdit: (edits: Partial<BackupValues>) => void;
 }) {
   return (

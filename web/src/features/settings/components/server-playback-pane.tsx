@@ -3,6 +3,7 @@ import { usePlaybackStatus } from "@/features/admin-playback/data/use-playback-s
 import { useUpdatePlaybackSettings } from "@/features/admin-playback/data/use-update-playback-settings";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import {
+  type PlaybackField,
   playbackRefusals,
   playbackSettings,
   savedPlayback,
@@ -28,7 +29,7 @@ export function ServerPlaybackPane() {
       await mutateAsync({ settings: playbackSettings(wanted) });
     },
   );
-  const errors = refusedWords(
+  const errors = refusedWords<PlaybackField>(
     refused,
     serverPlaybackLabels,
     refused && playbackRefusals(refused.failure),

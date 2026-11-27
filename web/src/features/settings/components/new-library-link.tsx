@@ -1,15 +1,17 @@
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { buttonVariants } from "nama-ui/components/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "nama-ui/components/tooltip";
 
 import { useModalContainer } from "@/shared/hooks/use-modal-container";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import { openedId, detailSearch } from "@/shared/lib/settings-address";
 
 const LABEL = "New Library";
 
 /** New Library, as a plus beside Settings' close, while the Libraries are listed. */
 export function NewLibraryLink() {
-  const opened = useSearch({ strict: false, select: ({ library }) => library !== undefined });
+  const opened = openedId(useSettingsAddress().detail, "library") !== undefined;
   const [trigger, container] = useModalContainer();
   if (opened) {
     return null;
@@ -18,7 +20,7 @@ export function NewLibraryLink() {
     <Link
       ref={trigger}
       to="."
-      search={(rest) => ({ ...rest, library: "new" })}
+      search={(rest) => ({ ...rest, ...detailSearch({ kind: "library", id: "new" }) })}
       aria-label={LABEL}
       className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
     >
