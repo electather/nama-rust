@@ -36,7 +36,7 @@ export function ServerPlaybackPane() {
   );
   return (
     <>
-      <PaneFrame section="server-playback">
+      <PaneFrame>
         <ServerPlaybackRows status={status} values={values} errors={errors} onEdit={edit} />
       </PaneFrame>
       <SaveToast says={errors.form} onDismiss={dismiss} />

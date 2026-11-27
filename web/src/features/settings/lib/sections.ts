@@ -1,50 +1,40 @@
-import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
+// The rule this module keeps is in `web/src/AGENTS.md` ("Only Settings' modal tree imports the Section
+// definitions").
+import {
+  type SectionDefinition,
+  type SectionGroupDefinition,
+  everyUser,
+} from "@/features/settings/lib/section-definition";
+import { activity } from "@/features/settings/lib/section-groups/activity";
+import { admin } from "@/features/settings/lib/section-groups/admin";
+import { media } from "@/features/settings/lib/section-groups/media";
+import { preferences } from "@/features/settings/lib/section-groups/preferences";
+import { you } from "@/features/settings/lib/section-groups/you";
+import { yourAccount } from "@/features/settings/lib/section-groups/your-account";
+import type {
+  ServerDefinedSetting,
+  ServerDefinedSource,
+} from "@/features/settings/lib/server-defined";
+import type { Findable } from "@/features/settings/lib/setting-search";
+import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/shared/lib/permissions";
+import type { SettingText } from "@/shared/lib/setting-text";
 import {
   type Section,
   type SettingsPage,
   allSections,
   firstSection,
+  sections,
 } from "@/shared/lib/settings-address";
 
-/** Each section's name, in the sidebar and over its pane. */
-export const sectionTitles: Record<Section, string> = {
-  signin: "Sign-in",
-  devices: "Devices",
-  playback: "Playback",
-  home: "Home",
-  requests: "Requests",
-  connections: "Connections",
-  libraries: "Libraries",
-  "needs-a-match": "Needs a Match",
-  "now-playing": "Now Playing",
-  jobs: "Jobs",
-  server: "Server",
-  users: "Users",
-  backups: "Backups",
-  "default-home": "Default Home",
-  "server-playback": "Server Playback",
-  plugins: "Plugins",
-  account: "Account",
-  "account-signin": "Sign-in",
-  "account-sessions": "Sessions",
-  "account-servers": "Servers",
-  "account-history": "Viewing History",
-};
-
-/** What else search finds a section by, past its name, for the sections that have such words. */
-export const sectionWords: Partial<Record<Section, string>> = {
-  libraries:
-    "libraries library folders scan movies shows title sources recognisers segment sources backdrop",
-  "needs-a-match": "needs a match unmatched identify fix wrong title",
-  "now-playing": "now playing watching streams sessions stop transcode",
-  jobs: "jobs schedule run tasks upkeep",
-  requests: "requests quality withdraw approve decline pending followed shows",
-  account: "email delete",
-  "account-signin": "password passkeys",
-  "account-sessions": "sign out browsers",
-  "account-servers": "linked unlink link code invites accept",
-  "account-history": "viewing events plays export pooled counts",
+/** Each Section's definition, by its word: the compiler holds it to every word and no other. */
+export const definitions: Record<Section, SectionDefinition> = {
+  ...you.sections,
+  ...preferences.sections,
+  ...media.sections,
+  ...activity.sections,
+  ...admin.sections,
+  ...yourAccount.sections,
 };
 
 /** The sidebar's sections under a heading. */
@@ -53,55 +43,31 @@ export interface SectionGroup {
   items: Section[];
 }
 
-/** The Permission a section needs, for the ones not every User sees. */
-const needs: Partial<Record<Section, Permission>> = {
-  libraries: Permission.MANAGE_LIBRARIES,
-  "needs-a-match": Permission.MANAGE_LIBRARIES,
-  "now-playing": Permission.ADMIN,
-  jobs: Permission.ADMIN,
-  server: Permission.MANAGE_SETTINGS,
-  users: Permission.MANAGE_USERS,
-  backups: Permission.ADMIN,
-  "default-home": Permission.MANAGE_SETTINGS,
-  "server-playback": Permission.ADMIN,
-  plugins: Permission.MANAGE_SETTINGS,
-};
+function sidebarGroup(group: SectionGroupDefinition): SectionGroup {
+  // `Object.keys` gives strings: matching each to its word keeps the definitions' order and type.
+  const items = Object.keys(group.sections).flatMap((key) =>
+    sections.filter((word) => word === key),
+  );
+  return { label: group.label, items };
+}
 
-const groups: SectionGroup[] = [
-  { label: "You", items: ["signin", "devices"] },
-  { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
-  { label: "Media", items: ["libraries", "needs-a-match"] },
-  { label: "Activity", items: ["now-playing", "jobs"] },
-  {
-    label: "Admin",
-    items: ["server", "users", "backups", "default-home", "server-playback", "plugins"],
-  },
-];
+const serverGroups = [you, preferences, media, activity, admin].map((group) => sidebarGroup(group));
 
-// The Account's own Sections, only at the Hub (ADR 0105), where no Server's are.
-const hubGroups: SectionGroup[] = [
-  {
-    label: "Your Account",
-    items: ["account", "account-signin", "account-sessions", "account-servers", "account-history"],
-  },
-];
+const hubGroups = [sidebarGroup(yourAccount)];
 
 /** The sections `user` may open, grouped as the sidebar lists them; at the Hub, the Account's. */
 export function groupsFor(user: User | undefined, atHub: boolean): SectionGroup[] {
   if (atHub) {
     return hubGroups;
   }
-  return shownGroups((section) => {
-    const permission = needs[section];
-    return permission === undefined || may(user, permission);
-  });
+  return serverGroups
+    .map(({ label, items }) => ({ label, items: items.filter((section) => opens(user, section)) }))
+    .filter((group) => group.items.length > 0);
 }
 
-/** The groups with only the sections `keep` keeps, without the groups left empty. */
-function shownGroups(keep: (section: Section) => boolean): SectionGroup[] {
-  return groups
-    .map(({ label, items }) => ({ label, items: items.filter((section) => keep(section)) }))
-    .filter((group) => group.items.length > 0);
+function opens(user: User | undefined, section: Section) {
+  const { permission } = definitions[section];
+  return permission === everyUser || may(user, permission);
 }
 
 /**
@@ -109,7 +75,53 @@ function shownGroups(keep: (section: Section) => boolean): SectionGroup[] {
  * first `from` lists: a section `user` may not open isn't shown.
  */
 export function openSection(from: SectionGroup[], asked: SettingsPage): Section {
-  const listed = from.flatMap((group) => group.items);
+  const shown = from.flatMap((group) => group.items);
   const wanted = asked === allSections ? firstSection : asked;
-  return [wanted, firstSection].find((section) => listed.includes(section)) ?? listed[0] ?? wanted;
+  return [wanted, firstSection].find((section) => shown.includes(section)) ?? shown[0] ?? wanted;
+}
+
+/** Where search finds the settings the Server defines in the Sections of `groups`. */
+export function serverDefinedIn(groups: SectionGroup[]): ServerDefinedSource[] {
+  return groups
+    .flatMap((group) => group.items)
+    .flatMap((section) => definitions[section].serverDefined ?? []);
+}
+
+/** What the built-in setting `key` of `section` says, if it has one by that key. */
+export function builtInText(section: Section, key: string): SettingText | undefined {
+  const { labels } = definitions[section];
+  return Object.hasOwn(labels, key) ? labels[key] : undefined;
+}
+
+/**
+ * Each of the Sections in `groups` and the settings in them `user` sees, in the sidebar's order and
+ * each pane's: a Section, its built-in settings, then those of `serverDefined` in it.
+ */
+export function findables(
+  groups: SectionGroup[],
+  user: User | undefined,
+  serverDefined: ServerDefinedSetting[],
+): Findable[] {
+  return groups
+    .flatMap((group) => group.items)
+    .flatMap((section) => inSection(section, user, serverDefined));
+}
+
+/** `section` and the settings in it `user` sees, built-in ones first, as its pane lists them. */
+function inSection(
+  section: Section,
+  user: User | undefined,
+  serverDefined: ServerDefinedSetting[],
+): Findable[] {
+  const { title, words = "", labels, serverDefined: source } = definitions[section];
+  const builtInShown = Object.entries(labels)
+    .filter(([, text]) => text.needs === undefined || may(user, text.needs))
+    .map(([key, text]): Findable => ({ section, key, text }));
+  return [
+    { section, text: { label: title, words } },
+    ...builtInShown,
+    ...serverDefined
+      .filter((setting) => setting.source === source)
+      .map(({ key, text }) => ({ section, key, text })),
+  ];
 }

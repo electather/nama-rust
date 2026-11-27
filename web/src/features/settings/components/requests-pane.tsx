@@ -21,7 +21,7 @@ export function RequestsPane() {
     </SectionBoundary>
   );
   return (
-    <PaneFrame section="requests">
+    <PaneFrame>
       <div className="flex flex-col gap-8">
         {choosesQuality && defaults}
         <SectionBoundary what="your Requests" rows={3}>

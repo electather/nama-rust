@@ -35,7 +35,7 @@ export function ServerPane() {
   );
   return (
     <>
-      <PaneFrame section="server">
+      <PaneFrame>
         <ServerRows values={values} urlRefused={words.serverUrl} onEdit={edit} />
         {imageStore}
         {serverLink}

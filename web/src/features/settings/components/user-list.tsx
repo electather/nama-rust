@@ -22,7 +22,7 @@ export function UserList({ users, you }: { users: User[]; you: User | undefined 
   );
   return (
     <>
-      <PaneFrame section="users">
+      <PaneFrame>
         <UserListGroups users={users} you={you} defaults={values} onChange={edit} />
       </PaneFrame>
       <SaveToast

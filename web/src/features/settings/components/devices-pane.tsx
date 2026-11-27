@@ -17,7 +17,7 @@ export function DevicesPane() {
     // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array just built, and the lib target has no toSorted
     .sort((a, b) => Number(b.lastSeenAt - a.lastSeenAt));
   return (
-    <PaneFrame section="devices">
+    <PaneFrame>
       <SettingGroup setting="current" title={deviceLabels.current.label}>
         <DeviceItems label={deviceLabels.current.label} devices={current} />
       </SettingGroup>

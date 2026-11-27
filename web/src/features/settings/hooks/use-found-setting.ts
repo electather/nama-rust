@@ -1,6 +1,6 @@
 import { type RefObject, useEffect } from "react";
 
-import { builtInText } from "@/features/settings/lib/setting-search";
+import { builtInText } from "@/features/settings/lib/sections";
 import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 import type { Section } from "@/shared/lib/settings-address";
 

@@ -16,7 +16,7 @@ export function PlaybackPane() {
   const { values, refused, edit, dismiss } = useAutoSave(useSavedPlayback(), useSavePlayback());
   return (
     <>
-      <PaneFrame section="playback">
+      <PaneFrame>
         <PlaybackRows values={values} onEdit={edit} />
       </PaneFrame>
       <SaveToast says={refusedWords(refused, playbackLabels).form} onDismiss={dismiss} />

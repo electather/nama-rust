@@ -4,13 +4,8 @@ import { type KeyboardEvent, useState } from "react";
 import { useServerDefined } from "@/features/settings/data/use-server-defined";
 import { openingSection } from "@/features/settings/lib/history-state";
 import { phoneWidth } from "@/features/settings/lib/phone-width";
-import type { SectionGroup } from "@/features/settings/lib/sections";
-import {
-  type Findable,
-  findableId,
-  findables,
-  matching,
-} from "@/features/settings/lib/setting-search";
+import { type SectionGroup, findables, serverDefinedIn } from "@/features/settings/lib/sections";
+import { type Findable, findableId, matching } from "@/features/settings/lib/setting-search";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 import { sectionSearch } from "@/shared/lib/settings-address";
@@ -28,7 +23,8 @@ export function useSettingsSearch(groups: SectionGroup[], user: User | undefined
   const [pickedId, setPickedId] = useState<string>();
   const navigate = useNavigate();
   const opened = useSettingsAddress();
-  const results = matching(findables(groups, user, useServerDefined(typed !== "", groups)), typed);
+  const serverDefined = useServerDefined(typed !== "", serverDefinedIn(groups));
+  const results = matching(findables(groups, user, serverDefined), typed);
   const at = Math.max(
     0,
     results.findIndex((result) => findableId(result) === pickedId),

@@ -4,7 +4,7 @@ import { useId } from "react";
 import { LibraryFilter } from "@/features/admin-needs-a-match/components/library-filter";
 import { pickedLibraries } from "@/features/admin-needs-a-match/lib/picked-libraries";
 import { UnmatchedLists } from "@/features/settings/components/unmatched-lists";
-import { sectionTitles } from "@/features/settings/lib/sections";
+import { useOpenSection } from "@/features/settings/hooks/open-section";
 import { useLibraries } from "@/shared/hooks/use-libraries";
 import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 import { detailSearch, openedId, sectionSearch } from "@/shared/lib/settings-address";
@@ -15,6 +15,7 @@ import { detailSearch, openedId, sectionSearch } from "@/shared/lib/settings-add
  */
 export function NeedsAMatchPane() {
   const titleId = useId();
+  const { title } = useOpenSection();
   const libraries = useLibraries();
   const picked = openedId(useSettingsAddress().detail, "library-filter");
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export function NeedsAMatchPane() {
     <section aria-labelledby={titleId} className="flex flex-col">
       {/* The toolbar, when there is one, is the top of this pane, so its title is only said. */}
       <h3 id={titleId} className="sr-only">
-        {sectionTitles["needs-a-match"]}
+        {title}
       </h3>
       {filter}
       <div className="flex flex-col gap-4 p-4 md:px-5 md:pt-2 md:pb-6">

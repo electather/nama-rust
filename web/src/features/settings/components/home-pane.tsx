@@ -9,7 +9,7 @@ import { useHomeLayout } from "@/features/settings/data/use-home-layout";
 export function HomePane() {
   const layout = useHomeLayout();
   return (
-    <PaneFrame section="home">
+    <PaneFrame>
       <div className="flex flex-col gap-3">
         <p className="text-xs text-pretty text-muted-foreground">
           What you leave alone follows the Server’s default. Once you move a row, the order is

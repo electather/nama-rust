@@ -1,61 +1,18 @@
-import { type ComponentType, useRef } from "react";
+import { useRef } from "react";
 
-import { AccountHistoryPane } from "@/features/settings/components/account-history-pane";
-import { AccountPane } from "@/features/settings/components/account-pane";
-import { AccountServersPane } from "@/features/settings/components/account-servers-pane";
-import { AccountSessionsPane } from "@/features/settings/components/account-sessions-pane";
-import { AccountSigninPane } from "@/features/settings/components/account-signin-pane";
-import { BackupsPane } from "@/features/settings/components/backups-pane";
-import { ConnectionsPane } from "@/features/settings/components/connections-pane";
-import { DefaultHomePane } from "@/features/settings/components/default-home-pane";
-import { DevicesPane } from "@/features/settings/components/devices-pane";
 import { FoundSetting } from "@/features/settings/components/found-setting";
-import { HomePane } from "@/features/settings/components/home-pane";
-import { JobsPane } from "@/features/settings/components/jobs-pane";
-import { LibrariesPane } from "@/features/settings/components/libraries-pane";
-import { NeedsAMatchPane } from "@/features/settings/components/needs-a-match-pane";
-import { NowPlayingPane } from "@/features/settings/components/now-playing-pane";
-import { PaneBoundary } from "@/features/settings/components/pane-boundary";
-import { PlaybackPane } from "@/features/settings/components/playback-pane";
-import { PluginsPane } from "@/features/settings/components/plugins-pane";
-import { RequestsPane } from "@/features/settings/components/requests-pane";
-import { ServerPane } from "@/features/settings/components/server-pane";
-import { ServerPlaybackPane } from "@/features/settings/components/server-playback-pane";
-import { SigninPane } from "@/features/settings/components/signin-pane";
-import { UsersPane } from "@/features/settings/components/users-pane";
+import { SectionBoundary } from "@/features/settings/components/section-boundary";
+import { definitions } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import type { Section } from "@/shared/lib/settings-address";
 
-const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
-  signin: SigninPane,
-  devices: DevicesPane,
-  playback: PlaybackPane,
-  home: HomePane,
-  requests: RequestsPane,
-  connections: ConnectionsPane,
-  libraries: LibrariesPane,
-  "needs-a-match": NeedsAMatchPane,
-  "now-playing": NowPlayingPane,
-  jobs: JobsPane,
-  server: ServerPane,
-  users: UsersPane,
-  "default-home": DefaultHomePane,
-  "server-playback": ServerPlaybackPane,
-  backups: BackupsPane,
-  plugins: PluginsPane,
-  account: AccountPane,
-  "account-signin": AccountSigninPane,
-  "account-sessions": AccountSessionsPane,
-  "account-servers": AccountServersPane,
-  "account-history": AccountHistoryPane,
-};
-
 /**
  * The pane of the `section` open: its title over its settings, which load on their own, landing on
- * the setting the address names.
+ * the setting the address names. While they load it shows a skeleton, and in their place, if they
+ * don't, what couldn't load and a way to try again; the rest of Settings stays as it is either way.
  */
 export function SettingsPane({ section, user }: { section: Section; user: User | undefined }) {
-  const Pane = panes[section];
+  const { couldntLoad, pane: Pane } = definitions[section];
   const pane = useRef<HTMLDivElement>(null);
   return (
     // Under what sticks at the top of a pane, a field scrolled to for focus would be hidden.
@@ -64,10 +21,10 @@ export function SettingsPane({ section, user }: { section: Section; user: User |
       ref={pane}
       className="flex min-w-0 flex-1 scrollbar-quiet flex-col overflow-y-auto overscroll-contain has-data-sticks:scroll-pt-48"
     >
-      <PaneBoundary section={section}>
+      <SectionBoundary what={couldntLoad} rows={3} pane>
         <Pane user={user} />
         <FoundSetting pane={pane} section={section} />
-      </PaneBoundary>
+      </SectionBoundary>
     </div>
   );
 }

@@ -8,7 +8,8 @@ features/<feature>/
   data/         its data hooks, one per file (`use-requests.ts`): the only files here that
                 import connect-query or TanStack Query
   hooks/        its other hooks, one per file
-  lib/          its functions, types and constants, with no React
+  lib/          its functions, types and constants, with no hooks or JSX: a constant may
+                name a component, as Settings' Section definitions name their panes
   __tests__/    its tests, which test what a person sees on its pages
 ```
 

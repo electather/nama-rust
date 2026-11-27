@@ -19,7 +19,7 @@ export function AccountPane() {
     </SettingRow>
   );
   return (
-    <PaneFrame section="account">
+    <PaneFrame>
       {/* Last in its own box, so the row gives back its bottom padding before "Delete Account". */}
       <div>{emailRow}</div>
       <SettingGroup setting="delete" title={accountLabels.delete.label}>

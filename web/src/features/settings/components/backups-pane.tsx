@@ -50,7 +50,7 @@ export function BackupsPane() {
   );
   return (
     <>
-      <PaneFrame section="backups">
+      <PaneFrame>
         <BackupStatus job={job} newest={backups[0]} />
         {written}
         {storage}
