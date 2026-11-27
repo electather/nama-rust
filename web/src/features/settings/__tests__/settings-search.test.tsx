@@ -2,7 +2,8 @@ import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { SettingKind } from "@/gen/nama/v1/plugin_pb";
-import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { admin, fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -32,7 +33,7 @@ const ntfy = {
 };
 
 test("a word from a setting's hint finds it under its Section, and says how many", async () => {
-  openSettings("devices", fakeServer({ signedIn: newUser }));
+  openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   await search("door SLAMS");
 
@@ -41,7 +42,7 @@ test("a word from a setting's hint finds it under its Section, and says how many
 });
 
 test("every word must start a word, ignoring case and accents, and the letters are marked", async () => {
-  openSettings("devices", fakeServer({ signedIn: newUser }));
+  openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   await search("subtítle lang");
 
@@ -56,7 +57,7 @@ test("every word must start a word, ignoring case and accents, and the letters a
 });
 
 test("a Section's name finds the Section, and a word in nothing says so", async () => {
-  openSettings("playback", fakeServer({ signedIn: newUser }));
+  openSettings("playback", fakeServer({ signedIn: newUser }).transport);
 
   await search("devic");
   expect(results()).toStrictEqual(["Devices", "DevicesThis Device", "DevicesOther Devices"]);
@@ -67,7 +68,7 @@ test("a Section's name finds the Section, and a word in nothing says so", async 
 });
 
 test("only settings in Sections the User may open are found", async () => {
-  openSettings("playback", fakeServer({ signedIn: newUser }));
+  openSettings("playback", fakeServer({ signedIn: newUser }).transport);
 
   await search("backup folder");
 
@@ -75,7 +76,7 @@ test("only settings in Sections the User may open are found", async () => {
 });
 
 test("choosing a result opens its row, focused and marked, and clears the field", async () => {
-  const router = openSettings("devices", fakeServer({ signedIn: admin }));
+  const router = openSettings("devices", fakeServer({ signedIn: admin }).transport);
 
   const field = await search("outline");
   fireEvent.click(screen.getByRole("option", { name: /Subtitle background/u }));
@@ -92,7 +93,7 @@ test("choosing a result opens its row, focused and marked, and clears the field"
 });
 
 test("a row shown only sometimes is found, and lands on the row that shows it", async () => {
-  const router = openSettings("devices", fakeServer({ signedIn: newUser }));
+  const router = openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   await search("sdh");
   fireEvent.click(screen.getByRole("option", { name: /SDH/u }));
@@ -104,7 +105,7 @@ test("a row shown only sometimes is found, and lands on the row that shows it", 
 });
 
 test("arrow keys move through the results, Enter opens one and Escape clears", async () => {
-  const router = openSettings("devices", fakeServer({ signedIn: newUser }));
+  const router = openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   const field = await search("subtitle");
   fireEvent.keyDown(field, { key: "ArrowDown" });
@@ -128,14 +129,15 @@ test("settings the Server defines are asked for on the first keystroke, and join
     "devices",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        listPersonalSettings: () => {
-          asked += 1;
-          return { plugins: [ntfy] };
+        UserService: {
+          listPersonalSettings: () => {
+            asked += 1;
+            return { plugins: [ntfy] };
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   const field = await search("");
@@ -153,7 +155,7 @@ test("settings the Server defines are asked for on the first keystroke, and join
 });
 
 test("an address naming no setting opens the Section at its top", async () => {
-  openApp("/code?settings=playback&setting=nonsense", fakeServer({ signedIn: newUser }));
+  openApp("/code?settings=playback&setting=nonsense", fakeServer({ signedIn: newUser }).transport);
 
   await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
   expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Search settings" }));
@@ -165,11 +167,14 @@ test("a Home row is found by its heading, and lands on its row in the Home layou
     "devices",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        getHomeLayout: () => ({ layout: { rows: [{ row: { case: "plugin", value: topPicks } }] } }),
+        UserService: {
+          getHomeLayout: () => ({
+            layout: { rows: [{ row: { case: "plugin", value: topPicks } }] },
+          }),
+        },
       },
-    ),
+    ).transport,
   );
 
   await search("top");
@@ -185,7 +190,7 @@ test("a Home row is found by its heading, and lands on its row in the Home layou
 });
 
 test("choosing the setting already open lands on it again", async () => {
-  openSettings("devices", fakeServer({ signedIn: newUser }));
+  openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   const field = await search("outline");
   fireEvent.click(screen.getByRole("option", { name: /Subtitle background/u }));
@@ -202,7 +207,7 @@ test("choosing the setting already open lands on it again", async () => {
 });
 
 test("the Image store's picker is found by its hint, and lands on its row", async () => {
-  const router = openSettings("devices", fakeServer({ signedIn: admin }));
+  const router = openSettings("devices", fakeServer({ signedIn: admin }).transport);
 
   await search("s3");
   expect(results()).toStrictEqual(["ServerKeep images on"]);

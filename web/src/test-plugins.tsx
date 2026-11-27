@@ -1,103 +1,50 @@
-import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect } from "vite-plus/test";
 
-import type { LibraryService } from "@/gen/nama/v1/library_pb";
-import { GetPluginRequestSchema, PluginService } from "@/gen/nama/v1/plugin_pb";
+import type { PluginSchema } from "@/gen/nama/v1/plugin_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, openApp } from "@/test-app";
-import { libraries, plugins, summaryOf } from "@/test-plugin-list";
-
-/**
- * A fake Server with `libraries` that lists `plugins`, gets each by id, and answers other calls
- * with `changes`, and other `LibraryService` calls, such as listing the Libraries, with `library`.
- * A User with `signedIn` is signed in to it: by default, one who manages settings.
- */
-function pluginServer(
-  changes: Partial<ServiceImpl<typeof PluginService>>,
-  library: Partial<ServiceImpl<typeof LibraryService>> = {},
-  signedIn: Permission[] = [Permission.MANAGE_SETTINGS],
-) {
-  const state = { signedIn, libraries, libraryService: library };
-  return fakeServer(state, {}, {}, (router) => {
-    router.service(PluginService, {
-      listPlugins: () => ({ summaries: plugins.map((listed) => summaryOf(listed)) }),
-      getPlugin: ({ id }) => {
-        const found = plugins.find((listed) => listed.id === id);
-        if (!found) {
-          throw new ConnectError(`there is no Plugin ${id}`, Code.NotFound);
-        }
-        // Sending it drops what `Plugin` has no field for: those are the summary's.
-        return { plugin: { ...found, summary: summaryOf(found) } };
-      },
-      ...changes,
-    });
-  });
-}
+import { openApp } from "@/test-app";
+import { libraries, plugins } from "@/test-plugin-list";
+import { admin, fakeServer } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 
 /**
  * Opens Settings on its Plugins section, over a page that asks the Server for nothing, with the
- * Plugin `open` in place of the list if one is named, answering other calls with `changes`.
+ * Plugin `open` in place of the list if one is named, on a Server with `plugins` that answers
+ * `answers` too.
  */
-export function openPluginSettings(
-  changes: Partial<ServiceImpl<typeof PluginService>> = {},
-  open = "",
-) {
+export function openPluginSettings(answers: Answers = {}, open = "") {
   const asked = open === "" ? "" : `&plugin=${open}`;
-  return openApp(`/code?settings=plugins${asked}`, pluginServer(changes));
+  const server = fakeServer(
+    { signedIn: [Permission.MANAGE_SETTINGS], libraries, plugins },
+    answers,
+  );
+  return openApp(`/code?settings=plugins${asked}`, server.transport);
 }
 
 /**
- * Opens the Plugin `id` in Settings' Plugins section, as `openPluginSettings` does, answering
- * `LibraryService` calls with `library` where it gives them.
+ * Opens the Plugin `shown` in Settings' Plugins section, as `openPluginSettings` does, signed in
+ * as `signedIn`: one of `plugins` by id, or a record in place of the one with its id.
  */
 export function openPlugin(
-  id: string,
-  changes: Partial<ServiceImpl<typeof PluginService>> = {},
-  library: Partial<ServiceImpl<typeof LibraryService>> = {},
+  shown: MessageInitShape<typeof PluginSchema> | string,
+  answers: Answers = {},
+  signedIn: Permission[] = [Permission.MANAGE_SETTINGS],
 ) {
-  openApp(`/code?settings=plugins&plugin=${id}`, pluginServer(listingToo(id, changes), library));
+  const id = typeof shown === "string" ? shown : (shown.summary?.id ?? "");
+  const others = plugins.filter((each) => each.summary.id !== id);
+  const held = typeof shown === "string" ? plugins : [...others, shown];
+  const server = fakeServer({ signedIn, libraries, plugins: held }, answers);
+  return openApp(`/code?settings=plugins&plugin=${id}`, server.transport);
 }
 
-/** Opens the Plugin `id` as `openPlugin` does, signed in as an Admin, returning the app's router. */
+/** Opens the Plugin `shown` as `openPlugin` does, signed in as an Admin, returning the app's router. */
 export function openPluginAsAdmin(
-  id: string,
-  changes: Partial<ServiceImpl<typeof PluginService>> = {},
+  shown: MessageInitShape<typeof PluginSchema> | string,
+  answers: Answers = {},
 ) {
-  const server = pluginServer(listingToo(id, changes), {}, [Permission.ADMIN]);
-  return openApp(`/code?settings=plugins&plugin=${id}`, server);
-}
-
-/**
- * `changes`, with `listPlugins` listing `id` as a test's `getPlugin` describes it, as the Server's
- * list and details agree: Settings opens only a Plugin it lists, and draws its header from the list.
- */
-function listingToo(
-  id: string,
-  changes: Partial<ServiceImpl<typeof PluginService>>,
-): Partial<ServiceImpl<typeof PluginService>> {
-  const all = plugins.map((each) => summaryOf(each));
-  const listed = all.filter((each) => each.id !== id);
-  const fallback = all.find((each) => each.id === id) ?? { id };
-  return {
-    listPlugins: async (_request, context) => {
-      // A `getPlugin` that refuses lists it as `plugins` does.
-      const own = await ownSummary(id, changes, context).catch(() => null);
-      return { summaries: [...listed, own ?? fallback] };
-    },
-    ...changes,
-  };
-}
-
-/** The summary a test's own `getPlugin`, if it has one, gives the Plugin `id`. */
-async function ownSummary(
-  id: string,
-  changes: Partial<ServiceImpl<typeof PluginService>>,
-  context: HandlerContext,
-) {
-  const answer = await changes.getPlugin?.(create(GetPluginRequestSchema, { id }), context);
-  return answer?.plugin?.summary;
+  return openPlugin(shown, answers, admin);
 }
 
 /** The Plugins list's row for the Plugin shown as `name`: its name, or its id without one. */

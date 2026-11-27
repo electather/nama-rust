@@ -5,8 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { DeviceSchema } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, fill, newUser } from "@/test-app";
+import { fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -21,15 +22,16 @@ test("revoking a Device, once confirmed, removes it from Settings", async () => 
     "devices",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        listDevices: () => ({ devices }),
-        revokeDevice: ({ deviceId }) => {
-          devices = devices.filter((each) => each.id !== deviceId);
-          return {};
+        UserService: {
+          listDevices: () => ({ devices }),
+          revokeDevice: ({ deviceId }) => {
+            devices = devices.filter((each) => each.id !== deviceId);
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Living room TV" }));
@@ -49,17 +51,18 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
     "devices",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        listDevices: () => ({ devices }),
-        revokeDevice: () => {
-          devices = devices.slice(0, 1);
-          throw refused(Code.NotFound, "no such Device", {
-            reason: RefusalReason.DEVICE_NOT_FOUND,
-          });
+        UserService: {
+          listDevices: () => ({ devices }),
+          revokeDevice: () => {
+            devices = devices.slice(0, 1);
+            throw refused(Code.NotFound, "no such Device", {
+              reason: RefusalReason.DEVICE_NOT_FOUND,
+            });
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Living room TV" }));
@@ -74,7 +77,7 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
 });
 
 test("the Devices pane signs in another Device in place", async () => {
-  openSettings("devices", fakeServer({ signedIn: newUser }));
+  openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Sign in a Device" }));
   const settings = screen.getByRole("dialog", { name: "Settings" });
@@ -82,7 +85,7 @@ test("the Devices pane signs in another Device in place", async () => {
 });
 
 test("pressing Escape in the Sign-in Code cancels signing in a Device, back on its button, and Settings stays open", async () => {
-  openSettings("devices", fakeServer({ signedIn: newUser }));
+  openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Sign in a Device" }));
   const settings = within(screen.getByRole("dialog", { name: "Settings" }));
@@ -102,23 +105,25 @@ function openSignin(answer: () => object = () => ({})) {
     fakeServer(
       { signedIn: newUser },
       {
-        reauthenticate: ({ proof }) => {
-          if (proof.case !== "password" || proof.value !== "correct horse") {
-            throw refused(Code.Unauthenticated, "the password is wrong", {
-              reason: RefusalReason.WRONG_PASSWORD,
-              field: "password",
-            });
-          }
-          return {};
+        SignInService: {
+          reauthenticate: ({ proof }) => {
+            if (proof.case !== "password" || proof.value !== "correct horse") {
+              throw refused(Code.Unauthenticated, "the password is wrong", {
+                reason: RefusalReason.WRONG_PASSWORD,
+                field: "password",
+              });
+            }
+            return {};
+          },
+        },
+        UserService: {
+          changePassword: ({ newPassword }) => {
+            changedTo.push(newPassword);
+            return answer();
+          },
         },
       },
-      {
-        changePassword: ({ newPassword }) => {
-          changedTo.push(newPassword);
-          return answer();
-        },
-      },
-    ),
+    ).transport,
   );
   return changedTo;
 }

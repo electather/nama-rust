@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService, type ListMoviesRequest, MovieSort } from "@/gen/nama/v1/browse_pb";
+import { type ListMoviesRequest, MovieSort } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -16,35 +17,36 @@ const LIBRARY_SIZE = 600;
  */
 function sixHundredMovies(asked: ListMoviesRequest[]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listUnmatched: () => ({}),
-      listGenres: () => ({}),
-      listMovies: (request) => {
-        asked.push(request);
-        const token = request.page?.token ?? "";
-        const first = token === "" ? 0 : Number(token);
-        const count = Math.min(100, LIBRARY_SIZE - first);
-        const movies = Array.from({ length: count }, (_, offset) => {
-          const id = String(first + offset + 1);
-          return { id: { namespace: "tmdb", value: id }, title: `Movie ${id}` };
-        });
-        const byTitle = request.sort !== MovieSort.ADDED;
-        const index = [
-          { key: "A", position: 0 },
-          { key: "M", position: 450 },
-        ];
-        return {
-          movies,
-          page: {
-            nextToken: first + count < LIBRARY_SIZE ? String(first + count) : "",
-            ...(first === 0 ? { totalSize: LIBRARY_SIZE } : {}),
-          },
-          index: first === 0 && byTitle ? index : [],
-        };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        listMovies: (request) => {
+          asked.push(request);
+          const token = request.page?.token ?? "";
+          const first = token === "" ? 0 : Number(token);
+          const count = Math.min(100, LIBRARY_SIZE - first);
+          const movies = Array.from({ length: count }, (_, offset) => {
+            const id = String(first + offset + 1);
+            return { id: { namespace: "tmdb", value: id }, title: `Movie ${id}` };
+          });
+          const byTitle = request.sort !== MovieSort.ADDED;
+          const index = [
+            { key: "A", position: 0 },
+            { key: "M", position: 450 },
+          ];
+          return {
+            movies,
+            page: {
+              nextToken: first + count < LIBRARY_SIZE ? String(first + count) : "",
+              ...(first === 0 ? { totalSize: LIBRARY_SIZE } : {}),
+            },
+            index: first === 0 && byTitle ? index : [],
+          };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("the rail lists the letters with titles, a dot between those that skip some", async () => {

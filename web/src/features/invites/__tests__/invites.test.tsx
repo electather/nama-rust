@@ -1,18 +1,14 @@
-import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import { Code, type ServiceImpl } from "@connectrpc/connect";
+import { create } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type AcceptInviteRequest, Permission, SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
-import {
-  type CreateInviteRequest,
-  InviteSchema,
-  type ListInvitesResponseSchema,
-  type UserService,
-} from "@/gen/nama/v1/user_pb";
-import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { type CreateInviteRequest, InviteSchema } from "@/gen/nama/v1/user_pb";
+import { fill, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -27,23 +23,8 @@ function invite(id: bigint, note: string) {
   });
 }
 
-/** Settings' Users section's own RPCs, with the Invites `listInvites` gives, and `more`. */
-function usersPage(
-  listInvites: () => MessageInitShape<typeof ListInvitesResponseSchema>,
-  more: Partial<ServiceImpl<typeof UserService>> = {},
-) {
-  return { listUsers: () => ({}), listInvites, ...more };
-}
-
 test("without a Server URL, Settings' Users section offers no way to make an Invite", async () => {
-  openApp(
-    "/code?settings=users",
-    fakeServer(
-      { signedIn: admin },
-      {},
-      usersPage(() => ({})),
-    ),
-  );
+  openApp("/code?settings=users", fakeServer({ signedIn: admin }).transport);
 
   await expect(screen.findByText(/needs this Server’s Server URL/u)).resolves.toBeDefined();
   expect(screen.queryByRole("button", { name: "Make an Invite" })).toBeNull();
@@ -55,14 +36,16 @@ test("making an Invite sends its note and the default Permissions, and shows its
     "/code?settings=users",
     fakeServer(
       { signedIn: admin },
-      {},
-      usersPage(() => ({ serverUrlSet: true }), {
-        createInvite: (request) => {
-          sent = request;
-          return { invite: invite(1n, "Mum"), url: "https://nama.example.com/invite/abc" };
+      {
+        UserService: {
+          listInvites: () => ({ serverUrlSet: true }),
+          createInvite: (request) => {
+            sent = request;
+            return { invite: invite(1n, "Mum"), url: "https://nama.example.com/invite/abc" };
+          },
         },
-      }),
-    ),
+      },
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Make an Invite" }));
@@ -81,9 +64,8 @@ test("an Invite offers only the Permissions you hold, and never Admin", async ()
     "/code?settings=users",
     fakeServer(
       { signedIn: [Permission.MANAGE_USERS, Permission.REQUEST] },
-      {},
-      usersPage(() => ({ serverUrlSet: true })),
-    ),
+      { UserService: { listInvites: () => ({ serverUrlSet: true }) } },
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Make an Invite" }));
@@ -99,14 +81,16 @@ test("revoking a pending Invite, once confirmed, removes it", async () => {
     "/code?settings=users",
     fakeServer(
       { signedIn: admin },
-      {},
-      usersPage(() => ({ invites, serverUrlSet: true }), {
-        revokeInvite: ({ inviteId }) => {
-          invites = invites.filter((each) => each.id !== inviteId);
-          return {};
+      {
+        UserService: {
+          listInvites: () => ({ invites, serverUrlSet: true }),
+          revokeInvite: ({ inviteId }) => {
+            invites = invites.filter((each) => each.id !== inviteId);
+            return {};
+          },
         },
-      }),
-    ),
+      },
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Invite for Mum" }));
@@ -121,18 +105,20 @@ test("revoking a pending Invite, once confirmed, removes it", async () => {
 });
 
 test("opening an Invite's link, picking a name and password lands signed in", async () => {
-  const state: ServerState = {};
   let sent: AcceptInviteRequest | undefined;
-  const router = openApp(
-    "/invite/abc",
-    fakeServer(state, {
-      acceptInvite: (request) => {
-        sent = request;
-        state.signedIn = newUser;
-        return {};
+  const { server, transport } = fakeServer(
+    {},
+    {
+      SignInService: {
+        acceptInvite: (request) => {
+          sent = request;
+          server.signedIn = newUser;
+          return {};
+        },
       },
-    }),
+    },
   );
+  const router = openApp("/invite/abc", transport);
 
   await screen.findByRole("heading", { name: "Join Living Room" });
   fill("Username", "Mum");
@@ -154,11 +140,13 @@ test("a taken name is shown next to its field, and an Invite that no longer work
     fakeServer(
       {},
       {
-        acceptInvite: () => {
-          throw refusal;
+        SignInService: {
+          acceptInvite: () => {
+            throw refusal;
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   await screen.findByRole("heading", { name: "Join Living Room" });

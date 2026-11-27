@@ -2,12 +2,12 @@ import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { eventFeed, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -19,16 +19,14 @@ afterEach(cleanup);
 function matrixUntilDeleted() {
   const events = eventFeed();
   let deleted = false;
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     {
       signedIn: newUser,
       libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }],
       events: events.stream,
     },
-    {},
-    {},
-    (router) => {
-      router.service(PlaybackService, {
+    {
+      PlaybackService: {
         planPlayback: () => {
           if (deleted) {
             throw refused(Code.NotFound, "there is no such Version", {
@@ -37,8 +35,8 @@ function matrixUntilDeleted() {
           }
           return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" } };
         },
-      });
-      router.service(BrowseService, {
+      },
+      BrowseService: {
         getMovie: () => {
           if (deleted) {
             throw refused(Code.NotFound, "nothing is matched to that title", {
@@ -52,7 +50,7 @@ function matrixUntilDeleted() {
             },
           };
         },
-      });
+      },
     },
   );
   return {

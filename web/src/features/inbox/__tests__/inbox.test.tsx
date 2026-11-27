@@ -1,20 +1,21 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import { type InboxNotificationSchema, InboxService } from "@/gen/nama/v1/inbox_pb";
+import type { InboxNotificationSchema } from "@/gen/nama/v1/inbox_pb";
 import { NotificationKind } from "@/gen/nama/v1/user_pb";
-import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { eventFeed, openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 
 type Notification = MessageInitShape<typeof InboxNotificationSchema>;
 
 /** A fake Server's inbox holding `notifications`, newest first, which marking reads in place. */
-function inboxOf(notifications: Notification[]) {
+function inboxOf(notifications: Notification[]): Answers {
   const unread = () => notifications.filter(({ readAt }) => readAt === undefined);
-  return (router: ConnectRouter) => {
-    router.service(InboxService, {
+  return {
+    InboxService: {
       listInboxNotifications: () => ({ notifications }),
       countUnreadInboxNotifications: () => ({ unread: unread().length }),
       markInboxNotificationRead: ({ id }) => {
@@ -30,15 +31,13 @@ function inboxOf(notifications: Notification[]) {
         }
         return {};
       },
-    });
+    },
   };
 }
 
 function openWithInbox(notifications: Notification[], events?: ReadableStream<SubscribeResponse>) {
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser, ...(events && { events }) },
-    {},
-    {},
     inboxOf(notifications),
   );
   return openApp("/code", transport);

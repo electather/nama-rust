@@ -8,32 +8,40 @@ import type {
   UpdateServerSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { type ServerState, fakeServer, fill, newUser } from "@/test-app";
+import { fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { type ServerModel, fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { dropdown, openSettings, pick } from "@/test-settings";
 
 afterEach(cleanup);
 
 const manageSettings = [...newUser, Permission.MANAGE_SETTINGS];
 
-function openServer(serverService: NonNullable<ServerState["serverService"]>) {
-  return openSettings("server", fakeServer({ signedIn: manageSettings, serverService }));
+function openServer(facts: Partial<ServerModel>, serverService: Answers["ServerService"] = {}) {
+  const { transport } = fakeServer(
+    { signedIn: manageSettings, ...facts },
+    { ServerService: serverService },
+  );
+  return openSettings("server", transport);
 }
 
 test("a User who manages settings changes the Server URL, saved for everyone once its field is left", async () => {
   const updates: UpdateServerSettingsRequest[] = [];
   const images: UpdateImageSettingsRequest[] = [];
-  openServer({
-    getServerSettings: () => ({ settings: { url: "http://nama.lan" } }),
-    updateServerSettings: (request) => {
-      updates.push(request);
-      return { settings: request.settings };
+  openServer(
+    { serverSettings: { url: "http://nama.lan" } },
+    {
+      updateServerSettings: (request) => {
+        updates.push(request);
+        return { settings: request.settings };
+      },
+      updateImageSettings: (request) => {
+        images.push(request);
+        return {};
+      },
     },
-    updateImageSettings: (request) => {
-      images.push(request);
-      return {};
-    },
-  });
+  );
 
   const url = await screen.findByLabelText<HTMLInputElement>("Server URL");
   expect(url.value).toBe("http://nama.lan");
@@ -54,12 +62,15 @@ test("a User who manages settings changes the Server URL, saved for everyone onc
 
 test("a Server URL that isn't a full address is said under its field once left, and isn't saved", async () => {
   const updates: UpdateServerSettingsRequest[] = [];
-  openServer({
-    updateServerSettings: (request) => {
-      updates.push(request);
-      return {};
+  openServer(
+    {},
+    {
+      updateServerSettings: (request) => {
+        updates.push(request);
+        return {};
+      },
     },
-  });
+  );
 
   const url = await screen.findByLabelText("Server URL");
   fill("Server URL", "nama.example.com");
@@ -71,15 +82,18 @@ test("a Server URL that isn't a full address is said under its field once left, 
 
 test("a Server URL the Server refuses is said under its field, and Enter tries it again", async () => {
   let tries = 0;
-  openServer({
-    updateServerSettings: () => {
-      tries += 1;
-      throw refused(Code.InvalidArgument, "the Server URL must be an http or https URL", {
-        reason: RefusalReason.NOT_A_URL,
-        field: "settings.url",
-      });
+  openServer(
+    {},
+    {
+      updateServerSettings: () => {
+        tries += 1;
+        throw refused(Code.InvalidArgument, "the Server URL must be an http or https URL", {
+          reason: RefusalReason.NOT_A_URL,
+          field: "settings.url",
+        });
+      },
     },
-  });
+  );
 
   const url = await screen.findByLabelText<HTMLInputElement>("Server URL");
   fill("Server URL", "https://nama");
@@ -95,13 +109,15 @@ test("a Server URL the Server refuses is said under its field, and Enter tries i
 
 test("a User who manages settings turns resizing off and gives its copies more space", async () => {
   const updates: UpdateImageSettingsRequest[] = [];
-  openServer({
-    getImageSettings: () => ({ settings: { resizeImages: true } }),
-    updateImageSettings: (request) => {
-      updates.push(request);
-      return { settings: request.settings };
+  openServer(
+    { imageSettings: { resizeImages: true } },
+    {
+      updateImageSettings: (request) => {
+        updates.push(request);
+        return { settings: request.settings };
+      },
     },
-  });
+  );
 
   const resize = await screen.findByRole("switch", { name: "Resize images" });
   expect(resize.getAttribute("aria-checked")).toBe("true");
@@ -119,13 +135,15 @@ test("a User who manages settings turns resizing off and gives its copies more s
 
 test("sharing starts off, and turning Usage Analytics on saves it with the Server URL, nothing else shared", async () => {
   const updates: UpdateServerSettingsRequest[] = [];
-  openServer({
-    getServerSettings: () => ({ settings: { url: "http://nama.lan" } }),
-    updateServerSettings: (request) => {
-      updates.push(request);
-      return { settings: request.settings };
+  openServer(
+    { serverSettings: { url: "http://nama.lan" } },
+    {
+      updateServerSettings: (request) => {
+        updates.push(request);
+        return { settings: request.settings };
+      },
     },
-  });
+  );
 
   const diagnostics = await screen.findByRole("switch", { name: "Share Diagnostics" });
   const usage = screen.getByRole("switch", { name: "Share Usage Analytics" });
@@ -146,10 +164,10 @@ test("once Share Diagnostics is turned on, the next navigation sends a tracepare
   let sharing = false;
   let rereadAfterSave = false;
   const traceparents: (string | null)[] = [];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
+    { signedIn: manageSettings },
     {
-      signedIn: manageSettings,
-      serverService: {
+      ServerService: {
         getServerInfo: () => ({ name: "Living Room", exportsDiagnostics: sharing }),
         getServerSettings: () => {
           rereadAfterSave = sharing;
@@ -160,12 +178,11 @@ test("once Share Diagnostics is turned on, the next navigation sends a tracepare
           return { settings: request.settings };
         },
       },
-    },
-    {},
-    {
-      listDevices: (_request, context) => {
-        traceparents.push(context.requestHeader.get("traceparent"));
-        return {};
+      UserService: {
+        listDevices: (_request, context) => {
+          traceparents.push(context.requestHeader.get("traceparent"));
+          return {};
+        },
       },
     },
   );
@@ -183,16 +200,14 @@ test("once Share Diagnostics is turned on, the next navigation sends a tracepare
 });
 
 test("a saved space that isn't one of the sizes offered stays chosen", async () => {
-  openServer({
-    getImageSettings: () => ({ settings: { resizeImages: true, resizedCacheMib: 512 } }),
-  });
+  openServer({ imageSettings: { resizeImages: true, resizedCacheMib: 512 } });
 
   const space = await screen.findByRole("combobox", { name: "Space for resized images" });
   expect(space.textContent).toBe("512 MB");
 });
 
 test("a User who doesn't manage settings has no Admin sections, and the Server's address opens Playback", async () => {
-  openSettings("server", fakeServer({ signedIn: newUser }));
+  openSettings("server", fakeServer({ signedIn: newUser }).transport);
 
   await screen.findByRole("heading", { name: "Playback" });
 

@@ -3,7 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
+import type { TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   AudioCodec,
@@ -11,12 +11,12 @@ import {
   type PlanPlaybackRequest,
   PlaybackMethod,
   type PlaybackPlanSchema,
-  PlaybackService,
   VideoCodec,
 } from "@/gen/nama/v1/playback_pb";
 import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openSettingsAt } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 /** What each hls.js player was given: the playlist it loads and the `<video>` it plays in. */
 const hlsJs = vi.hoisted((): { played: { url: string; video: HTMLMediaElement }[] } => ({
@@ -101,43 +101,46 @@ const serverPlanning = ({
   ignoresFailures?: boolean;
   watchState?: MessageInitShape<typeof WatchStateSchema>;
 } = {}) =>
-  fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const failed = !ignoresFailures && request.failedRecipes.includes("direct-play");
-        if (failed) {
-          return { plan: { reasons: saying(directPlayFailed) } };
-        }
-        const plan = planned(request);
-        return { plan, playableVersions: (plan.url ?? "") === "" ? playable : [] };
+  fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const failed = !ignoresFailures && request.failedRecipes.includes("direct-play");
+          if (failed) {
+            return { plan: { reasons: saying(directPlayFailed) } };
+          }
+          const plan = planned(request);
+          return { plan, playableVersions: (plan.url ?? "") === "" ? playable : [] };
+        },
       },
-    });
-    router.service(BrowseService, {
-      getMovie: ({ libraryId }) => {
-        if (libraryId !== 1n) {
-          throw new ConnectError("no such Library", Code.NotFound);
-        }
-        return {
-          movie: {
-            id: { namespace: "tmdb", value: "603" },
-            title: "The Matrix",
-            watchState,
-            versions: [
-              { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
-              { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
-              {
-                id: 9n,
-                fileName: "The Matrix (1999) 1080p.mkv",
-                size: 9_000_000_000n,
-                tracks: plannedTracks,
-              },
-            ],
-          },
-        };
+      BrowseService: {
+        getMovie: ({ libraryId }) => {
+          if (libraryId !== 1n) {
+            throw new ConnectError("no such Library", Code.NotFound);
+          }
+          return {
+            movie: {
+              id: { namespace: "tmdb", value: "603" },
+              title: "The Matrix",
+              watchState,
+              versions: [
+                { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
+                { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
+                {
+                  id: 9n,
+                  fileName: "The Matrix (1999) 1080p.mkv",
+                  size: 9_000_000_000n,
+                  tracks: plannedTracks,
+                },
+              ],
+            },
+          };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 const server = serverPlanning();
 
 // oxlint-disable-next-line require-await -- it hands over the query's promise

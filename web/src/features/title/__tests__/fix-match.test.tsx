@@ -3,13 +3,13 @@ import type { ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { type ClearMatchRequestSchema, MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
+import { type ClearMatchRequestSchema, type MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { openMenu, pickFromMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 // A Show's row of Episodes is virtual, so it needs a layout to show its cards.
 beforeEach(layOutShelves);
@@ -53,22 +53,22 @@ function matchService(asked: Asked): Partial<ServiceImpl<typeof MatchService>> {
 /** Alien's page in Films, for a User with `permissions`, where Heat is a Movie too. */
 function openAlien(permissions: Permission[], asked: Asked = {}) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const transport = fakeServer({ signedIn: permissions, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: ({ movieId }) => ({
-        movie: {
-          id: movieId,
-          title: nameOf(movieId),
-          releaseDate: "1979-05-25",
-          versions: [{ id: 1n, fileName: "Alien.mkv" }],
-        },
-      }),
-      listMovies: () => ({}),
-      listUnmatched: () => ({}),
-      listGenres: () => ({}),
-    });
-    router.service(MatchService, matchService(asked));
-  });
+  const { transport } = fakeServer(
+    { signedIn: permissions, libraries },
+    {
+      BrowseService: {
+        getMovie: ({ movieId }) => ({
+          movie: {
+            id: movieId,
+            title: nameOf(movieId),
+            releaseDate: "1979-05-25",
+            versions: [{ id: 1n, fileName: "Alien.mkv" }],
+          },
+        }),
+      },
+      MatchService: matchService(asked),
+    },
+  );
   openApp("/libraries/1/movies/tmdb-348", transport);
 }
 
@@ -132,19 +132,18 @@ test("unmatch, once confirmed, Unmatches the Movie's every Item and goes to its 
 test("fix Match on a Show Matches its every Episode and goes to the Show picked", async () => {
   const asked: Asked = {};
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
-  const transport = fakeServer({ signedIn: managesLibraries, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getShow: ({ showId }) => ({
-        show: { id: showId, title: nameOf(showId) },
-        seasons: [{ number: 1 }],
-      }),
-      listEpisodes: () => ({}),
-      listUnmatched: () => ({}),
-      listShows: () => ({}),
-      listGenres: () => ({}),
-    });
-    router.service(MatchService, matchService(asked));
-  });
+  const { transport } = fakeServer(
+    { signedIn: managesLibraries, libraries },
+    {
+      BrowseService: {
+        getShow: ({ showId }) => ({
+          show: { id: showId, title: nameOf(showId) },
+          seasons: [{ number: 1 }],
+        }),
+      },
+      MatchService: matchService(asked),
+    },
+  );
   openApp("/libraries/2/shows/tmdb-70523", transport);
   await pickFromMenu("More actions", "Fix Match");
   const dialog = await screen.findByRole("dialog", { name: "Match Dark" });

@@ -17,22 +17,18 @@ type Failure = MessageInitShape<typeof ExtensionPointFailureSchema>;
 
 /** The page of an enabled Recogniser and Notifier Plugin, whose points' last calls failed as `failures` say. */
 async function openFlaky(failures: Failure[] = []) {
-  openPlugin("anime-numbers", {
-    getPlugin: () => ({
-      plugin: {
-        summary: {
-          id: "anime-numbers",
-          name: "Anime numbers",
-          version: "0.1.0",
-          kind: PluginKind.INSTALLED,
-          enabled: true,
-          extensionPoints: [ExtensionPoint.RECOGNISER, ExtensionPoint.NOTIFIER],
-        },
-        failures,
-        // Something the details show, to wait on where no failure shows.
-        license: "MIT",
-      },
-    }),
+  openPlugin({
+    summary: {
+      id: "anime-numbers",
+      name: "Anime numbers",
+      version: "0.1.0",
+      kind: PluginKind.INSTALLED,
+      enabled: true,
+      extensionPoints: [ExtensionPoint.RECOGNISER, ExtensionPoint.NOTIFIER],
+    },
+    failures,
+    // Something the details show, to wait on where no failure shows.
+    license: "MIT",
   });
   const page = await plugin("Anime numbers");
   return page;

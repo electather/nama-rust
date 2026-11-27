@@ -1,16 +1,15 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
   PlaybackMethod,
-  PlaybackService,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 import { atOrigin } from "@/test-server-at";
 import { tickWorker } from "@/test-worker";
 
@@ -78,42 +77,45 @@ const SIGNS = {
 function server(asked: PlanPlaybackRequest[]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const tracks = [{ codec: "h264", kind: { case: "video", value: {} } } as const, SIGNS];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks }],
-        },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const { subtitleTrack, deviceDecoding } = request;
-        if (deviceDecoding?.subtitleFormats.includes(SubtitleFormat.ASS) ?? false) {
-          const drawn = {
-            track: SIGNS,
-            url: STYLED,
-            place: 1,
-            format: SubtitleFormat.ASS,
-            fontUrls: [FONT],
-            offsetMs: 2000,
-          };
-          return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/v", subtitles: [drawn] } };
-        }
-        const plain = {
-          track: SIGNS,
-          url: "/media/versions/7/subtitles/1",
-          place: 1,
-          format: SubtitleFormat.WEBVTT,
-        };
-        const plan = { method: PlaybackMethod.TRANSCODE, url: "/p.m3u8", subtitleTrack };
-        return { plan: { ...plan, subtitles: [plain], burnInTracks: [1] } };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks }],
+          },
+        }),
       },
-    });
-  });
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const { subtitleTrack, deviceDecoding } = request;
+          if (deviceDecoding?.subtitleFormats.includes(SubtitleFormat.ASS) ?? false) {
+            const drawn = {
+              track: SIGNS,
+              url: STYLED,
+              place: 1,
+              format: SubtitleFormat.ASS,
+              fontUrls: [FONT],
+              offsetMs: 2000,
+            };
+            return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/v", subtitles: [drawn] } };
+          }
+          const plain = {
+            track: SIGNS,
+            url: "/media/versions/7/subtitles/1",
+            place: 1,
+            format: SubtitleFormat.WEBVTT,
+          };
+          const plan = { method: PlaybackMethod.TRANSCODE, url: "/p.m3u8", subtitleTrack };
+          return { plan: { ...plan, subtitles: [plain], burnInTracks: [1] } };
+        },
+      },
+    },
+  ).transport;
 }
 
 /**

@@ -2,27 +2,28 @@ import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
 import { NotificationKind, type SetNotificationPreferenceRequest } from "@/gen/nama/v1/user_pb";
-import { fakeServer, newUser } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 test("a User turns off Approved notifications on Settings and keeps Available", async () => {
   // This User only ever turns kinds off.
   const off = new Set<NotificationKind>();
   const set: SetNotificationPreferenceRequest[] = [];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser },
-    {},
     {
-      listNotificationPreferences: () => ({
-        preferences: [NotificationKind.APPROVED, NotificationKind.AVAILABLE].map((kind) => ({
-          kind,
-          on: !off.has(kind),
-        })),
-      }),
-      setNotificationPreference: (request) => {
-        set.push(request);
-        off.add(request.kind);
-        return {};
+      UserService: {
+        listNotificationPreferences: () => ({
+          preferences: [NotificationKind.APPROVED, NotificationKind.AVAILABLE].map((kind) => ({
+            kind,
+            on: !off.has(kind),
+          })),
+        }),
+        setNotificationPreference: (request) => {
+          set.push(request);
+          off.add(request.kind);
+          return {};
+        },
       },
     },
   );

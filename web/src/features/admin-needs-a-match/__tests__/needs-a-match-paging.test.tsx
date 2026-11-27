@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
-import { type ListUnmatchedItemsRequest, MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
-import { admin, fakeServer } from "@/test-app";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { type ListUnmatchedItemsRequest, TitleKind } from "@/gen/nama/v1/match_pb";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -20,18 +20,20 @@ function movie(itemId: bigint, title: string) {
  * in `asked`.
  */
 function pagingServer(titles: string[], asked: ListUnmatchedItemsRequest[]) {
-  return fakeServer({ signedIn: admin }, {}, {}, (router) => {
-    router.service(LibraryService, { listLibraries: () => ({ libraries: [films] }) });
-    router.service(MatchService, {
-      listUnmatchedItems: (request) => {
-        asked.push(request);
-        const index = Number(request.page?.token ?? "");
-        const title = titles[index] ?? "";
-        const next = index + 1 < titles.length ? String(index + 1) : "";
-        return { items: [movie(BigInt(index), title)], page: { nextToken: next } };
+  return fakeServer(
+    { signedIn: admin, libraries: [films] },
+    {
+      MatchService: {
+        listUnmatchedItems: (request) => {
+          asked.push(request);
+          const index = Number(request.page?.token ?? "");
+          const title = titles[index] ?? "";
+          const next = index + 1 < titles.length ? String(index + 1) : "";
+          return { items: [movie(BigInt(index), title)], page: { nextToken: next } };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("needs a Match lists a Library's next page of Items with Show more", async () => {

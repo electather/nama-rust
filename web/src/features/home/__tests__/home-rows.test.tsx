@@ -1,12 +1,13 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, type ListHomeRowTitlesRequest } from "@/gen/nama/v1/browse_pb";
+import type { ListHomeRowTitlesRequest } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { RequestState } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { type HomeRowInit, continueWatchingRow, pluginRow } from "@/test-home-rows";
 import { layOutShelves } from "@/test-layout";
+import { fakeServer, newUser } from "@/test-server";
 
 beforeEach(layOutShelves);
 
@@ -62,30 +63,32 @@ function openHome(asked: ListHomeRowTitlesRequest[] = [], rows?: HomeRowInit[]) 
     { id: 1n, name: "Films", kind: LibraryKind.MOVIES },
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
-  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listFeatured: () => ({}),
-      listContinueWatching: () => (rows ? { entries: [alien] } : {}),
-      listHomeRows: () => ({ rows: rows ?? [continueWatchingRow, picksRow, emptyRow, showsRow] }),
-      listHomeRowTitles: (request) => {
-        asked.push(request);
-        if (request.key === "picks") {
-          return {
-            titles: [
-              { movieOrShow: { case: "movie", value: heat } },
-              { movieOrShow: { case: "missingMovie", value: dune } },
-              { movieOrShow: { case: "missingMovie", value: arrival } },
-              { movieOrShow: { case: "missingShow", value: severance } },
-            ],
-          };
-        }
-        if (request.key === "shows") {
-          return { titles: [{ movieOrShow: { case: "show", value: dark } }] };
-        }
-        return {};
+  const { transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        listContinueWatching: () => (rows ? { entries: [alien] } : {}),
+        listHomeRows: () => ({ rows: rows ?? [continueWatchingRow, picksRow, emptyRow, showsRow] }),
+        listHomeRowTitles: (request) => {
+          asked.push(request);
+          if (request.key === "picks") {
+            return {
+              titles: [
+                { movieOrShow: { case: "movie", value: heat } },
+                { movieOrShow: { case: "missingMovie", value: dune } },
+                { movieOrShow: { case: "missingMovie", value: arrival } },
+                { movieOrShow: { case: "missingShow", value: severance } },
+              ],
+            };
+          }
+          if (request.key === "shows") {
+            return { titles: [{ movieOrShow: { case: "show", value: dark } }] };
+          }
+          return {};
+        },
       },
-    });
-  });
+    },
+  );
   openApp("/", transport);
 }
 
@@ -225,17 +228,18 @@ function aRowOfThirteen(asked: (string | undefined)[]) {
         },
       }) as const,
   );
-  return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listFeatured: () => ({}),
-      listContinueWatching: () => ({}),
-      listHomeRows: () => ({ rows: [picksRow] }),
-      listHomeRowTitles: ({ page }) => {
-        asked.push(page?.token);
-        return page?.token === "" ? { titles, page: { nextToken: "12", totalSize: 13 } } : {};
+  return fakeServer(
+    { signedIn: newUser },
+    {
+      BrowseService: {
+        listHomeRows: () => ({ rows: [picksRow] }),
+        listHomeRowTitles: ({ page }) => {
+          asked.push(page?.token);
+          return page?.token === "" ? { titles, page: { nextToken: "12", totalSize: 13 } } : {};
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("a row's shelf asks for its next page as you scroll to its end", async () => {

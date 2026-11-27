@@ -13,10 +13,8 @@ import {
 } from "@/gen/nama/hub/v1/link_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
-import { WebPushService } from "@/gen/nama/v1/web_push_pb";
 import { signedInAccount, whoIsSignedIn } from "@/shared/hooks/access";
 import type { ServerAt } from "@/shared/lib/server";
-import { fakeServer, newUser } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
 import {
@@ -25,6 +23,7 @@ import {
   keptSessionKeys,
   openIdentityChange,
 } from "@/test-identity-change";
+import { fakeServer, newUser } from "@/test-server";
 import { browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
 // `web/src/AGENTS.md`, "One module changes who is signed in": a row per kind of change, asserting
@@ -50,14 +49,13 @@ function serverWithPush(log: string[], device: Device) {
   return fakeServer(
     { signedIn: newUser },
     {
-      whoAmI: () => ({
-        user: { id: 1n, name: "Sam", permissions: newUser },
-        deviceUsers: device.deviceUsers.map((id) => ({ id, name: `User ${id}` })),
-      }),
-    },
-    {},
-    (router) => {
-      router.service(WebPushService, {
+      SignInService: {
+        whoAmI: () => ({
+          user: { id: 1n, name: "Sam", permissions: newUser },
+          deviceUsers: device.deviceUsers.map((id) => ({ id, name: `User ${id}` })),
+        }),
+      },
+      WebPushService: {
         subscribeWebPush: () => {
           if (device.refusesPush) {
             throw new ConnectError("database is locked", Code.Internal);
@@ -69,9 +67,9 @@ function serverWithPush(log: string[], device: Device) {
           log.push("push left");
           return {};
         },
-      });
+      },
     },
-  );
+  ).transport;
 }
 
 /** A call that notes in `log` where it was made, then fails with `refusal`, if any. */

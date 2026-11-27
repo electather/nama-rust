@@ -2,13 +2,13 @@ import { Code } from "@connectrpc/connect";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { TitleKind } from "@/gen/nama/v1/match_pb";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { type ServerState, admin, eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { eventFeed, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { type ServerModel, admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -22,43 +22,44 @@ const ALIEN = { itemId: 3n, versionId: 7n, kind: TitleKind.MOVIE, title: "Alien"
  * Unmatched, counting each refusal in `refusals`, and `tellsTheApp` sends the Event that says so.
  * Each Version it plans goes in `planned`, and each Item `SetMatch` gets in `setMatches`.
  */
-function alienUnmatched(planned: bigint[], signedIn: ServerState["signedIn"] = newUser) {
+function alienUnmatched(planned: bigint[], signedIn: ServerModel["signedIn"] = newUser) {
   const events = eventFeed();
   let matched = false;
   let refusals = 0;
   const setMatches: bigint[] = [];
-  const transport = fakeServer({ signedIn, libraries, events: events.stream }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listMovies: () => ({}),
-      listGenres: () => ({}),
-      listUnmatched: () => ({ items: matched ? [] : [ALIEN] }),
-      getUnmatchedVersion: () => {
-        if (matched) {
-          refusals += 1;
-          throw refused(Code.NotFound, "there is no such Version", {
-            reason: RefusalReason.VERSION_NOT_FOUND,
-          });
-        }
-        return { item: ALIEN, version: { id: 7n, fileName: "Alien (1979).mkv", size: 1n } };
+  const { transport } = fakeServer(
+    { signedIn, libraries, events: events.stream },
+    {
+      BrowseService: {
+        listUnmatched: () => ({ items: matched ? [] : [ALIEN] }),
+        getUnmatchedVersion: () => {
+          if (matched) {
+            refusals += 1;
+            throw refused(Code.NotFound, "there is no such Version", {
+              reason: RefusalReason.VERSION_NOT_FOUND,
+            });
+          }
+          return { item: ALIEN, version: { id: 7n, fileName: "Alien (1979).mkv", size: 1n } };
+        },
       },
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        planned.push(request.versionId);
-        return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" } };
+      PlaybackService: {
+        planPlayback: (request) => {
+          planned.push(request.versionId);
+          return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" } };
+        },
       },
-    });
-    router.service(MatchService, {
-      searchTitles: () => ({
-        candidates: [{ id: { namespace: "tmdb", value: "348" }, title: "Alien", year: 1979 }],
-      }),
-      setMatch: (request) => {
-        setMatches.push(request.itemId);
-        matched = true;
-        return { matched: 1n };
+      MatchService: {
+        searchTitles: () => ({
+          candidates: [{ id: { namespace: "tmdb", value: "348" }, title: "Alien", year: 1979 }],
+        }),
+        setMatch: (request) => {
+          setMatches.push(request.itemId);
+          matched = true;
+          return { matched: 1n };
+        },
       },
-    });
-  });
+    },
+  );
   return {
     transport,
     matches: () => {

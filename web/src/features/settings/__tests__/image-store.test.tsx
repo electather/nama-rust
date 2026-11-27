@@ -1,14 +1,16 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { Code, type ServiceImpl } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
-import { ExtensionPoint, PluginKind, PluginService } from "@/gen/nama/v1/plugin_pb";
+import { ExtensionPoint, PluginKind } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import type { GetImageSettingsResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
+import type { GetImageSettingsResponseSchema } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { type ServerModel, fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { dropdown, offered, pick } from "@/test-settings";
 
 const manageSettings = [...newUser, Permission.MANAGE_SETTINGS];
@@ -20,19 +22,14 @@ const plugin = (
   name: string,
   { enabled, extensionPoints }: { enabled: boolean; extensionPoints: ExtensionPoint[] },
 ) => ({
-  id,
-  name,
-  version: "0.1.0",
-  kind: PluginKind.INSTALLED,
-  enabled,
-  extensionPoints,
+  summary: { id, name, version: "0.1.0", kind: PluginKind.INSTALLED, enabled, extensionPoints },
 });
 
 /**
  * An enabled S3 store, a store Plugin that is disabled, and TMDB, which keeps no images, so only S3
  * may keep them.
  */
-const summaries = [
+const plugins = [
   plugin("s3", "S3", { enabled: true, extensionPoints: [ExtensionPoint.BLOB_STORE] }),
   plugin("old-store", "Old store", {
     enabled: false,
@@ -41,14 +38,16 @@ const summaries = [
   plugin("tmdb", "TMDB", { enabled: true, extensionPoints: [ExtensionPoint.TITLE_SOURCE] }),
 ];
 
-/** Opens Settings for a User who manages settings, on a fake Server answering with `server`. */
-function openSettings(server: Partial<ServiceImpl<typeof ServerService>>) {
-  openApp(
-    "/code?settings=server",
-    fakeServer({ signedIn: manageSettings, serverService: server }, {}, {}, (router) => {
-      router.service(PluginService, { listPlugins: () => ({ summaries }) });
-    }),
+/**
+ * Opens Settings for a User who manages settings, on a fake Server with `plugins` and `facts`,
+ * answering `server` too.
+ */
+function openSettings(facts: Partial<ServerModel>, server: Answers["ServerService"] = {}) {
+  const { transport } = fakeServer(
+    { signedIn: manageSettings, plugins, ...facts },
+    { ServerService: server },
   );
+  openApp("/code?settings=server", transport);
 }
 
 /** The image store's part of Settings, once it shows. */
@@ -92,19 +91,22 @@ test("switching the image store shows the copy's progress, then the new store", 
     now: { settings: {} },
     next: { settings: {} },
   };
-  openSettings({
-    getImageSettings: () => {
-      const answer = answers.now;
-      answers.now = answers.next;
-      return answer;
+  openSettings(
+    {},
+    {
+      getImageSettings: () => {
+        const answer = answers.now;
+        answers.now = answers.next;
+        return answer;
+      },
+      switchImageStore: ({ pluginId }) => {
+        switches.push(pluginId);
+        answers.now = { settings: {}, switching: { toPluginId: pluginId, copied: 1, total: 3 } };
+        answers.next = { settings: { storePluginId: pluginId } };
+        return { switching: { toPluginId: pluginId } };
+      },
     },
-    switchImageStore: ({ pluginId }) => {
-      switches.push(pluginId);
-      answers.now = { settings: {}, switching: { toPluginId: pluginId, copied: 1, total: 3 } };
-      answers.next = { settings: { storePluginId: pluginId } };
-      return { switching: { toPluginId: pluginId } };
-    },
-  });
+  );
 
   const store = await imageStore();
   await storesOffered();
@@ -118,13 +120,15 @@ test("switching the image store shows the copy's progress, then the new store", 
 
 test("switching back to local disk names no Plugin", async () => {
   const switches: string[] = [];
-  openSettings({
-    getImageSettings: () => ({ settings: { storePluginId: "s3" } }),
-    switchImageStore: ({ pluginId }) => {
-      switches.push(pluginId);
-      return {};
+  openSettings(
+    { imageSettings: { storePluginId: "s3" } },
+    {
+      switchImageStore: ({ pluginId }) => {
+        switches.push(pluginId);
+        return {};
+      },
     },
-  });
+  );
 
   const store = await imageStore();
   await store.findByText("S3", inUse);
@@ -135,7 +139,7 @@ test("switching back to local disk names no Plugin", async () => {
 });
 
 test("an enabled Blob store Plugin in use is chosen in the picker, adding no option", async () => {
-  openSettings({ getImageSettings: () => ({ settings: { storePluginId: "s3" } }) });
+  openSettings({ imageSettings: { storePluginId: "s3" } });
 
   await imageStore();
   await expect(storesOffered()).resolves.toStrictEqual(["Local disk", "S3"]);
@@ -144,15 +148,18 @@ test("an enabled Blob store Plugin in use is chosen in the picker, adding no opt
 });
 
 test("a store that fails its check is refused with why", async () => {
-  openSettings({
-    switchImageStore: () => {
-      throw refused(Code.FailedPrecondition, "the new image store failed its check", {
-        reason: RefusalReason.IMAGE_STORE_FAILED_CHECK,
-        field: "plugin_id",
-        params: { pluginId: "s3", reason: "couldn't write to it: access denied" },
-      });
+  openSettings(
+    {},
+    {
+      switchImageStore: () => {
+        throw refused(Code.FailedPrecondition, "the new image store failed its check", {
+          reason: RefusalReason.IMAGE_STORE_FAILED_CHECK,
+          field: "plugin_id",
+          params: { pluginId: "s3", reason: "couldn't write to it: access denied" },
+        });
+      },
     },
-  });
+  );
 
   const store = await imageStore();
   await storesOffered();
@@ -167,17 +174,20 @@ test("a store that fails its check is refused with why", async () => {
 });
 
 test("a switch that stopped shows why, with the old store still in use", async () => {
-  openSettings({
-    getImageSettings: () => ({
-      settings: {},
-      switching: {
-        toPluginId: "s3",
-        copied: 1,
-        total: 3,
-        failure: "couldn't copy a.jpg: timed out",
-      },
-    }),
-  });
+  openSettings(
+    {},
+    {
+      getImageSettings: () => ({
+        settings: {},
+        switching: {
+          toPluginId: "s3",
+          copied: 1,
+          total: 3,
+          failure: "couldn't copy a.jpg: timed out",
+        },
+      }),
+    },
+  );
 
   const store = await imageStore();
 
@@ -189,7 +199,7 @@ test("a switch that stopped shows why, with the old store still in use", async (
 });
 
 test("a disabled Blob store Plugin in use shows its Plugin name, chosen but not offered", async () => {
-  openSettings({ getImageSettings: () => ({ settings: { storePluginId: "old-store" } }) });
+  openSettings({ imageSettings: { storePluginId: "old-store" } });
 
   const store = await imageStore();
   await expect(store.findByText("Old store", inUse)).resolves.toBeDefined();
@@ -207,12 +217,15 @@ test("a disabled Blob store Plugin in use shows its Plugin name, chosen but not 
 });
 
 test("a stopped switch to a disabled Blob store Plugin names it, with one full stop", async () => {
-  openSettings({
-    getImageSettings: () => ({
-      settings: {},
-      switching: { toPluginId: "old-store", copied: 1, total: 3, failure: "it went away." },
-    }),
-  });
+  openSettings(
+    {},
+    {
+      getImageSettings: () => ({
+        settings: {},
+        switching: { toPluginId: "old-store", copied: 1, total: 3, failure: "it went away." },
+      }),
+    },
+  );
 
   const store = await imageStore();
 
@@ -224,15 +237,18 @@ test("a stopped switch to a disabled Blob store Plugin names it, with one full s
 });
 
 test("a failed check by a disabled Blob store Plugin names it, with one full stop", async () => {
-  openSettings({
-    switchImageStore: () => {
-      throw refused(Code.FailedPrecondition, "the new image store failed its check", {
-        reason: RefusalReason.IMAGE_STORE_FAILED_CHECK,
-        field: "plugin_id",
-        params: { pluginId: "old-store", reason: "Access denied." },
-      });
+  openSettings(
+    {},
+    {
+      switchImageStore: () => {
+        throw refused(Code.FailedPrecondition, "the new image store failed its check", {
+          reason: RefusalReason.IMAGE_STORE_FAILED_CHECK,
+          field: "plugin_id",
+          params: { pluginId: "old-store", reason: "Access denied." },
+        });
+      },
     },
-  });
+  );
 
   const store = await imageStore();
   await storesOffered();
@@ -252,17 +268,19 @@ test.each([
   "switching untouched from $state Blob store Plugin in use asks for it, not local disk",
   async ({ pluginId, name }) => {
     const switches: string[] = [];
-    openSettings({
-      getImageSettings: () => ({ settings: { storePluginId: pluginId } }),
-      switchImageStore: ({ pluginId: asked }) => {
-        switches.push(asked);
-        throw refused(Code.FailedPrecondition, "the image store is already in use", {
-          reason: RefusalReason.IMAGE_STORE_IN_USE,
-          field: "plugin_id",
-          params: { pluginId: asked },
-        });
+    openSettings(
+      { imageSettings: { storePluginId: pluginId } },
+      {
+        switchImageStore: ({ pluginId: asked }) => {
+          switches.push(asked);
+          throw refused(Code.FailedPrecondition, "the image store is already in use", {
+            reason: RefusalReason.IMAGE_STORE_IN_USE,
+            field: "plugin_id",
+            params: { pluginId: asked },
+          });
+        },
       },
-    });
+    );
 
     const store = await imageStore();
     await storesOffered();
@@ -275,13 +293,15 @@ test.each([
 
 test("picking local disk or S3 while a disabled Blob store Plugin is in use switches to the store picked", async () => {
   const switches: string[] = [];
-  openSettings({
-    getImageSettings: () => ({ settings: { storePluginId: "old-store" } }),
-    switchImageStore: ({ pluginId }) => {
-      switches.push(pluginId);
-      return {};
+  openSettings(
+    { imageSettings: { storePluginId: "old-store" } },
+    {
+      switchImageStore: ({ pluginId }) => {
+        switches.push(pluginId);
+        return {};
+      },
     },
-  });
+  );
 
   const store = await imageStore();
   await storesOffered();

@@ -1,32 +1,26 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import type { ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
-import {
-  MatchService,
-  TitleKind,
-  type UnmatchedItemSchema,
-  UnmatchedReason,
-} from "@/gen/nama/v1/match_pb";
-import { admin, eventFeed, fakeServer } from "@/test-app";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { TitleKind, type UnmatchedItemSchema, UnmatchedReason } from "@/gen/nama/v1/match_pb";
+import { eventFeed } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
 const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
 
-/** A fake Server with the Library `films`, whose Admin is signed in, with `more` services. */
+/** A fake Server with the Library `films`, whose Admin is signed in, Matching as `matches` says. */
 function adminServer(
-  events: ReadableStream<SubscribeResponse>,
-  more: (router: ConnectRouter) => void,
+  matches: NonNullable<Answers["MatchService"]>,
+  events = new ReadableStream<SubscribeResponse>(),
 ) {
-  return fakeServer({ signedIn: admin, events }, {}, {}, (router) => {
-    router.service(LibraryService, { listLibraries: () => ({ libraries: [films] }) });
-    more(router);
-  });
+  return fakeServer({ signedIn: admin, events, libraries: [films] }, { MatchService: matches })
+    .transport;
 }
 
 test("setting a Match takes the Item off Needs a Match", async () => {
@@ -41,8 +35,8 @@ test("setting a Match takes the Item off Needs a Match", async () => {
   let items: MessageInitShape<typeof UnmatchedItemSchema>[] = [alien];
   openSettings(
     "needs-a-match",
-    adminServer(events.stream, (router) => {
-      router.service(MatchService, {
+    adminServer(
+      {
         listUnmatchedItems: () => ({ items }),
         searchTitles: () => ({
           candidates: [{ id: { namespace: "tmdb", value: "348" }, title: "Alien", year: 1979 }],
@@ -52,8 +46,9 @@ test("setting a Match takes the Item off Needs a Match", async () => {
           events.send({ event: { case: "itemMatched", value: { libraryId: 1n, itemId } } });
           return { matched: 1n };
         },
-      });
-    }),
+      },
+      events.stream,
+    ),
   );
 
   await expect(screen.findByText(alien.path)).resolves.toBeDefined();
@@ -107,10 +102,8 @@ test.each([
   const item = { itemId: 7n, path: "/srv/shows/The Office/S01E01.mkv", kind: TitleKind.SHOW };
   openSettings(
     "needs-a-match",
-    adminServer(new ReadableStream(), (router) => {
-      router.service(MatchService, {
-        listUnmatchedItems: () => ({ items: [{ ...item, title: "The Office", ...why }] }),
-      });
+    adminServer({
+      listUnmatchedItems: () => ({ items: [{ ...item, title: "The Office", ...why }] }),
     }),
   );
 
@@ -126,12 +119,7 @@ test("needs a Match names an Item parsed as Season 0 a Special", async () => {
     season: 0,
     episode: 2,
   };
-  openSettings(
-    "needs-a-match",
-    adminServer(new ReadableStream(), (router) => {
-      router.service(MatchService, { listUnmatchedItems: () => ({ items: [item] }) });
-    }),
-  );
+  openSettings("needs-a-match", adminServer({ listUnmatchedItems: () => ({ items: [item] }) }));
 
   await expect(
     screen.findByRole("button", { name: "Find a Match for Severance · Specials, Episode 2" }),
@@ -145,14 +133,15 @@ test("needs a Match shows why once Matching finishes", async () => {
   let listed = 0;
   openSettings(
     "needs-a-match",
-    adminServer(events.stream, (router) => {
-      router.service(MatchService, {
+    adminServer(
+      {
         listUnmatchedItems: () => {
           listed += 1;
           return { items: [{ ...item, title: "Alien", reason }] };
         },
-      });
-    }),
+      },
+      events.stream,
+    ),
   );
   await expect(screen.findByText(item.path)).resolves.toBeDefined();
   // The scan finished before Matching did. Its Event opens the stream, and the catch-up refetch
@@ -178,11 +167,12 @@ test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", as
   let unmatched = (): object => ({ items });
   openSettings(
     "needs-a-match",
-    adminServer(events.stream, (router) => {
-      router.service(MatchService, {
+    adminServer(
+      {
         listUnmatchedItems: () => unmatched(),
-      });
-    }),
+      },
+      events.stream,
+    ),
   );
   await screen.findByText("/srv/films/Alien.1979.mkv");
 
@@ -198,12 +188,7 @@ test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", as
 });
 
 test("needs a Match says when everything is Matched", async () => {
-  openSettings(
-    "needs-a-match",
-    adminServer(new ReadableStream(), (router) => {
-      router.service(MatchService, { listUnmatchedItems: () => ({}) });
-    }),
-  );
+  openSettings("needs-a-match", adminServer({}));
 
   await expect(screen.findByText("Everything is Matched")).resolves.toBeDefined();
 });

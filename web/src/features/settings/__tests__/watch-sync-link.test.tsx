@@ -4,12 +4,13 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { WatchSyncLinkState } from "@/gen/nama/v1/user_pb";
-import { fakeServer, newUser } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
-type Users = Parameters<typeof fakeServer>[2];
+type Users = NonNullable<Answers["UserService"]>;
 
 /** Trakt as a Watch sync, its account linked when `linked`. */
 function traktSettings(linked: boolean) {
@@ -43,9 +44,13 @@ function openWithTrakt(users: Users, linked: () => boolean = () => false) {
     "connections",
     fakeServer(
       { signedIn: newUser },
-      {},
-      { listPersonalSettings: () => ({ plugins: [traktSettings(linked())] }), ...users },
-    ),
+      {
+        UserService: {
+          listPersonalSettings: () => ({ plugins: [traktSettings(linked())] }),
+          ...users,
+        },
+      },
+    ).transport,
   );
 }
 

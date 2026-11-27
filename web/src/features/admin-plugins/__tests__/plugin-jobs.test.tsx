@@ -16,11 +16,7 @@ const jobs = [
  */
 async function openUpkeep(declared: typeof jobs, { asAdmin = true, enabled = true } = {}) {
   const open = asAdmin ? openPluginAsAdmin : openPlugin;
-  open("upkeep", {
-    getPlugin: () => ({
-      plugin: { summary: { id: "upkeep", name: "Upkeep", enabled }, jobs: declared },
-    }),
-  });
+  open({ summary: { id: "upkeep", name: "Upkeep", enabled }, jobs: declared });
   const page = await plugin("Upkeep");
   await waitForDetails(page);
   return page;

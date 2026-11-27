@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { JobService } from "@/gen/nama/v1/job_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openPluginSettings } from "@/test-plugins";
+import { admin, fakeServer, newUser } from "@/test-server";
 import { findSettingsLink, openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
@@ -13,17 +13,17 @@ afterEach(cleanup);
 function adminServer() {
   return fakeServer(
     { signedIn: admin, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
-    {},
-    { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
-    (router) => {
-      router.service(JobService, {
+    {
+      UserService: {
+        listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }),
+      },
+      JobService: {
         listJobs: () => ({
           jobs: [{ pluginId: "upkeep", pluginName: "Upkeep", id: "forget", name: "Forget" }],
         }),
-        listJobRuns: () => ({}),
-      });
+      },
     },
-  );
+  ).transport;
 }
 
 /** The crumbs atop Settings' pane. */

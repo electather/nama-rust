@@ -1,15 +1,10 @@
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import {
-  AudioCodec,
-  type PlanPlaybackRequest,
-  PlaybackMethod,
-  PlaybackService,
-} from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { AudioCodec, type PlanPlaybackRequest, PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -23,16 +18,14 @@ afterEach(() => {
 const serverAsked = (asked: PlanPlaybackRequest[]) =>
   fakeServer(
     { signedIn: newUser, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
-    {},
-    {},
-    (router) => {
-      router.service(PlaybackService, {
+    {
+      PlaybackService: {
         planPlayback: (request) => {
           asked.push(request);
           return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" } };
         },
-      });
-      router.service(BrowseService, {
+      },
+      BrowseService: {
         getMovie: () => ({
           movie: {
             id: { namespace: "tmdb", value: "603" },
@@ -40,9 +33,9 @@ const serverAsked = (asked: PlanPlaybackRequest[]) =>
             versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
           },
         }),
-      });
+      },
     },
-  );
+  ).transport;
 
 test.each([
   { decoded: "avc1.640028", h26410bit: false, hevc10bit: false },

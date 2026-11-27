@@ -3,8 +3,9 @@ import type { ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { type SearchResponseSchema, SearchService } from "@/gen/nama/v1/search_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import type { SearchResponseSchema, SearchService } from "@/gen/nama/v1/search_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -30,9 +31,7 @@ const findsOnlyAlien: ServiceImpl<typeof SearchService>["search"] = ({ query }) 
 test("the titles found stay listed while the next words are searched", async () => {
   openApp(
     "/code",
-    fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-      router.service(SearchService, { search: findsOnlyAlien });
-    }),
+    fakeServer({ signedIn: newUser }, { SearchService: { search: findsOnlyAlien } }).transport,
   );
   await screen.findByRole("button", { name: "Search this Server" });
   fireEvent.keyDown(document.body, { key: "k", metaKey: true });

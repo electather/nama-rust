@@ -6,7 +6,7 @@ import {
   PluginConnectionState,
   type StartPluginConnectionRequest,
 } from "@/gen/nama/v1/user_pb";
-import { admin, fakeServer, newUser } from "@/test-app";
+import { admin, fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 const link = "https://t.me/nama_bot?start=one-time-code";
@@ -20,20 +20,23 @@ afterEach(() => {
 function telegramIn(state: { now: PluginConnectionState }) {
   const started: StartPluginConnectionRequest[] = [];
   const deleted: DeletePluginConnectionRequest[] = [];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser },
-    {},
     {
-      listPluginConnections: () => ({ connections: [{ pluginId: "telegram", state: state.now }] }),
-      startPluginConnection: (request) => {
-        started.push(request);
-        state.now = PluginConnectionState.WAITING;
-        return { url: link };
-      },
-      deletePluginConnection: (request) => {
-        deleted.push(request);
-        state.now = PluginConnectionState.NOT_CONNECTED;
-        return {};
+      UserService: {
+        listPluginConnections: () => ({
+          connections: [{ pluginId: "telegram", state: state.now }],
+        }),
+        startPluginConnection: (request) => {
+          started.push(request);
+          state.now = PluginConnectionState.WAITING;
+          return { url: link };
+        },
+        deletePluginConnection: (request) => {
+          deleted.push(request);
+          state.now = PluginConnectionState.NOT_CONNECTED;
+          return {};
+        },
       },
     },
   );
@@ -87,7 +90,7 @@ test("disconnect asks first, then deletes the User's Telegram connection", async
 });
 
 test("while no Plugin connects Users, the pane says so, and to ask an Admin", async () => {
-  openSettings("connections", fakeServer({ signedIn: newUser }));
+  openSettings("connections", fakeServer({ signedIn: newUser }).transport);
 
   await expect(
     screen.findByText("No Plugins on this Server can message you yet."),
@@ -97,7 +100,7 @@ test("while no Plugin connects Users, the pane says so, and to ask an Admin", as
 });
 
 test("an Admin with no Plugin that connects Users is sent to the Plugins section", async () => {
-  openSettings("connections", fakeServer({ signedIn: admin }));
+  openSettings("connections", fakeServer({ signedIn: admin }).transport);
 
   const see = await screen.findByRole("link", { name: "See Plugins" });
   fireEvent.click(see);

@@ -10,13 +10,13 @@ import {
   FoundSeasonSchema,
   FoundShowSchema,
   RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { eventFeed, openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 
 beforeEach(layOutShelves);
 
@@ -37,30 +37,32 @@ function showServer(
 ) {
   const show = create(FoundShowSchema, init);
   const asked: number[][] = [];
-  const state =
-    events === undefined ? { signedIn: permissions } : { signedIn: permissions, events };
-  const transport = fakeServer(state, {}, {}, (router) => {
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpShow: () => ({ show }),
-      createSeasonRequests: ({ seasonNumbers }) => {
-        if (refusal) {
-          throw refusal;
-        }
-        asked.push(seasonNumbers);
-        const seasons = show.seasons.filter(({ seasonNumber }) =>
-          seasonNumbers.includes(seasonNumber),
-        );
-        for (const opened of seasons) {
-          opened.request = create(RequestSchema, {
-            state: opened.request?.state ?? RequestState.PENDING,
-            requesters: [...(opened.request?.requesters ?? []), { userId: 1n, name: "Sam" }],
-          });
-        }
-        return { requests: seasons.map(({ request }) => request).filter((r) => r !== undefined) };
+  const { transport } = fakeServer(
+    { signedIn: permissions, ...(events && { events }) },
+    {
+      RequestService: {
+        lookUpShow: () => ({ show }),
+        createSeasonRequests: ({ seasonNumbers }) => {
+          if (refusal) {
+            throw refusal;
+          }
+          asked.push(seasonNumbers);
+          const seasons = show.seasons.filter(({ seasonNumber }) =>
+            seasonNumbers.includes(seasonNumber),
+          );
+          for (const opened of seasons) {
+            opened.request = create(RequestSchema, {
+              state: opened.request?.state ?? RequestState.PENDING,
+              requesters: [...(opened.request?.requesters ?? []), { userId: 1n, name: "Sam" }],
+            });
+          }
+          return {
+            requests: seasons.map(({ request }) => request).filter((r) => r !== undefined),
+          };
+        },
       },
-    });
-  });
+    },
+  );
   return { transport, asked, show };
 }
 

@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { LibraryKind, LibraryService, type UpdateLibraryRequest } from "@/gen/nama/v1/library_pb";
-import { admin, fakeServer, fill } from "@/test-app";
+import { LibraryKind, type UpdateLibraryRequest } from "@/gen/nama/v1/library_pb";
+import { fill } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
 import { listFoldersOf } from "@/test-server-folders";
 import { openLibraries } from "@/test-settings";
 
@@ -17,23 +18,21 @@ const disk = {
 
 /** A fake Server with the Library Films in `/srv/films`, recording each change to it in `updates`. */
 function libraryServer(updates: UpdateLibraryRequest[]) {
-  let library = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
-  return fakeServer(
-    { signedIn: admin, serverService: { listServerFolders: listFoldersOf(disk) } },
-    {},
-    {},
-    (router) => {
-      router.service(LibraryService, {
-        listLibraries: () => ({ libraries: [library] }),
-        getLibrary: () => ({ library }),
+  const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
+  const { server, transport } = fakeServer(
+    { signedIn: admin, libraries: [films] },
+    {
+      ServerService: { listServerFolders: listFoldersOf(disk) },
+      LibraryService: {
         updateLibrary: (request) => {
           updates.push(request);
-          library = { ...library, folders: request.folders };
-          return { library };
+          server.libraries = [{ ...films, folders: request.folders }];
+          return { library: server.libraries[0] };
         },
-      });
+      },
     },
   );
+  return transport;
 }
 
 async function pick(folder: string) {

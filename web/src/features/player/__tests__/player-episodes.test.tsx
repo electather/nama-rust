@@ -1,11 +1,10 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { fill, openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 beforeEach(() => {
   // Laid out, the panel's list shows 400px and each of its rows is 100px tall. Without a
@@ -51,45 +50,44 @@ function episode(seasonNumber: number, episodeNumber: number) {
 function server(on = true, seasons = 2) {
   const asked: (number | undefined)[] = [];
   const numbers = Array.from({ length: seasons }, (_, index) => index + 1);
-  const state: ServerState = {
-    signedIn: newUser,
-    libraries: [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }],
-  };
-  const signIn = () => {
-    state.signedIn = newUser;
-    return {};
-  };
-  const transport = fakeServer(state, { signIn }, {}, (router) => {
-    router.service(BrowseService, {
-      // For the Show's page.
-      listGenres: () => ({}),
-      listUnmatched: () => ({}),
-      getShow: () => ({
-        show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
-        seasons: numbers.map((number) => ({ number })),
-      }),
-      listEpisodes: ({ seasonNumber }) => {
-        asked.push(seasonNumber);
-        return {
-          episodes: numbers
-            .filter((number) => seasonNumber === undefined || number === seasonNumber)
-            .flatMap((season) =>
-              (season === 1 ? [1, 2, 3] : [1]).map((number) => episode(season, number)),
-            ),
-        };
+  const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
+  const { server: model, transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      SignInService: {
+        signIn: () => {
+          model.signedIn = newUser;
+          return {};
+        },
       },
-      getNextEpisode: ({ episodeNumber }) =>
-        episodeNumber < 3 ? { next: episode(1, episodeNumber + 1) } : { next: episode(2, 1) },
-    });
-    router.service(PlaybackService, {
-      getAutoplay: () => ({ on }),
-      planPlayback: ({ versionId }) => ({
-        plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}` },
-      }),
-    });
-    router.service(WatchStateService, { reportProgress: () => ({}) });
-  });
-  return { transport, asked, state };
+      BrowseService: {
+        // For the Show's page.
+        getShow: () => ({
+          show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
+          seasons: numbers.map((number) => ({ number })),
+        }),
+        listEpisodes: ({ seasonNumber }) => {
+          asked.push(seasonNumber);
+          return {
+            episodes: numbers
+              .filter((number) => seasonNumber === undefined || number === seasonNumber)
+              .flatMap((season) =>
+                (season === 1 ? [1, 2, 3] : [1]).map((number) => episode(season, number)),
+              ),
+          };
+        },
+        getNextEpisode: ({ episodeNumber }) =>
+          episodeNumber < 3 ? { next: episode(1, episodeNumber + 1) } : { next: episode(2, 1) },
+      },
+      PlaybackService: {
+        getAutoplay: () => ({ on }),
+        planPlayback: ({ versionId }) => ({
+          plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}` },
+        }),
+      },
+    },
+  );
+  return { transport, asked, model };
 }
 
 /** Opens Episode 2's player, of a Show with `seasons` Seasons, and its Episodes panel. */
@@ -186,8 +184,8 @@ test("back from a player opened by its link opens the Show's page in its place",
 });
 
 test("back from a player its link opened signed out, after signing in, opens the Show's page in its place", async () => {
-  const { transport, state } = server();
-  delete state.signedIn;
+  const { transport, model } = server();
+  model.signedIn = undefined;
   const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, transport);
   fireEvent.change(await screen.findByLabelText("Username"), { target: { value: "Sam" } });
   fill("Password", "correct horse");
@@ -201,8 +199,8 @@ test("back from a player its link opened signed out, after signing in, opens the
 });
 
 test("back from a player its link opened signed out, after signing in over several pages, opens the Show's page in its place", async () => {
-  const { transport, state } = server();
-  delete state.signedIn;
+  const { transport, model } = server();
+  model.signedIn = undefined;
   const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, transport);
   fireEvent.click(await screen.findByRole("link", { name: "Sign in with a code" }));
   fireEvent.click(await screen.findByRole("link", { name: "Sign in with a password" }));

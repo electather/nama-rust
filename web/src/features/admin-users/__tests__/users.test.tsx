@@ -5,8 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { DeviceSchema, Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -14,17 +15,14 @@ afterEach(cleanup);
 const usersSection = "/code?settings=users";
 
 test("settings opens on Users for a User who manages Users", async () => {
-  openApp(
-    usersSection,
-    fakeServer({ signedIn: [Permission.MANAGE_USERS] }, {}, { listUsers: () => ({}) }),
-  );
+  openApp(usersSection, fakeServer({ signedIn: [Permission.MANAGE_USERS] }).transport);
 
   await expect(screen.findByRole("list", { name: "Users" })).resolves.toBeDefined();
   expect(screen.getByRole("link", { name: "Users" }).getAttribute("aria-current")).toBe("page");
 });
 
 test("users isn't in Settings for a User who doesn't manage Users", async () => {
-  openApp(usersSection, fakeServer({ signedIn: newUser }));
+  openApp(usersSection, fakeServer({ signedIn: newUser }).transport);
 
   await screen.findByRole("link", { name: "Playback", current: "page" });
   expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
@@ -39,9 +37,8 @@ test("a User the Server says can't sign in is marked so on the list", async () =
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
-      { listUsers: () => ({ users, cannotSignInUserIds: [3n] }) },
-    ),
+      { UserService: { listUsers: () => ({ users, cannotSignInUserIds: [3n] }) } },
+    ).transport,
   );
 
   const list = await screen.findByRole("list", { name: "Users" });
@@ -56,9 +53,12 @@ test("a User opens in place of the list, focused, under Settings' crumbs, whose 
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
-      { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
-    ),
+      {
+        UserService: {
+          listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }),
+        },
+      },
+    ).transport,
   );
   await screen.findByRole("list", { name: "Users" });
   const crumbs = screen.getByRole("navigation", { name: "Breadcrumbs" });
@@ -93,20 +93,23 @@ test("a User deleted meanwhile is said to be gone, and Settings stays", async ()
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
       {
-        listUsers: () => ({ users }),
-        listDevices: () => listDevices(),
-        // Another Admin deletes Alex while this one has Alex open.
-        revokeDevice: () => {
-          users = [sam];
-          listDevices = () => {
+        UserService: {
+          listUsers: () => ({ users }),
+          listDevices: () => listDevices(),
+          // Another Admin deletes Alex while this one has Alex open.
+          revokeDevice: () => {
+            users = [sam];
+            listDevices = () => {
+              throw refused(Code.NotFound, "no such User", {
+                reason: RefusalReason.USER_NOT_FOUND,
+              });
+            };
             throw refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND });
-          };
-          throw refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND });
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
@@ -143,14 +146,14 @@ test.each([
       usersSection,
       fakeServer(
         { signedIn: admin },
-        {},
         {
-          listUsers: () => ({}),
-          createUser: () => {
-            throw refused(Code.InvalidArgument, message, { field });
+          UserService: {
+            createUser: () => {
+              throw refused(Code.InvalidArgument, message, { field });
+            },
           },
         },
-      ),
+      ).transport,
     );
 
     await screen.findByRole("button", { name: "Create User" });

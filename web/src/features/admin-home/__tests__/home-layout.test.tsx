@@ -4,13 +4,12 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
-import { PluginService } from "@/gen/nama/v1/plugin_pb";
 import {
   type HomeLayoutRowSchema,
   HomeLayoutSchema,
   type SetDefaultHomeLayoutRequest,
 } from "@/gen/nama/v1/server_pb";
-import { admin, fakeServer } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -26,17 +25,17 @@ const usersRows = {
 } as const satisfies MessageInitShape<typeof HomeLayoutRowSchema>;
 
 /**
- * A fake Server keeping the default Home layout, from `layout`, for an Admin: it records each save,
- * and refuses them while `refusing`.
+ * Opens Settings on Default Home for an Admin, on a Server keeping the default Home layout from
+ * `layout`, and returns each save it records. It refuses them while `refusing`.
  */
-function defaultHomeServer(layout: MessageInitShape<typeof HomeLayoutSchema>, refusing = false) {
+function openDefaultHome(layout: MessageInitShape<typeof HomeLayoutSchema>, refusing = false) {
   // The Server always sets Featured in a response.
   let kept = create(HomeLayoutSchema, { featuredHidden: false, ...layout });
   const saves: SetDefaultHomeLayoutRequest[] = [];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
+    { signedIn: admin, plugins: [{ summary: { id: "top-picks", name: "Top Picks" } }] },
     {
-      signedIn: admin,
-      serverService: {
+      ServerService: {
         getDefaultHomeLayout: () => ({ layout: kept }),
         setDefaultHomeLayout: (request) => {
           saves.push(request);
@@ -48,20 +47,7 @@ function defaultHomeServer(layout: MessageInitShape<typeof HomeLayoutSchema>, re
         },
       },
     },
-    {},
-    {},
-    (router) => {
-      router.service(PluginService, {
-        listPlugins: () => ({ summaries: [{ id: "top-picks", name: "Top Picks" }] }),
-      });
-    },
   );
-  return { transport, saves };
-}
-
-/** Opens Settings on Default Home with the default Home layout `layout`, and returns what it saves. */
-function openDefaultHome(layout: MessageInitShape<typeof HomeLayoutSchema>, refusing = false) {
-  const { transport, saves } = defaultHomeServer(layout, refusing);
   openSettings("default-home", transport);
   return saves;
 }

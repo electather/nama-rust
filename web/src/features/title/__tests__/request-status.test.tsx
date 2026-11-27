@@ -7,13 +7,12 @@ import {
   FoundMovieSchema,
   FoundShowSchema,
   RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
+import { fakeServer, newUser } from "@/test-server";
 
 beforeEach(layOutShelves);
 
@@ -48,17 +47,18 @@ function server(request: Request, permissions: Permission[] = newUser, retried: 
     trailers: [{ name: "Official Trailer", url: "https://www.youtube.com/watch?v=n9xhJrPXop4" }],
     request,
   });
-  return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpMovie: () => ({ movie }),
-      listMovieQualities: () => ({}),
-      retryRequest: ({ id }) => {
-        retried.push(id);
-        return {};
+  return fakeServer(
+    { signedIn: permissions },
+    {
+      RequestService: {
+        lookUpMovie: () => ({ movie }),
+        retryRequest: ({ id }) => {
+          retried.push(id);
+          return {};
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 /** Dune's Request in a state this app doesn't know, as only a Server newer than it sends. */
@@ -150,9 +150,8 @@ test("a Season of yours Declined can be Requested again, and one Failed can't", 
   });
   openApp(
     "/shows/tmdb-70523",
-    fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-      router.service(RequestService, { listRequests: () => ({}), lookUpShow: () => ({ show }) });
-    }),
+    fakeServer({ signedIn: newUser }, { RequestService: { lookUpShow: () => ({ show }) } })
+      .transport,
   );
 
   await expect(
@@ -171,16 +170,18 @@ test("a Request manager retries a Failed Season from its row", async () => {
   });
   openApp(
     "/shows/tmdb-70523",
-    fakeServer({ signedIn: [...newUser, Permission.MANAGE_REQUESTS] }, {}, {}, (router) => {
-      router.service(RequestService, {
-        listRequests: () => ({}),
-        lookUpShow: () => ({ show }),
-        retryRequest: ({ id }) => {
-          retried.push(id);
-          return {};
+    fakeServer(
+      { signedIn: [...newUser, Permission.MANAGE_REQUESTS] },
+      {
+        RequestService: {
+          lookUpShow: () => ({ show }),
+          retryRequest: ({ id }) => {
+            retried.push(id);
+            return {};
+          },
         },
-      });
-    }),
+      },
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Retry Season 2 of Dark" }));
@@ -220,19 +221,19 @@ test("a Movie to Request goes on your Watchlist with its button, then shows it's
     title: "Dune",
   });
   const added: (string | undefined)[] = [];
-  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpMovie: () => ({ movie: dune }),
-    });
-    router.service(WatchlistService, {
-      addToWatchlist: ({ id }) => {
-        added.push(id?.value);
-        dune.onWatchlist = true;
-        return {};
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    {
+      RequestService: { lookUpMovie: () => ({ movie: dune }) },
+      WatchlistService: {
+        addToWatchlist: ({ id }) => {
+          added.push(id?.value);
+          dune.onWatchlist = true;
+          return {};
+        },
       },
-    });
-  });
+    },
+  );
   openApp("/movies/tmdb-438631", transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Add to your Watchlist" }));

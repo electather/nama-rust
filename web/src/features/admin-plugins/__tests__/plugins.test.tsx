@@ -120,9 +120,11 @@ test("a Plugin without settings has no Settings section in its view", async () =
 test("enabling a disabled Plugin from the list's “…” asks the Server to", async () => {
   const enabled: string[] = [];
   openPluginSettings({
-    enablePlugin: ({ id }) => {
-      enabled.push(id);
-      return {};
+    PluginService: {
+      enablePlugin: ({ id }) => {
+        enabled.push(id);
+        return {};
+      },
     },
   });
   fireEvent.click(await screen.findByRole("button", { name: "More for test-plugin" }));
@@ -146,12 +148,14 @@ test.each([
   ],
 ])("enabling %s", async (_, { reason, ...params }, text) => {
   openPlugin("test-plugin", {
-    enablePlugin: () => {
-      throw refused(Code.FailedPrecondition, "test-plugin can't be enabled", {
-        reason,
-        field: "id",
-        params: { pluginId: "test-plugin", ...params },
-      });
+    PluginService: {
+      enablePlugin: () => {
+        throw refused(Code.FailedPrecondition, "test-plugin can't be enabled", {
+          reason,
+          field: "id",
+          params: { pluginId: "test-plugin", ...params },
+        });
+      },
     },
   });
   const view = await plugin("test-plugin");
@@ -162,14 +166,10 @@ test.each([
 });
 
 test("a homepage that isn't http or https isn't linked from a Plugin's “…”", async () => {
-  openPlugin("tmdb", {
-    getPlugin: () => ({
-      plugin: {
-        summary: { id: "tmdb", name: "TMDB", enabled: true },
-        // oxlint-disable-next-line no-script-url -- the URL is the hostile input under test
-        homepageUrl: "javascript:alert(1)",
-      },
-    }),
+  openPlugin({
+    summary: { id: "tmdb", name: "TMDB", enabled: true },
+    // oxlint-disable-next-line no-script-url -- the URL is the hostile input under test
+    homepageUrl: "javascript:alert(1)",
   });
   const view = await plugin("TMDB");
 
@@ -180,14 +180,14 @@ test("a homepage that isn't http or https isn't linked from a Plugin's “…”
 });
 
 test("enabling a Plugin in its view shows it enabled there and on the list", async () => {
-  let enabled = false;
-  const logEvents = () => ({ id: "log-events", version: "0.1.0", enabled });
-  openPlugin("log-events", {
-    listPlugins: () => ({ summaries: [logEvents()] }),
-    getPlugin: () => ({ plugin: { summary: logEvents() } }),
-    enablePlugin: () => {
-      enabled = true;
-      return {};
+  const logEvents = { summary: { id: "log-events", version: "0.1.0", enabled: false } };
+  openPlugin(logEvents, {
+    PluginService: {
+      enablePlugin: () => {
+        // The Server holds `logEvents` itself, so its list and details see the change.
+        logEvents.summary.enabled = true;
+        return {};
+      },
     },
   });
   const view = await plugin("log-events");

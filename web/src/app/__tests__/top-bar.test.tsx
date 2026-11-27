@@ -2,7 +2,8 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -12,7 +13,7 @@ const libraries = [
 ];
 
 test("the top bar links each Library after Home, marking the one open", async () => {
-  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }));
+  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }).transport);
 
   const main = await screen.findByRole("navigation", { name: "Main" });
   await within(main).findByRole("link", { name: "TV Shows" });
@@ -32,7 +33,7 @@ test("the top bar links each Library after Home, marking the one open", async ()
 });
 
 test("on a phone the Libraries menu links each Library and is named by the one open", async () => {
-  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }));
+  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }).transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Libraries" }));
   const items = await screen.findAllByRole("menuitem");

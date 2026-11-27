@@ -3,9 +3,10 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { type HitSchema, SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { type HitSchema, TitleStatus } from "@/gen/nama/v1/search_pb";
+import { openApp } from "@/test-app";
 import { type Batch, searchFinding } from "@/test-search";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -66,12 +67,15 @@ const library: Hit[] = [
 async function search(batches: Partial<Record<TitleKind, Batch[]>>) {
   openApp(
     "/code",
-    fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-      router.service(SearchService, {
-        search: (request, context) =>
-          searchFinding(() => batches[request.kind] ?? [])(request, context),
-      });
-    }),
+    fakeServer(
+      { signedIn: newUser },
+      {
+        SearchService: {
+          search: (request, context) =>
+            searchFinding(() => batches[request.kind] ?? [])(request, context),
+        },
+      },
+    ).transport,
   );
   await screen.findByRole("button", { name: "Search this Server" });
   fireEvent.keyDown(document.body, { key: "k", metaKey: true });

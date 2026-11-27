@@ -2,10 +2,10 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { type MovieHitSchema, RequestService, type ShowHitSchema } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import type { MovieHitSchema, ShowHitSchema } from "@/gen/nama/v1/request_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -21,16 +21,13 @@ const heat = { id: { namespace: "tmdb", value: "949" }, title: "Heat", year: 199
 function server(similar: Similar) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const alien = { id: { namespace: "tmdb", value: "348" }, title: "Alien" };
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({ movie: { ...alien, versions: [{ id: 1n }] }, similar }),
-    });
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpMovie: () => ({ movie: { ...alien, similar } }),
-      listMovieQualities: () => ({}),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: { getMovie: () => ({ movie: { ...alien, versions: [{ id: 1n }] }, similar }) },
+      RequestService: { lookUpMovie: () => ({ movie: { ...alien, similar } }) },
+    },
+  ).transport;
 }
 
 /** The Office, a Similar title in the Shows Library 2. */
@@ -40,17 +37,13 @@ const theOffice = { id: { namespace: "tmdb", value: "2316" }, title: "The Office
 function showServer(similar: MessageInitShape<typeof ShowHitSchema>[]) {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
   const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" };
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getShow: () => ({ show: dark, seasons: [{ number: 1 }], similar }),
-      listEpisodes: () => ({ episodes: [] }),
-      listContinueWatching: () => ({}),
-    });
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpShow: () => ({ show: { ...dark, similar } }),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: { getShow: () => ({ show: dark, seasons: [{ number: 1 }], similar }) },
+      RequestService: { lookUpShow: () => ({ show: { ...dark, similar } }) },
+    },
+  ).transport;
 }
 
 /** The Similar titles row under `heading`, once the page shows it. */

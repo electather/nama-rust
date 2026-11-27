@@ -2,8 +2,8 @@ import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import {
   Code,
   ConnectError,
-  type ConnectRouter,
   type Interceptor,
+  type ServiceImpl,
   createRouterTransport,
 } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
@@ -14,8 +14,9 @@ import type { HomeRowTitleSchema } from "@/gen/nama/v1/browse_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { WatchlistService, type WatchlistTitleSchema } from "@/gen/nama/v1/watchlist_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
+import { fakeServer, newUser } from "@/test-server";
 import { atOrigin } from "@/test-server-at";
 
 afterEach(() => {
@@ -62,18 +63,20 @@ function darkShownBy(shownBy: typeof alienId): Listed {
  * A Watchlist service listing `titles`, taking off what `RemoveFromWatchlist` names, by the id it
  * was added under, and recording each removal in `removed`, after `removing` settles.
  */
-function watchlistOf(titles: Listed[], removed: string[] = [], removing?: () => Promise<void>) {
+function watchlistOf(
+  titles: Listed[],
+  removed: string[] = [],
+  removing?: () => Promise<void>,
+): Partial<ServiceImpl<typeof WatchlistService>> {
   let listed = titles;
-  return (router: ConnectRouter) => {
-    router.service(WatchlistService, {
-      listWatchlist: () => ({ titles: listed }),
-      removeFromWatchlist: async ({ id }) => {
-        await removing?.();
-        removed.push(`${id?.namespace}-${id?.value}`);
-        listed = listed.filter((title) => title.id?.value !== id?.value);
-        return {};
-      },
-    });
+  return {
+    listWatchlist: () => ({ titles: listed }),
+    removeFromWatchlist: async ({ id }) => {
+      await removing?.();
+      removed.push(`${id?.namespace}-${id?.value}`);
+      listed = listed.filter((title) => title.id?.value !== id?.value);
+      return {};
+    },
   };
 }
 
@@ -87,7 +90,10 @@ function posters() {
 
 test("a Server's Watchlist page shows each title, in a Library or missing", async () => {
   const titles = [dark, alien(alienImdb)];
-  openApp("/watchlist", fakeServer({ signedIn: newUser }, {}, {}, watchlistOf(titles)));
+  openApp(
+    "/watchlist",
+    fakeServer({ signedIn: newUser }, { WatchlistService: watchlistOf(titles) }).transport,
+  );
 
   await screen.findByRole("list", { name: "Your Watchlist" });
   expect(posters()).toStrictEqual([
@@ -99,7 +105,10 @@ test("a Server's Watchlist page shows each title, in a Library or missing", asyn
 test("removing a title takes it off the Server's Watchlist by the id it was added under", async () => {
   const removed: string[] = [];
   const titles = [dark, alien(alienImdb, 1n)];
-  openApp("/watchlist", fakeServer({ signedIn: newUser }, {}, {}, watchlistOf(titles, removed)));
+  openApp(
+    "/watchlist",
+    fakeServer({ signedIn: newUser }, { WatchlistService: watchlistOf(titles, removed) }).transport,
+  );
 
   fireEvent.click(await screen.findByRole("button", { name: "Remove Alien from your Watchlist" }));
 
@@ -110,7 +119,10 @@ test("removing a title takes it off the Server's Watchlist by the id it was adde
 });
 
 test("an empty Watchlist says so", async () => {
-  openApp("/watchlist", fakeServer({ signedIn: newUser }, {}, {}, watchlistOf([])));
+  openApp(
+    "/watchlist",
+    fakeServer({ signedIn: newUser }, { WatchlistService: watchlistOf([]) }).transport,
+  );
 
   await expect(screen.findByText("Nothing on your Watchlist yet")).resolves.toBeDefined();
 });
@@ -127,7 +139,7 @@ function serverAtHub(...watchlist: Parameters<typeof watchlistOf>) {
           signInWithHubToken: () => ({ token: "session" }),
           whoAmI: () => ({ user: { id: 1n, name: "Ada" } }),
         });
-        watchlistOf(...watchlist)(router);
+        router.service(WatchlistService, watchlistOf(...watchlist));
       },
       { transport: { interceptors } },
     );

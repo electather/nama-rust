@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
 import { openTracks, pickIn, rowIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 import { atOrigin } from "@/test-server-at";
 
 /** The playlist each hls.js player loaded. */
@@ -88,45 +88,48 @@ function server(plan = directPlay) {
   const plans = { asked: 0 };
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const subtitle = { case: "subtitle", value: {} } as const;
-  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
-        },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: () => {
-        plans.asked += 1;
-        return {
-          plan: {
-            ...plan,
-            subtitles: [
-              {
-                track: {
-                  codec: "subrip",
-                  language: "eng",
-                  title: "Full",
-                  sdh: true,
-                  kind: subtitle,
-                },
-                url: ENGLISH,
-                format: SubtitleFormat.WEBVTT,
-              },
-              {
-                track: { codec: "subrip", language: "fre", forced: true, kind: subtitle },
-                url: FRENCH,
-                format: SubtitleFormat.WEBVTT,
-              },
-            ],
+  const { transport } = fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
           },
-        };
+        }),
       },
-    });
-  });
+      PlaybackService: {
+        planPlayback: () => {
+          plans.asked += 1;
+          return {
+            plan: {
+              ...plan,
+              subtitles: [
+                {
+                  track: {
+                    codec: "subrip",
+                    language: "eng",
+                    title: "Full",
+                    sdh: true,
+                    kind: subtitle,
+                  },
+                  url: ENGLISH,
+                  format: SubtitleFormat.WEBVTT,
+                },
+                {
+                  track: { codec: "subrip", language: "fre", forced: true, kind: subtitle },
+                  url: FRENCH,
+                  format: SubtitleFormat.WEBVTT,
+                },
+              ],
+            },
+          };
+        },
+      },
+    },
+  );
   return { transport, plans };
 }
 

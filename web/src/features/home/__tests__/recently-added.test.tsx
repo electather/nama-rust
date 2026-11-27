@@ -2,7 +2,6 @@ import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import {
-  BrowseService,
   type ListMoviesRequest,
   type ListShowsRequest,
   MovieSort,
@@ -10,9 +9,10 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { SortDirection } from "@/gen/nama/v1/page_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { recentlyAddedRow } from "@/test-home-rows";
 import { layOutShelves } from "@/test-layout";
+import { fakeServer, newUser } from "@/test-server";
 
 beforeEach(() => {
   layOutShelves();
@@ -40,30 +40,31 @@ afterEach(() => {
 
 /** Home on a Server whose rows are the Recently Added rows of Films, a Movies Library, and TV. */
 function openHome(asked: (ListMoviesRequest | ListShowsRequest)[]) {
-  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listFeatured: () => ({}),
-      listContinueWatching: () => ({}),
-      listHomeRows: () => ({
-        rows: [
-          recentlyAddedRow(1n, "Films", LibraryKind.MOVIES),
-          recentlyAddedRow(2n, "TV", LibraryKind.SHOWS),
-        ],
-      }),
-      listMovies: (request) => {
-        asked.push(request);
-        // More to come, which the row leaves to the Library page.
-        return {
-          movies: [{ id: { namespace: "tmdb", value: "949" }, title: "Heat" }],
-          page: { nextToken: "more", totalSize: 21 },
-        };
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    {
+      BrowseService: {
+        listHomeRows: () => ({
+          rows: [
+            recentlyAddedRow(1n, "Films", LibraryKind.MOVIES),
+            recentlyAddedRow(2n, "TV", LibraryKind.SHOWS),
+          ],
+        }),
+        listMovies: (request) => {
+          asked.push(request);
+          // More to come, which the row leaves to the Library page.
+          return {
+            movies: [{ id: { namespace: "tmdb", value: "949" }, title: "Heat" }],
+            page: { nextToken: "more", totalSize: 21 },
+          };
+        },
+        listShows: (request) => {
+          asked.push(request);
+          return { shows: [{ id: { namespace: "tmdb", value: "70523" }, title: "Dark" }] };
+        },
       },
-      listShows: (request) => {
-        asked.push(request);
-        return { shows: [{ id: { namespace: "tmdb", value: "70523" }, title: "Dark" }] };
-      },
-    });
-  });
+    },
+  );
   openApp("/", transport);
 }
 

@@ -2,16 +2,10 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import {
-  PlaybackMethod,
-  PlaybackService,
-  type SegmentSchema,
-  SegmentKind,
-} from "@/gen/nama/v1/playback_pb";
-import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod, type SegmentSchema, SegmentKind } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -37,21 +31,27 @@ function server({
   segments?: MessageInitShape<typeof SegmentSchema>[];
 } = {}) {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getShow: () => ({ show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } }),
-      listEpisodes: () => ({ episodes: [3, 4, 5].map((number) => episode(number)) }),
-      getNextEpisode: ({ episodeNumber }) =>
-        hasNext && episodeNumber < 5 ? { next: episode(episodeNumber + 1) } : {},
-    });
-    router.service(PlaybackService, {
-      getAutoplay: () => ({ on: autoplay }),
-      planPlayback: ({ versionId }) => ({
-        plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}`, segments },
-      }),
-    });
-    router.service(WatchStateService, { reportProgress: () => ({}) });
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getShow: () => ({ show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } }),
+        listEpisodes: () => ({ episodes: [3, 4, 5].map((number) => episode(number)) }),
+        getNextEpisode: ({ episodeNumber }) =>
+          hasNext && episodeNumber < 5 ? { next: episode(episodeNumber + 1) } : {},
+      },
+      PlaybackService: {
+        getAutoplay: () => ({ on: autoplay }),
+        planPlayback: ({ versionId }) => ({
+          plan: {
+            method: PlaybackMethod.DIRECT_PLAY,
+            url: `/media/versions/${versionId}`,
+            segments,
+          },
+        }),
+      },
+    },
+  ).transport;
 }
 
 function episode(episodeNumber: number) {

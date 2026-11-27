@@ -1,35 +1,23 @@
-import { Code, type ConnectError, type ConnectRouter } from "@connectrpc/connect";
+import { Code, type ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { admin, eventFeed, fakeServer, fill } from "@/test-app";
+import { eventFeed, fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { admin, fakeServer } from "@/test-server";
 import { findSettingsLink, openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
 
 const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
 
-/** A fake Server with the Library `films`, whose Admin is signed in, with `more` services. */
-function adminServer(
-  events: ReadableStream<SubscribeResponse>,
-  more: (router: ConnectRouter) => void,
-) {
-  return fakeServer({ signedIn: admin, events }, {}, {}, (router) => {
-    router.service(LibraryService, {
-      listLibraries: () => ({ libraries: [films] }),
-      getLibrary: () => ({ library: films }),
-    });
-    more(router);
-  });
-}
-
 test("a scan Event updates a Library's progress on the list without a reload", async () => {
   const events = eventFeed();
-  openLibraries(adminServer(events.stream, () => {}));
+  openLibraries(
+    fakeServer({ signedIn: admin, events: events.stream, libraries: [films] }).transport,
+  );
   await findSettingsLink("Films");
 
   events.send({
@@ -49,18 +37,11 @@ const scannedFilms = {
   lastScan: { finishedAt: 1_795_010_520n, added: 3n, updated: 1n, removed: 2n, unchanged: 50n },
 };
 
-/** A fake Server with only `scannedFilms`, fed `events`. */
-function scannedServer(events: ReadableStream<SubscribeResponse>) {
-  return adminServer(events, (router) => {
-    router.service(LibraryService, {
-      listLibraries: () => ({ libraries: [scannedFilms] }),
-      getLibrary: () => ({ library: scannedFilms }),
-    });
-  });
-}
+/** The facts of a Server with only `scannedFilms`, whose Admin is signed in. */
+const scanned = { signedIn: admin, libraries: [scannedFilms] };
 
 test("a Library's row says what it holds, its folders and when it was last scanned", async () => {
-  openLibraries(scannedServer(new ReadableStream()));
+  openLibraries(fakeServer(scanned).transport);
 
   const link = await findSettingsLink("Films");
   expect(link.closest("li")?.textContent).toMatch(/^FilmsMovies · 1 folder · Last scanned .*2026/u);
@@ -69,7 +50,7 @@ test("a Library's row says what it holds, its folders and when it was last scann
 
 test("a Library shows its last scan until a scan Event replaces it", async () => {
   const events = eventFeed();
-  openLibraries(scannedServer(events.stream), "1");
+  openLibraries(fakeServer({ ...scanned, events: events.stream }).transport, "1");
   const stored = /^Last scanned .*2026.*: 3 new, 1 changed and 2 gone$/u;
   await expect(screen.findByText(stored)).resolves.toBeDefined();
 
@@ -79,19 +60,13 @@ test("a Library shows its last scan until a scan Event replaces it", async () =>
 });
 
 test("a Library that has never finished a scan says no scan was seen", async () => {
-  openLibraries(
-    adminServer(new ReadableStream(), () => {}),
-    "1",
-  );
+  openLibraries(fakeServer({ signedIn: admin, libraries: [films] }).transport, "1");
 
   await expect(screen.findByText("No scan seen yet.")).resolves.toBeDefined();
 });
 
 test("an id no Library has shows the list", async () => {
-  openLibraries(
-    adminServer(new ReadableStream(), () => {}),
-    "9",
-  );
+  openLibraries(fakeServer({ signedIn: admin, libraries: [films] }).transport, "9");
 
   await expect(findSettingsLink("Films")).resolves.toBeDefined();
   const crumbs = screen.getByRole("navigation", { name: "Breadcrumbs" });
@@ -103,14 +78,8 @@ function serverRefusingLibraryChanges(error: ConnectError) {
   const refuse = () => {
     throw error;
   };
-  return adminServer(new ReadableStream(), (router) => {
-    router.service(LibraryService, {
-      listLibraries: () => ({ libraries: [films] }),
-      getLibrary: () => ({ library: films }),
-      createLibrary: refuse,
-      updateLibrary: refuse,
-    });
-  });
+  const answers = { LibraryService: { createLibrary: refuse, updateLibrary: refuse } };
+  return fakeServer({ signedIn: admin, libraries: [films] }, answers).transport;
 }
 
 const nameTaken = { reason: RefusalReason.LIBRARY_NAME_TAKEN, field: "name" };

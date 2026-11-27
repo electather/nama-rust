@@ -1,29 +1,13 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import {
-  Code,
-  type ConnectRouter,
-  ConnectError,
-  type ServiceImpl,
-  createRouterTransport,
-} from "@connectrpc/connect";
+import type { Transport } from "@connectrpc/connect";
 import { RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import {
   EventSchema,
-  EventService,
   type SubscribeResponse,
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
-import { InboxService } from "@/gen/nama/v1/inbox_pb";
-import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
-import { PlaybackService, SubtitleBackground, SubtitleSize } from "@/gen/nama/v1/playback_pb";
-import { PluginService } from "@/gen/nama/v1/plugin_pb";
-import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
-import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
-// oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
-import { UserService } from "@/gen/nama/v1/user_pb";
-import { traceCallsTo } from "@/shared/lib/diagnostics";
 import type { ServerAt } from "@/shared/lib/server";
 import { tickWorker } from "@/test-worker";
 
@@ -31,116 +15,6 @@ import { getRouter } from "./router";
 
 // Not `vi.stubGlobal`, which the files that call `vi.unstubAllGlobals` would undo after one test.
 Object.assign(globalThis, { Worker: tickWorker });
-
-/** What a new User gets: the Permissions to make Requests, which manage nothing. */
-export const newUser = [Permission.REQUEST, Permission.VIEW_REQUESTS];
-
-/** What the first Admin has. */
-export const admin = [Permission.ADMIN];
-
-/** What the fake Server says: whether it needs setting up, who is signed in, if anyone, and its Libraries. */
-export interface ServerState {
-  setupRequired?: boolean;
-  /** The Permissions of the User signed in, if anyone is. */
-  signedIn?: Permission[];
-  libraries?: MessageInitShape<typeof LibrarySchema>[];
-  /** The Events the app's subscription gets. Without them, none arrive. */
-  events?: ReadableStream<SubscribeResponse>;
-  /** How the fake Server answers `ServerService` RPCs, over its defaults: its info, and no settings set. */
-  serverService?: Partial<ServiceImpl<typeof ServerService>>;
-  /** How the fake Server answers the rest of `LibraryService`, such as deleting media. */
-  libraryService?: Partial<ServiceImpl<typeof LibraryService>>;
-  /** How the fake Server answers `PlaybackService` RPCs, over `defaultPlayback`. */
-  playbackService?: Partial<ServiceImpl<typeof PlaybackService>>;
-}
-
-/**
- * How the fake Server answers `PlaybackService` by default: no Track Preferences, the default
- * Subtitle Appearance, and autoplay on.
- */
-const defaultPlayback: Partial<ServiceImpl<typeof PlaybackService>> = {
-  getTrackPreferences: () => ({}),
-  getSubtitleAppearance: () => ({
-    size: SubtitleSize.DEFAULT,
-    background: SubtitleBackground.OUTLINE,
-  }),
-  getAutoplay: () => ({ on: true }),
-};
-
-/**
- * How the fake Server answers `UserService` by default: Settings lists nothing of yours, and its
- * Users section the default Permissions and no Invites.
- */
-const defaultUsers: Partial<ServiceImpl<typeof UserService>> = {
-  listDevices: () => ({}),
-  listPluginConnections: () => ({}),
-  listPersonalSettings: () => ({}),
-  listNotificationPreferences: () => ({}),
-  getHomeLayout: () => ({}),
-  // The Server can't Link Users.
-  getUserLink: () => ({}),
-  getDefaultPermissions: () => ({ permissions: newUser }),
-  listInvites: () => ({}),
-};
-
-/**
- * A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`.
- * `more` adds other services, such as `BrowseService`.
- */
-export function fakeServer(
-  state: ServerState,
-  signIn: Partial<ServiceImpl<typeof SignInService>> = {},
-  users: Partial<ServiceImpl<typeof UserService>> = {},
-  more: (router: ConnectRouter) => void = () => {},
-) {
-  return createRouterTransport((router) => {
-    router.service(ServerService, {
-      getServerInfo: () =>
-        create(GetServerInfoResponseSchema, {
-          name: "Living Room",
-          setupRequired: state.setupRequired ?? false,
-        }),
-      getServerSettings: () => ({ settings: {} }),
-      getPlaybackSettings: () => ({ settings: {} }),
-      getImageSettings: () => ({ settings: { resizeImages: true } }),
-      // The Server's config names no Hub.
-      getServerLink: () => ({}),
-      ...state.serverService,
-    });
-    router.service(SignInService, {
-      whoAmI: () => {
-        if (state.signedIn === undefined) {
-          throw new ConnectError("signed out", Code.Unauthenticated);
-        }
-        return create(WhoAmIResponseSchema, {
-          user: { id: 1n, name: "Sam", permissions: state.signedIn },
-        });
-      },
-      ...signIn,
-    });
-    router.service(UserService, { ...defaultUsers, ...users });
-    router.service(LibraryService, {
-      listLibraries: () => ({ libraries: state.libraries ?? [] }),
-      ...state.libraryService,
-    });
-    // Settings' image store picker waits for the Plugins. A test's own `PluginService` in `more`
-    // replaces this.
-    router.service(PluginService, { listPlugins: () => ({}) });
-    // A test's own `PlaybackService` in `more` replaces this.
-    router.service(PlaybackService, { ...defaultPlayback, ...state.playbackService });
-    // Every signed-in page's bell counts the inbox, empty here. A test's `more` replaces this.
-    router.service(InboxService, {
-      countUnreadInboxNotifications: () => ({}),
-      listInboxNotifications: () => ({}),
-    });
-    // Every signed-in page follows the Server's Events.
-    router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
-    more(router);
-  }, interceptingAsTheApp);
-}
-
-// The app's transport traces calls while the Server exports Diagnostics, so the fake Server's does too.
-const interceptingAsTheApp = { transport: { interceptors: [traceCallsTo("")] } };
 
 /** The title of each row of Settings' Requests, Show titles included, top to bottom. */
 export function requestTitles() {
@@ -158,7 +32,7 @@ export function requestTitles() {
  */
 export function openApp(
   path: string,
-  transport: ReturnType<typeof createRouterTransport>,
+  transport: Transport,
   wrap: (app: Parameters<typeof render>[0]) => Parameters<typeof render>[0] = (app) => app,
   serverAt?: ServerAt,
 ) {

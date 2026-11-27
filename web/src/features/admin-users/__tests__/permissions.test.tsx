@@ -5,8 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, newUser, openApp, type ServerState } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 import { offered, pick } from "@/test-settings";
 
 afterEach(cleanup);
@@ -29,18 +30,19 @@ interface Holder {
 
 test("a User's Permissions are saved as they're changed, and are there after reloading", async () => {
   let alex: Holder = { id: 2n, name: "Alex", permissions: [...newUser] };
-  const server = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: admin },
-    {},
     {
-      listUsers: () => ({ users: [alex] }),
-      setPermissions: ({ permissions }) => {
-        alex = { ...alex, permissions };
-        return {};
+      UserService: {
+        listUsers: () => ({ users: [alex] }),
+        setPermissions: ({ permissions }) => {
+          alex = { ...alex, permissions };
+          return {};
+        },
       },
     },
   );
-  openApp(usersSection, server);
+  openApp(usersSection, transport);
 
   await openUser("Alex");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Manage Libraries" }));
@@ -49,7 +51,7 @@ test("a User's Permissions are saved as they're changed, and are there after rel
     expect(alex.permissions).toStrictEqual([Permission.REQUEST, Permission.MANAGE_LIBRARIES]);
   });
   cleanup();
-  openApp(usersSection, server);
+  openApp(usersSection, transport);
   await openUser("Alex");
 
   await expect(screen.findByRole("checkbox", { name: "Manage Libraries" })).resolves.toHaveProperty(
@@ -66,15 +68,16 @@ test("an Admin may give a User Download, which they lacked", async () => {
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
       {
-        listUsers: () => ({ users: [alex] }),
-        setPermissions: ({ permissions }) => {
-          alex = { ...alex, permissions };
-          return {};
+        UserService: {
+          listUsers: () => ({ users: [alex] }),
+          setPermissions: ({ permissions }) => {
+            alex = { ...alex, permissions };
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   await openUser("Alex");
@@ -93,24 +96,25 @@ test("a User's cap for remote playback starts at No cap and is saved with their 
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
       {
-        listUsers: () => ({
-          users: [
-            {
-              id: 2n,
-              name: "Alex",
-              permissions: newUser,
-              remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
-            },
-          ],
-        }),
-        setPermissions: ({ permissions, remotePlaybackLimit }) => {
-          saves.push({ permissions, remotePlaybackLimit });
-          return {};
+        UserService: {
+          listUsers: () => ({
+            users: [
+              {
+                id: 2n,
+                name: "Alex",
+                permissions: newUser,
+                remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
+              },
+            ],
+          }),
+          setPermissions: ({ permissions, remotePlaybackLimit }) => {
+            saves.push({ permissions, remotePlaybackLimit });
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
   const cap = "Most for remote playback";
 
@@ -133,12 +137,12 @@ test("a checked parent Permission shows its children as covered", async () => {
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
       {
-        listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }),
-        setPermissions: () => ({}),
+        UserService: {
+          listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }),
+        },
       },
-    ),
+    ).transport,
   );
 
   await openUser("Alex");
@@ -170,14 +174,15 @@ test.each([
       usersSection,
       fakeServer(
         { signedIn: admin },
-        {},
         {
-          listUsers: () => ({ users: [{ id: 1n, name: "Sam", permissions: admin }] }),
-          setPermissions: () => {
-            throw refusal;
+          UserService: {
+            listUsers: () => ({ users: [{ id: 1n, name: "Sam", permissions: admin }] }),
+            setPermissions: () => {
+              throw refusal;
+            },
           },
         },
-      ),
+      ).transport,
     );
 
     await openUser("Sam");
@@ -190,22 +195,19 @@ test.each([
 );
 
 test("removing your own Admin Permission takes Users out of Settings", async () => {
-  const state: ServerState = { signedIn: admin };
   const users = [
     { id: 1n, name: "Sam", permissions: admin },
     { id: 2n, name: "Alex", permissions: admin },
   ];
   let listUsers = () => ({ users });
-  openApp(
-    usersSection,
-    fakeServer(
-      state,
-      {},
-      {
+  const { server, transport } = fakeServer(
+    { signedIn: admin },
+    {
+      UserService: {
         listUsers: () => listUsers(),
         // Sam demotes themselves, so the Server refuses them the Users from then on.
         setPermissions: ({ permissions }) => {
-          state.signedIn = permissions;
+          server.signedIn = permissions;
           listUsers = () => {
             throw refused(Code.PermissionDenied, "this needs the MANAGE_USERS Permission", {
               reason: RefusalReason.PERMISSION_REQUIRED,
@@ -215,8 +217,9 @@ test("removing your own Admin Permission takes Users out of Settings", async () 
           return {};
         },
       },
-    ),
+    },
   );
+  openApp(usersSection, transport);
 
   await openUser("Sam");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
@@ -229,23 +232,21 @@ test("removing your own Admin Permission takes Users out of Settings", async () 
 });
 
 test("removing your own Admin Permission but keeping Manage Users leaves only Users in Settings' Admin group", async () => {
-  const state: ServerState = { signedIn: admin };
   let sam: Holder = { id: 1n, name: "Sam", permissions: [...admin] };
-  openApp(
-    usersSection,
-    fakeServer(
-      state,
-      {},
-      {
+  const { server, transport } = fakeServer(
+    { signedIn: admin },
+    {
+      UserService: {
         listUsers: () => ({ users: [sam] }),
         setPermissions: ({ permissions }) => {
-          state.signedIn = permissions;
+          server.signedIn = permissions;
           sam = { ...sam, permissions };
           return {};
         },
       },
-    ),
+    },
   );
+  openApp(usersSection, transport);
 
   await openUser("Sam");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
@@ -269,17 +270,18 @@ test.each([
       usersSection,
       fakeServer(
         { signedIn: [Permission.MANAGE_USERS] },
-        {},
         {
-          listUsers: () => ({
-            users: [
-              { id: 1n, name: "Sam", permissions: [Permission.MANAGE_USERS] },
-              { id: 2n, name: "Alex", permissions: newUser },
-              { id: 3n, name: "Pat", permissions: admin },
-            ],
-          }),
+          UserService: {
+            listUsers: () => ({
+              users: [
+                { id: 1n, name: "Sam", permissions: [Permission.MANAGE_USERS] },
+                { id: 2n, name: "Alex", permissions: newUser },
+                { id: 3n, name: "Pat", permissions: admin },
+              ],
+            }),
+          },
         },
-      ),
+      ).transport,
     );
 
     await openUser(name);
@@ -294,19 +296,19 @@ test.each([
 
 test("default Permissions are saved as they're changed, and are there after reloading", async () => {
   let defaults: Permission[] = [...newUser];
-  const server = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: admin },
-    {},
     {
-      listUsers: () => ({ users: [] }),
-      getDefaultPermissions: () => ({ permissions: defaults }),
-      setDefaultPermissions: ({ permissions }) => {
-        defaults = permissions;
-        return {};
+      UserService: {
+        getDefaultPermissions: () => ({ permissions: defaults }),
+        setDefaultPermissions: ({ permissions }) => {
+          defaults = permissions;
+          return {};
+        },
       },
     },
   );
-  openApp(usersSection, server);
+  openApp(usersSection, transport);
 
   fireEvent.click(await screen.findByRole("checkbox", { name: "Request" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Request Movies" }));
@@ -314,7 +316,7 @@ test("default Permissions are saved as they're changed, and are there after relo
     expect(defaults).toStrictEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
   });
   cleanup();
-  openApp(usersSection, server);
+  openApp(usersSection, transport);
 
   await expect(screen.findByRole("checkbox", { name: "Request Movies" })).resolves.toHaveProperty(
     "checked",
@@ -330,16 +332,15 @@ test("the default cap for remote playback is saved with the default Permissions 
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
       {
-        listUsers: () => ({ users: [] }),
-        getDefaultPermissions: () => ({ permissions: newUser }),
-        setDefaultPermissions: ({ permissions, remotePlaybackLimit }) => {
-          saves.push({ permissions, remotePlaybackLimit });
-          return {};
+        UserService: {
+          setDefaultPermissions: ({ permissions, remotePlaybackLimit }) => {
+            saves.push({ permissions, remotePlaybackLimit });
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
   const cap = "Most for remote playback";
 
@@ -359,18 +360,17 @@ test("a refused change to the default Permissions is undone, and says why", asyn
     usersSection,
     fakeServer(
       { signedIn: admin },
-      {},
       {
-        listUsers: () => ({ users: [] }),
-        getDefaultPermissions: () => ({ permissions: newUser }),
-        setDefaultPermissions: () => {
-          throw refused(Code.PermissionDenied, "refused", {
-            reason: RefusalReason.PERMISSION_REQUIRED,
-            params: { permission: "PERMISSION_ADMIN" },
-          });
+        UserService: {
+          setDefaultPermissions: () => {
+            throw refused(Code.PermissionDenied, "refused", {
+              reason: RefusalReason.PERMISSION_REQUIRED,
+              params: { permission: "PERMISSION_ADMIN" },
+            });
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   const request = await screen.findByRole("checkbox", { name: "Request" });
@@ -385,12 +385,12 @@ test("without the Admin Permission, default Permissions holding Admin are named,
     usersSection,
     fakeServer(
       { signedIn: [Permission.MANAGE_USERS] },
-      {},
       {
-        listUsers: () => ({ users: [] }),
-        getDefaultPermissions: () => ({ permissions: [Permission.ADMIN, Permission.REQUEST] }),
+        UserService: {
+          getDefaultPermissions: () => ({ permissions: [Permission.ADMIN, Permission.REQUEST] }),
+        },
       },
-    ),
+    ).transport,
   );
 
   await expect(screen.findByText("Admin · Request")).resolves.toBeDefined();

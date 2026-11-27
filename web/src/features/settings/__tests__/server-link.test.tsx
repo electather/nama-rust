@@ -4,8 +4,9 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { type ServerState, fakeServer, newUser } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { openSettings } from "@/test-settings";
 
 afterEach(() => {
@@ -15,8 +16,11 @@ afterEach(() => {
 
 const manageSettings = [...newUser, Permission.MANAGE_SETTINGS];
 
-function openServer(serverService: NonNullable<ServerState["serverService"]>) {
-  openSettings("server", fakeServer({ signedIn: manageSettings, serverService }));
+function openServer(serverService: NonNullable<Answers["ServerService"]>) {
+  openSettings(
+    "server",
+    fakeServer({ signedIn: manageSettings }, { ServerService: serverService }).transport,
+  );
 }
 
 /** Where Linking stands, as the fake Server answers it. */

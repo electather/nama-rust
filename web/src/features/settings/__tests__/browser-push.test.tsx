@@ -8,9 +8,8 @@ import {
   SubscribeWebPushRequestSchema,
   type UnsubscribeWebPushRequest,
   UnsubscribeWebPushRequestSchema,
-  WebPushService,
 } from "@/gen/nama/v1/web_push_pb";
-import { fakeServer, newUser } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 import { PUSH_ENDPOINT, browserWithPush, forgetBrowserPush } from "@/test-web-push";
 
@@ -25,22 +24,25 @@ describe("notify this browser, in Settings' Connections", () => {
   function server(refuses = false) {
     const subscribed: SubscribeWebPushRequest[] = [];
     const unsubscribed: UnsubscribeWebPushRequest[] = [];
-    const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-      router.service(WebPushService, {
-        getWebPushKey: () => ({ publicKey: serverKey }),
-        subscribeWebPush: (request) => {
-          subscribed.push(request);
-          if (refuses) {
-            throw new ConnectError("down", Code.Unavailable);
-          }
-          return {};
+    const { transport } = fakeServer(
+      { signedIn: newUser },
+      {
+        WebPushService: {
+          getWebPushKey: () => ({ publicKey: serverKey }),
+          subscribeWebPush: (request) => {
+            subscribed.push(request);
+            if (refuses) {
+              throw new ConnectError("down", Code.Unavailable);
+            }
+            return {};
+          },
+          unsubscribeWebPush: (request) => {
+            unsubscribed.push(request);
+            return {};
+          },
         },
-        unsubscribeWebPush: (request) => {
-          unsubscribed.push(request);
-          return {};
-        },
-      });
-    });
+      },
+    );
     return { transport, subscribed, unsubscribed };
   }
 

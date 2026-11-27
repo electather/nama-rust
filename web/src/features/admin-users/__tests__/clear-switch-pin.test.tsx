@@ -4,8 +4,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type ClearSwitchPinRequest, Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -31,9 +32,13 @@ function openAlex({ refusal, alexHas = newUser, youHave = admin }: Scene = {}) {
     "/code?settings=users&user=2",
     fakeServer(
       { signedIn: youHave },
-      { clearSwitchPin },
-      { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: alexHas }] }) },
-    ),
+      {
+        SignInService: { clearSwitchPin },
+        UserService: {
+          listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: alexHas }] }),
+        },
+      },
+    ).transport,
   );
   return cleared;
 }

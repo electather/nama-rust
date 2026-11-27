@@ -5,10 +5,10 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import {
   type ListRequestsRequest,
   type RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp, requestTitles } from "@/test-app";
+import { openApp, requestTitles } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -47,17 +47,19 @@ function pagingServer(
   pages: MessageInitShape<typeof RequestSchema>[][],
   asked: ListRequestsRequest[] = [],
 ) {
-  return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: (request) => {
-        asked.push(request);
-        const index = Number(request.page?.token ?? "");
-        const next = index + 1 < pages.length ? String(index + 1) : "";
-        return { requests: pages[index] ?? [], page: { nextToken: next } };
+  return fakeServer(
+    { signedIn: newUser },
+    {
+      RequestService: {
+        listRequests: (request) => {
+          asked.push(request);
+          const index = Number(request.page?.token ?? "");
+          const next = index + 1 < pages.length ? String(index + 1) : "";
+          return { requests: pages[index] ?? [], page: { nextToken: next } };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("show more lists the next page below the first, and goes after the last", async () => {

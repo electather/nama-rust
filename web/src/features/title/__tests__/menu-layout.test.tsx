@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 import stylesheet from "nama-ui/styles.css?inline";
 
@@ -24,11 +24,10 @@ function pageGutter() {
 }
 
 test("opening and closing a title's More actions menu keeps the page's scrollbar gutter", async () => {
-  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({ movie: { title: "Alien", versions: [{ id: 1n }] } }),
-    });
-  });
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    { BrowseService: { getMovie: () => ({ movie: { title: "Alien", versions: [{ id: 1n }] } }) } },
+  );
   openApp("/libraries/1/movies/tmdb-348", transport);
   await screen.findByRole("heading", { level: 1, name: "Alien" });
   const before = pageGutter();

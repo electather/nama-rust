@@ -3,8 +3,9 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -30,58 +31,60 @@ function sharedTv(acting = 1n) {
     tv.acting = id;
     return {};
   };
-  const transport = fakeServer(
-    { signedIn: newUser },
+  const { transport } = fakeServer(
+    {},
     {
-      whoAmI: () => {
-        if (tv.users.length === 0) {
-          throw new ConnectError("signed out", Code.Unauthenticated);
-        }
-        const user = tv.users.find((each) => each.id === tv.acting);
-        return {
-          user: user && { ...user, permissions: newUser },
-          device: { id: 7n, name: "Living room TV", isCurrent: true },
-          deviceUsers: tv.users,
-        };
-      },
-      switchUser: ({ userId, switchPin }) => {
-        if (!tv.users.some((each) => each.id === userId)) {
-          throw refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND });
-        }
-        if (userId !== 2n || switchPin === "1234") {
-          return actAs(userId);
-        }
-        if (switchPin === "") {
-          throw refused(Code.InvalidArgument, "a Switch PIN is needed", {
-            reason: RefusalReason.FIELD_REQUIRED,
+      SignInService: {
+        whoAmI: () => {
+          if (tv.users.length === 0) {
+            throw new ConnectError("signed out", Code.Unauthenticated);
+          }
+          const user = tv.users.find((each) => each.id === tv.acting);
+          return {
+            user: user && { ...user, permissions: newUser },
+            device: { id: 7n, name: "Living room TV", isCurrent: true },
+            deviceUsers: tv.users,
+          };
+        },
+        switchUser: ({ userId, switchPin }) => {
+          if (!tv.users.some((each) => each.id === userId)) {
+            throw refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND });
+          }
+          if (userId !== 2n || switchPin === "1234") {
+            return actAs(userId);
+          }
+          if (switchPin === "") {
+            throw refused(Code.InvalidArgument, "a Switch PIN is needed", {
+              reason: RefusalReason.FIELD_REQUIRED,
+              field: "switch_pin",
+            });
+          }
+          tv.wrongPins += 1;
+          if (tv.wrongPins === PIN_TRIES) {
+            tv.users = tv.users.filter((each) => each.id !== userId);
+          }
+          throw refused(Code.PermissionDenied, "wrong Switch PIN", {
+            reason: RefusalReason.WRONG_SWITCH_PIN,
             field: "switch_pin",
+            params: { triesLeft: String(PIN_TRIES - tv.wrongPins) },
           });
-        }
-        tv.wrongPins += 1;
-        if (tv.wrongPins === PIN_TRIES) {
-          tv.users = tv.users.filter((each) => each.id !== userId);
-        }
-        throw refused(Code.PermissionDenied, "wrong Switch PIN", {
-          reason: RefusalReason.WRONG_SWITCH_PIN,
-          field: "switch_pin",
-          params: { triesLeft: String(PIN_TRIES - tv.wrongPins) },
-        });
+        },
+        signOut: () => {
+          tv.users = [];
+          return {};
+        },
+        signIn: () => {
+          tv.users = [...tv.users, { id: 4n, name: "Lee" }];
+          return actAs(4n);
+        },
       },
-      signOut: () => {
-        tv.users = [];
-        return {};
-      },
-      signIn: () => {
-        tv.users = [...tv.users, { id: 4n, name: "Lee" }];
-        return actAs(4n);
-      },
-    },
-    {
-      revokeDevice: ({ deviceId, userId }) => {
-        tv.revoked.push([deviceId, userId]);
-        tv.users = tv.users.filter((each) => each.id !== tv.acting);
-        tv.acting = 0n;
-        return {};
+      UserService: {
+        revokeDevice: ({ deviceId, userId }) => {
+          tv.revoked.push([deviceId, userId]);
+          tv.users = tv.users.filter((each) => each.id !== tv.acting);
+          tv.acting = 0n;
+          return {};
+        },
       },
     },
   );

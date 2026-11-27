@@ -3,16 +3,17 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { fakeServer, newUser } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
-type Users = Parameters<typeof fakeServer>[2];
+type Users = NonNullable<Answers["UserService"]>;
 
 function openSignin(users: Users) {
-  openSettings("signin", fakeServer({ signedIn: newUser }, {}, users));
+  openSettings("signin", fakeServer({ signedIn: newUser }, { UserService: users }).transport);
 }
 
 /** Where the User's Link stands, as the fake Server answers it. */

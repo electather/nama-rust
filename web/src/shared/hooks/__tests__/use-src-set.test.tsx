@@ -2,10 +2,10 @@ import { cleanup, renderHook, screen } from "@testing-library/react";
 import { rgbaToThumbHash } from "thumbhash";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { useSrcSet } from "@/shared/hooks/use-src-set";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { onServerAt } from "@/test-server-at";
 
 afterEach(cleanup);
@@ -45,21 +45,16 @@ function serverWithAMovie(offered: Partial<typeof widths> = widths) {
           backdropThumbhash: thumbhash,
         },
       ],
-      serverService: { getServerInfo: () => ({ name: "Living Room", ...offered }) },
+      info: offered,
     },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
-        listUnmatched: () => ({}),
+    {
+      BrowseService: {
         listMovies: () => ({
           movies: [
             { id: alien, title: "Alien", posterUrl: poster, posterThumbhash: thumbhash },
             { id: heat, title: "Heat", posterUrl: heatPoster },
           ],
         }),
-        listContinueWatching: () => ({}),
-        listGenres: () => ({}),
         getMovie: () => ({
           movie: {
             title: "Alien",
@@ -70,9 +65,9 @@ function serverWithAMovie(offered: Partial<typeof widths> = widths) {
           },
           similar: [{ id: heat, title: "Heat", libraryId: 1n, posterUrl: heatPoster }],
         }),
-      });
+      },
     },
-  );
+  ).transport;
 }
 
 /** The `srcset` of the one image whose `src` is `url`. */

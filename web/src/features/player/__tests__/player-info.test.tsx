@@ -2,16 +2,15 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   PlaybackMethod,
   type PlaybackPlanSchema,
   PlaybackReasonKind,
-  PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openSettingsAt } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -25,18 +24,21 @@ const tracks: Plan["tracks"] = [
 /** A fake Server with The Matrix in Library 1, played by `plan`. */
 const serverPlaying = (plan: Plan) => {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(PlaybackService, { planPlayback: () => ({ plan }) });
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "603" },
-          title: "The Matrix",
-          versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
-        },
-      }),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      PlaybackService: { planPlayback: () => ({ plan }) },
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "603" },
+            title: "The Matrix",
+            versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
+          },
+        }),
+      },
+    },
+  ).transport;
 };
 
 /** A Direct Play nothing stood in the way of. */

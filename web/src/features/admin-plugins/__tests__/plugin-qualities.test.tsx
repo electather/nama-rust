@@ -62,13 +62,14 @@ function openRadarr({
   replace = (request: ReplaceQualitiesRequest): object => ({ qualities: request.qualities }),
 } = {}) {
   const sent: ReplaceQualitiesRequest[] = [];
-  openPlugin("radarr", {
-    getPlugin: () => ({ plugin: radarr }),
-    listQualities: () => ({ qualities }),
-    testPluginSettings: () => ({ choices: { quality_profile: { choices: profiles } } }),
-    replaceQualities: (request) => {
-      sent.push(request);
-      return replace(request);
+  openPlugin(radarr, {
+    PluginService: {
+      listQualities: () => ({ qualities }),
+      testPluginSettings: () => ({ choices: { quality_profile: { choices: profiles } } }),
+      replaceQualities: (request) => {
+        sent.push(request);
+        return replace(request);
+      },
     },
   });
   return sent;
@@ -235,14 +236,15 @@ test("a name another Quality has is refused under the list", async () => {
 });
 
 test("while the service's profiles can't be fetched, the list stays and nothing is added or edited", async () => {
-  openPlugin("radarr", {
-    getPlugin: () => ({ plugin: radarr }),
-    listQualities: () => ({ qualities: [HD] }),
-    testPluginSettings: () => {
-      throw refused(Code.FailedPrecondition, "The setting url is required.", {
-        reason: RefusalReason.SETTINGS_CHECK_FAILED,
-        field: "settings.url",
-      });
+  openPlugin(radarr, {
+    PluginService: {
+      listQualities: () => ({ qualities: [HD] }),
+      testPluginSettings: () => {
+        throw refused(Code.FailedPrecondition, "The setting url is required.", {
+          reason: RefusalReason.SETTINGS_CHECK_FAILED,
+          field: "settings.url",
+        });
+      },
     },
   });
   const page = await plugin("Radarr");
@@ -273,11 +275,7 @@ test("a Fulfiller for Shows has Qualities too", async () => {
       extensionPoints: [ExtensionPoint.SHOW_FULFILLER],
     },
   };
-  openPlugin("sonarr", {
-    getPlugin: () => ({ plugin: sonarr }),
-    listQualities: () => ({}),
-    testPluginSettings: () => ({}),
-  });
+  openPlugin(sonarr);
 
   await plugin("Sonarr");
 

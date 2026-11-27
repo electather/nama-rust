@@ -2,10 +2,10 @@ import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, type LibraryService } from "@/gen/nama/v1/library_pb";
 import { librariesQuery } from "@/shared/hooks/use-libraries";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -25,16 +25,14 @@ describe.each(titles)("a $kind's page", ({ path, title }) => {
    * returns how the app's query of them stands.
    */
   function open(listLibraries: ServiceImpl<typeof LibraryService>["listLibraries"]) {
-    const transport = fakeServer(
-      { signedIn: newUser, libraryService: { listLibraries } },
-      {},
-      {},
-      (router) => {
-        router.service(BrowseService, {
+    const { transport } = fakeServer(
+      { signedIn: newUser },
+      {
+        LibraryService: { listLibraries },
+        BrowseService: {
           getMovie: () => ({ movie: { title, versions: [{ id: 1n }] } }),
           getShow: () => ({ show: { title }, seasons: [] }),
-          listEpisodes: () => ({ episodes: [] }),
-        });
+        },
       },
     );
     const { queryClient } = openApp(path, transport).options.context;

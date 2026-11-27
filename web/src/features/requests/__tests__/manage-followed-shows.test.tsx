@@ -5,11 +5,11 @@ import { afterEach, expect, test } from "vite-plus/test";
 import {
   FollowedShowSchema,
   RequestSchema,
-  RequestService,
   RequestState,
   RequestedQualitySchema,
 } from "@/gen/nama/v1/request_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -37,32 +37,37 @@ function followedServer() {
     followedShowId: 7n,
   });
   let followedShows = [followed];
-  return fakeServer({ signedIn: admin }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: () => ({ requests: [season1], followedShows }),
-      countPendingRequests: () => ({}),
-      listOfferedQualities: () => ({
-        qualities: [
-          { id: 1n, name: "HD" },
-          { id: 2n, name: "4K" },
-        ],
-      }),
-      approveFollowedShow: ({ qualityId }) => {
-        if (qualityId === 1n) {
-          followed.quality = create(RequestedQualitySchema, { id: 1n, name: "HD", profileId: "4" });
-        }
-        followed.state = RequestState.APPROVED;
-        season1.state = RequestState.APPROVED;
-        return { followedShow: followed };
+  return fakeServer(
+    { signedIn: admin },
+    {
+      RequestService: {
+        listRequests: () => ({ requests: [season1], followedShows }),
+        listOfferedQualities: () => ({
+          qualities: [
+            { id: 1n, name: "HD" },
+            { id: 2n, name: "4K" },
+          ],
+        }),
+        approveFollowedShow: ({ qualityId }) => {
+          if (qualityId === 1n) {
+            followed.quality = create(RequestedQualitySchema, {
+              id: 1n,
+              name: "HD",
+              profileId: "4",
+            });
+          }
+          followed.state = RequestState.APPROVED;
+          season1.state = RequestState.APPROVED;
+          return { followedShow: followed };
+        },
+        cancelFollowedShow: () => {
+          followedShows = [];
+          season1.followedShowId = undefined;
+          return {};
+        },
       },
-      cancelFollowedShow: () => {
-        followedShows = [];
-        season1.followedShowId = undefined;
-        return {};
-      },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("approving a Followed Show once approves it and its Season Requests", async () => {

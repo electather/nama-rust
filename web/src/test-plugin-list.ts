@@ -13,7 +13,7 @@ const texts = (...values: string[]) => ({ value: { case: "texts" as const, value
  * Libraries setting holding Movies and a Library since deleted, and one the Server refused. TMDB,
  * the test Plugin and the first Installed Plugin name their Extension Points. Only TMDB has a logo.
  */
-export const plugins = [
+const listed = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
   {
     id: "log-events",
@@ -163,32 +163,12 @@ export const plugins = [
   },
 ];
 
-/** What `ListPlugins` lists of one of `plugins`, and its `Plugin` holds. */
-export function summaryOf({
-  id,
-  name = "",
-  description = "",
-  version,
-  kind,
-  enabled,
-  refusedReason = "",
-  settingsMissing = false,
-  extensionPoints = [],
-  logoUrl = "",
-}: (typeof plugins)[number]) {
-  return {
-    id,
-    name,
-    description,
-    version,
-    kind,
-    enabled,
-    refusedReason,
-    settingsMissing,
-    extensionPoints,
-    logoUrl,
-  };
-}
+/** The record the fake Server holds of each of the Plugins above, its summary and details. */
+export const plugins = listed.map(({ settings = [], checksSettings = false, ...summary }) => ({
+  summary,
+  settings,
+  checksSettings,
+}));
 
 /** The Libraries on the fake Server: Movies, Shows and Anime, but no longer Library 9. */
 export const libraries = [

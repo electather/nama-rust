@@ -3,7 +3,8 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import type { DetachedWindowAPI } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
+import { admin, fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -22,7 +23,7 @@ function sections() {
 }
 
 test("your menu opens Settings over the page you're on, and Back closes it", async () => {
-  const router = openApp("/code", fakeServer({ signedIn: newUser }));
+  const router = openApp("/code", fakeServer({ signedIn: newUser }).transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Sam’s menu" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Settings" }));
@@ -49,7 +50,7 @@ describe("on a phone", () => {
   // happy-dom's `showModal()` focuses nothing, where a browser's focuses Search, so this checks only
   // that Settings moves focus to itself, not that it does so after `showModal()`.
   test("opening Settings focuses the dialog, not Search", async () => {
-    openSettings("playback", fakeServer({ signedIn: newUser }));
+    openSettings("playback", fakeServer({ signedIn: newUser }).transport);
 
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
 
@@ -57,7 +58,7 @@ describe("on a phone", () => {
   });
 
   test("all of Settings is a page of its sections, with Search, and no section's pane", async () => {
-    openSettings("all", fakeServer({ signedIn: newUser }));
+    openSettings("all", fakeServer({ signedIn: newUser }).transport);
 
     await expect(screen.findByRole("link", { name: "Playback" })).resolves.toBeDefined();
     expect(screen.getByRole("combobox", { name: "Search settings" })).toBeDefined();
@@ -65,7 +66,7 @@ describe("on a phone", () => {
   });
 
   test("a section opens as a page of its own, without Search, and Back returns to the list", async () => {
-    const router = openSettings("all", fakeServer({ signedIn: newUser }));
+    const router = openSettings("all", fakeServer({ signedIn: newUser }).transport);
 
     fireEvent.click(await screen.findByRole("link", { name: "Playback" }));
 
@@ -77,7 +78,7 @@ describe("on a phone", () => {
   });
 
   test("a tap on the scrim above the sheet closes Settings, and one on the sheet doesn't", async () => {
-    const router = openSettings("all", fakeServer({ signedIn: newUser }));
+    const router = openSettings("all", fakeServer({ signedIn: newUser }).transport);
     const sheet = await screen.findByRole("dialog", { name: "Settings" });
     // happy-dom lays nothing out; the sheet starts 80px down the window, as 11/12 of a short one.
     sheet.getBoundingClientRect = () => DOMRect.fromRect({ y: 80, width: 375, height: 732 });
@@ -93,7 +94,7 @@ describe("on a phone", () => {
   });
 
   test("a section a link opened goes back to the list in its place", async () => {
-    const router = openSettings("devices", fakeServer({ signedIn: newUser }));
+    const router = openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
@@ -103,7 +104,7 @@ describe("on a phone", () => {
 });
 
 test("closing Settings leaves the page it was over", async () => {
-  const router = openSettings("devices", fakeServer({ signedIn: newUser }));
+  const router = openSettings("devices", fakeServer({ signedIn: newUser }).transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Close Settings" }));
 
@@ -117,7 +118,7 @@ test("closing Settings leaves the page it was over", async () => {
 test("your menu opens all of Settings, on Playback wider than a phone, dropping a Job and other details left in the address", async () => {
   const router = openApp(
     "/code?job=7&plugin=tmdb&user=2&library=3&setting=quality",
-    fakeServer({ signedIn: newUser }),
+    fakeServer({ signedIn: newUser }).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Sam’s menu" }));
@@ -130,7 +131,7 @@ test("your menu opens all of Settings, on Playback wider than a phone, dropping 
 test("closing Settings clears every Settings detail from the address, a Job too", async () => {
   const router = openApp(
     "/code?settings=jobs&job=7&plugin=tmdb&user=2&library=3&setting=quality",
-    fakeServer({ signedIn: newUser }),
+    fakeServer({ signedIn: newUser }).transport,
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Close Settings" }));
@@ -142,7 +143,7 @@ test("closing Settings clears every Settings detail from the address, a Job too"
 });
 
 test("a section's link opens it, and a word that names none opens Playback", async () => {
-  openApp("/code?settings=nonsense", fakeServer({ signedIn: newUser }));
+  openApp("/code?settings=nonsense", fakeServer({ signedIn: newUser }).transport);
 
   await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
   expect(sections()).toStrictEqual([
@@ -167,7 +168,8 @@ test("a pane that doesn't load says so in place, and Try again loads it", async 
   let listDevices = locked;
   openSettings(
     "devices",
-    fakeServer({ signedIn: newUser }, {}, { listDevices: () => listDevices() }),
+    fakeServer({ signedIn: newUser }, { UserService: { listDevices: () => listDevices() } })
+      .transport,
   );
 
   await expect(screen.findByText("Couldn’t load your Devices.")).resolves.toBeDefined();
@@ -185,9 +187,8 @@ test("a part of a pane that doesn't load says so in its place, and the rest of t
     "connections",
     fakeServer(
       { signedIn: newUser },
-      {},
-      { listNotificationPreferences: () => listNotificationPreferences() },
-    ),
+      { UserService: { listNotificationPreferences: () => listNotificationPreferences() } },
+    ).transport,
   );
 
   await expect(
@@ -203,7 +204,7 @@ test("a part of a pane that doesn't load says so in its place, and the rest of t
 });
 
 test("pressing Escape in a form holding typed text keeps Settings open, and leaves it to close from anywhere else", async () => {
-  openSettings("users", fakeServer({ signedIn: admin }, {}, { listUsers: () => ({}) }));
+  openSettings("users", fakeServer({ signedIn: admin }).transport);
   const name = await screen.findByLabelText("Username");
   const password = screen.getByLabelText("Starting password");
 

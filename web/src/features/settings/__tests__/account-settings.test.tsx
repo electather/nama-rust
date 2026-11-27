@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
 import { pickFromMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -38,7 +39,7 @@ test("at the Hub, the Account's menu opens Settings on the Account's own Section
 });
 
 test("at a Server, the Account's Sections never show, and asking for one opens Playback", async () => {
-  openSettings("account-signin", fakeServer({ signedIn: newUser }));
+  openSettings("account-signin", fakeServer({ signedIn: newUser }).transport);
 
   const shown = await sections();
 

@@ -2,15 +2,10 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import {
-  PlaybackMethod,
-  type PlaybackPlanSchema,
-  PlaybackService,
-  SegmentKind,
-} from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod, type PlaybackPlanSchema, SegmentKind } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -42,10 +37,13 @@ async function openPlanned(planned: Planned) {
     versions: [{ id: 8n, fileName: "The Matrix (1999).mkv", size: 1n }],
   };
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const server = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(PlaybackService, { planPlayback: () => ({ plan }) });
-    router.service(BrowseService, { getMovie: () => ({ movie }) });
-  });
+  const server = fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      PlaybackService: { planPlayback: () => ({ plan }) },
+      BrowseService: { getMovie: () => ({ movie }) },
+    },
+  ).transport;
   openApp("/libraries/1/movies/tmdb-603/play", server);
   const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
   Object.defineProperty(video, "duration", { value: 7000 });

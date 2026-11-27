@@ -9,11 +9,11 @@ import {
   FoundMovieSchema,
   FoundShowSchema,
   RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -37,21 +37,23 @@ function server(
   personalDefault?: bigint,
 ) {
   const found = create(FoundMovieSchema, movie);
-  return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpMovie: () => ({ movie: found }),
-      listMovieQualities: () => ({ qualities, personalDefault }),
-      createRequest: (request) => {
-        asked.push(request);
-        found.request = create(RequestSchema, {
-          state: RequestState.PENDING,
-          requesters: [{ userId: 1n, name: "Sam" }],
-        });
-        return { request: found.request };
+  return fakeServer(
+    { signedIn: permissions },
+    {
+      RequestService: {
+        lookUpMovie: () => ({ movie: found }),
+        listMovieQualities: () => ({ qualities, personalDefault }),
+        createRequest: (request) => {
+          asked.push(request);
+          found.request = create(RequestSchema, {
+            state: RequestState.PENDING,
+            requesters: [{ userId: 1n, name: "Sam" }],
+          });
+          return { request: found.request };
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 /** The chevron beside Request that opens the Qualities to Request `what` at. */
@@ -112,16 +114,18 @@ test("picking a Quality in the menu Requests the Movie at it", async () => {
 test("request is disabled while it's being sent", async () => {
   openApp(
     "/movies/tmdb-438631",
-    fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-      router.service(RequestService, {
-        listRequests: () => ({}),
-        lookUpMovie: () => ({ movie: dune }),
-        createRequest: async () => {
-          await new Promise(() => {});
-          return {};
+    fakeServer(
+      { signedIn: newUser },
+      {
+        RequestService: {
+          lookUpMovie: () => ({ movie: dune }),
+          createRequest: async () => {
+            await new Promise(() => {});
+            return {};
+          },
         },
-      });
-    }),
+      },
+    ).transport,
   );
   const request = await screen.findByRole<HTMLButtonElement>("button", { name: "Request Dune" });
 
@@ -135,16 +139,18 @@ test("request is disabled while it's being sent", async () => {
 test("the Quality menu's chevron holds its place, disabled, while the Qualities load", async () => {
   openApp(
     "/movies/tmdb-438631",
-    fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
-      router.service(RequestService, {
-        listRequests: () => ({}),
-        lookUpMovie: () => ({ movie: dune }),
-        listMovieQualities: async () => {
-          await new Promise(() => {});
-          return {};
+    fakeServer(
+      { signedIn: mayChoose },
+      {
+        RequestService: {
+          lookUpMovie: () => ({ movie: dune }),
+          listMovieQualities: async () => {
+            await new Promise(() => {});
+            return {};
+          },
         },
-      });
-    }),
+      },
+    ).transport,
   );
 
   const chevron = await screen.findByRole<HTMLButtonElement>("button", {
@@ -208,17 +214,19 @@ function showServer(
   show: MessageInitShape<typeof FoundShowSchema> = dark,
 ) {
   const found = create(FoundShowSchema, show);
-  return fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpShow: () => ({ show: found }),
-      listShowQualities: () => ({ qualities }),
-      createSeasonRequests: (request) => {
-        asked.push(request);
-        return {};
+  return fakeServer(
+    { signedIn: mayChoose },
+    {
+      RequestService: {
+        lookUpShow: () => ({ show: found }),
+        listShowQualities: () => ({ qualities }),
+        createSeasonRequests: (request) => {
+          asked.push(request);
+          return {};
+        },
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 test("request asks for a Show's next Season at once, at the User's Quality", async () => {

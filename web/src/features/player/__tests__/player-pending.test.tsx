@@ -3,16 +3,15 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
   PlaybackMethod,
   type PlaybackPlanSchema,
-  PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openTracks, pickIn, rowsOf } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -35,12 +34,10 @@ function slowServer() {
     { codec: "aac", language: "eng", default: true, kind: audio(6) },
     { codec: "aac", language: "eng", title: "Commentary", kind: audio(2) },
   ] as const;
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
+    {
+      BrowseService: {
         getMovie: () => ({
           movie: {
             id: { namespace: "tmdb", value: "348" },
@@ -48,8 +45,8 @@ function slowServer() {
             versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
           },
         }),
-      });
-      router.service(PlaybackService, {
+      },
+      PlaybackService: {
         // oxlint-disable-next-line require-await -- it answers when the test says so
         planPlayback: async (request) =>
           new Promise((resolve) => {
@@ -60,7 +57,7 @@ function slowServer() {
               },
             });
           }),
-      });
+      },
     },
   );
   /** The `n`th plan request, once the player has sent it. */
@@ -131,21 +128,19 @@ test("choosing another audio Track shows it's getting ready until that plan come
 test("a Server that fails to plan the Version says it couldn't get it ready, not that something went wrong", async () => {
   const failing = fakeServer(
     { signedIn: newUser, libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }] },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
+    {
+      BrowseService: {
         getMovie: () => ({
           movie: { title: "Alien", versions: [{ id: 7n, fileName: "Alien.mkv", size: 1n }] },
         }),
-      });
-      router.service(PlaybackService, {
+      },
+      PlaybackService: {
         planPlayback: () => {
           throw new ConnectError("the Server failed", Code.Internal);
         },
-      });
+      },
     },
-  );
+  ).transport;
   openApp(PLAYER, failing);
 
   await expect(screen.findByText("This Version can’t play here")).resolves.toBeDefined();

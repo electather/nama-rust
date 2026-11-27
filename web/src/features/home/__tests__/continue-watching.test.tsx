@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { type ServiceImpl, createRouterTransport } from "@connectrpc/connect";
+import { createRouterTransport } from "@connectrpc/connect";
 import { TransportProvider } from "@connectrpc/connect-query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, renderHook, screen, waitFor } from "@testing-library/react";
@@ -18,11 +18,13 @@ import {
   type ShowSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { WatchStateService, type WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
+import { openApp } from "@/test-app";
 import { heldBack } from "@/test-held-back";
 import { continueWatchingRow, pluginRow } from "@/test-home-rows";
 import { layOutShelves } from "@/test-layout";
+import { fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 
 beforeEach(layOutShelves);
 
@@ -35,22 +37,18 @@ afterEach(() => {
 const alien = { namespace: "tmdb", value: "348" } as const;
 
 /** A fake Server with a Movies Library (1) and a Shows Library (2). */
-function server(
-  browse: Partial<ServiceImpl<typeof BrowseService>>,
-  watchState: Partial<ServiceImpl<typeof WatchStateService>> = {},
-) {
+function server(browse: Answers["BrowseService"], watchState: Answers["WatchStateService"] = {}) {
   const libraries = [
     { id: 1n, name: "Films", kind: LibraryKind.MOVIES },
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listHomeRows: () => ({ rows: [continueWatchingRow] }),
-      listFeatured: () => ({}),
-      ...browse,
-    });
-    router.service(WatchStateService, watchState);
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: { listHomeRows: () => ({ rows: [continueWatchingRow] }), ...browse },
+      WatchStateService: watchState,
+    },
+  ).transport;
 }
 
 /** The Home page, with `entries` in Continue Watching. */

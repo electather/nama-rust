@@ -3,13 +3,9 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import {
-  type DownloadSchema,
-  DownloadStatus,
-  RequestService,
-  RequestState,
-} from "@/gen/nama/v1/request_pb";
-import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { type DownloadSchema, DownloadStatus, RequestState } from "@/gen/nama/v1/request_pb";
+import { eventFeed, openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -34,9 +30,10 @@ function server(
   requests: () => ReturnType<typeof duneDownloading>[],
   events = new ReadableStream<SubscribeResponse>(),
 ) {
-  return fakeServer({ signedIn: newUser, events }, {}, {}, (router) => {
-    router.service(RequestService, { listRequests: () => ({ requests: requests() }) });
-  });
+  return fakeServer(
+    { signedIn: newUser, events },
+    { RequestService: { listRequests: () => ({ requests: requests() }) } },
+  ).transport;
 }
 
 test("a handed-off Request shows the Quality its service used, else the profile it kept", async () => {

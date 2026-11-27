@@ -1,12 +1,11 @@
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
-import { WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
 import { openSettingsAt, openTracks, rowIn } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 const SHOW = "/libraries/2/shows/tmdb-70523";
 const DURATION_S = 1000;
@@ -38,10 +37,8 @@ function episode(episodeNumber: number, title: string) {
  * and 4. */
 const server = fakeServer(
   { signedIn: newUser, libraries: [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }] },
-  {},
-  {},
-  (router) => {
-    router.service(BrowseService, {
+  {
+    BrowseService: {
       getShow: () => ({ show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } }),
       listEpisodes: () => ({
         episodes: [episode(2, "Lies"), episode(3, "Past and Present"), episode(4, "Double Lives")],
@@ -50,8 +47,8 @@ const server = fakeServer(
         episodeNumber === 3 ? { next: episode(4, "Double Lives") } : {},
       getPreviousEpisode: ({ episodeNumber }) =>
         episodeNumber === 3 ? { previous: episode(2, "Lies") } : {},
-    });
-    router.service(PlaybackService, {
+    },
+    PlaybackService: {
       getAutoplay: () => ({ on: false }),
       planPlayback: ({ versionId }) => ({
         plan: {
@@ -67,10 +64,9 @@ const server = fakeServer(
           ],
         },
       }),
-    });
-    router.service(WatchStateService, { reportProgress: () => ({}) });
+    },
   },
-);
+).transport;
 
 /** Opens Episode 3's player, its `<video>` 100 seconds into 1000, once the Episodes either side
  * of it are known. */

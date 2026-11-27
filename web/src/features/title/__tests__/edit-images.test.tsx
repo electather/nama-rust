@@ -2,11 +2,12 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, type MovieSchema } from "@/gen/nama/v1/browse_pb";
+import type { MovieSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, type ListArtworkResponseSchema } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { openMenu, pickFromMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -29,17 +30,15 @@ function openAlien(
   listed: MessageInitShape<typeof ListArtworkResponseSchema> = {},
 ) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const libraryService = { listArtwork: () => listed };
-  const transport = fakeServer(
-    { signedIn: permissions, libraries, libraryService },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
+  const { transport } = fakeServer(
+    { signedIn: permissions, libraries },
+    {
+      LibraryService: { listArtwork: () => listed },
+      BrowseService: {
         getMovie: () => ({
           movie: { title: "Alien", versions: [{ id: 1n, fileName: "Alien.mkv" }], ...movie() },
         }),
-      });
+      },
     },
   );
   openApp("/libraries/1/movies/tmdb-348", transport);
@@ -166,12 +165,14 @@ test.each([
 
 test("a Show's page edits the Show's images and the Poster of the Season the row is on", async () => {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
-  const transport = fakeServer({ signedIn: managesLibraries, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getShow: () => ({ show: { title: "Dark" }, seasons: [{ number: 1 }, { number: 2 }] }),
-      listEpisodes: () => ({ episodes: [] }),
-    });
-  });
+  const { transport } = fakeServer(
+    { signedIn: managesLibraries, libraries },
+    {
+      BrowseService: {
+        getShow: () => ({ show: { title: "Dark" }, seasons: [{ number: 1 }, { number: 2 }] }),
+      },
+    },
+  );
   const fetched = vi
     .spyOn(globalThis, "fetch")
     .mockResolvedValue(new Response(null, { status: 204 }));
@@ -201,27 +202,24 @@ async function openDarkSeason2(seasonPosters: string[]) {
   const seasonListed = new Promise<void>((resolve) => {
     listedSeason = resolve;
   });
-  const libraryService = {
-    // The Show's lists answer only after the Season's, so once the Show's picks show, the
-    // Season's list has arrived too, empty or not.
-    listArtwork: async ({ season }: { season?: number | undefined }) => {
-      if (season === 2) {
-        listedSeason?.();
-        return { posterUrls: seasonPosters };
-      }
-      await seasonListed;
-      return { posterUrls: [OTHER], backdropUrls: [OTHER] };
-    },
-  };
-  const transport = fakeServer(
-    { signedIn: managesLibraries, libraries, libraryService },
-    {},
-    {},
-    (router) => {
-      router.service(BrowseService, {
+  const { transport } = fakeServer(
+    { signedIn: managesLibraries, libraries },
+    {
+      LibraryService: {
+        // The Show's lists answer only after the Season's, so once the Show's picks show, the
+        // Season's list has arrived too, empty or not.
+        listArtwork: async ({ season }) => {
+          if (season === 2) {
+            listedSeason?.();
+            return { posterUrls: seasonPosters };
+          }
+          await seasonListed;
+          return { posterUrls: [OTHER], backdropUrls: [OTHER] };
+        },
+      },
+      BrowseService: {
         getShow: () => ({ show: { title: "Dark" }, seasons: [{ number: 1 }, { number: 2 }] }),
-        listEpisodes: () => ({ episodes: [] }),
-      });
+      },
     },
   );
   openApp("/libraries/2/shows/tmdb-70523?season=2", transport);

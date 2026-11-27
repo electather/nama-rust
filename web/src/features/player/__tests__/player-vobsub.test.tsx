@@ -1,16 +1,15 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
   PlaybackMethod,
-  PlaybackService,
   SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { pickIn, rowIn } from "@/test-player";
+import { fakeServer, newUser } from "@/test-server";
 
 /**
  * What each VobSub renderer drew, as text, under which file name, whether the next one fails to
@@ -87,31 +86,34 @@ function server(asked: PlanPlaybackRequest[]) {
   ] as const;
   const english = { track: tracks[1], url: ENGLISH, place: 1, format: SubtitleFormat.WEBVTT };
   const dutch = { track: tracks[2], url: DUTCH, place: 2, format: SubtitleFormat.VOBSUB };
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "348" },
-          title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
-        },
-      }),
-    });
-    router.service(PlaybackService, {
-      planPlayback: (request) => {
-        asked.push(request);
-        const { subtitleTrack, deviceDecoding } = request;
-        const draws = deviceDecoding?.subtitleFormats.includes(SubtitleFormat.VOBSUB) ?? false;
-        const plan =
-          subtitleTrack === undefined
-            ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
-            : { method: PlaybackMethod.TRANSCODE, url: "/media/plans/1/index.m3u8" };
-        return draws
-          ? { plan: { ...plan, subtitles: [english, dutch] } }
-          : { plan: { ...plan, subtitles: [english], burnInTracks: [2], subtitleTrack } };
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: { namespace: "tmdb", value: "348" },
+            title: "Alien",
+            versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+          },
+        }),
       },
-    });
-  });
+      PlaybackService: {
+        planPlayback: (request) => {
+          asked.push(request);
+          const { subtitleTrack, deviceDecoding } = request;
+          const draws = deviceDecoding?.subtitleFormats.includes(SubtitleFormat.VOBSUB) ?? false;
+          const plan =
+            subtitleTrack === undefined
+              ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
+              : { method: PlaybackMethod.TRANSCODE, url: "/media/plans/1/index.m3u8" };
+          return draws
+            ? { plan: { ...plan, subtitles: [english, dutch] } }
+            : { plan: { ...plan, subtitles: [english], burnInTracks: [2], subtitleTrack } };
+        },
+      },
+    },
+  ).transport;
 }
 
 /** Opens the player on [`server`], its subtitles fetched as `MKS`, as `asked` records its plans. */

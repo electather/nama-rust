@@ -2,28 +2,24 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { admin, fakeServer, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { confirmItsYou, recentAuthenticationRequired } from "@/test-refusal";
+import { admin, fakeServer } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 
 afterEach(cleanup);
 
 /** Settings' Users section on a Server Linked when `linked`, creating Users from Accounts with `create`. */
 function openUsers(
   linked: boolean,
-  create: NonNullable<Parameters<typeof fakeServer>[2]>["createUserFromAccount"] = () => ({
-    id: 2n,
-  }),
+  create: NonNullable<Answers["UserService"]>["createUserFromAccount"] = () => ({ id: 2n }),
 ) {
   openApp(
     "/code?settings=users",
     fakeServer(
-      {
-        signedIn: admin,
-        serverService: { getServerInfo: () => ({ name: "Living Room", accountSignIn: linked }) },
-      },
-      { reauthenticate: () => ({}) },
-      { listUsers: () => ({}), createUserFromAccount: create },
-    ),
+      { signedIn: admin, info: { accountSignIn: linked } },
+      { UserService: { createUserFromAccount: create } },
+    ).transport,
   );
 }
 

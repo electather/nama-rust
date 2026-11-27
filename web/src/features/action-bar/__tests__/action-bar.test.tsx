@@ -9,12 +9,13 @@ import { type MovieHitSchema, RequestState, type ShowHitSchema } from "@/gen/nam
 import {
   type EpisodeHitSchema,
   type SearchResponseSchema,
-  SearchService,
+  type SearchService,
   TitleStatus,
 } from "@/gen/nama/v1/search_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -110,9 +111,7 @@ const down: Search = () => {
 
 /** A fake Server that answers a search with `search`, for a User with `permissions`. */
 function serverToSearch(search: Search, permissions: Permission[] = newUser) {
-  return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
-    router.service(SearchService, { search });
-  });
+  return fakeServer({ signedIn: permissions }, { SearchService: { search } }).transport;
 }
 
 /** Opens the action bar with its keys, once the page is up, and gives its field. */

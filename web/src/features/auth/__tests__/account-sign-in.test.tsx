@@ -4,8 +4,10 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { keepAccountSignIn } from "@/shared/lib/account-sign-in";
-import { fakeServer, newUser, openApp, type ServerState } from "@/test-app";
+import { openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 
 afterEach(() => {
   cleanup();
@@ -14,11 +16,8 @@ afterEach(() => {
 });
 
 /** A signed-out Server, Linked to the Hub when `linked`, answering the rest of signing in with `signIn`. */
-function linkedServer(linked: boolean, signIn: Parameters<typeof fakeServer>[1] = {}) {
-  const state: ServerState = {
-    serverService: { getServerInfo: () => ({ name: "Living Room", accountSignIn: linked }) },
-  };
-  return { state, transport: fakeServer(state, signIn) };
+function linkedServer(linked: boolean, signIn: Answers["SignInService"] = {}) {
+  return fakeServer({ info: { accountSignIn: linked } }, { SignInService: signIn });
 }
 
 test("a Server that isn't Linked offers no Account", async () => {
@@ -90,10 +89,10 @@ test("a Server opened off its reported addresses says to open it at its Server U
 
 test("back from the Hub, the browser signs in with the Hub's code and goes on", async () => {
   keepAccountSignIn("secret");
-  const { state, transport } = linkedServer(true, {
+  const { server, transport } = linkedServer(true, {
     signInWithAccount: ({ handle, code }) => {
       expect([handle, code]).toStrictEqual(["secret", "c0de"]);
-      state.signedIn = newUser;
+      server.signedIn = newUser;
       return {};
     },
   });
@@ -144,12 +143,14 @@ test("a sign-in the Hub didn't approve says so, with the way back", async () => 
 test("back from the Hub, “Confirm it’s you” finishes and goes back to the change", async () => {
   keepAccountSignIn("secret");
   const proofs: unknown[] = [];
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser },
     {
-      reauthenticate: ({ proof, accountSignInCode }) => {
-        proofs.push(proof, accountSignInCode);
-        return {};
+      SignInService: {
+        reauthenticate: ({ proof, accountSignInCode }) => {
+          proofs.push(proof, accountSignInCode);
+          return {};
+        },
       },
     },
   );
@@ -163,14 +164,16 @@ test("back from the Hub, “Confirm it’s you” finishes and goes back to the 
 });
 
 test("an approval by an Account not Linked to you says so, with the way back", async () => {
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     { signedIn: newUser },
     {
-      reauthenticate: () => {
-        throw refused(Code.Unauthenticated, "the Account that approved isn't yours", {
-          reason: RefusalReason.WRONG_ACCOUNT,
-          field: "account_sign_in_handle",
-        });
+      SignInService: {
+        reauthenticate: () => {
+          throw refused(Code.Unauthenticated, "the Account that approved isn't yours", {
+            reason: RefusalReason.WRONG_ACCOUNT,
+            field: "account_sign_in_handle",
+          });
+        },
       },
     },
   );

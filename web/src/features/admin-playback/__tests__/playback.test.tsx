@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { HardwareAcceleration, ToneMapping } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, newUser } from "@/test-app";
+import { admin, fakeServer, newUser } from "@/test-server";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -11,15 +11,17 @@ afterEach(cleanup);
 test("an Admin sees the path and version of the ffmpeg and ffprobe the Server found", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
-          ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
+            ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(screen.findByText("/usr/bin/ffmpeg")).resolves.toBeDefined();
@@ -31,16 +33,18 @@ test("an Admin sees the path and version of the ffmpeg and ffprobe the Server fo
 test("without a usable ffmpeg Server Playback says why and that the Server can only Direct Play", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ffmpegProblem:
-            "ffmpeg 4.3.1 at /usr/bin/ffmpeg is older than 4.4, the oldest this Server supports",
-          ffprobeProblem: "ffprobe wasn't found at the configured path /opt/ffprobe",
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ffmpegProblem:
+              "ffmpeg 4.3.1 at /usr/bin/ffmpeg is older than 4.4, the oldest this Server supports",
+            ffprobeProblem: "ffprobe wasn't found at the configured path /opt/ffprobe",
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(
@@ -57,15 +61,17 @@ test("without a usable ffmpeg Server Playback says why and that the Server can o
 test("without ffmpeg or hardware Server Playback doesn't say hardware passed its test", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ffmpegProblem: "ffmpeg wasn't found on the PATH",
-          ffprobeProblem: "ffprobe wasn't found on the PATH",
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ffmpegProblem: "ffmpeg wasn't found on the PATH",
+            ffprobeProblem: "ffprobe wasn't found on the PATH",
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(
@@ -82,26 +88,28 @@ const ffmpegFound = {
 test("an Admin sees the hardware acceleration that passed its test and whether it tone-maps", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ...ffmpegFound,
-          hardware: [
-            {
-              api: HardwareAcceleration.NVENC,
-              toneMapping: ToneMapping.GPU,
-              automatic: true,
-              hevc: true,
-            },
-            { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.SOFTWARE },
-          ],
-          hasLibx264: true,
-          hasZscale: true,
-          canTranscode: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ...ffmpegFound,
+            hardware: [
+              {
+                api: HardwareAcceleration.NVENC,
+                toneMapping: ToneMapping.GPU,
+                automatic: true,
+                hevc: true,
+              },
+              { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.SOFTWARE },
+            ],
+            hasLibx264: true,
+            hasZscale: true,
+            canTranscode: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(screen.findByRole("heading", { name: "NVIDIA NVENC" })).resolves.toBeDefined();
@@ -114,20 +122,22 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
 test("an Admin sees which hardware can’t make HEVC", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ...ffmpegFound,
-          hardware: [
-            { api: HardwareAcceleration.QSV, toneMapping: ToneMapping.GPU, hevc: true },
-            { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.GPU },
-          ],
-          hasLibx264: true,
-          canTranscode: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ...ffmpegFound,
+            hardware: [
+              { api: HardwareAcceleration.QSV, toneMapping: ToneMapping.GPU, hevc: true },
+              { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.GPU },
+            ],
+            hasLibx264: true,
+            canTranscode: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   const vaapi = await screen.findByRole("heading", { name: "VAAPI" });
@@ -140,20 +150,22 @@ test("an Admin sees a row for each API on each GPU that passed its test", async 
   const integrated = { id: "0000:18:00.0", name: "integrated GPU (AMD Ryzen 9 7950X3D)" };
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ...ffmpegFound,
-          hardware: [
-            { api: HardwareAcceleration.VAAPI, gpu: dedicated, automatic: true },
-            { api: HardwareAcceleration.VAAPI, gpu: integrated },
-          ],
-          hasLibx264: true,
-          canTranscode: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ...ffmpegFound,
+            hardware: [
+              { api: HardwareAcceleration.VAAPI, gpu: dedicated, automatic: true },
+              { api: HardwareAcceleration.VAAPI, gpu: integrated },
+            ],
+            hasLibx264: true,
+            canTranscode: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   const rows = await screen.findAllByRole("heading", { name: /· VAAPI$/u });
@@ -166,17 +178,19 @@ test("an Admin sees a row for each API on each GPU that passed its test", async 
 test("without hardware acceleration Server Playback says Transcodes run in software", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ...ffmpegFound,
-          hasLibx264: true,
-          hasZscale: true,
-          canTranscode: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ...ffmpegFound,
+            hasLibx264: true,
+            hasZscale: true,
+            canTranscode: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(screen.findByText(/Transcodes run in software/u)).resolves.toBeDefined();
@@ -185,10 +199,12 @@ test("without hardware acceleration Server Playback says Transcodes run in softw
 test("an ffmpeg without libx264 makes Server Playback say the Server can’t Transcode", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: { getPlaybackStatus: () => ({ ...ffmpegFound, hasZscale: true }) },
-    }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: { getPlaybackStatus: () => ({ ...ffmpegFound, hasZscale: true }) },
+      },
+    ).transport,
   );
 
   await expect(
@@ -200,18 +216,20 @@ test("an ffmpeg without libx264 makes Server Playback say the Server can’t Tra
 test("an ffmpeg without libx264 lists hardware that passed without saying Transcodes run on it", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ...ffmpegFound,
-          hardware: [
-            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
-          ],
-          hasZscale: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ...ffmpegFound,
+            hardware: [
+              { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+            ],
+            hasZscale: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(screen.findByRole("heading", { name: "NVIDIA NVENC" })).resolves.toBeDefined();
@@ -226,20 +244,22 @@ test("an ffmpeg without libx264 lists hardware that passed without saying Transc
 test("without ffprobe Server Playback lists hardware that passed without saying Transcodes run on it", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ffmpeg: ffmpegFound.ffmpeg,
-          ffprobeProblem: "ffprobe wasn't found on the PATH",
-          hardware: [
-            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
-          ],
-          hasLibx264: true,
-          hasZscale: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ffmpeg: ffmpegFound.ffmpeg,
+            ffprobeProblem: "ffprobe wasn't found on the PATH",
+            hardware: [
+              { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+            ],
+            hasLibx264: true,
+            hasZscale: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(screen.findByRole("heading", { name: "NVIDIA NVENC" })).resolves.toBeDefined();
@@ -253,19 +273,21 @@ test("without ffprobe Server Playback lists hardware that passed without saying 
 test("without ffprobe or libx264 Server Playback says hardware waits for both", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ffmpeg: ffmpegFound.ffmpeg,
-          ffprobeProblem: "ffprobe wasn't found on the PATH",
-          hardware: [
-            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
-          ],
-          hasZscale: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ffmpeg: ffmpegFound.ffmpeg,
+            ffprobeProblem: "ffprobe wasn't found on the PATH",
+            hardware: [
+              { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+            ],
+            hasZscale: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(
@@ -279,17 +301,19 @@ test("without ffprobe or libx264 Server Playback says hardware waits for both", 
 test("an ffmpeg without zscale makes Server Playback say it can’t tone-map HDR in software", async () => {
   openSettings(
     "server-playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({
-          ...ffmpegFound,
-          hardware: [{ api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.NONE }],
-          hasLibx264: true,
-          canTranscode: true,
-        }),
+    fakeServer(
+      { signedIn: admin },
+      {
+        ServerService: {
+          getPlaybackStatus: () => ({
+            ...ffmpegFound,
+            hardware: [{ api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.NONE }],
+            hasLibx264: true,
+            canTranscode: true,
+          }),
+        },
       },
-    }),
+    ).transport,
   );
 
   await expect(
@@ -314,7 +338,8 @@ test.each([
   async (_missing, status) => {
     openSettings(
       "server-playback",
-      fakeServer({ signedIn: admin, serverService: { getPlaybackStatus: () => status } }),
+      fakeServer({ signedIn: admin }, { ServerService: { getPlaybackStatus: () => status } })
+        .transport,
     );
 
     await expect(screen.findByText(/can only Direct Play/u)).resolves.toBeDefined();
@@ -327,7 +352,7 @@ test.each([
 test("a User who manages settings but isn’t an Admin gets their own Playback instead", async () => {
   openSettings(
     "server-playback",
-    fakeServer({ signedIn: [...newUser, Permission.MANAGE_SETTINGS] }),
+    fakeServer({ signedIn: [...newUser, Permission.MANAGE_SETTINGS] }).transport,
   );
 
   await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
@@ -335,7 +360,7 @@ test("a User who manages settings but isn’t an Admin gets their own Playback i
 });
 
 test("searching Settings for ffmpeg finds it in Server Playback", async () => {
-  openSettings("playback", fakeServer({ signedIn: admin }));
+  openSettings("playback", fakeServer({ signedIn: admin }).transport);
 
   fireEvent.change(await screen.findByRole("combobox", { name: "Search settings" }), {
     target: { value: "ffmpeg" },

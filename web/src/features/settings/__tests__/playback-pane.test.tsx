@@ -12,7 +12,7 @@ import {
   type UsersAudioPreferenceSchema,
   type UsersSubtitlePreferenceSchema,
 } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 import { openSettings, pick } from "@/test-settings";
 
 afterEach(cleanup);
@@ -26,17 +26,19 @@ function server(
   set: SetSubtitlePreferenceRequest[] = [],
 ) {
   let kept = subtitle;
-  return fakeServer({
-    signedIn: newUser,
-    playbackService: {
-      getTrackPreferences: () => ({ subtitle: kept }),
-      setSubtitlePreference: (request) => {
-        set.push(request);
-        kept = request.subtitle ?? {};
-        return {};
+  return fakeServer(
+    { signedIn: newUser },
+    {
+      PlaybackService: {
+        getTrackPreferences: () => ({ subtitle: kept }),
+        setSubtitlePreference: (request) => {
+          set.push(request);
+          kept = request.subtitle ?? {};
+          return {};
+        },
       },
     },
-  });
+  ).transport;
 }
 
 function isOn(name: string) {
@@ -118,17 +120,19 @@ test("choosing Forced only switches off what only Full subtitles take, saying wh
 /** A fake Server that keeps the signed-in User's own Audio Preference, starting at `audio`. */
 function keepingAudio(set: SetAudioPreferenceRequest[]) {
   let kept: MessageInitShape<typeof UsersAudioPreferenceSchema> = {};
-  return fakeServer({
-    signedIn: newUser,
-    playbackService: {
-      getTrackPreferences: () => ({ audio: kept }),
-      setAudioPreference: (request) => {
-        set.push(request);
-        kept = request.audio ?? {};
-        return {};
+  return fakeServer(
+    { signedIn: newUser },
+    {
+      PlaybackService: {
+        getTrackPreferences: () => ({ audio: kept }),
+        setAudioPreference: (request) => {
+          set.push(request);
+          kept = request.audio ?? {};
+          return {};
+        },
       },
     },
-  });
+  ).transport;
 }
 
 test("a User's audio starts at the file's default until they pick a language, which stays after a reload", async () => {
@@ -149,28 +153,30 @@ test("a User's audio starts at the file's default until they pick a language, wh
 
 test("the Subtitle Appearance and autoplay are saved as they change, each with its own call", async () => {
   const calls: string[] = [];
-  const transport = fakeServer({
-    signedIn: newUser,
-    playbackService: {
-      getSubtitleAppearance: () => ({
-        size: SubtitleSize.LARGE,
-        background: SubtitleBackground.OUTLINE,
-      }),
-      getAutoplay: () => ({ on: false }),
-      setSubtitleSize: ({ size }) => {
-        calls.push(`size ${size}`);
-        return {};
-      },
-      setSubtitleBackground: ({ background }) => {
-        calls.push(`background ${background}`);
-        return {};
-      },
-      setAutoplay: ({ on }) => {
-        calls.push(`autoplay ${on}`);
-        return {};
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    {
+      PlaybackService: {
+        getSubtitleAppearance: () => ({
+          size: SubtitleSize.LARGE,
+          background: SubtitleBackground.OUTLINE,
+        }),
+        getAutoplay: () => ({ on: false }),
+        setSubtitleSize: ({ size }) => {
+          calls.push(`size ${size}`);
+          return {};
+        },
+        setSubtitleBackground: ({ background }) => {
+          calls.push(`background ${background}`);
+          return {};
+        },
+        setAutoplay: ({ on }) => {
+          calls.push(`autoplay ${on}`);
+          return {};
+        },
       },
     },
-  });
+  );
   openSettings("playback", transport);
 
   const large = await screen.findByRole<HTMLInputElement>("radio", { name: "Large" });
@@ -183,14 +189,16 @@ test("the Subtitle Appearance and autoplay are saved as they change, each with i
 });
 
 test("a change the Server refuses goes back to what's saved, with a toast saying why until dismissed", async () => {
-  const transport = fakeServer({
-    signedIn: newUser,
-    playbackService: {
-      setSubtitleSize: () => {
-        throw new ConnectError("the database is locked", Code.Internal);
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    {
+      PlaybackService: {
+        setSubtitleSize: () => {
+          throw new ConnectError("the database is locked", Code.Internal);
+        },
       },
     },
-  });
+  );
   openSettings("playback", transport);
 
   const small = await screen.findByRole<HTMLInputElement>("radio", { name: "Small" });

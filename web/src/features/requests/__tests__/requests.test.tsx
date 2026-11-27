@@ -6,10 +6,10 @@ import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import {
   type FollowedShowSchema,
   type RequestSchema,
-  RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-import { eventFeed, fakeServer, newUser, openApp, requestTitles } from "@/test-app";
+import { eventFeed, openApp, requestTitles } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -42,12 +42,14 @@ function server(
   events = new ReadableStream<SubscribeResponse>(),
   followedShows: () => MessageInitShape<typeof FollowedShowSchema>[] = () => [],
 ) {
-  return fakeServer({ signedIn: newUser, events }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: () => ({ requests: requests(), followedShows: followedShows() }),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser, events },
+    {
+      RequestService: {
+        listRequests: () => ({ requests: requests(), followedShows: followedShows() }),
+      },
+    },
+  ).transport;
 }
 
 test("the Requests page shows each Request's Movie, its Quality, its state in words and its Requesters", async () => {

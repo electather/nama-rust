@@ -3,10 +3,10 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { type BoxSetSchema, BrowseService } from "@/gen/nama/v1/browse_pb";
+import type { BoxSetSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { RequestService } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -33,25 +33,22 @@ const alienBoxSet: MessageInitShape<typeof BoxSetSchema> = {
  */
 function server(boxSet?: MessageInitShape<typeof BoxSetSchema>) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const serverService = {
-    getServerInfo: () => ({ imageWidths: [320, 480, 640], posterWidths: [320, 480] }),
-  };
-  return fakeServer({ signedIn: newUser, libraries, serverService }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({ movie: { ...alien, versions: [{ id: 1n }] }, boxSet }),
-      getBoxSet: (request) => {
-        if (boxSet === undefined || request.boxSetId?.value !== "8091") {
-          throw new ConnectError("no such Box Set", Code.NotFound);
-        }
-        return { boxSet };
+  const info = { imageWidths: [320, 480, 640], posterWidths: [320, 480] };
+  return fakeServer(
+    { signedIn: newUser, libraries, info },
+    {
+      BrowseService: {
+        getMovie: () => ({ movie: { ...alien, versions: [{ id: 1n }] }, boxSet }),
+        getBoxSet: (request) => {
+          if (boxSet === undefined || request.boxSetId?.value !== "8091") {
+            throw new ConnectError("no such Box Set", Code.NotFound);
+          }
+          return { boxSet };
+        },
       },
-    });
-    router.service(RequestService, {
-      listRequests: () => ({}),
-      lookUpMovie: () => ({ movie: alien3 }),
-      listMovieQualities: () => ({}),
-    });
-  });
+      RequestService: { lookUpMovie: () => ({ movie: alien3 }) },
+    },
+  ).transport;
 }
 
 /** Each link's name and where it goes, in order. */

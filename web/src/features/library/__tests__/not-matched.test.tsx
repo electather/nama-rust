@@ -2,10 +2,11 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService, type ListUnmatchedResponseSchema } from "@/gen/nama/v1/browse_pb";
+import type { ListUnmatchedResponseSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -13,13 +14,10 @@ const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
 
 /** A fake Server whose Library 1 holds no Movies and lists `unmatched` as its Unmatched Items. */
 function libraryWith(unmatched: MessageInitShape<typeof ListUnmatchedResponseSchema>) {
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listMovies: () => ({}),
-      listGenres: () => ({}),
-      listUnmatched: () => unmatched,
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    { BrowseService: { listUnmatched: () => unmatched } },
+  ).transport;
 }
 
 test("a Library's Unmatched Items are folded under Not matched, by what their names say", async () => {

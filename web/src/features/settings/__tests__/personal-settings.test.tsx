@@ -5,8 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import type { UpdatePersonalSettingsRequest } from "@/gen/nama/v1/user_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -40,9 +41,13 @@ function openWithNtfy(update: (request: UpdatePersonalSettingsRequest) => object
     "/code?settings=connections",
     fakeServer(
       { signedIn: newUser },
-      {},
-      { listPersonalSettings: () => ({ plugins: [ntfy] }), updatePersonalSettings: update },
-    ),
+      {
+        UserService: {
+          listPersonalSettings: () => ({ plugins: [ntfy] }),
+          updatePersonalSettings: update,
+        },
+      },
+    ).transport,
   );
 }
 
@@ -54,14 +59,15 @@ test("settings shows no Personal settings while no Plugin declares any", async (
     "/code?settings=connections",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        listPersonalSettings: () => {
-          listed = true;
-          return {};
+        UserService: {
+          listPersonalSettings: () => {
+            listed = true;
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   await screen.findByRole("heading", { name: "Connections" });
@@ -132,15 +138,16 @@ test("the button at a card's corner forgets the Plugin's Personal settings", asy
       "/code?settings=connections",
       fakeServer(
         { signedIn: newUser },
-        {},
         {
-          listPersonalSettings: () => ({ plugins: [ntfy] }),
-          deletePersonalSettings: ({ pluginId }) => {
-            resolve(pluginId);
-            return {};
+          UserService: {
+            listPersonalSettings: () => ({ plugins: [ntfy] }),
+            deletePersonalSettings: ({ pluginId }) => {
+              resolve(pluginId);
+              return {};
+            },
           },
         },
-      ),
+      ).transport,
     );
   });
   const ntfyCard = await card();

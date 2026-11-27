@@ -3,7 +3,7 @@ import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { type JobRun, JobRunOutcome, JobRunSchema, JobService } from "@/gen/nama/v1/job_pb";
+import { type JobRun, JobRunOutcome, JobRunSchema } from "@/gen/nama/v1/job_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   type Backup,
@@ -11,8 +11,10 @@ import {
   type UpdateBackupSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { type ServerState, admin, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
+import type { Answers } from "@/test-server-api";
 import { listFoldersOf } from "@/test-server-folders";
 import { openSettings } from "@/test-settings";
 
@@ -20,41 +22,31 @@ const START = 1_795_000_000_000n;
 
 afterEach(cleanup);
 
-/** A fake Server with Backups in `/data/backups` and Upkeep disabled, answering as `serverService` says. */
-function backupsServer(serverService: ServerState["serverService"] = {}) {
-  return fakeServer(
-    {
-      signedIn: admin,
-      serverService: {
-        getBackups: () => ({ folder: "/data/backups", settings: {}, backups: [] }),
-        ...serverService,
-      },
+/**
+ * Opens Settings' Backups on a Server with Backups in `/data/backups` and Upkeep disabled,
+ * answering as `serverService` says.
+ */
+function openBackups(serverService: Answers["ServerService"]) {
+  const answers = {
+    ServerService: {
+      getBackups: () => ({ folder: "/data/backups", settings: {}, backups: [] }),
+      ...serverService,
     },
-    {},
-    {},
-    (router) => {
-      router.service(JobService, { listJobs: () => ({}) });
-    },
-  );
-}
-
-function openBackups(serverService: ServerState["serverService"]) {
-  return openSettings("backups", backupsServer(serverService));
+  };
+  return openSettings("backups", fakeServer({ signedIn: admin }, answers).transport);
 }
 
 describe("back up now", () => {
   test("a Backup that ends before the pane looks at its Job again shows in the list", async () => {
     let backups: Backup[] = [];
     let lastRun: JobRun | undefined;
-    const server = fakeServer(
+    const { transport } = fakeServer(
+      { signedIn: admin },
       {
-        signedIn: admin,
-        serverService: { getBackups: () => ({ folder: "/data/backups", settings: {}, backups }) },
-      },
-      {},
-      {},
-      (router) => {
-        router.service(JobService, {
+        ServerService: {
+          getBackups: () => ({ folder: "/data/backups", settings: {}, backups }),
+        },
+        JobService: {
           listJobs: () => ({
             jobs: [{ pluginId: "upkeep", id: "back-up", name: "Back up", enabled: true, lastRun }],
           }),
@@ -68,10 +60,10 @@ describe("back up now", () => {
             });
             return {};
           },
-        });
+        },
       },
     );
-    openSettings("backups", server);
+    openSettings("backups", transport);
 
     fireEvent.click(await screen.findByRole("button", { name: "Back up now" }));
 
@@ -81,22 +73,18 @@ describe("back up now", () => {
 
 /** A fake Server with `backups` in `/data/backups` and Upkeep's Back up Job, last run as `lastRun` says. */
 function upkeepServer(backups: Backup[], lastRun?: JobRun) {
-  return fakeServer(
+  const { transport } = fakeServer(
+    { signedIn: admin },
     {
-      signedIn: admin,
-      serverService: { getBackups: () => ({ folder: "/data/backups", settings: {}, backups }) },
-    },
-    {},
-    {},
-    (router) => {
-      router.service(JobService, {
+      ServerService: { getBackups: () => ({ folder: "/data/backups", settings: {}, backups }) },
+      JobService: {
         listJobs: () => ({
           jobs: [{ pluginId: "upkeep", id: "back-up", name: "Back up", enabled: true, lastRun }],
         }),
-        listJobRuns: () => ({}),
-      });
+      },
     },
   );
+  return transport;
 }
 
 describe("backup status and restoring", () => {
@@ -142,7 +130,17 @@ describe("backup status and restoring", () => {
   });
 
   test("enable Upkeep, from a Setting search found, opens Plugins with only Upkeep", async () => {
-    const router = openApp("/code?settings=backups&setting=schedule", backupsServer());
+    const router = openApp(
+      "/code?settings=backups&setting=schedule",
+      fakeServer(
+        { signedIn: admin },
+        {
+          ServerService: {
+            getBackups: () => ({ folder: "/data/backups", settings: {}, backups: [] }),
+          },
+        },
+      ).transport,
+    );
 
     fireEvent.click(await screen.findByRole("link", { name: "Enable Upkeep" }));
 
@@ -254,7 +252,10 @@ describe("backup settings", () => {
 
 describe("where Backups are", () => {
   test("a User who manages settings but isn't an Admin has no Backups section", async () => {
-    openSettings("backups", fakeServer({ signedIn: [...newUser, Permission.MANAGE_SETTINGS] }));
+    openSettings(
+      "backups",
+      fakeServer({ signedIn: [...newUser, Permission.MANAGE_SETTINGS] }).transport,
+    );
 
     await screen.findByRole("heading", { name: "Playback" });
 

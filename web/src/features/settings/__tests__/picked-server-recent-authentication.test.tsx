@@ -5,9 +5,10 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { serverSessionKey } from "@/features/servers/lib/server-sessions";
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { fakeServer, fill, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
 import { recentAuthenticationRequired } from "@/test-refusal";
+import { fakeServer } from "@/test-server";
 import { findSettingsLink, pick } from "@/test-settings";
 
 afterEach(() => {
@@ -29,28 +30,33 @@ const basement = create(LinkedServerSchema, {
  */
 function openBasement(path: string, signedIn = true) {
   const basementDid: { trades: number; pins: string[] } = { trades: 0, pins: [] };
-  const fake = fakeServer(
+  const { transport } = fakeServer(
     {
       signedIn: [Permission.ADMIN],
-      serverService: {
-        getServerInfo: () => ({ version: "0.3.0", settingsSections: ["signin"] }),
-      },
+      info: { version: "0.3.0", settingsSections: ["signin"] },
     },
     {
-      signInWithHubToken: () => {
-        basementDid.trades += 1;
-        return { token: `session ${basementDid.trades}` };
-      },
-      setSwitchPin: ({ switchPin }) => {
-        if (basementDid.trades < 2) {
-          throw recentAuthenticationRequired();
-        }
-        basementDid.pins.push(switchPin);
-        return {};
+      SignInService: {
+        signInWithHubToken: () => {
+          basementDid.trades += 1;
+          return { token: `session ${basementDid.trades}` };
+        },
+        setSwitchPin: ({ switchPin }) => {
+          if (basementDid.trades < 2) {
+            throw recentAuthenticationRequired();
+          }
+          basementDid.pins.push(switchPin);
+          return {};
+        },
       },
     },
   );
-  openApp(path, accountHub({ servers: [basement], signedIn }).transport, undefined, () => fake);
+  openApp(
+    path,
+    accountHub({ servers: [basement], signedIn }).transport,
+    undefined,
+    () => transport,
+  );
   return basementDid;
 }
 

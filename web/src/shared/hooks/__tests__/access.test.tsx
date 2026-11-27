@@ -5,21 +5,27 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { askAgainWhoIsSignedIn, signedInAccount } from "@/shared/hooks/access";
-import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { accountHub } from "@/test-hub";
 import { expectUnderField, refused } from "@/test-refusal";
+import { admin, fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
 /** A signed-out Server whose `SignIn` signs the browser in as a new User. */
 function serverToSignInTo() {
-  const state: ServerState = {};
-  return fakeServer(state, {
-    signIn: () => {
-      state.signedIn = newUser;
-      return {};
+  const { server, transport } = fakeServer(
+    {},
+    {
+      SignInService: {
+        signIn: () => {
+          server.signedIn = newUser;
+          return {};
+        },
+      },
     },
-  });
+  );
+  return transport;
 }
 
 /** A fake Server whose `SignIn` always fails with `code`, for `reason`. */
@@ -27,11 +33,13 @@ function serverRefusingSignIn(code: Code, reason: RefusalReason) {
   return fakeServer(
     {},
     {
-      signIn: () => {
-        throw refused(code, "refused", { reason });
+      SignInService: {
+        signIn: () => {
+          throw refused(code, "refused", { reason });
+        },
       },
     },
-  );
+  ).transport;
 }
 
 async function submitSignIn(password = "correct horse") {
@@ -50,7 +58,7 @@ async function submitSetup(setupCode: string) {
 }
 
 test.each(["/", "/libraries/1", "/sign-in"])("a fresh Server sends %s to /setup", async (path) => {
-  const router = openApp(path, fakeServer({ setupRequired: true }));
+  const router = openApp(path, fakeServer({ info: { setupRequired: true } }).transport);
 
   await expect(screen.findByRole("heading", { name: "Set up Living Room" })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/setup");
@@ -62,21 +70,28 @@ test("a fresh Server sends a page to /setup even when asking who is signed in fa
       throw new ConnectError("no Users yet", Code.Internal);
     },
   };
-  const router = openApp("/libraries/1", fakeServer({ setupRequired: true }, whoAmIFailing));
+  const router = openApp(
+    "/libraries/1",
+    fakeServer({ info: { setupRequired: true } }, { SignInService: whoAmIFailing }).transport,
+  );
 
   await expect(screen.findByRole("heading", { name: "Set up Living Room" })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/setup");
 });
 
 test("setting up creates the first Admin and lands on the home page", async () => {
-  const state: ServerState = { setupRequired: true };
-  const transport = fakeServer(state, {
-    setup: () => {
-      state.setupRequired = false;
-      state.signedIn = admin;
-      return {};
+  const { server, transport } = fakeServer(
+    { info: { setupRequired: true } },
+    {
+      SignInService: {
+        setup: () => {
+          server.info.setupRequired = false;
+          server.signedIn = admin;
+          return {};
+        },
+      },
     },
-  });
+  );
   const router = openApp("/setup", transport);
 
   await submitSetup("ABCD-EFGH");
@@ -86,14 +101,16 @@ test("setting up creates the first Admin and lands on the home page", async () =
 });
 
 test("a wrong Setup Code is shown next to its field", async () => {
-  const transport = fakeServer(
-    { setupRequired: true },
+  const { transport } = fakeServer(
+    { info: { setupRequired: true } },
     {
-      setup: () => {
-        throw refused(Code.PermissionDenied, "wrong Setup Code", {
-          reason: RefusalReason.WRONG_SETUP_CODE,
-          field: "setup_code",
-        });
+      SignInService: {
+        setup: () => {
+          throw refused(Code.PermissionDenied, "wrong Setup Code", {
+            reason: RefusalReason.WRONG_SETUP_CODE,
+            field: "setup_code",
+          });
+        },
       },
     },
   );
@@ -107,13 +124,15 @@ test("a wrong Setup Code is shown next to its field", async () => {
 });
 
 test("setting up a Server someone else just set up offers to sign in instead", async () => {
-  const transport = fakeServer(
-    { setupRequired: true },
+  const { transport } = fakeServer(
+    { info: { setupRequired: true } },
     {
-      setup: () => {
-        throw refused(Code.FailedPrecondition, "already set up", {
-          reason: RefusalReason.ALREADY_SET_UP,
-        });
+      SignInService: {
+        setup: () => {
+          throw refused(Code.FailedPrecondition, "already set up", {
+            reason: RefusalReason.ALREADY_SET_UP,
+          });
+        },
       },
     },
   );
@@ -129,13 +148,15 @@ test("setting up a Server someone else just set up offers to sign in instead", a
 /** A fresh Server whose `Setup` refuses the request field `field` with `message`. */
 function serverRefusingSetupField(field: string, message: string) {
   return fakeServer(
-    { setupRequired: true },
+    { info: { setupRequired: true } },
     {
-      setup: () => {
-        throw refused(Code.InvalidArgument, message, { field });
+      SignInService: {
+        setup: () => {
+          throw refused(Code.InvalidArgument, message, { field });
+        },
       },
     },
-  );
+  ).transport;
 }
 
 test.each([
@@ -197,7 +218,7 @@ test("signing in never redirects to another site", async () => {
 });
 
 test.each(["/admin", "/requests"])("%s is a page not found", async (path) => {
-  openApp(path, fakeServer({ signedIn: admin }));
+  openApp(path, fakeServer({ signedIn: admin }).transport);
 
   await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
@@ -231,14 +252,14 @@ test("a rate-limited sign-in says to wait, or sign in with a code", async () => 
 });
 
 test("signing out goes to /sign-in", async () => {
-  const state: ServerState = { signedIn: newUser };
-  const transport = fakeServer(
-    state,
-    {},
+  const { server, transport } = fakeServer(
+    { signedIn: newUser },
     {
-      revokeDevice: () => {
-        delete state.signedIn;
-        return {};
+      UserService: {
+        revokeDevice: () => {
+          server.signedIn = undefined;
+          return {};
+        },
       },
     },
   );
@@ -250,22 +271,22 @@ test("signing out goes to /sign-in", async () => {
 });
 
 test("a session that has ended sends you to sign in and back again", async () => {
-  const state: ServerState = { signedIn: newUser };
-  const transport = fakeServer(
-    state,
-    {},
+  const { server, transport } = fakeServer(
+    { signedIn: newUser },
     {
-      // The Server revoked this Device after the page loaded.
-      revokeDevice: () => {
-        throw refused(Code.Unauthenticated, "signed out", {
-          reason: RefusalReason.SIGN_IN_REQUIRED,
-        });
+      UserService: {
+        // The Server revoked this Device after the page loaded.
+        revokeDevice: () => {
+          throw refused(Code.Unauthenticated, "signed out", {
+            reason: RefusalReason.SIGN_IN_REQUIRED,
+          });
+        },
       },
     },
   );
   const router = openApp("/code", transport);
   await screen.findByRole("button", { name: /’s menu$/u });
-  delete state.signedIn;
+  server.signedIn = undefined;
 
   await signOut();
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
@@ -277,15 +298,16 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
     "/code",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        revokeDevice: () => {
-          throw refused(Code.Unauthenticated, "refused", {
-            reason: RefusalReason.SIGN_IN_REQUIRED,
-          });
+        UserService: {
+          revokeDevice: () => {
+            throw refused(Code.Unauthenticated, "refused", {
+              reason: RefusalReason.SIGN_IN_REQUIRED,
+            });
+          },
         },
       },
-    ),
+    ).transport,
   );
 
   await signOut();

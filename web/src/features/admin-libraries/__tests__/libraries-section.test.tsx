@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { LibraryKind, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer } from "@/test-app";
+import { admin, fakeServer } from "@/test-server";
 import { findSettingsLink, openLibraries, openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -15,23 +15,24 @@ const films: Library = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folder
 
 /** A fake Server with `libraries`, kept as they're changed or deleted, for `signedIn`. */
 function librariesServer(libraries: Library[], signedIn: Permission[] = admin) {
-  const byId = (id: bigint) => libraries.find((library) => library.id === id);
-  return fakeServer({
-    signedIn,
-    events: new ReadableStream(),
-    libraries,
-    libraryService: {
-      getLibrary: ({ id }) => ({ library: byId(id) }),
-      updateLibrary: ({ id, folders }) => {
-        Object.assign(byId(id) ?? {}, { folders });
-        return { library: byId(id) };
-      },
-      deleteLibrary: ({ id }) => {
-        libraries.splice(libraries.indexOf(byId(id) ?? {}), 1);
-        return {};
+  const { server, transport } = fakeServer(
+    { signedIn, libraries },
+    {
+      LibraryService: {
+        updateLibrary: ({ id, folders }) => {
+          server.libraries = server.libraries.map((library) =>
+            library.id === id ? { ...library, folders } : library,
+          );
+          return { library: server.libraries.find((library) => library.id === id) };
+        },
+        deleteLibrary: ({ id }) => {
+          server.libraries = server.libraries.filter((library) => library.id !== id);
+          return {};
+        },
       },
     },
-  });
+  );
+  return transport;
 }
 
 /** The Settings breadcrumbs. */
@@ -61,14 +62,14 @@ describe("where Libraries is", () => {
   });
 
   test("a User who doesn't manage Libraries has no Libraries section", async () => {
-    openSettings("libraries", fakeServer({ signedIn: [] }));
+    openSettings("libraries", fakeServer({ signedIn: [] }).transport);
 
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
     expect(screen.queryByRole("link", { name: "Libraries" })).toBeNull();
   });
 
   test("searching Settings for recognisers finds it", async () => {
-    openSettings("playback", fakeServer({ signedIn: admin }));
+    openSettings("playback", fakeServer({ signedIn: admin }).transport);
     await screen.findByRole("heading", { name: "Playback" });
 
     fireEvent.change(screen.getByRole("combobox", { name: "Search settings" }), {

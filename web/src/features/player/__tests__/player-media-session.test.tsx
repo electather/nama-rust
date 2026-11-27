@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { PlaybackMethod } from "@/gen/nama/v1/playback_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 /** What the player set on the browser's Media Session, which happy-dom lacks. */
 const session: {
@@ -56,15 +56,13 @@ const server = fakeServer(
       { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
     ],
   },
-  {},
-  {},
-  (router) => {
-    router.service(PlaybackService, {
+  {
+    PlaybackService: {
       planPlayback: ({ versionId }) => ({
         plan: { method: PlaybackMethod.DIRECT_PLAY, url: `/media/versions/${versionId}` },
       }),
-    });
-    router.service(BrowseService, {
+    },
+    BrowseService: {
       getMovie: () => ({
         movie: {
           id: { namespace: "tmdb", value: "603" },
@@ -91,10 +89,9 @@ const server = fakeServer(
           },
         ],
       }),
-      getNextEpisode: () => ({}),
-    });
+    },
   },
-);
+).transport;
 
 /** Presses a lock-screen button or media key, as the browser hands it to the player. */
 function press(name: MediaSessionAction, details: Partial<MediaSessionActionDetails> = {}) {

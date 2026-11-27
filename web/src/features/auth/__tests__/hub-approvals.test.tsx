@@ -7,9 +7,10 @@ import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { LinkedServerSchema, LinkedUserSchema, LinkService } from "@/gen/nama/hub/v1/link_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
-import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { fill, openApp } from "@/test-app";
 import { ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(() => {
   cleanup();
@@ -232,7 +233,7 @@ test("a sign-in that expired says to start again on the Server", async () => {
 });
 
 test("a Server has no page for approving a sign-in to a Server", async () => {
-  openApp("/server-sign-in/1", fakeServer({ signedIn: newUser }));
+  openApp("/server-sign-in/1", fakeServer({ signedIn: newUser }).transport);
 
   await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
 });

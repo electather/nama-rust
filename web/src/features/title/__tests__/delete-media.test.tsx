@@ -3,7 +3,6 @@ import { Code, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   LibraryKind,
   type LibraryService,
@@ -11,9 +10,10 @@ import {
 } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { type ServerState, admin, eventFeed, fakeServer, newUser, openApp } from "@/test-app";
+import { eventFeed, openApp } from "@/test-app";
 import { openMenu, pickFromMenu } from "@/test-menu";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
+import { type ServerModel, admin, fakeServer, newUser } from "@/test-server";
 import { pick } from "@/test-settings";
 
 afterEach(cleanup);
@@ -36,16 +36,18 @@ function openAlien(
   {
     readOnlyFolder = () => {},
     events = new ReadableStream(),
-  }: Pick<ServerState, "events"> & {
+  }: Pick<Partial<ServerModel>, "events"> & {
     readOnlyFolder?: () => string | undefined;
   } = {},
 ) {
-  const transport = fakeServer(
+  const { transport } = fakeServer(
     {
       signedIn: permissions,
       libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }],
       events,
-      libraryService: {
+    },
+    {
+      LibraryService: {
         previewDeleteMedia: ({ target }) => ({
           files: [
             ...(target?.target.case === "versionId" ? [] : [ALIEN_2160P]),
@@ -56,19 +58,12 @@ function openAlien(
         }),
         ...library,
       },
-    },
-    { reauthenticate: () => ({}) },
-    {},
-    (router) => {
-      router.service(BrowseService, {
-        listUnmatched: () => ({}),
+      BrowseService: {
         getMovie: () => ({
           movie: { title: "Alien", versions: [ALIEN_2160P, ALIEN_1080P] },
           readOnlyFolder: readOnlyFolder(),
         }),
-        listMovies: () => ({ movies: [] }),
-        listGenres: () => ({}),
-      });
+      },
     },
   );
   openApp("/libraries/1/movies/tmdb-348", transport);
@@ -283,9 +278,12 @@ test("delete media is a Permission an Admin can give", async () => {
     "/code?settings=users",
     fakeServer(
       { signedIn: admin },
-      {},
-      { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
-    ),
+      {
+        UserService: {
+          listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }),
+        },
+      },
+    ).transport,
   );
 
   fireEvent.click(await screen.findByRole("link", { name: "Alex" }));

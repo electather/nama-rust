@@ -3,8 +3,9 @@ import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { RequestSchema, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -27,13 +28,10 @@ function lackingIds(namespaces: string) {
 }
 
 function serving(...requests: ReturnType<typeof lackingIds>[]) {
-  return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(RequestService, {
-      listDefaultQualities: () => ({}),
-      listRequests: () => ({ requests }),
-      countPendingRequests: () => ({}),
-    });
-  });
+  return fakeServer(
+    { signedIn: newUser },
+    { RequestService: { listRequests: () => ({ requests }) } },
+  ).transport;
 }
 
 test("a Request the Server didn't hand off for lack of an id says which, in the app's words", async () => {

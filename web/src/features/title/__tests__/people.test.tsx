@@ -3,10 +3,10 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService, type GetPersonResponseSchema } from "@/gen/nama/v1/browse_pb";
+import type { GetPersonResponseSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { RequestService } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -44,25 +44,28 @@ const weaverPage: MessageInitShape<typeof GetPersonResponseSchema> = {
 /** A fake Server with a Movies Library (1) holding Alien, whose page and Weaver's it answers. */
 function server() {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: tmdb("348"),
-          title: "Alien",
-          versions: [{ id: 1n }],
-          cast: [weaver],
-          crew: [scott],
+  return fakeServer(
+    { signedIn: newUser, libraries },
+    {
+      BrowseService: {
+        getMovie: () => ({
+          movie: {
+            id: tmdb("348"),
+            title: "Alien",
+            versions: [{ id: 1n }],
+            cast: [weaver],
+            crew: [scott],
+          },
+        }),
+        getPerson: (request) => {
+          if (request.personId?.value !== "10205") {
+            throw new ConnectError("no such Person", Code.NotFound);
+          }
+          return weaverPage;
         },
-      }),
-      getPerson: (request) => {
-        if (request.personId?.value !== "10205") {
-          throw new ConnectError("no such Person", Code.NotFound);
-        }
-        return weaverPage;
       },
-    });
-  });
+    },
+  ).transport;
 }
 
 /** Where `link` goes. */
@@ -94,9 +97,10 @@ test("every name on a Show's request page opens its Person's page, Created by's 
     cast: [{ name: "Louis Hofmann", part: "Jonas Kahnwald", personId: tmdb("1197150") }],
     crew: [odar],
   };
-  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(RequestService, { listRequests: () => ({}), lookUpShow: () => ({ show }) });
-  });
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    { RequestService: { lookUpShow: () => ({ show }) } },
+  );
   openApp("/shows/tmdb-70523", transport);
 
   const castAndCrew = within(await screen.findByRole("list", { name: "Cast & Crew" }));

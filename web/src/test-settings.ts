@@ -1,10 +1,11 @@
+import type { Transport } from "@connectrpc/connect";
 import { fireEvent, screen, within } from "@testing-library/react";
 
 import type { SettingsPage } from "@/shared/lib/settings-address";
-import { type fakeServer, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 
 /** Opens the app with Settings open on `section`, over a page that asks the Server for nothing. */
-export function openSettings(section: SettingsPage, transport: ReturnType<typeof fakeServer>) {
+export function openSettings(section: SettingsPage, transport: Transport) {
   return openApp(`/code?settings=${section}`, transport);
 }
 
@@ -32,7 +33,7 @@ export async function offered(label: string) {
 }
 
 /** Opens Settings' Libraries on their list, or on what `library` opens: an id, or `new`. */
-export function openLibraries(transport: ReturnType<typeof fakeServer>, library?: string) {
+export function openLibraries(transport: Transport, library?: string) {
   const open = library === undefined ? "" : `&library=${library}`;
   return openApp(`/code?settings=libraries${open}`, transport);
 }

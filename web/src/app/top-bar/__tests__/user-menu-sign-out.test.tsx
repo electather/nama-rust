@@ -4,10 +4,11 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { SignOutToast } from "@/app/top-bar/sign-out-toast";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { accountHub, ada } from "@/test-hub";
 import { hubRefused } from "@/test-hub-links";
 import { pickFromMenu } from "@/test-menu";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -18,13 +19,14 @@ const unasked = (_error: Error) => {};
 function unreachableServer() {
   return fakeServer(
     { signedIn: newUser },
-    {},
     {
-      revokeDevice: () => {
-        throw new ConnectError("unreachable", Code.Unavailable);
+      UserService: {
+        revokeDevice: () => {
+          throw new ConnectError("unreachable", Code.Unavailable);
+        },
       },
     },
-  );
+  ).transport;
 }
 
 test("at the Hub, a failed sign-out says so and leaves the Account signed in", async () => {
@@ -70,16 +72,17 @@ test("signing out again clears the last failure", async () => {
     "/",
     fakeServer(
       { signedIn: newUser },
-      {},
       {
-        revokeDevice: async () => {
-          await new Promise((_resolve, reject) => {
-            fail = reject;
-          });
-          return {};
+        UserService: {
+          revokeDevice: async () => {
+            await new Promise((_resolve, reject) => {
+              fail = reject;
+            });
+            return {};
+          },
         },
       },
-    ),
+    ).transport,
   );
   await pickFromMenu("Sam’s menu", "Sign out");
   await waitFor(() => {

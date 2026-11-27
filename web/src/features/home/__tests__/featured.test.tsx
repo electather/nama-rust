@@ -2,11 +2,11 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService, type FeaturedTitleSchema } from "@/gen/nama/v1/browse_pb";
+import type { FeaturedTitleSchema } from "@/gen/nama/v1/browse_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { WatchlistService } from "@/gen/nama/v1/watchlist_pb";
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { openApp } from "@/test-app";
 import { heldBack } from "@/test-held-back";
+import { fakeServer, newUser } from "@/test-server";
 
 afterEach(cleanup);
 
@@ -33,23 +33,22 @@ function openHome(
   titles: MessageInitShape<typeof FeaturedTitleSchema>[],
   asked: { added: boolean; kind: TitleKind; id: string | undefined }[] = [],
 ) {
-  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listFeatured: () => ({ titles }),
-      listContinueWatching: () => ({}),
-      listHomeRows: () => ({}),
-    });
-    router.service(WatchlistService, {
-      addToWatchlist: ({ kind, id }) => {
-        asked.push({ added: true, kind, id: id?.value });
-        return {};
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    {
+      BrowseService: { listFeatured: () => ({ titles }) },
+      WatchlistService: {
+        addToWatchlist: ({ kind, id }) => {
+          asked.push({ added: true, kind, id: id?.value });
+          return {};
+        },
+        removeFromWatchlist: ({ kind, id }) => {
+          asked.push({ added: false, kind, id: id?.value });
+          return {};
+        },
       },
-      removeFromWatchlist: ({ kind, id }) => {
-        asked.push({ added: false, kind, id: id?.value });
-        return {};
-      },
-    });
-  });
+    },
+  );
   openApp("/", transport);
 }
 
@@ -155,16 +154,17 @@ test("featured shows nothing when there's nothing to feature", async () => {
 
 test("the Watchlist button turns to Remove as you press it, and back if the Server refuses", async () => {
   const adding = heldBack();
-  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      listFeatured: () => ({
-        titles: [{ libraryId: 1n, movieOrShow: { case: "movie", value: arrival } }],
-      }),
-      listContinueWatching: () => ({}),
-      listHomeRows: () => ({}),
-    });
-    router.service(WatchlistService, { addToWatchlist: adding.answer });
-  });
+  const { transport } = fakeServer(
+    { signedIn: newUser },
+    {
+      BrowseService: {
+        listFeatured: () => ({
+          titles: [{ libraryId: 1n, movieOrShow: { case: "movie", value: arrival } }],
+        }),
+      },
+      WatchlistService: { addToWatchlist: adding.answer },
+    },
+  );
   openApp("/", transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Add to your Watchlist" }));
