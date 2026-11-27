@@ -88,4 +88,7 @@ fn a_reported_address_may_be_at_the_servers_lan_name_or_relay_and_never_another_
     assert!(!reported(
         "https://192-168-1-2.0193b6f2c4d87a1e9f3c5b2a1d0e4f68.namadirect.net:7980/sign-in"
     ));
+    assert!(!reported(
+        "https://relay.0193b6f2c4d87a1e9f3c5b2a1d0e4f68.namadirect.net/sign-in"
+    ));
 }

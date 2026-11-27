@@ -97,6 +97,7 @@ pub(super) async fn start_account_sign_in(
     listening: SocketAddr,
     relay: Option<SocketAddr>,
 ) -> ServiceResult<StartAccountSignInResponse> {
+    // Read from the Link kept, not asked of the Hub; without it only the narrower set passes.
     let names = match linking.server_link().await {
         Ok(Link::Linked {
             reachability: Some(found),
