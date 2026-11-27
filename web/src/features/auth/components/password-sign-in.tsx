@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { ForgotPassword } from "@/features/auth/components/forgot-password";
+import { CurrentPasswordField } from "@/features/auth/components/current-password-field";
 import { useSignIn } from "@/features/auth/data/use-sign-in";
 import { signInErrors } from "@/features/auth/lib/sign-in-errors";
 import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
@@ -50,7 +50,10 @@ export function PasswordSignIn({
         // The Server doesn't say which of the two was wrong, so both are marked.
         aria-invalid={errors.password !== undefined}
       />
-      <ForgotPassword error={errors.password} />
+      <CurrentPasswordField
+        error={errors.password}
+        remedy="Ask whoever runs this Server to reset it for you."
+      />
     </SignInLayout>
   );
 }
