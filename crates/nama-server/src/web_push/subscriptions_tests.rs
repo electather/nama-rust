@@ -11,7 +11,7 @@ use url::Url;
 use super::{push, subscribe, subscriptions_of, unsubscribe};
 use crate::{
     db::Database,
-    users::testing::insert_user,
+    users::testing::{insert_device, insert_user},
     web_push::{
         Pusher,
         testing::{assert_valid_vapid, browser, new_key, push_service, silent_push_service},
@@ -33,14 +33,21 @@ async fn endpoints_of(db: &Database, user: i64) -> Vec<String> {
 async fn unsubscribing_removes_only_the_callers_and_another_subscribing_takes_the_endpoint() {
     let (_dir, db) = open().await;
     let (ada, lin) = (insert_user(&db, "ada").await, insert_user(&db, "lin").await);
+    let (adas_device, lins_device) = (insert_device(&db, ada).await, insert_device(&db, lin).await);
     let (laptop, phone) = (
         "https://push.example.net/laptop",
         "https://push.example.net/phone",
     );
-    subscribe(&db, ada, browser(laptop)).await.unwrap();
-    subscribe(&db, ada, browser(phone)).await.unwrap();
+    subscribe(&db, ada, adas_device, browser(laptop))
+        .await
+        .unwrap();
+    subscribe(&db, ada, adas_device, browser(phone))
+        .await
+        .unwrap();
 
-    subscribe(&db, lin, browser(phone)).await.unwrap();
+    subscribe(&db, lin, lins_device, browser(phone))
+        .await
+        .unwrap();
     unsubscribe(&db, ada, phone.to_owned()).await.unwrap();
 
     assert_eq!(endpoints_of(&db, ada).await, [laptop]);
@@ -53,7 +60,8 @@ async fn unsubscribing_removes_only_the_callers_and_another_subscribing_takes_th
 async fn deleting_a_user_deletes_their_subscriptions() {
     let (_dir, db) = open().await;
     let ada = insert_user(&db, "ada").await;
-    subscribe(&db, ada, browser("https://push.example.net/1"))
+    let device = insert_device(&db, ada).await;
+    subscribe(&db, ada, device, browser("https://push.example.net/1"))
         .await
         .unwrap();
 
@@ -72,19 +80,62 @@ async fn deleting_a_user_deletes_their_subscriptions() {
 }
 
 #[tokio::test]
+async fn signing_a_user_out_of_a_device_deletes_its_subscriptions_and_pushes_stop_going_there() {
+    let (_dir, db) = open().await;
+    let ada = insert_user(&db, "ada").await;
+    let (laptop, phone) = (insert_device(&db, ada).await, insert_device(&db, ada).await);
+    let (laptops_endpoint, laptop_got) = push_service(StatusCode::CREATED).await;
+    let (phones_endpoint, phone_got) = push_service(StatusCode::CREATED).await;
+    subscribe(&db, ada, laptop, browser(&laptops_endpoint))
+        .await
+        .unwrap();
+    subscribe(&db, ada, phone, browser(&phones_endpoint))
+        .await
+        .unwrap();
+
+    // As `Users::revoke` does, from the phone or an Admin's page.
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query("DELETE FROM device_users WHERE device_id = ? AND user_id = ?")
+                .bind(laptop)
+                .bind(ada)
+                .execute(&mut **tx)
+                .await
+        })
+    })
+    .await
+    .unwrap();
+    let pusher = Pusher::new(new_key()).unwrap();
+    push(
+        &db,
+        &pusher,
+        vec![(ada, InboxNotification::default())],
+        None,
+    )
+    .await;
+
+    assert_eq!(endpoints_of(&db, ada).await, [phones_endpoint]);
+    assert!(laptop_got.lock().unwrap().is_empty());
+    assert_eq!(phone_got.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn each_subscription_is_pushed_to_and_a_gone_one_deleted_while_a_silent_one_waits() {
     let (_dir, db) = open().await;
     let db = Arc::new(db);
     let ada = insert_user(&db, "ada").await;
+    let device = insert_device(&db, ada).await;
     let (laptop, laptop_got) = push_service(StatusCode::CREATED).await;
     let (phone, phone_got) = push_service(StatusCode::CREATED).await;
     let (gone, _) = push_service(StatusCode::GONE).await;
     // Subscribed first, so a push waiting on it would hold up the others.
-    subscribe(&db, ada, browser(&silent_push_service().await))
+    subscribe(&db, ada, device, browser(&silent_push_service().await))
         .await
         .unwrap();
     for endpoint in [&laptop, &phone, &gone] {
-        subscribe(&db, ada, browser(endpoint)).await.unwrap();
+        subscribe(&db, ada, device, browser(endpoint))
+            .await
+            .unwrap();
     }
     let key = new_key();
     let public_key = key.public_key().to_vec();
