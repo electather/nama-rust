@@ -16,6 +16,7 @@ export function RowShelf({ row, headingId }: { row: PluginHomeRow; headingId: st
       <PosterShelf
         titles={titles}
         setSize={totalSize}
+        restoreId={`row/${row.pluginId}/${row.key}/${row.libraryId ?? ""}`}
         next={{ has: hasNextPage, load: fetchNextPage }}
       />
     </PluginRowFrame>

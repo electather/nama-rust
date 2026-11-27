@@ -28,7 +28,12 @@ export function HubTitlesRow({ heading, titles }: { heading: string; titles: Tit
   });
   return (
     <RowFrame heading={heading} headingId={headingId}>
-      <VirtualShelf tiles={tiles} tile={posterTile} setSize={tiles.length} />
+      <VirtualShelf
+        tiles={tiles}
+        tile={posterTile}
+        setSize={tiles.length}
+        restoreId={`row/${heading}`}
+      />
     </RowFrame>
   );
 }
