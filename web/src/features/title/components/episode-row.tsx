@@ -7,6 +7,7 @@ import type { RowScroller } from "@/features/title/lib/season-row";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import { paddingFor } from "@/shared/lib/padding-for";
 import type { ServerImage } from "@/shared/lib/server-image";
+import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
  * Every one of a Show's `episodes` in one row, those of the page's Library, `libraryId`, and those it
@@ -53,7 +54,7 @@ export function EpisodeRow({
     >
       <ul
         aria-label="Episodes"
-        className="flex w-max gap-5 ps-(--tiles-before) pe-(--tiles-after)"
+        className={`flex w-max ps-(--tiles-before) pe-(--tiles-after) ${tileGap.className}`}
         style={{ "--tiles-before": padding.above, "--tiles-after": padding.below }}
       >
         {shown.map(({ index, key }) => {

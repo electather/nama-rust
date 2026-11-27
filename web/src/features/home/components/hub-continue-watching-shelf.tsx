@@ -3,8 +3,8 @@ import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import { useHubCardActions } from "@/features/home/data/use-hub-card-actions";
 import type { useHubContinueWatching } from "@/features/home/data/use-hub-continue-watching";
-import { backdropTile } from "@/features/home/lib/shelf-tiles";
 import { OnServer } from "@/shared/components/on-server";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * The Hub's Continue Watching `cards`, each opening on its Server, its skeleton while there are
@@ -18,7 +18,7 @@ export function HubContinueWatchingShelf({
 }: Omit<ReturnType<typeof useHubContinueWatching>, "failed">) {
   const { markWatched, remove } = useHubCardActions();
   if (cards.length === 0) {
-    return waiting ? <ShelfSkeleton tile={backdropTile} aspect="aspect-4/3" /> : null;
+    return waiting ? <ShelfSkeleton tile={backdropTile} /> : null;
   }
   const tiles = cards.map((merged) => ({
     key: `${merged.server.id}/${merged.card.key}`,

@@ -4,8 +4,8 @@ import { trailerHost } from "@/features/title/lib/trailer-player";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
 import { backdropLink } from "@/shared/lib/backdrop-card-classes";
-import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 import { type ServerImage, thumbnailOf } from "@/shared/lib/server-image";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * A Trailer's card, drawn as an Episode's: its thumbnail, or the title's `art` without one or once it
@@ -25,7 +25,7 @@ export function TrailerTile({
     <BackdropFrame
       // The Server serves only a thumbnail it stored, so showing it tells the Trailer's host
       // nothing; one not stored yet isn't found.
-      art={{ images: [thumbnailOf(trailer), art], sizes: backdropTileSizes }}
+      art={{ images: [thumbnailOf(trailer), art], sizes: backdropTile.sizes }}
       caption={<TrailerCaption name={trailer.name} host={trailerHost(trailer.url)} />}
       menu={<TrailerMenu trailer={trailer} />}
     >

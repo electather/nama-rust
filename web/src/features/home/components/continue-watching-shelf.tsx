@@ -4,7 +4,7 @@ import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import { useContinueWatching } from "@/features/home/data/use-continue-watching";
 import { useCardActions } from "@/features/home/hooks/use-card-actions";
 import { entryCard } from "@/features/home/lib/continue-watching-cards";
-import { backdropTile } from "@/features/home/lib/shelf-tiles";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * What you've started and not played, and the next Episode of each Show you're watching, most

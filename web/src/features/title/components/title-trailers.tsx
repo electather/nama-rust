@@ -4,6 +4,7 @@ import { TrailerCard } from "@/features/title/components/trailer-card";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
 import type { ServerImage } from "@/shared/lib/server-image";
 import { shelfBleed } from "@/shared/lib/shelf-bleed";
+import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
  * A title's Trailers, in one row of cards, each over its thumbnail or else the title's own `art`,
@@ -28,7 +29,7 @@ export function TitleTrailers({
       </h2>
       {/* Overscroll stays on the row, so a swipe at its end doesn't go back a page. */}
       <ul
-        className={`flex snap-x snap-mandatory scroll-px-shelf-edge scrollbar-none gap-5 overflow-x-auto overscroll-x-contain ${shelfBleed}`}
+        className={`flex snap-x snap-mandatory scroll-px-shelf-edge scrollbar-none overflow-x-auto overscroll-x-contain ${tileGap.className} ${shelfBleed}`}
       >
         {trailers.map((trailer) => (
           <TrailerCard key={trailer.url} trailer={trailer} art={art} />

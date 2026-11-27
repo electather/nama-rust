@@ -14,12 +14,10 @@ import {
   jumpUnsnapped,
   watchBox,
 } from "@/features/title/lib/season-row";
+import { backdropTile, tileGap } from "@/shared/lib/tile-shapes";
 
-/** The gap between a Show's Episode cards, `gap-5`. */
-const GAP = 20;
-
-/** A 4:3 card's widest, `--spacing-tile-backdrop`, and no inset, until the row shows a card. */
-const GUESS: RowBox = { width: 440, inset: 0 };
+/** A card's widest and no inset, until the row shows a card. */
+const GUESS: RowBox = { width: backdropTile.widest, inset: 0 };
 
 /**
  * The virtualizer of a Show's row of `count` Episodes, `row`, which opens on the card at
@@ -49,7 +47,7 @@ export function useEpisodeVirtualizer({
     paddingStart: sized.inset,
     paddingEnd: sized.inset,
     scrollPaddingStart: sized.inset,
-    gap: GAP,
+    gap: tileGap.px,
     overscan: 3,
   });
   const hasCards = virtualizer.getVirtualItems().length > 0;
@@ -105,7 +103,7 @@ function useOpening(
       opened.current = true;
       // By the measured width: the virtualizer takes it in only on its next render.
       jumpUnsnapped(element, () => {
-        virtualizer.scrollToOffset(Math.max(opening, 0) * (box.width + GAP));
+        virtualizer.scrollToOffset(Math.max(opening, 0) * (box.width + tileGap.px));
       });
     }
   }, [box, opening, row, virtualizer]);

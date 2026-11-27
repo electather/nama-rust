@@ -6,8 +6,8 @@ import { episodeCardLabel } from "@/features/title/lib/episode-card-label";
 import type { RowLook } from "@/features/title/lib/row-look";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
-import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 import { stillOf } from "@/shared/lib/server-image";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * An Episode by its Still, which plays its largest Version, with its caption over
@@ -34,10 +34,11 @@ export function EpisodeCard({
       data-season={episode.seasonNumber}
       aria-setsize={place.of}
       aria-posinset={place.index + 1}
-      className="w-tile-backdrop shrink-0 snap-start"
+      className={`shrink-0 snap-start ${backdropTile.widthClass}`}
+      style={{ "--tile-width": backdropTile.width }}
     >
       <BackdropCard
-        art={{ images: [stillOf(episode), look.backdrop], sizes: backdropTileSizes }}
+        art={{ images: [stillOf(episode), look.backdrop], sizes: backdropTile.sizes }}
         link={{
           to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
           params: {
