@@ -18,24 +18,16 @@ mod viewing;
 #[cfg(feature = "web")]
 mod web;
 
-use std::{future::Future, io, net::SocketAddr, sync::Arc};
+use std::{future::Future, io, net::SocketAddr};
 
-use nama_forwarded::IpRange;
-use signing::Keys;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
-use url::Url;
 
-use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail, probe::Probe};
+pub use api::Handles;
 
-/// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, signing with
-/// `keys`, until `shutdown` resolves, then lets requests in flight finish. Forwarded headers are
-/// believed only from a peer in `trusted_proxies` (ADR 0018). Sign-in Links are emailed through
-/// `mail`, and without it aren't offered. Linked Servers are named in the zone of `names`, and
-/// without it aren't named (ADR 0104). What Linked Servers share goes to `diagnostics`, and
-/// without it is dropped. Passkeys are for the Hub at `public_url`, and without it aren't offered.
-/// A Linked Server's public port is tried through `probe`, [`probe::Tcp`] outside tests. Must be
-/// called inside a Tokio runtime, which sends them.
+/// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, built from
+/// `handles`, until `shutdown` resolves, then lets requests in flight finish. Must be called
+/// inside a Tokio runtime, which sends them.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the web app (ADR 0105).
@@ -43,33 +35,13 @@ use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail, probe::Probe};
 /// # Errors
 ///
 /// The returned future fails if accepting connections on `listener` fails.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "each is a separate handle the Hub is built from; a struct bundling them would exist \
-              only for this call"
-)]
 pub fn serve(
     listener: TcpListener,
     db: PgPool,
-    keys: Keys,
-    trusted_proxies: &[IpRange],
-    mail: Option<Mail>,
-    names: Option<ServerNames>,
-    diagnostics: Option<Arc<dyn Backend>>,
-    public_url: Option<&Url>,
-    probe: Arc<dyn Probe>,
+    handles: Handles,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let app = api::router(
-        db,
-        Arc::new(keys),
-        trusted_proxies,
-        mail,
-        names,
-        diagnostics,
-        public_url,
-        probe,
-    );
+    let app = api::router(db, handles);
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     let app = app.into_make_service_with_connect_info::<SocketAddr>();

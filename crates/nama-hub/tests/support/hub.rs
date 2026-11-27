@@ -16,7 +16,7 @@ use std::{
 use axum::body::Bytes;
 use connectrpc::client::ClientConfig;
 use nama_hub::{
-    db,
+    Handles, db,
     diagnostics::{Backend, Forwarding, Signal},
     dns::{DnsError, Record, Records, ServerNames, Writing},
     mail::Mail,
@@ -174,20 +174,18 @@ impl TestHub {
             records: Arc::<FakeZone>::clone(&zone),
         };
         let public_url = public_url.map(|url| url.parse().unwrap());
-        tokio::spawn(nama_hub::serve(
-            listener,
-            db.clone(),
-            keys,
-            &["127.0.0.1".parse().unwrap()],
+        let handles = Handles {
+            trusted_proxies: vec!["127.0.0.1".parse().unwrap()],
             mail,
-            Some(names),
-            Some(backend),
-            public_url.as_ref(),
+            names: Some(names),
+            diagnostics: Some(backend),
+            public_url,
             probe,
-            async {
-                let _: Result<(), oneshot::error::RecvError> = stopped.await;
-            },
-        ));
+            ..Handles::new(keys)
+        };
+        tokio::spawn(nama_hub::serve(listener, db.clone(), handles, async {
+            let _: Result<(), oneshot::error::RecvError> = stopped.await;
+        }));
         Self {
             addr,
             db,
