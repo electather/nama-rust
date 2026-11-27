@@ -7,14 +7,12 @@ declare module "react" {
 
 // Every tile's shape is read from here (`src/AGENTS.md`, "One module knows each tile's shape").
 
-/**
- * A tile shape: how wide a tile draws, its CSS `width`, which a tile's `--tile-width` style gives
- * its `widthClass`, at most `widest` pixels, a virtualizer's guess before it measures one; the
- * `sizes` that width asks for (ADR 0039); and its aspect's and corners' classes.
- */
+/** A tile's shape: how wide it draws, the `sizes` that asks for (ADR 0039), its aspect and corners. */
 export interface TileShape {
+  /** The CSS width, given as a tile's `--tile-width` style for its `widthClass` to read. */
   width: string;
   widthClass: string;
+  /** The widest it draws, in pixels: a virtualizer's guess before it measures one. */
   widest: number;
   sizes: string;
   aspect: string;
@@ -29,7 +27,8 @@ function widthOf(least: number, vw: number, most: number) {
   const screenFor = (px: number) => Math.floor((px * 100) / vw);
   return {
     width: `clamp(${least}px, ${vw}vw, ${most}px)`,
-    // Tailwind sees only literal classes, so the width itself is a style.
+    // Tailwind sees only literal classes, so the width is a style, and a custom property, the only
+    // inline style `shadcn/no-inline-styles` allows.
     widthClass: "w-(--tile-width)",
     widest: most,
     sizes: `(max-width: ${screenFor(least)}px) ${least}px, (max-width: ${screenFor(most)}px) ${vw}vw, ${most}px`,
