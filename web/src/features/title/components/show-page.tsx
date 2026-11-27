@@ -81,6 +81,7 @@ export function ShowPage({
           episodes={row}
           current={season}
           onPick={pick}
+          backdrop={{ url: data.show.backdropUrl, thumbhash: data.show.backdropThumbhash }}
         />
         <TitleTrailers
           trailers={data.show.trailers}

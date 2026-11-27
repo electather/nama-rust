@@ -9,7 +9,7 @@ export function FeaturedSkeleton() {
         {[0, 1, 2, 3, 4].map((index) => (
           <li
             key={index}
-            className="min-w-0 grow-(--grow) basis-0 animate-pulse rounded-3xl bg-muted motion-reduce:animate-none max-[720px]:min-h-21 max-[720px]:first:min-h-130"
+            className="min-w-0 grow-(--grow) basis-0 animate-pulse rounded-xl bg-muted motion-reduce:animate-none max-[720px]:min-h-21 max-[720px]:first:min-h-130"
             style={{ "--grow": index === 0 ? openGrow(5) : 1 }}
           />
         ))}

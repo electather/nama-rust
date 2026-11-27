@@ -1,6 +1,6 @@
 import { TileArt } from "@/shared/components/tile-art";
 
-const radius = "rounded-3xl";
+const radius = "rounded-xl";
 
 /** A Box Set's Poster at the top of its page, as a shelf's poster is drawn. */
 export function BoxSetArt({ url }: { url: string }) {

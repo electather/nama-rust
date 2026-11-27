@@ -136,7 +136,7 @@ test("request is disabled while it's being sent", async () => {
   });
 });
 
-test("the Quality menu's chevron holds its place, disabled, while the Qualities load", async () => {
+test("request shows alone, with no chevron, while the Qualities load", async () => {
   openApp(
     "/movies/tmdb-438631",
     fakeServer(
@@ -153,11 +153,8 @@ test("the Quality menu's chevron holds its place, disabled, while the Qualities 
     ).transport,
   );
 
-  const chevron = await screen.findByRole<HTMLButtonElement>("button", {
-    name: "Request Dune at a Quality",
-  });
-
-  expect(chevron.disabled).toBe(true);
+  await expect(screen.findByRole("button", { name: "Request Dune" })).resolves.toBeDefined();
+  expect(screen.queryByRole("button", { name: "Request Dune at a Quality" })).toBeNull();
 });
 
 test.each([

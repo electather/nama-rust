@@ -40,7 +40,7 @@ export function FeaturedPanel({
   return (
     <li
       data-open={isOpen ? "" : undefined}
-      className="group relative isolate min-w-0 shrink grow-(--grow) basis-0 transform-(--tilt) overflow-hidden rounded-3xl bg-muted shadow-panel transition-all duration-600 ease-out-expo motion-reduce:transition-none max-[720px]:min-h-21 max-[720px]:transform-none max-[720px]:data-open:min-h-130"
+      className="group relative isolate min-w-0 shrink grow-(--grow) basis-0 transform-(--tilt) overflow-hidden rounded-xl bg-muted shadow-panel transition-all duration-600 ease-out-expo motion-reduce:transition-none max-[720px]:min-h-21 max-[720px]:transform-none max-[720px]:data-open:min-h-130"
       style={{
         "--grow": isOpen ? openGrow(count) : 1,
         "--tilt": tiltOf(offset),
@@ -65,7 +65,7 @@ export function FeaturedPanel({
         }}
         onFocus={onOpen}
         onMouseEnter={onOpen}
-        className="absolute inset-0 cursor-pointer rounded-3xl outline-none focus-visible:outline-2 focus-visible:-outline-offset-3 focus-visible:outline-ring"
+        className="absolute inset-0 cursor-pointer rounded-xl outline-none focus-visible:outline-2 focus-visible:-outline-offset-3 focus-visible:outline-ring"
       />
       <FeaturedCopy panel={panel} />
     </li>

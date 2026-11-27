@@ -56,7 +56,7 @@ async function openPlanned(planned: Planned) {
 
 /** The section the seek bar's hover card names beside `time`, empty for none. */
 function cardNameBeside(time: string) {
-  return screen.getByText(time).previousElementSibling?.textContent;
+  return screen.getByText(time).previousElementSibling?.textContent ?? "";
 }
 
 /** Which sheet the hover card's frame is copied from, and where in it, in pixels. */
@@ -123,4 +123,13 @@ test("without sections, Ctrl+Left and Right do nothing", async () => {
   fireEvent.keyDown(document, { key: "ArrowRight", ctrlKey: true });
   fireEvent.keyDown(document, { key: "ArrowLeft", ctrlKey: true });
   expect(video.currentTime).toBe(3500);
+});
+
+test("a seek bar let go of stays where it was let go while the video catches up", async () => {
+  const { video, position } = await openPlanned({});
+
+  fireEvent.keyDown(position, { key: "End" });
+
+  expect(video.currentTime).toBe(7000);
+  expect(position.getAttribute("aria-valuetext")).toBe("1:56:40 of 1:56:40");
 });
