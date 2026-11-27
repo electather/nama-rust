@@ -9,8 +9,8 @@ export interface OpenedSection {
 }
 
 /**
- * The Section open, which Settings hands its pane, crumbs and action. A context, since a part
- * never imports the definitions, which import every part.
+ * The Section open, which Settings hands its pane, crumbs and action. Why it's a context is in
+ * `web/src/AGENTS.md` ("Only Settings' modal tree imports the Section definitions").
  */
 export const OpenSection = createContext<OpenedSection | undefined>(undefined);
 
