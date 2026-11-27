@@ -3,7 +3,7 @@ import { Code } from "@connectrpc/connect";
 import { type FormErrors, refusedFieldErrors, refusal } from "@/shared/lib/forms";
 
 /** Why making an Invite was refused, if it was, next to the field it's about. */
-export function createInviteErrors(error: unknown): FormErrors {
+export function createInviteErrors(error: unknown): FormErrors<"note"> {
   if (error === null) {
     return {};
   }
@@ -21,7 +21,7 @@ export function revokeInviteRefusal(error: unknown) {
 }
 
 /** Why joining with an Invite's link was refused, next to the field it's about. */
-export function acceptInviteErrors(error: unknown): FormErrors {
+export function acceptInviteErrors(error: unknown): FormErrors<"name" | "password"> {
   return refusal(error, "join this Server", {
     [Code.NotFound]: {
       form: "This Invite no longer works: it was used, revoked or has expired. Ask whoever sent it for a new one.",

@@ -1,4 +1,5 @@
 import { andList } from "@/features/settings/lib/and-list";
+import type { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type FormErrors, refusal } from "@/shared/lib/forms";
 
 /** A change the Server refused: what it refused it with, and the settings the change was to. */
@@ -11,11 +12,11 @@ export interface Refused {
  * What a pane says of the change the Server `refused`, naming its settings by `labels`: in its
  * toast, or under a field where `byReason` puts it. Nothing while none was refused.
  */
-export function refusedWords(
+export function refusedWords<Field extends string = never>(
   refused: Refused | undefined,
   labels: Record<string, { label: string }>,
-  byReason?: Parameters<typeof refusal>[3],
-): FormErrors {
+  byReason?: Partial<Record<RefusalReason, FormErrors<Field>>>,
+): FormErrors<Field> {
   if (refused === undefined) {
     return {};
   }

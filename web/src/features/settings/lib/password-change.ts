@@ -10,9 +10,7 @@ import {
 } from "@/shared/lib/forms";
 
 /** What's wrong with the password form, next to the field it's about. */
-export type PasswordErrors = Pick<FormErrors, "form" | "password" | "newPassword"> & {
-  confirm?: string;
-};
+export type PasswordErrors = FormErrors<"password" | "newPassword" | "confirm">;
 
 // The shortest password the Server's own sign-in takes, which the field's hint says too.
 const SHORTEST = 8;

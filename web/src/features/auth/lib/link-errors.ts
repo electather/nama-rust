@@ -3,7 +3,7 @@ import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import type { FormErrors } from "@/shared/lib/forms";
 
 /** Why the Hub refused a code that Links a Server or a User: under the code, or for the form. */
-export function linkErrors(error: unknown): FormErrors {
+export function linkErrors(error: unknown): FormErrors<"linkCode"> {
   return sayHubRefusal(error, wording, "The Hub couldn’t Link it just now. Try again.");
 }
 
@@ -23,7 +23,7 @@ export function linkApprovalErrors(error: unknown): FormErrors {
   return linkCode === undefined ? errors : { form: LINK_EXPIRED };
 }
 
-const wording: HubWording = {
+const wording: HubWording<"linkCode"> = {
   [RefusalReason.LINK_CODE_NOT_FOUND]: () => ({
     linkCode:
       "Nothing is waiting on this code. Check it, or get a new one in the Server’s Settings.",
