@@ -78,9 +78,13 @@ impl Fixture {
         (self.artwork).download_missing(self.contents.clone(), self.library);
         // Not `Artwork::settled`: every lib test shares its tracker, and one test reopening it
         // between another's close and wait leaves that one waiting for good.
-        while !landed(self).await {
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
+        let polled = async {
+            while !landed(self).await {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        };
+        let landed_in_time = tokio::time::timeout(Duration::from_secs(10), polled).await;
+        landed_in_time.expect("the downloads never landed");
     }
 
     /// Whether the store keeps [`THUMBNAIL`].
@@ -132,7 +136,7 @@ async fn a_trailer_thumbnail_the_match_refresh_kept_is_served_without_fetching_a
 #[tokio::test]
 async fn a_trailer_thumbnail_its_host_has_in_neither_size_is_never_fetched_on_view() {
     let fx = Fixture::new(&[]).await;
-    fx.download_missing(async |fx: &Fixture| fx.image_calls() == 2)
+    fx.download_missing(async |fixture: &Fixture| fixture.image_calls() == 2)
         .await;
     let fetched = fx.image_calls();
 

@@ -681,7 +681,7 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
 }
 
 /// Serves `GET` [`url()`]s, 404 unless `artwork` offered the image or `contents` has a Match that
-/// stores it, and for a Trailer thumbnail until it is kept, resized as `images` says. Whether the
+/// stores it, and, for a Trailer thumbnail, until it is kept, resized as `images` says. Whether the
 /// caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings) -> Router {
     Router::new()

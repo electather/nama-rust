@@ -1,7 +1,6 @@
-import { useState } from "react";
-
 import { TrailerCaption } from "@/features/title/components/trailer-caption";
 import { TrailerMenu } from "@/features/title/components/trailer-menu";
+import { useThumbnailOr } from "@/features/title/hooks/use-thumbnail-or";
 import { trailerHost } from "@/features/title/lib/trailer-player";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
@@ -46,24 +45,4 @@ export function TrailerTile({
       />
     </BackdropFrame>
   );
-}
-
-/** `trailer`'s thumbnail, or `art` without one or once it fails to load, as `onError` hears. */
-function useThumbnailOr(
-  trailer: Trailer,
-  art: { url: string | undefined; thumbhash: Uint8Array | undefined },
-) {
-  // The Server serves only a thumbnail it stored, so showing it tells the Trailer's host nothing;
-  // one not stored yet isn't found. Kept by URL, so a new thumbnail in its place gets its own try.
-  const [failedUrl, setFailedUrl] = useState<string>();
-  const shown =
-    trailer.thumbnailUrl === undefined || trailer.thumbnailUrl === failedUrl
-      ? art
-      : { url: trailer.thumbnailUrl, thumbhash: trailer.thumbhash };
-  return {
-    shown,
-    onError: () => {
-      setFailedUrl(trailer.thumbnailUrl);
-    },
-  };
 }
