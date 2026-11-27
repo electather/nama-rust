@@ -21,7 +21,7 @@ use nama_plugin_api::{
     job::{JobRunner, RunJob},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
-    settings::{Choices, PersonalSettingsCheck, SettingKind, Settings, SettingsCheck},
+    settings::{Choices, PersonalSettingsCheck, SettingFlaw, Settings, SettingsCheck},
 };
 use nama_plugin_proto::{
     CONTRACT_VERSION, SERVICES,
@@ -107,25 +107,8 @@ pub(super) enum Refused {
     OutOfRange { wants: String },
     #[error("its setting {key} is of a kind this Server doesn't know")]
     UnknownSettingKind { key: String },
-    #[error("its setting {key}'s default isn't {kind}")]
-    DefaultWrongKind { key: String, kind: SettingKind },
-    #[error("its setting {key} has min_value or max_value, which only an Integer setting may")]
-    BoundsOnAnotherKind { key: String },
-    #[error("its setting {key}'s min_value {min} is over its max_value {max}")]
-    BoundsCrossed { key: String, min: i64, max: i64 },
-    #[error("its setting {key}'s default is outside its bounds")]
-    DefaultOutOfBounds { key: String },
-    #[error("its setting {key} has choices, which only a Choices setting may")]
-    ChoicesOnAnotherKind { key: String },
-    #[error("its setting {key} lists the choice {value:?} twice")]
-    ChoiceRepeated { key: String, value: String },
-    #[error("its setting {key}'s default holds a value that isn't among its choices")]
-    DefaultNotAChoice { key: String },
-    #[error(
-        "its setting {key} is Choices with no choices, and it has no {CHECK_SETTINGS} export to \
-         offer some"
-    )]
-    NoChoices { key: String },
+    #[error("{}", installed_words(.0))]
+    Setting(SettingFlaw),
     #[error("its allowed host {0} has a port, and allowed hosts are matched without one")]
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
@@ -164,6 +147,30 @@ pub(super) enum Refused {
         field: &'static str,
         namespace: String,
     },
+}
+
+/// Why `flaw` refuses an Installed Plugin, naming its wire Manifest's fields and exports where
+/// [`SettingFlaw`]'s own words name a Built-in's.
+fn installed_words(flaw: &SettingFlaw) -> String {
+    match flaw {
+        SettingFlaw::BoundsOnAnotherKind { key } => {
+            format!(
+                "its setting {key} has min_value or max_value, which only an Integer setting may"
+            )
+        }
+        SettingFlaw::BoundsCrossed { key, min, max } => {
+            format!("its setting {key}'s min_value {min} is over its max_value {max}")
+        }
+        SettingFlaw::NoChoices { key } => format!(
+            "its setting {key} is Choices with no choices, and it has no {CHECK_SETTINGS} export \
+             to offer some"
+        ),
+        SettingFlaw::DefaultWrongKind { .. }
+        | SettingFlaw::DefaultOutOfBounds { .. }
+        | SettingFlaw::ChoicesOnAnotherKind { .. }
+        | SettingFlaw::ChoiceRepeated { .. }
+        | SettingFlaw::DefaultNotAChoice { .. } => flaw.to_string(),
+    }
 }
 
 /// An Installed Plugin the Server read and checked, ready to enable.
