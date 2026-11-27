@@ -1,16 +1,14 @@
-import { Link, useParams, useSearch } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuLinkItem,
   DropdownMenuTrigger,
 } from "nama-ui/components/dropdown-menu";
 
 import type { LibraryGroup } from "@/app/data/use-top-bar-libraries";
+import { LibraryMenuItems } from "@/app/top-bar/library-menu-items";
 
 /**
  * The top bar's Library links folded into one menu, for a phone, which has no room for them, or
@@ -39,7 +37,11 @@ export function LibrariesMenu({ groups }: { groups: LibraryGroup[] }) {
         {label}
         <ChevronDown aria-hidden strokeWidth={1.5} className="size-3.5" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent>{menuItems(groups)}</DropdownMenuContent>
+      <DropdownMenuContent>
+        {groups.map((group) => (
+          <LibraryMenuItems key={group.server?.id ?? ""} group={group} named={groups.length > 1} />
+        ))}
+      </DropdownMenuContent>
     </DropdownMenu>
   );
 }
@@ -51,39 +53,4 @@ function useOpenLibraryName(groups: LibraryGroup[]) {
   return groups
     .find(({ server }) => server?.id === openOn)
     ?.libraries.find(({ id }) => String(id) === open)?.name;
-}
-
-/** A link to each Library, under its Server's name for two or more Servers. */
-function menuItems(groups: LibraryGroup[]) {
-  return groups.length > 1
-    ? groups.filter(({ libraries }) => libraries.length > 0).map((group) => serverItems(group))
-    : groups.flatMap((group) => libraryItems(group));
-}
-
-/** A group's Libraries under its Server's name. */
-function serverItems(group: LibraryGroup) {
-  return (
-    <DropdownMenuGroup key={group.server?.id}>
-      <DropdownMenuLabel>{group.server?.name}</DropdownMenuLabel>
-      {libraryItems(group)}
-    </DropdownMenuGroup>
-  );
-}
-
-/** A link to each of `libraries`, on the Linked Server `server` at the Hub. */
-function libraryItems({ server, libraries }: LibraryGroup) {
-  return libraries.map(({ id, name }) => {
-    const link = (
-      <Link
-        to="/libraries/$libraryId"
-        params={{ libraryId: String(id) }}
-        search={{ server: server?.id }}
-      />
-    );
-    return (
-      <DropdownMenuLinkItem key={String(id)} render={link}>
-        {name}
-      </DropdownMenuLinkItem>
-    );
-  });
 }
