@@ -13,6 +13,7 @@ import {
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { type ServerState, admin, fakeServer, fill, newUser } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { listFoldersOf } from "@/test-server-folders";
 import { openSettings } from "@/test-settings";
 
 const START = 1_795_000_000_000n;
@@ -251,4 +252,30 @@ describe("where Backups are", () => {
     expect(sections.getByRole("link", { name: "Server" })).toBeDefined();
     expect(sections.queryByRole("link", { name: "Backups" })).toBeNull();
   });
+});
+
+test("a Backup folder picked on the Server fills the field and is saved, the picker opening at the one in use", async () => {
+  const updates: UpdateBackupSettingsRequest[] = [];
+  openBackups({
+    listServerFolders: listFoldersOf({
+      "": ["/data"],
+      "/data": ["/data/backups"],
+      "/data/backups": [],
+    }),
+    updateBackupSettings: (request) => {
+      updates.push(request);
+      return {};
+    },
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Pick a folder on the Server" }));
+  const inUse = await screen.findByRole("treeitem", { name: "backups" });
+  await waitFor(() => {
+    expect(inUse.getAttribute("aria-selected")).toBe("true");
+  });
+
+  fireEvent.click(screen.getByRole("treeitem", { name: "data" }));
+
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]?.settings?.folder).toBe("/data");
+  expect(screen.getByLabelText("Backup folder")).toHaveProperty("value", "/data");
 });

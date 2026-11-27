@@ -101,12 +101,14 @@ pub enum RefusalReason {
     REFUSAL_REASON_NAME_CHARACTER = 80i32,
     /// `invalid_argument`: the Authenticator Plugin rejects the password. Its own text is the message.
     REFUSAL_REASON_PASSWORD_REJECTED = 31i32,
-    /// `invalid_argument`: a Library's folder, or the segment folder, isn't an absolute path. Params:
-    /// `folder`.
+    /// `invalid_argument`: a Library's folder, the segment folder, or a folder to list, isn't an
+    /// absolute path. Params: `folder`.
     REFUSAL_REASON_FOLDER_NOT_ABSOLUTE = 32i32,
-    /// `invalid_argument`: a Library's folder can't be found. Params: `folder`.
+    /// `invalid_argument`: a Library's folder can't be found, or a folder to list isn't a folder.
+    /// Params: `folder`.
     REFUSAL_REASON_FOLDER_NOT_FOUND = 33i32,
-    /// `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
+    /// `invalid_argument`: a Library's folder, or a folder to list, isn't a directory the Server can
+    /// read. Params: `folder`.
     REFUSAL_REASON_FOLDER_NOT_READABLE = 34i32,
     /// `invalid_argument`: the segment folder can't be created, or the Server can't write a file in
     /// it. Params: `folder`.

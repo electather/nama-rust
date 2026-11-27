@@ -9,31 +9,34 @@ use nama_proto::nama::v1::{
     self as proto, DownloadSubtitleRequest, DownloadSubtitleResponse, FoundSubtitle,
     GetAutoplayRequest, GetAutoplayResponse, GetSubtitleAppearanceRequest,
     GetSubtitleAppearanceResponse, GetTrackPreferencesRequest, GetTrackPreferencesResponse,
-    PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
-    ReportTrackPickRequest, ReportTrackPickResponse, SearchSubtitlesRequest,
-    SearchSubtitlesResponse, SetAudioPreferenceRequest, SetAudioPreferenceResponse,
-    SetAutoplayRequest, SetAutoplayResponse, SetSubtitleBackgroundRequest,
-    SetSubtitleBackgroundResponse, SetSubtitleOffsetRequest, SetSubtitleOffsetResponse,
-    SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse, SetSubtitleSizeRequest,
-    SetSubtitleSizeResponse, StopPlaybackRequest, StopPlaybackResponse, SubtitleKind,
-    UsersAudioPreference, UsersSubtitlePreference,
+    HardwareAcceleration as HardwareAccelerationProto, PickedTrackKind, PlanPlaybackRequest,
+    PlanPlaybackResponse, Play, PlaybackService, RefusalReason, ReportTrackPickRequest,
+    ReportTrackPickResponse, SearchSubtitlesRequest, SearchSubtitlesResponse,
+    SetAudioPreferenceRequest, SetAudioPreferenceResponse, SetAutoplayRequest, SetAutoplayResponse,
+    SetSubtitleBackgroundRequest, SetSubtitleBackgroundResponse, SetSubtitleOffsetRequest,
+    SetSubtitleOffsetResponse, SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse,
+    SetSubtitleSizeRequest, SetSubtitleSizeResponse, StopPlaybackRequest, StopPlaybackResponse,
+    SubtitleKind, TranscodeHardware, UsersAudioPreference, UsersSubtitlePreference,
 };
 
 use crate::{
     db::Database,
     playback::{
         Asked, AskedSubtitle, Description, DeviceDecoding, DownloadError, Method, NAMED_LIMITS,
-        Pick, PickError, PickedLimit, Planned, Plans, Preferred, Segment, SegmentKind, StartError,
-        StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference, TrackPreferences,
-        is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto,
-        set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
-        track_to_proto, viewer_of_caller,
+        Pick, PickError, PickedLimit, Planned, Plans, PlayNow, Preferred, Segment, SegmentKind,
+        StartError, StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference,
+        TrackPreferences, accel_to_proto, is_autoplay_on, is_language, limit_to_proto,
+        method_to_proto, reason_to_proto, set_autoplay, set_subtitle_background, set_subtitle_size,
+        subtitle_appearance_of, track_to_proto, viewer_of_caller,
     },
     server_settings::PlaybackLimit,
     signed_urls::{PlaybackGrant, UrlSigner, Viewer},
 };
 
-use super::{caller, database_failed, refuse, sign_in::client_ip, unknown_enum_value, url_signer};
+use super::{
+    caller, database_failed, refuse, server::gpu_to_proto, sign_in::client_ip, unknown_enum_value,
+    url_signer,
+};
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
@@ -686,4 +689,29 @@ fn version_not_found() -> ConnectError {
     )
     .field("version_id")
     .into()
+}
+
+/// `play` as `ListPlays` sends it.
+pub(super) fn play_to_proto(play: PlayNow) -> Play {
+    let transcodes = play.playback.method == proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE;
+    let transcodes_on = transcodes.then(|| TranscodeHardware {
+        api: (play.hardware.as_ref())
+            .map_or(
+                HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
+                |hardware| accel_to_proto(hardware.accel),
+            )
+            .into(),
+        gpu: (play.hardware.and_then(|hardware| hardware.gpu))
+            .map(|gpu| gpu_to_proto(gpu.id().to_owned(), gpu.name()))
+            .into(),
+        ..Default::default()
+    });
+    Play {
+        playback: play.playback.into(),
+        title: play.title.unwrap_or_default(),
+        position_ms: play.progress.map(|progress| progress.position_ms),
+        duration_ms: play.progress.map_or(0, |progress| progress.duration_ms),
+        transcodes_on: transcodes_on.into(),
+        ..Default::default()
+    }
 }

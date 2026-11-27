@@ -74,6 +74,7 @@ mod search;
 mod search_sources;
 mod season_posters;
 mod segment_sources;
+mod server_folders;
 mod server_link;
 mod server_link_delete;
 mod settings_refusals;

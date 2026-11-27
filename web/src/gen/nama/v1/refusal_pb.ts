@@ -334,22 +334,24 @@ export const RefusalReason = {
   PASSWORD_REJECTED: 31,
 
   /**
-   * `invalid_argument`: a Library's folder, or the segment folder, isn't an absolute path. Params:
-   * `folder`.
+   * `invalid_argument`: a Library's folder, the segment folder, or a folder to list, isn't an
+   * absolute path. Params: `folder`.
    *
    * @generated from enum value: REFUSAL_REASON_FOLDER_NOT_ABSOLUTE = 32;
    */
   FOLDER_NOT_ABSOLUTE: 32,
 
   /**
-   * `invalid_argument`: a Library's folder can't be found. Params: `folder`.
+   * `invalid_argument`: a Library's folder can't be found, or a folder to list isn't a folder.
+   * Params: `folder`.
    *
    * @generated from enum value: REFUSAL_REASON_FOLDER_NOT_FOUND = 33;
    */
   FOLDER_NOT_FOUND: 33,
 
   /**
-   * `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
+   * `invalid_argument`: a Library's folder, or a folder to list, isn't a directory the Server can
+   * read. Params: `folder`.
    *
    * @generated from enum value: REFUSAL_REASON_FOLDER_NOT_READABLE = 34;
    */

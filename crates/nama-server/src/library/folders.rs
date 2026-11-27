@@ -1,4 +1,5 @@
-//! A Library's folders: checking the ones a create or an update names, and storing them.
+//! A Library's folders: checking the ones a create or an update names, storing them, and listing
+//! the Server's folders to pick one from.
 
 use std::path::Path;
 
@@ -6,7 +7,7 @@ use sqlx::SqliteConnection;
 
 use super::libraries::Error;
 
-/// Why a folder can't be one of a Library's.
+/// Why a folder can't be one of a Library's, or can't be listed to pick one from.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FolderProblem {
     #[error("is not an absolute path")]
@@ -135,3 +136,107 @@ pub(super) async fn insert_folders(
     }
     Ok(())
 }
+
+/// A folder on the Server, as `list_server_folders` lists it.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ServerFolder {
+    pub(crate) name: String,
+    pub(crate) path: String,
+}
+
+/// The folders directly inside `path`, sorted by name ignoring case: `/`'s for an empty `path`,
+/// or on Windows the drives that exist. Only `NotAbsolute`, `NotFound` and `NotReadable` come back.
+// ponytail: one response per folder, page it if a 5,000-folder movies/ listing lags
+pub(crate) async fn list_server_folders(path: &str) -> Result<Vec<ServerFolder>, FolderProblem> {
+    #[cfg(windows)]
+    if path.is_empty() {
+        return Ok(drives().await);
+    }
+    let path = if path.is_empty() { "/" } else { path };
+    if !Path::new(path).is_absolute() {
+        return Err(FolderProblem::NotAbsolute);
+    }
+    let not_a_folder = || std::io::Error::from(std::io::ErrorKind::NotADirectory);
+    match tokio::fs::metadata(path).await {
+        Ok(found) if found.is_dir() => {}
+        Ok(_) => return Err(FolderProblem::NotFound(not_a_folder())),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(FolderProblem::NotFound(err));
+        }
+        Err(err) => return Err(FolderProblem::NotReadable(err)),
+    }
+    let mut folders = Vec::new();
+    let mut entries = tokio::fs::read_dir(path)
+        .await
+        .map_err(FolderProblem::NotReadable)?;
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(FolderProblem::NotReadable)?
+    {
+        if let Some(folder) = listed_folder(&entry).await {
+            folders.push(folder);
+        }
+    }
+    folders.sort_by(|a, b| {
+        let by_case = a.name.to_lowercase().cmp(&b.name.to_lowercase());
+        by_case.then_with(|| a.name.cmp(&b.name))
+    });
+    Ok(folders)
+}
+
+/// `entry` as a folder to list, unless it's left out: a dot-folder, a hidden or system folder on
+/// Windows, one that can't be stat'ed or isn't valid UTF-8, or anything that isn't a folder.
+async fn listed_folder(entry: &tokio::fs::DirEntry) -> Option<ServerFolder> {
+    let name = entry.file_name().into_string().ok()?;
+    if name.starts_with('.') {
+        return None;
+    }
+    #[cfg(windows)]
+    if hidden_or_system(entry).await {
+        return None;
+    }
+    // `fs::metadata` follows a symlink, so a broken one or one to a file is left out here.
+    let path = entry.path();
+    if !tokio::fs::metadata(&path).await.ok()?.is_dir() {
+        return None;
+    }
+    Some(ServerFolder {
+        name,
+        path: path.into_os_string().into_string().ok()?,
+    })
+}
+
+#[cfg(windows)]
+async fn hidden_or_system(entry: &tokio::fs::DirEntry) -> bool {
+    use std::os::windows::fs::MetadataExt as _;
+    const HIDDEN_OR_SYSTEM: u32 = 0x2 | 0x4;
+    // A `DirEntry`'s metadata is the link's own on Windows, so a hidden junction such as
+    // `Documents and Settings` stays out though its target isn't hidden.
+    entry.metadata().await.map_or(true, |found| {
+        found.file_attributes() & HIDDEN_OR_SYSTEM != 0
+    })
+}
+
+/// The drives that exist, which an empty path lists on Windows.
+#[cfg(windows)]
+async fn drives() -> Vec<ServerFolder> {
+    let mut drives = Vec::new();
+    for letter in 'A'..='Z' {
+        let drive = format!("{letter}:\\");
+        if tokio::fs::metadata(&drive)
+            .await
+            .is_ok_and(|found| found.is_dir())
+        {
+            drives.push(ServerFolder {
+                name: drive.clone(),
+                path: drive,
+            });
+        }
+    }
+    drives
+}
+
+#[cfg(test)]
+#[path = "folders_tests.rs"]
+mod tests;

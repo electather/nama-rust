@@ -37,7 +37,7 @@ pub(crate) use contents::{File, FileItem, Recorded, fixture};
 pub(crate) use copies_ahead::CopiesAhead;
 pub(crate) use country_tags::country_tag;
 pub(crate) use custom_images::{CustomImages, Role, Slot, router as custom_images_router};
-pub(crate) use folders::FolderProblem;
+pub(crate) use folders::{FolderProblem, list_server_folders};
 pub(crate) use last_scans::LastScan;
 pub(crate) use libraries::{
     Error as LibraryError, Kind as LibraryKind, Libraries, Library, Order, check_known,

@@ -168,3 +168,16 @@
 html {
   scrollbar-gutter: stable;
 }
+
+/* A Tree's opened node eases its children from none of their height to all of it, as its classes'
+   transition says. Grid rows rather than `interpolate-size`, which only Chromium animates. */
+[data-slot="tree-group"] {
+  grid-template-rows: 0fr;
+}
+[data-slot="tree-group"][data-open] {
+  grid-template-rows: 1fr;
+  /* A node's group first renders as it opens, so it eases from closed then too. */
+  @starting-style {
+    grid-template-rows: 0fr;
+  }
+}
