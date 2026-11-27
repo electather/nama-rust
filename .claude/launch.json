@@ -5,7 +5,10 @@
       "name": "server",
       "runtimeExecutable": "cargo",
       "runtimeArgs": ["run", "-p", "nama-server"],
-      "env": { "NAMA_DATA_DIR": "target/dev-data" },
+      "env": {
+        "NAMA_DATA_DIR": "target/dev-data",
+        "NAMA_HUB_URL": "http://localhost:5174"
+      },
       "port": 7980,
       "autoPort": false
     },
@@ -13,8 +16,37 @@
       "name": "web",
       "runtimeExecutable": "mise",
       "cwd": "web",
-      "runtimeArgs": ["exec", "--", "vp", "dev","--port", "5173", "--strictPort"],
+      "runtimeArgs": ["exec", "--", "vp", "dev", "--port", "5173", "--strictPort"],
       "port": 5173,
+      "autoPort": false
+    },
+    {
+      "name": "hub",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "docker compose -f crates/nama-hub/compose.yaml up -d --wait && mkdir -p target/dev-data && { [ -f target/dev-data/hub-signing.pem ] || openssl genpkey -algorithm ed25519 > target/dev-data/hub-signing.pem; } && NAMA_HUB_SIGNING_KEYS=\"$(cat target/dev-data/hub-signing.pem)\" exec cargo run -p nama-hub"
+      ],
+      "env": {
+        "SQLX_OFFLINE": "true",
+        "NAMA_HUB_DATABASE_URL": "postgres://nama:nama@localhost:5432/nama_hub",
+        "NAMA_HUB_LISTEN": "127.0.0.1:7981",
+        "NAMA_HUB_PUBLIC_URL": "http://localhost:5174",
+        "NAMA_HUB_LOG_MAIL": "true"
+      },
+      "port": 7981,
+      "autoPort": false
+    },
+    {
+      "name": "hub-web",
+      "runtimeExecutable": "mise",
+      "cwd": "web",
+      "runtimeArgs": ["exec", "--", "vp", "dev", "--port", "5174", "--strictPort"],
+      "env": {
+        "NAMA_HUB_URL": "http://localhost:7981",
+        "NAMA_SERVER_URL": "http://localhost:7980"
+      },
+      "port": 5174,
       "autoPort": false
     }
   ]
