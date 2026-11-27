@@ -267,29 +267,6 @@ async fn a_certificate_challenge_that_isnt_one_is_refused(db: PgPool) {
     assert!(hub.texts().is_empty());
 }
 
-/// Reports `lan_addresses`, `public_port` and `relay` as the Server Addresses of the Server
-/// presenting `credential`, and answers the names the Hub gave it.
-async fn names_after_reporting_relay(
-    hub: &TestHub,
-    credential: &str,
-    lan_addresses: &[&str],
-    public_port: u16,
-    relay: &str,
-) -> Result<Vec<String>, ConnectError> {
-    let set = linked_server(hub, credential)
-        .set_server_addresses(SetServerAddressesRequest {
-            lan_addresses: lan_addresses
-                .iter()
-                .map(|&address| address.to_owned())
-                .collect(),
-            public_port: public_port.into(),
-            relay: relay.to_owned(),
-            ..Default::default()
-        })
-        .await?;
-    Ok(set.into_owned().names)
-}
-
 #[sqlx::test(migrations = false)]
 async fn a_servers_relay_gets_a_name_under_its_own_and_comes_after_the_direct_addresses(
     db: PgPool,

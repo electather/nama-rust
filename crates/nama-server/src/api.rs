@@ -177,6 +177,7 @@ pub(crate) fn router(
             syncing: syncing.clone(),
             server_url: settings.server_url(),
             listening,
+            relay: config.relay,
         }))
         .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),

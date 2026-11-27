@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT server_url, lan_addresses FROM linked_servers WHERE id = $1",
+  "query": "SELECT server_url, lan_addresses, relay_address FROM linked_servers WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -24,6 +24,17 @@
             "name": "lan_addresses"
           }
         }
+      },
+      {
+        "ordinal": 2,
+        "name": "relay_address",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "linked_servers",
+            "name": "relay_address"
+          }
+        }
       }
     ],
     "parameters": {
@@ -33,8 +44,9 @@
     },
     "nullable": [
       false,
+      false,
       false
     ]
   },
-  "hash": "3abe9efd62c87750ee0bc96794a422b56bda9610ea30bd3959a840ef5125256b"
+  "hash": "35bb51b94b3652a8a1acbcb93b1a36e95c4d39d1b1ba28952ceba482bec8395e"
 }
