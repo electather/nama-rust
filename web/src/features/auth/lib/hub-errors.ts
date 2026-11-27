@@ -50,7 +50,7 @@ export function sayHubRefusal<Field extends string = never>(
 }
 
 // web/AGENTS.md, "Read refusals by reason": `invalid_argument` is the email's or the password's.
-// The sign-in, create Account and Sign-in Link forms share it, so it names the fields of all three.
+// Every form that sends the Hub an Account's email or password shares it, so it names both.
 const wording: HubWording<"email" | "password"> = {
   // The Hub doesn’t say which of the two is wrong, so neither do we.
   [RefusalReason.WRONG_EMAIL_OR_PASSWORD]: () => ({
