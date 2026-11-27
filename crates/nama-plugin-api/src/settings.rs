@@ -4,9 +4,10 @@
 //! enables the Plugin, fills in defaults, and hands the result to [`Plugin::register`] through
 //! [`Registrar::settings`]. Changing settings means enabling the Plugin again.
 //!
-//! A [`SettingKind::Choice`] setting is picked from what the Plugin's [`SettingsCheck`] offers, such
-//! as a quality profile only the outside service knows. The Kernel runs the check only when an
-//! admin asks, never to enable the Plugin, so the outside service being down can't stop it.
+//! A [`SettingKind::Choice`] setting is picked from its own [`SettingField::choices`], or from what
+//! the Plugin's [`SettingsCheck`] offers, such as a quality profile only the outside service knows.
+//! The Kernel runs the check only when an admin asks, never to enable the Plugin, so the outside
+//! service being down can't stop it.
 //!
 //! [`Manifest::settings`]: crate::Manifest::settings
 //! [`Plugin::register`]: crate::Plugin::register
@@ -48,8 +49,9 @@ pub struct SettingField {
     pub min: Option<i64>,
     /// The most an [`SettingKind::Integer`] setting may be, inclusive. Only for that kind.
     pub max: Option<i64>,
-    /// The choices a [`SettingKind::Choices`] setting offers, in the order a form shows them,
-    /// unless the Plugin's [`SettingsCheck`] offers its own for it. Only for that kind.
+    /// The choices a [`SettingKind::Choice`] or [`SettingKind::Choices`] setting offers, in the
+    /// order a form shows them, unless the Plugin's [`SettingsCheck`] offers its own for it. Only
+    /// for those kinds.
     pub choices: Vec<Choice>,
 }
 
@@ -101,7 +103,9 @@ impl SettingField {
 
     fn choices_flaw(&self) -> Option<SettingFlaw> {
         let key = || self.key.clone();
-        if self.kind != SettingKind::Choices && !self.choices.is_empty() {
+        if !matches!(self.kind, SettingKind::Choice | SettingKind::Choices)
+            && !self.choices.is_empty()
+        {
             return Some(SettingFlaw::ChoicesOnAnotherKind { key: key() });
         }
         let mut listed = HashSet::new();
@@ -115,14 +119,17 @@ impl SettingField {
                 value: choice.value.clone(),
             });
         }
-        match &self.default {
-            Some(SettingValue::Texts(default))
-                if default.iter().any(|value| !listed.contains(value)) =>
-            {
-                Some(SettingFlaw::DefaultNotAChoice { key: key() })
+        let unlisted = match &self.default {
+            Some(SettingValue::Texts(default)) => {
+                default.iter().any(|value| !listed.contains(value))
             }
-            _ => None,
-        }
+            // A Choice setting without choices of its own takes its Settings Check's.
+            Some(SettingValue::Text(default)) if self.kind == SettingKind::Choice => {
+                !listed.is_empty() && !listed.contains(default)
+            }
+            _ => false,
+        };
+        unlisted.then(|| SettingFlaw::DefaultNotAChoice { key: key() })
     }
 }
 
@@ -176,7 +183,8 @@ pub enum SettingFlaw {
         /// The setting's key.
         key: String,
     },
-    /// [`choices`](SettingField::choices) on a setting that isn't [`SettingKind::Choices`].
+    /// [`choices`](SettingField::choices) on a setting that isn't [`SettingKind::Choice`] or
+    /// [`SettingKind::Choices`].
     ChoicesOnAnotherKind {
         /// The setting's key.
         key: String,
@@ -221,7 +229,7 @@ impl fmt::Display for SettingFlaw {
             }
             Self::ChoicesOnAnotherKind { key } => write!(
                 f,
-                "its setting {key} has choices, which only a Choices setting may"
+                "its setting {key} has choices, which only a Choice or Choices setting may"
             ),
             Self::ChoiceRepeated { key, value } => {
                 write!(f, "its setting {key} lists the choice {value:?} twice")
@@ -250,7 +258,8 @@ pub enum SettingKind {
     Bool,
     /// A whole number.
     Integer,
-    /// Text picked from the choices the Plugin's [`SettingsCheck`] offers.
+    /// Text picked from the setting's [`SettingField::choices`], or from those the Plugin's
+    /// [`SettingsCheck`] offers, which replace them.
     Choice,
     /// An http or https URL with a host, such as a Sonarr address. An Installed Plugin may send
     /// HTTP requests to its host.

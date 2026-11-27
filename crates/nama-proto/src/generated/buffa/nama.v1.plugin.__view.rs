@@ -2762,8 +2762,8 @@ impl ::serde::Serialize for TestPluginSettingsRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct TestPluginSettingsResponseView<'a> {
-    /// The choices for each `SETTING_KIND_CHOICE` setting, and each `SETTING_KIND_CHOICES` setting
-    /// the check offers its own for, by key.
+    /// The choices for each `SETTING_KIND_CHOICE` setting listing no `Setting.choices`, and each
+    /// choice setting listing some the check offers its own for, by key.
     ///
     /// Field 1: `choices` (map)
     pub choices: ::buffa::MapView<
@@ -3088,8 +3088,8 @@ impl TestPluginSettingsResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The choices for each `SETTING_KIND_CHOICE` setting, and each `SETTING_KIND_CHOICES` setting
-    /// the check offers its own for, by key.
+    /// The choices for each `SETTING_KIND_CHOICE` setting listing no `Setting.choices`, and each
+    /// choice setting listing some the check offers its own for, by key.
     ///
     /// Field 1: `choices` (map)
     #[must_use]
@@ -8587,8 +8587,9 @@ pub struct SettingView<'a> {
     pub min_value: ::core::option::Option<i64>,
     /// Field 10: `max_value`
     pub max_value: ::core::option::Option<i64>,
-    /// The choices a SETTING_KIND_CHOICES setting offers, in the order a form shows them, unless
-    /// `TestPluginSettings` offers others for it. Empty for other kinds.
+    /// The choices a SETTING_KIND_CHOICE or SETTING_KIND_CHOICES setting offers, in the order a form
+    /// shows them, unless `TestPluginSettings` offers others for it. Empty for other kinds, and for a
+    /// SETTING_KIND_CHOICE setting whose choices only its settings check offers.
     ///
     /// Field 11: `choices`
     pub choices: ::buffa::RepeatedView<'a, super::super::__buffa::view::ChoiceView<'a>>,
@@ -9138,8 +9139,9 @@ impl SettingOwnedView {
     pub fn max_value(&self) -> ::core::option::Option<i64> {
         self.0.reborrow().max_value
     }
-    /// The choices a SETTING_KIND_CHOICES setting offers, in the order a form shows them, unless
-    /// `TestPluginSettings` offers others for it. Empty for other kinds.
+    /// The choices a SETTING_KIND_CHOICE or SETTING_KIND_CHOICES setting offers, in the order a form
+    /// shows them, unless `TestPluginSettings` offers others for it. Empty for other kinds, and for a
+    /// SETTING_KIND_CHOICE setting whose choices only its settings check offers.
     ///
     /// Field 11: `choices`
     #[must_use]

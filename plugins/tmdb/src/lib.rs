@@ -13,6 +13,7 @@
 mod client;
 #[cfg(feature = "testing")]
 pub mod testing;
+mod translations;
 mod wire;
 
 use std::sync::Arc;
@@ -101,15 +102,15 @@ impl Plugin for Tmdb {
                 SettingField {
                     key: LANGUAGE.to_owned(),
                     label: "Language".to_owned(),
-                    description: "The language titles and overviews are fetched in, as an IETF tag such as en-US or de-DE. Its country, such \
-                                  as US, picks the Content Rating."
+                    description: "The language titles and overviews are fetched in. Its country, \
+                                  such as the United States, picks the Content Rating."
                         .to_owned(),
-                    kind: SettingKind::Text,
+                    kind: SettingKind::Choice,
                     required: false,
                     default: Some(SettingValue::Text(DEFAULT_LANGUAGE.to_owned())),
                     min: None,
                     max: None,
-                    choices: Vec::new(),
+                    choices: translations::choices(),
                 },
                 SettingField {
                     key: BOX_SET_MOVIES.to_owned(),

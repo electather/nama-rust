@@ -131,6 +131,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `WatchSyncService` 2.1.0 adds `show_ids`, `season_number` and `episode_number` to `SyncedWatchState`: the Kernel tells an Episode Matched in a Library with its Show's every id, its season and its number, for a tracker that finds an Episode by them. A Plugin built before skips them.
   `WatchSyncService` 2.2.0 adds `personal_settings` to `Scrobbled` and `Imported`: tokens a Plugin renewed during the call, which the Kernel keeps in place of the User's SECRET Personal settings already stored under those keys, and drops for any other key. A Plugin built before gives none.
   `HomeRowService` 1.6.0 adds `library_id` to `HomeRow`: the Library its heading opens, such as the one whose titles it lists, linked only for a User who sees it. A Plugin built before gives none, and its headings stay plain.
+  `CONTRACT_VERSION` 0.6.15: `SettingField.choices` may list the choices of a `SETTING_KIND_CHOICE` setting too, under the same rules, so it can be picked before `check_settings()` passes, or with no such export; a Server checks a saved value against them, and the choices `check_settings()` offers for the setting replace them. A Plugin built before lists none and works as it did.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

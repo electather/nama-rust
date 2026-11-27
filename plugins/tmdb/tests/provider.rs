@@ -113,6 +113,32 @@ fn the_api_key_is_a_required_secret_setting() {
 }
 
 #[test]
+fn the_language_is_picked_from_tmdbs_translations_and_defaults_to_en_us() {
+    let schema = Tmdb::new().manifest().settings;
+
+    let language = (schema.fields.iter())
+        .find(|field| field.key == "language")
+        .unwrap();
+    let listed: Vec<_> = (language.choices.iter())
+        .map(|choice| (choice.value.as_str(), choice.label.as_str()))
+        .collect();
+    assert_eq!(language.kind, SettingKind::Choice);
+    assert!(
+        listed.contains(&("en-US", "English (United States)")),
+        "{listed:?}"
+    );
+    assert!(
+        listed.contains(&("de-DE", "German (Germany)")),
+        "{listed:?}"
+    );
+    assert_eq!(
+        language.default,
+        Some(SettingValue::Text("en-US".to_owned()))
+    );
+    assert_eq!(language.flaw(), None);
+}
+
+#[test]
 fn the_manifest_says_where_to_get_an_api_key_and_gives_its_links_and_licence() {
     let manifest = Tmdb::new().manifest();
 
