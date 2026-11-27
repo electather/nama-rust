@@ -35,17 +35,15 @@ use refreshes::{Refreshes, Scope};
 use rows::Rows;
 
 use crate::{
-    content_ratings::MaximumAge,
     db::{self, Database},
-    library::{self, Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
+    library::{
+        self, Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer, Whereabouts,
+    },
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{Listed, Requests},
     server_settings::HomeRowId,
-    users::{
-        LibraryAccess, User, library_access, maximum_age, personal_settings_of,
-        split_personal_settings,
-    },
+    users::{Reach, User, personal_settings_of, reach, split_personal_settings},
 };
 
 /// The most rows of one answer home shows: a Plugin's shared rows, or its rows for one User.
@@ -186,11 +184,10 @@ impl HomeRows {
         let titles: Vec<Title> = (served.iter())
             .flat_map(|(_, row)| row.titles.iter().cloned())
             .collect();
-        let seen = library_access(&self.db, reader.id).await?;
-        let max_age = maximum_age(&self.db, reader.id).await?;
-        let on_server = self.on_server(&titles, &seen, max_age).await?;
+        let reach = reach(&self.db, reader.id).await?;
+        let on_server = self.on_server(&titles, &reach).await?;
         Ok((served.into_iter())
-            .filter(|(_, row)| !shown(row, &on_server, may_request(reader, max_age)).is_empty())
+            .filter(|(_, row)| !shown(row, &on_server, may_request(reader, &reach)).is_empty())
             .collect())
     }
 
@@ -210,13 +207,12 @@ impl HomeRows {
         let row = Rows(self.clone())
             .stored_row(reader.id, plugin, key)
             .await?;
-        let seen = library_access(&self.db, reader.id).await?;
-        let max_age = maximum_age(&self.db, reader.id).await?;
-        let on_server = self.on_server(&row.titles, &seen, max_age).await?;
+        let reach = reach(&self.db, reader.id).await?;
+        let on_server = self.on_server(&row.titles, &reach).await?;
         // ponytail: pages in memory over at most `MAX_TITLES`, by place in the stored row, so a
         // refresh between two pages can skip or repeat a title. Store the rows' titles as rows
         // of their own if a row ever grows.
-        let shown = shown(&row, &on_server, may_request(reader, max_age));
+        let shown = shown(&row, &on_server, may_request(reader, &reach));
         let total = shown.len();
         let mut listed: Vec<_> = (shown.into_iter())
             .filter(|&(place, _)| page.after.is_none_or(|((), after)| place > after))
@@ -253,9 +249,8 @@ impl HomeRows {
             })
             .collect();
         let named: Vec<Title> = titles.iter().map(|(_, title)| title.clone()).collect();
-        let max_age = maximum_age(&self.db, reader.id).await?;
-        let seen = library_access(&self.db, reader.id).await?;
-        let on_server = self.on_server(&named, &seen, max_age).await?;
+        let reach = reach(&self.db, reader.id).await?;
+        let on_server = self.on_server(&named, &reach).await?;
         let rows = Rows(self.clone());
         // ponytail: one title-source call per missing title, at every listing; keep what was
         // looked up if Watchlists grow long.
@@ -263,11 +258,12 @@ impl HomeRows {
             .filter(|(_, title)| !on_server.contains_key(title))
             .map(|(_, title)| rows.look_up(title));
         let mut looked_up = join_all(look_ups).await.into_iter();
-        let may_request = may_request(reader, max_age);
+        let may_request = may_request(reader, &reach);
         let mut shown = Vec::with_capacity(titles.len());
         for (id, title) in titles {
             let row_title = match on_server.get(&title) {
-                Some(found) => found.clone().map(RowTitle::OnServer),
+                Some(Whereabouts::In(found)) => Some(RowTitle::OnServer(found.clone())),
+                Some(Whereabouts::KeptFrom | Whereabouts::Nowhere) => None,
                 None => match looked_up.next() {
                     Some(Ok(missing)) => missing
                         .filter(&may_request)
@@ -371,21 +367,18 @@ impl HomeRows {
             .await
     }
 
-    /// Those of `titles` that are on the Server, each in the oldest Library `seen` keeps that has
-    /// it, or `None` where only Libraries it doesn't keep have it, or `max_age` keeps it out.
+    /// Where each of `titles` that a Library holds is for a User whose Reach is `reach`. One no
+    /// Library holds is left out.
     async fn on_server(
         &self,
         titles: &[Title],
-        seen: &LibraryAccess,
-        max_age: MaximumAge,
-    ) -> Result<HashMap<Title, Option<OnServer>>, Error> {
+        reach: &Reach,
+    ) -> Result<HashMap<Title, Whereabouts>, Error> {
         let mut found = HashMap::new();
         if titles.is_empty() {
             return Ok(found);
         }
-        let mut libraries = self.libraries.list().await?;
-        // `find` takes each title from the first Library that has it, so those seen go first.
-        libraries.sort_by_key(|library| !seen.sees(library.id));
+        let libraries = self.libraries.list().await?;
         for (kind, in_libraries) in [
             (Kind::Movie, LibraryKind::Movies),
             (Kind::Show, LibraryKind::Shows),
@@ -394,12 +387,12 @@ impl HomeRows {
                 .filter(|title| title.0 == kind)
                 .filter_map(Title::id)
                 .collect();
-            let on_server = OnServer::find(&self.contents, &libraries, in_libraries, &ids).await?;
-            found.extend((on_server.into_iter()).map(|(id, title)| {
-                let shown = (seen.sees(title.library()) && max_age.allows(title.content_rating()))
-                    .then_some(title);
-                (Title(kind, id.to_string()), shown)
-            }));
+            let placed =
+                Whereabouts::of_titles(&self.contents, &libraries, reach, in_libraries, &ids)
+                    .await?;
+            found.extend(
+                (placed.into_iter()).map(|(id, placed)| (Title(kind, id.to_string()), placed)),
+            );
         }
         Ok(found)
     }
@@ -469,7 +462,7 @@ fn answered<R>(answer: Option<Answer<R>>, scope: &Scope, noun: &str) -> Option<R
 /// twice, or by two of its ids, shows once, at its first place.
 fn shown(
     row: &Row,
-    on_server: &HashMap<Title, Option<OnServer>>,
+    on_server: &HashMap<Title, Whereabouts>,
     may_request: impl Fn(&Missing) -> bool,
 ) -> Vec<(i64, RowTitle)> {
     let missing: HashMap<&Title, &Missing> = (row.missing.iter())
@@ -479,12 +472,11 @@ fn shown(
     (row.titles.iter().zip(0..))
         .filter_map(|(title, place)| {
             let shown = match on_server.get(title) {
-                Some(Some(found)) => RowTitle::OnServer(found.clone()),
-                None => (missing.get(title))
+                Some(Whereabouts::In(found)) => RowTitle::OnServer(found.clone()),
+                Some(Whereabouts::Nowhere) | None => (missing.get(title))
                     .filter(|missing| may_request(missing))?
                     .row_title()?,
-                // Only a Library the reader doesn't see has it, or their Maximum Age keeps it out.
-                Some(None) => return None,
+                Some(Whereabouts::KeptFrom) => return None,
             };
             Some((place, shown))
         })
@@ -492,11 +484,11 @@ fn shown(
         .collect()
 }
 
-/// Whether `reader`, whose Maximum Age is `max_age`, may Request a missing title.
-fn may_request(reader: &User, max_age: MaximumAge) -> impl Fn(&Missing) -> bool {
-    let permissions = reader.permissions;
+/// Whether `reader`, whose Reach is `reach`, may Request a missing title.
+fn may_request(reader: &User, reach: &Reach) -> impl Fn(&Missing) -> bool {
+    let (permissions, reach) = (reader.permissions, reach.clone());
     move |missing| {
-        max_age.allows(missing.content_rating.as_deref())
+        reach.allows_rating(missing.content_rating.as_deref())
             && match missing.title.0 {
                 Kind::Movie => permissions.allow(Permission::RequestMovie),
                 Kind::Show => permissions.allow(Permission::RequestTv),

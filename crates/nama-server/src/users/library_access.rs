@@ -1,20 +1,12 @@
 //! Which Libraries each User sees: every one, or a chosen list an Admin keeps (`user_libraries`).
 
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
+use std::collections::{BTreeSet, HashMap};
 
 use nama_proto::nama::v1::Permission;
 use sqlx::SqliteConnection;
 
-use super::{Error, Permissions, User, Users, ensure_may_change, until_heard};
+use super::{Error, Permissions, User, Users, ensure_may_change};
 use crate::db::{Database, now};
-
-/// How many Library access changes may happen before a waiter in
-/// [`Users::library_access_watched`] has seen them. One that falls further behind reads its User's
-/// Library access instead.
-pub(super) const LIBRARY_ACCESS_CHANGES_BUFFERED: usize = 64;
 
 /// Which Libraries a User sees.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +29,7 @@ impl LibraryAccess {
 
 /// The Libraries the User `user` sees. One who may Manage Libraries sees every one, whatever an
 /// Admin chose, since they can read and change any Library anyway; one who isn't there sees none.
-pub(crate) async fn library_access(db: &Database, user: i64) -> Result<LibraryAccess, sqlx::Error> {
+pub(super) async fn library_access(db: &Database, user: i64) -> Result<LibraryAccess, sqlx::Error> {
     let mut conn = db.reader().acquire().await?;
     match access_row(&mut conn, user).await? {
         Some(row) if row.sees_every_library() => Ok(LibraryAccess::All),
@@ -112,33 +104,12 @@ impl Users {
         Ok(chosen)
     }
 
-    /// The Libraries the User `user` sees now, and a future that resolves once their Library
-    /// access is set again, so whatever they opened under it can end, to be opened again under the
-    /// new one. It resolves at once if their access no longer reads the same, or can't be read.
-    pub(crate) async fn library_access_watched(
-        &self,
-        user: i64,
-    ) -> Result<(LibraryAccess, impl Future<Output = ()> + Send + use<>), sqlx::Error> {
-        // Listening before reading means no change falls between the two.
-        let changes = self.library_access_changes.subscribe();
-        let seen = library_access(&self.db, user).await?;
-        let (db, held) = (Arc::clone(&self.db), seen.clone());
-        let set_again = until_heard(changes, user, async move || {
-            let read = library_access(&db, user).await;
-            read.inspect_err(|err| {
-                tracing::error!("could not look up a User's Library access: {err}");
-            })
-            .is_ok_and(|read| read == held)
-        });
-        Ok((seen, set_again))
-    }
-
     /// Gives the User `user` `access`, as `by` asks, leaving out an id no Library has, unless it's
     /// a chosen list for one holding `PERMISSION_MANAGE_USERS`
     /// ([`ensure_a_user_manager_sees_every_library`]). Without `PERMISSION_ADMIN`, `by` may change
     /// neither an Admin's nor their own, so a capped User can't lift theirs. It applies from their
     /// next request, which reads it afresh. Once the change commits,
-    /// [`Self::library_access_watched`]'s future resolves for them.
+    /// [`Self::reach_watched`]'s future resolves for them.
     pub(crate) async fn set_library_access(
         &self,
         by: &User,
@@ -149,11 +120,7 @@ impl Users {
             return Err(Error::AdminRequired);
         }
         let by = by.clone();
-        let changes = self.library_access_changes.clone();
-        let tell_waiters = move || {
-            // Fails only when nobody is waiting, which is fine.
-            let _: Result<usize, _> = changes.send(user);
-        };
+        let tell_waiters = self.tell_reach_changed(user);
         self.db
             .write_then(
                 move |tx| {

@@ -36,6 +36,7 @@ mod permissions;
 mod personal_settings;
 mod proved;
 mod rate_limits;
+mod reach;
 mod seeing;
 mod sessions;
 mod sign_in;
@@ -55,14 +56,11 @@ pub(crate) use inbox::{
     store as store_in_inbox, unread as count_unread_in_inbox,
 };
 pub(crate) use invites::Invite;
-use library_access::LIBRARY_ACCESS_CHANGES_BUFFERED;
-pub(crate) use library_access::{LibraryAccess, library_access};
+pub(crate) use library_access::LibraryAccess;
 use managing::{
     PERMISSION_CHANGES_BUFFERED, default_permissions, ensure_may_change, ensure_may_grant,
 };
 pub(crate) use managing::{every_user, remote_cap};
-use maximum_age::MAXIMUM_AGE_CHANGES_BUFFERED;
-pub(crate) use maximum_age::maximum_age;
 use names::checked_name;
 pub(crate) use names::name_key;
 pub(crate) use notification_preferences::{
@@ -80,6 +78,8 @@ pub(crate) use personal_settings::{
 };
 pub(crate) use proved::Proved;
 pub(crate) use rate_limits::Blocked;
+use reach::REACH_CHANGES_BUFFERED;
+pub(crate) use reach::{Reach, reach};
 pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{
     cleared_session_cookie, identify_caller, in_session_cookie, session_cookie, session_token,
@@ -118,8 +118,7 @@ pub struct Users {
     linking: Linking,
     sign_outs: broadcast::Sender<i64>,
     permission_changes: broadcast::Sender<i64>,
-    library_access_changes: broadcast::Sender<i64>,
-    maximum_age_changes: broadcast::Sender<i64>,
+    reach_changes: broadcast::Sender<i64>,
 }
 
 /// A User as clients see it.
@@ -346,8 +345,7 @@ impl Users {
     /// The Users kept in `db`, whose passwords the Authenticator enabled in `plugins` checks.
     ///
     /// A Server builds one and clones it: a second has its own channels, so it neither hears nor
-    /// tells the first about sign-outs, Permission changes, Library access changes and Maximum Age
-    /// changes (`users/AGENTS.md`).
+    /// tells the first about sign-outs, Permission changes and Reach changes (`users/AGENTS.md`).
     #[must_use]
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
@@ -356,8 +354,7 @@ impl Users {
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
-            library_access_changes: broadcast::channel(LIBRARY_ACCESS_CHANGES_BUFFERED).0,
-            maximum_age_changes: broadcast::channel(MAXIMUM_AGE_CHANGES_BUFFERED).0,
+            reach_changes: broadcast::channel(REACH_CHANGES_BUFFERED).0,
         }
     }
 

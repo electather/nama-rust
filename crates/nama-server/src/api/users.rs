@@ -33,7 +33,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::Browse,
+    browse::Browsing,
     connections::{self, Connections},
     content_ratings::MaximumAge,
     db::Database,
@@ -84,7 +84,7 @@ pub(super) struct UserServiceHandler {
     /// Asked to Link the caller to an Account, and to Unlink a deleted User.
     pub(super) linking: Linking,
     /// Lists each Library's Recently Added row for a User's Home layout.
-    pub(super) browse: Browse,
+    pub(super) browse: Browsing,
 }
 
 #[expect(

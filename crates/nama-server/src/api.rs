@@ -12,7 +12,7 @@ use tower::Layer as _;
 
 use crate::{
     backup::Backups,
-    browse::{Browse, TitlePages},
+    browse::{Browsing, TitlePages},
     config::Config,
     connections::Connections,
     db::Database,
@@ -150,7 +150,7 @@ pub(crate) fn router(
     let similar = SimilarSources::new(plugins.clone());
     let pages = TitlePages::new(
         Arc::clone(&db),
-        Browse::new(Arc::clone(&db), plugins.clone()),
+        Browsing::new(Arc::clone(&db), plugins.clone()),
         requests.clone(),
         similar,
     );
@@ -160,7 +160,7 @@ pub(crate) fn router(
             name: config.name.clone(),
             users: users.clone(),
             linking: users.linking().clone(),
-            browse: Browse::new(Arc::clone(&db), plugins.clone()),
+            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
             settings: settings.clone(),
             abilities,
             ffmpeg,
@@ -191,7 +191,7 @@ pub(crate) fn router(
             artwork: artwork.clone(),
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
-            browse: Browse::new(Arc::clone(&db), plugins.clone()),
+            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
             pages: pages.clone(),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
@@ -199,12 +199,12 @@ pub(crate) fn router(
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(search::SearchServiceHandler {
-            browse: Browse::new(Arc::clone(&db), plugins.clone()),
+            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
             requests: requests.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
-            browse: Browse::new(Arc::clone(&db), plugins.clone()),
+            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
             running,
         }))
         .add_service(Arc::new(inbox::InboxServiceHandler {
@@ -249,7 +249,7 @@ pub(crate) fn router(
             title_sources: TitleSources::new(plugins.clone()),
             plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
-            db: Arc::clone(&db),
+            browse: Browsing::new(Arc::clone(&db), plugins.clone()),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
             events,
@@ -262,7 +262,7 @@ pub(crate) fn router(
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
             linking: users.linking().clone(),
-            browse: Browse::new(Arc::clone(&db), plugins),
+            browse: Browsing::new(Arc::clone(&db), plugins),
             db,
             server_url,
             home_rows,

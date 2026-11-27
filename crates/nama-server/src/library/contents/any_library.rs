@@ -1,4 +1,5 @@
-//! Where a title is Matched in any Library, which Requests, Custom Images and Watch sync ask.
+//! Where a title is Matched in any Library, which Requests, Custom Images, Watch sync and
+//! `Whereabouts` ask.
 
 use std::collections::HashSet;
 
@@ -6,6 +7,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
 use super::{Contents, ids_from_json, ids_sql};
+use crate::library::TitleKind;
 
 /// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any, read
 /// on `conn` so a write can act on the answer before a scan changes it.
@@ -13,23 +15,8 @@ pub(crate) async fn library_with_movie(
     conn: &mut SqliteConnection,
     id: &ExternalId,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let (namespace, value) = (id.namespace(), id.value());
-    sqlx::query_scalar!(
-        r#"SELECT MIN(library_files.library_id) AS "library: i64"
-           FROM item_match_ids
-           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-           JOIN library_items ON library_items.id = item_matches.item_id
-           JOIN library_files ON library_files.id = library_items.file_id
-           WHERE item_match_ids.scope = 'title'
-             AND item_match_ids.namespace = ?
-             AND item_match_ids.value = ?
-             AND item_matches.state = 'matched'
-             AND library_items.kind = 'movie'"#,
-        namespace,
-        value
-    )
-    .fetch_one(&mut *conn)
-    .await
+    let copies = copies_of(conn, TitleKind::Movie, id).await?;
+    Ok(copies.first().map(|&(library, _)| library))
 }
 
 /// The oldest Library with an Episode Matched to the Show `id`, by any of its ids, if any.
@@ -37,23 +24,45 @@ pub(crate) async fn library_with_show(
     conn: &mut SqliteConnection,
     id: &ExternalId,
 ) -> Result<Option<i64>, sqlx::Error> {
+    let copies = copies_of(conn, TitleKind::Show, id).await?;
+    Ok(copies.first().map(|&(library, _)| library))
+}
+
+/// Each Library with the title of `kind` known by `id` Matched, by any of its ids, oldest first,
+/// with each Content Rating its Matches there store, an Episode's its Show's. Read on `conn` so a
+/// write can act on the answer before a scan changes it.
+pub(crate) async fn copies_of(
+    conn: &mut SqliteConnection,
+    kind: TitleKind,
+    id: &ExternalId,
+) -> Result<Vec<(i64, Option<String>)>, sqlx::Error> {
+    let (scope, item_kind) = match kind {
+        TitleKind::Movie => ("title", "movie"),
+        TitleKind::Show => ("show", "episode"),
+    };
     let (namespace, value) = (id.namespace(), id.value());
-    sqlx::query_scalar!(
-        r#"SELECT MIN(library_files.library_id) AS "library: i64"
+    let copies = sqlx::query!(
+        r#"SELECT DISTINCT library_files.library_id AS "library!", item_matches.content_rating
            FROM item_match_ids
            JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
            JOIN library_items ON library_items.id = item_matches.item_id
            JOIN library_files ON library_files.id = library_items.file_id
-           WHERE item_match_ids.scope = 'show'
+           WHERE item_match_ids.scope = ?
              AND item_match_ids.namespace = ?
              AND item_match_ids.value = ?
              AND item_matches.state = 'matched'
-             AND library_items.kind = 'episode'"#,
+             AND library_items.kind = ?
+           ORDER BY library_files.library_id"#,
+        scope,
         namespace,
-        value
+        value,
+        item_kind
     )
-    .fetch_one(&mut *conn)
-    .await
+    .fetch_all(&mut *conn)
+    .await?;
+    Ok((copies.into_iter())
+        .map(|copy| (copy.library, copy.content_rating))
+        .collect())
 }
 
 /// The numbers of the Episodes of Season `season` of the Show `show`, by any of its ids,

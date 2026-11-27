@@ -21,8 +21,7 @@ use nama_plugin_api::{
     job::Job,
     metadata::{ExternalId, InvalidId, SourceManifest},
     settings::{
-        SettingField, SettingFlaw, SettingKind, SettingValue, Settings, SettingsSchema,
-        in_listed_order,
+        SettingField, SettingKind, SettingValue, Settings, SettingsSchema, in_listed_order,
     },
 };
 use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire, services};
@@ -289,7 +288,7 @@ fn manifest(
 ) -> Result<Manifest, Refused> {
     let settings = settings_schema(package)?;
     if let Some(flaw) = settings.unoffered_choices(exported.contains(&CHECK_SETTINGS)) {
-        return Err(refused_for(flaw));
+        return Err(Refused::Setting(flaw));
     }
     let personal_settings = schema(&package.personal_settings)?;
     let permissions = package
@@ -634,27 +633,13 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
             .collect(),
     };
     if let Some(flaw) = field.flaw() {
-        return Err(refused_for(flaw));
+        return Err(Refused::Setting(flaw));
     }
     // Shaped as a save would store it, so the Plugin and the form never see a repeat.
     if let Some(SettingValue::Texts(picked)) = &mut field.default {
         *picked = in_listed_order(&field.choices, picked);
     }
     Ok(field)
-}
-
-/// The refusal of an Installed Plugin declaring a setting with `flaw`.
-fn refused_for(flaw: SettingFlaw) -> Refused {
-    match flaw {
-        SettingFlaw::DefaultWrongKind { key, kind } => Refused::DefaultWrongKind { key, kind },
-        SettingFlaw::BoundsOnAnotherKind { key } => Refused::BoundsOnAnotherKind { key },
-        SettingFlaw::BoundsCrossed { key, min, max } => Refused::BoundsCrossed { key, min, max },
-        SettingFlaw::DefaultOutOfBounds { key } => Refused::DefaultOutOfBounds { key },
-        SettingFlaw::ChoicesOnAnotherKind { key } => Refused::ChoicesOnAnotherKind { key },
-        SettingFlaw::ChoiceRepeated { key, value } => Refused::ChoiceRepeated { key, value },
-        SettingFlaw::DefaultNotAChoice { key } => Refused::DefaultNotAChoice { key },
-        SettingFlaw::NoChoices { key } => Refused::NoChoices { key },
-    }
 }
 
 #[cfg(test)]

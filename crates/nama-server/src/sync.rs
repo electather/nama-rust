@@ -39,7 +39,7 @@ use tokio::{
 use tracing::{Instrument, Span};
 
 use crate::{
-    browse::Browse,
+    browse::{Browse, Browsing},
     db::Database,
     diagnostics,
     events::EventBus,
@@ -70,7 +70,7 @@ impl Syncing {
     /// takes.
     pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints, users: Users) -> Self {
         Self {
-            browse: Browse::new(Arc::clone(&db), points),
+            browse: Browsing::new(Arc::clone(&db), points).everything(),
             preferences: TrackPreferences::new(Arc::clone(&db)),
             linking: users.linking().clone(),
             db,

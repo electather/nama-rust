@@ -15,5 +15,5 @@ Requests and Followed Shows: Users asking for what isn't on the Server (ADR 0012
 
 ### Neighbours
 
-- Uses: `library` (`Contents`, `Metadata`, `library_with_movie`, `library_with_show`, `matched_episodes`, `TitleSources`), `events`, `plugins` (`ExtensionPoints`, `Answer`, and asking a Fulfiller and the Search sources), `users`, `content_ratings` (`MaximumAge`), `diagnostics` (recording a Request made) and `db`.
+- Uses: `library` (`Metadata`, `Whereabouts`, `library_with_movie`, `matched_episodes`, `TitleSources`), `events`, `plugins` (`ExtensionPoints`, `Answer`, and asking a Fulfiller and the Search sources), `users` (also `Reach`), `content_ratings` (`MaximumAge`, in tests), `diagnostics` (recording a Request made) and `db`.
 - Used by: the `api` parts for Requests, Search, Plugins and the Watchlist (`follow_new_seasons`, `stop_following`), `automation` (`who_requested`, and `leave_qualities` and `qualities_left` in tests), `scanner` (deleting media, `RequestTitle`), `browse` (`RequestTitle`, and `Requests`' `look_up` and `look_up_show` for a Found title's page), `home_rows` (`listed_movie`, `listed_show`, `open_movie_request`), `plugin_settings` (`list_qualities`, `check_qualities`, `replace_qualities`, `delete_plugins_qualities`), startup in `lib.rs` and the `library` part `contents` (the ADR 0012 call).

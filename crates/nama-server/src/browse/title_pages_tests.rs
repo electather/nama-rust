@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use super::TitlePages;
 use crate::{
-    browse::{Browse, tests::ada},
+    browse::{Browsing, tests::ada},
     db::Database,
     events::EventBus,
     library::{
@@ -40,7 +40,7 @@ impl Fixture {
         let points = plugins.extension_points();
         let events = EventBus::new(Arc::clone(&db), points.clone(), ServerUrl::default());
         let requests = Requests::new(Arc::clone(&db), events, points.clone());
-        let browse = Browse::new(Arc::clone(&db), points.clone());
+        let browse = Browsing::new(Arc::clone(&db), points.clone());
         let pages = TitlePages::new(
             Arc::clone(&db),
             browse,

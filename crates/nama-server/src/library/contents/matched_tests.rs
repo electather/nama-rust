@@ -6,7 +6,7 @@ use nama_plugin_api::{
 use super::{
     super::{
         Change, Decided, ImageRef, Item, ItemKind,
-        any_library::matched_episodes,
+        any_library::{library_with_movie, matched_episodes},
         fixture::{MatchedMovie, tmdb_movie},
         match_images::StoredTitleImage,
         testing::{ALIEN, Fixture, movie},
@@ -72,7 +72,8 @@ async fn match_movie(fx: &Fixture, path: &str, ids: ExternalIds) {
 }
 
 async fn library_of(fx: &Fixture, id: &ExternalId) -> Option<i64> {
-    fx.contents.library_with_movie(id).await.unwrap()
+    let mut conn = fx.contents.db.reader().acquire().await.unwrap();
+    library_with_movie(&mut conn, id).await.unwrap()
 }
 
 async fn id_rows(fx: &Fixture) -> i64 {

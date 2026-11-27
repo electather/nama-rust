@@ -19,7 +19,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::{
-        Browse, Episode, Featured, ListedShow, Movie, Show, Started, TitlePages, Version,
+        Browse, Browsing, Episode, Featured, ListedShow, Movie, Show, Started, TitlePages, Version,
         season_count,
     },
     db::Database,
@@ -56,7 +56,7 @@ pub(super) use titles::{roles_to_proto, row_title_to_proto, trailers_to_proto};
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct BrowseServiceHandler {
-    pub(super) browse: Browse,
+    pub(super) browse: Browsing,
     /// Reads a Movie's or Show's page.
     pub(super) pages: TitlePages,
     pub(super) home_rows: HomeRows,
@@ -68,8 +68,8 @@ pub(super) struct BrowseServiceHandler {
     pub(super) db: Arc<Database>,
 }
 
-/// `browse` as the User `user` sees it: see [`Browse::seen_by`].
-pub(super) async fn seen_by(browse: &Browse, user: i64) -> Result<Browse, ConnectError> {
+/// Browse as the User `user` sees it: see [`Browsing::seen_by`].
+pub(super) async fn seen_by(browse: &Browsing, user: i64) -> Result<Browse, ConnectError> {
     browse.seen_by(user).await.map_err(database_failed)
 }
 

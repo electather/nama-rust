@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use super::heaviest;
 use crate::{
-    browse::{Browse, Featured, tests::ada},
+    browse::{Browsing, Featured, tests::ada},
     db::{self, Database},
     home_rows::Suggested,
     library::{
@@ -29,7 +29,8 @@ async fn it_never_lists_more_than_five_titles() {
         MatchedMovie::store(&contents, library, path.to_str().unwrap(), matched).await;
     }
 
-    let featured = Browse::new(Arc::clone(&db), ExtensionPoints::default())
+    let featured = Browsing::new(Arc::clone(&db), ExtensionPoints::default())
+        .everything()
         .featured(ada(&db).await, &Suggested::new())
         .await
         .unwrap();
@@ -59,7 +60,8 @@ async fn a_title_two_libraries_know_by_different_ids_is_listed_once() {
         MatchedMovie::store(&contents, library, path.to_str().unwrap(), matched).await;
     }
 
-    let featured = Browse::new(Arc::clone(&db), ExtensionPoints::default())
+    let featured = Browsing::new(Arc::clone(&db), ExtensionPoints::default())
+        .everything()
         .featured(ada(&db).await, &Suggested::new())
         .await
         .unwrap();
@@ -107,7 +109,8 @@ async fn a_plugins_suggestion_at_the_top_weight_outranks_the_kernels_and_one_it_
     ]
     .into();
 
-    let featured = Browse::new(Arc::clone(&db), ExtensionPoints::default())
+    let featured = Browsing::new(Arc::clone(&db), ExtensionPoints::default())
+        .everything()
         .featured(ada, &suggested)
         .await
         .unwrap();
@@ -120,7 +123,7 @@ async fn a_plugins_suggestion_at_the_top_weight_outranks_the_kernels_and_one_it_
 #[tokio::test]
 async fn a_plugins_suggestion_at_no_weight_shows_only_with_fewer_than_five_others() {
     let (_dirs, db, ada) = movies_added_now(6).await;
-    let browse = Browse::new(Arc::clone(&db), ExtensionPoints::default());
+    let browse = Browsing::new(Arc::clone(&db), ExtensionPoints::default()).everything();
     // Past the 14 days any of them counts as newly added, so only the Plugins weigh them.
     let later = db::now() + 15 * 24 * 60 * 60;
     let at = |weights: &[(i64, f64)]| -> Suggested {

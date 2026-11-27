@@ -14,9 +14,8 @@ use super::followed::load_followed;
 use super::quality::stored_quality;
 use super::state::{open_request, open_requests, open_season_requests, read_state, stored};
 use super::{Error, Requests};
-use crate::content_ratings::MaximumAge;
 use crate::page::Page;
-use crate::users::{User, maximum_age, may_see};
+use crate::users::{Reach, User, may_see, reach};
 
 /// The client API's id `value` in `namespace`.
 pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
@@ -66,22 +65,23 @@ macro_rules! listed_sql {
 /// Their own stay, as they asked while it let them.
 struct Seen {
     whose: Option<i64>,
-    /// The stored Content Ratings their Maximum Age lets through, as a JSON array, or `None` to
-    /// let every one through. Judged in Rust, as `minimum_age` is, for SQL to match.
+    /// The stored Content Ratings their Reach lets through ([`Reach::kept_ratings`]), as a JSON
+    /// array, or `None` to let every one through. Judged in Rust, as `minimum_age` is, for SQL to
+    /// match.
     ratings: Option<String>,
     allow_unrated: bool,
     viewer: i64,
 }
 
 impl Seen {
-    /// What `viewer`, whose Maximum Age is `max_age`, sees, read in the snapshot `conn` is in.
+    /// What `viewer`, whose Reach is `reach`, sees, read in the snapshot `conn` is in.
     async fn read(
         conn: &mut SqliteConnection,
         viewer: &User,
-        max_age: MaximumAge,
+        reach: &Reach,
     ) -> Result<Self, sqlx::Error> {
         let whose = viewer.whose_requests();
-        let ratings = if whose.is_some() || max_age.lets_every_title() {
+        let ratings = if whose.is_some() || reach.lets_every_rating() {
             None
         } else {
             let stored = sqlx::query_scalar!(
@@ -92,13 +92,13 @@ impl Seen {
             )
             .fetch_all(conn)
             .await?;
-            let allowed = stored.iter().filter(|rating| max_age.allows(Some(rating)));
-            Some(serde_json::Value::from_iter(allowed.map(String::as_str)).to_string())
+            let kept = reach.kept_ratings(stored);
+            kept.map(|kept| serde_json::Value::from(kept).to_string())
         };
         Ok(Self {
             whose,
             ratings,
-            allow_unrated: max_age.allow_unrated,
+            allow_unrated: reach.allows_unrated(),
             viewer: viewer.id,
         })
     }
@@ -120,10 +120,10 @@ impl Requests {
         let state = state.map(stored);
         let list = format!("ListRequests {}", state.unwrap_or_default());
         let page = Page::<Place>::read(asked, list.as_bytes())?;
-        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let reach = reach(&self.db, viewer.id).await?;
         // One snapshot, so the count, the page and its rows agree.
         let mut tx = self.db.reader().begin().await?;
-        let seen = Seen::read(&mut tx, viewer, max_age).await?;
+        let seen = Seen::read(&mut tx, viewer, &reach).await?;
         let mut rows = page_rows(&mut tx, &seen, state, &page).await?;
         let mut paging = page.finish(&mut rows, |row| ((row.created_at, row.is_request), row.id));
         if page.is_first() {
@@ -138,7 +138,7 @@ impl Requests {
         // each for Requests and Followed Shows if pages get slow.
         for row in rows {
             if row.is_request {
-                let request = (self.visible_under(&mut tx, Some(row.id), viewer, max_age)).await?;
+                let request = (self.visible_under(&mut tx, Some(row.id), viewer, &reach)).await?;
                 listed.requests.extend(request);
             } else {
                 let followed = load_followed(&mut tx, Some(row.id), None).await?;
@@ -151,9 +151,9 @@ impl Requests {
     /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
     /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
     pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
-        let max_age = maximum_age(&self.db, viewer.id).await?;
+        let reach = reach(&self.db, viewer.id).await?;
         let mut tx = self.db.reader().begin().await?;
-        let seen = Seen::read(&mut tx, viewer, max_age).await?;
+        let seen = Seen::read(&mut tx, viewer, &reach).await?;
         count(&mut tx, &seen, Some(stored(RequestState::Pending))).await
     }
 
@@ -225,31 +225,31 @@ impl Requests {
     /// with what its Fulfiller is downloading for it.
     ///
     /// The one read of a Request for a viewer, so none misses its downloads or the viewer's
-    /// Maximum Age.
+    /// Reach.
     async fn visible(
         &self,
         conn: &mut SqliteConnection,
         id: Option<i64>,
         viewer: &User,
     ) -> Result<Vec<Request>, sqlx::Error> {
-        let max_age = maximum_age(&self.db, viewer.id).await?;
-        self.visible_under(conn, id, viewer, max_age).await
+        let reach = reach(&self.db, viewer.id).await?;
+        self.visible_under(conn, id, viewer, &reach).await
     }
 
-    /// [`Self::visible`], for a viewer whose Maximum Age is `max_age`.
+    /// [`Self::visible`], for a viewer whose Reach is `reach`.
     async fn visible_under(
         &self,
         conn: &mut SqliteConnection,
         id: Option<i64>,
         viewer: &User,
-        max_age: MaximumAge,
+        reach: &Reach,
     ) -> Result<Vec<Request>, sqlx::Error> {
         let mut visible = Vec::new();
         for request in load(conn, id, viewer.whose_requests()).await? {
             if title_seen(
                 conn,
                 viewer,
-                max_age,
+                reach,
                 Asked::Request,
                 request.id,
                 &request.requesters,

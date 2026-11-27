@@ -6,7 +6,7 @@ use std::sync::Arc;
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::Permission;
 
-use super::{Browse, Error, Movie, SeenBoxSet, Show};
+use super::{Browse, Browsing, Error, Movie, SeenBoxSet, Show};
 use crate::{
     db::Database,
     library::{
@@ -70,7 +70,7 @@ pub(crate) enum FoundPageError {
 /// Reads what a title's page shows a User.
 #[derive(Debug, Clone)]
 pub(crate) struct TitlePages {
-    pub(super) browse: Browse,
+    pub(super) browsing: Browsing,
     /// Looks up Found titles, and the open Requests of a Box Set's missing Movies.
     pub(super) requests: Requests,
     similar: SimilarSources,
@@ -80,24 +80,16 @@ pub(crate) struct TitlePages {
 impl TitlePages {
     pub(crate) fn new(
         db: Arc<Database>,
-        browse: Browse,
+        browsing: Browsing,
         requests: Requests,
         similar: SimilarSources,
     ) -> Self {
         Self {
-            browse,
+            browsing,
             requests,
             similar,
             db,
         }
-    }
-
-    /// These pages as the User `user` sees them, in only the Libraries they see.
-    pub(super) async fn seen_by(&self, user: &User) -> Result<Self, Error> {
-        Ok(Self {
-            browse: self.browse.seen_by(user.id).await?,
-            ..self.clone()
-        })
     }
 
     /// The page of the Movie `id` of the Movies Library `library`, as `user` sees it.
@@ -107,15 +99,15 @@ impl TitlePages {
         library: i64,
         id: &ExternalId,
     ) -> Result<MoviePage, Error> {
-        let seen = self.seen_by(user).await?;
-        let (movie, state, read_only_folder) = seen.browse.movie(user.id, library, id).await?;
+        let browse = self.browsing.seen_by(user.id).await?;
+        let (movie, state, read_only_folder) = browse.movie(user.id, library, id).await?;
         Ok(MoviePage {
-            on_watchlist: seen
+            on_watchlist: self
                 .on_watchlist(user, TitleKind::Movie, &movie.ids)
                 .await?,
-            similar: seen.stored_similar(TitleKind::Movie, &movie.ids).await?,
-            roles: seen.browse.contents.movie_roles(&movie).await?,
-            box_set: seen.box_set_of(user, &movie).await?,
+            similar: (self.stored_similar(&browse, TitleKind::Movie, &movie.ids)).await?,
+            roles: browse.contents.movie_roles(&movie).await?,
+            box_set: self.box_set_of(&browse, user, &movie).await?,
             read_only_folder: read_only_folder
                 .filter(|_| user.permissions.allow(Permission::DeleteMedia)),
             movie,
@@ -130,13 +122,13 @@ impl TitlePages {
         library: i64,
         id: &ExternalId,
     ) -> Result<ShowPage, Error> {
-        let seen = self.seen_by(user).await?;
-        let show = seen.browse.show(library, id).await?;
+        let browse = self.browsing.seen_by(user.id).await?;
+        let show = browse.show(library, id).await?;
         Ok(ShowPage {
-            on_watchlist: seen.on_watchlist(user, TitleKind::Show, &show.ids).await?,
-            roles: seen.browse.contents.show_roles(&show).await?,
-            aired_episodes: seen.browse.contents.aired_episodes(&show).await?,
-            similar: seen.stored_similar(TitleKind::Show, &show.ids).await?,
+            on_watchlist: self.on_watchlist(user, TitleKind::Show, &show.ids).await?,
+            roles: browse.contents.show_roles(&show).await?,
+            aired_episodes: browse.contents.aired_episodes(&show).await?,
+            similar: (self.stored_similar(&browse, TitleKind::Show, &show.ids)).await?,
             show,
         })
     }
@@ -152,11 +144,10 @@ impl TitlePages {
         let answers = (self.similar)
             .ask(TitleKind::Movie, &movie.ids, &movie.genres, &movie.roles)
             .await;
+        let browse = self.browsing.seen_by(user.id).await.map_err(Error::from)?;
         Ok(FoundPage {
             on_watchlist: self.found_on_watchlist(user, TitleKind::Movie, id).await?,
-            similar: (self.seen_by(user).await?)
-                .similar_in_libraries(TitleKind::Movie, &answers)
-                .await?,
+            similar: (self.similar_in_libraries(&browse, TitleKind::Movie, &answers)).await?,
             found,
         })
     }
@@ -172,11 +163,10 @@ impl TitlePages {
         let answers = (self.similar)
             .ask(TitleKind::Show, &show.ids, &show.genres, &show.roles)
             .await;
+        let browse = self.browsing.seen_by(user.id).await.map_err(Error::from)?;
         Ok(FoundPage {
             on_watchlist: self.found_on_watchlist(user, TitleKind::Show, id).await?,
-            similar: (self.seen_by(user).await?)
-                .similar_in_libraries(TitleKind::Show, &answers)
-                .await?,
+            similar: (self.similar_in_libraries(&browse, TitleKind::Show, &answers)).await?,
             found,
         })
     }
@@ -208,25 +198,25 @@ impl TitlePages {
     /// enabled Similar source last answered about it (ADRs 0081 and 0084).
     async fn stored_similar(
         &self,
+        browse: &Browse,
         kind: TitleKind,
         ids: &ExternalIds,
     ) -> Result<Vec<OnServer>, Error> {
-        let stored = self.browse.contents.similar(kind, ids).await?;
+        let stored = browse.contents.similar(kind, ids).await?;
         let answers = self.similar.of_enabled(stored);
-        self.similar_in_libraries(kind, &answers).await
+        self.similar_in_libraries(browse, kind, &answers).await
     }
 
     /// The first [`MAX_SIMILAR`] titles of `answers`, merged (ADR 0084), that a Library has, as
-    /// [`Browse::in_libraries`] finds them: a title two sources answer, by any id they share,
-    /// once, at its heaviest weight.
+    /// `browse`'s [`Browse::in_libraries`] finds them: a title two sources answer, by any id they
+    /// share, once, at its heaviest weight.
     async fn similar_in_libraries(
         &self,
+        browse: &Browse,
         kind: TitleKind,
         answers: &[SimilarAnswer],
     ) -> Result<Vec<OnServer>, Error> {
-        let mut similar = (self.browse)
-            .in_libraries(kind, &merged_similar(answers))
-            .await?;
+        let mut similar = browse.in_libraries(kind, &merged_similar(answers)).await?;
         similar.truncate(MAX_SIMILAR);
         Ok(similar)
     }
