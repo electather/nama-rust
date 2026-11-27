@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "nama-ui/components/button";
 
+import { sectionSearch } from "@/shared/lib/settings-address";
+
 /** Says no Plugin connects Users yet, and who can change that: you, if you manage the Plugins. */
 export function NoConnections({ managesPlugins }: { managesPlugins: boolean }) {
   return (
@@ -9,7 +11,7 @@ export function NoConnections({ managesPlugins }: { managesPlugins: boolean }) {
       {managesPlugins ? (
         <Link
           to="."
-          search={(rest) => ({ ...rest, settings: "plugins" })}
+          search={(rest) => ({ ...rest, ...sectionSearch("plugins") })}
           replace
           className={buttonVariants({ variant: "secondary" })}
         >

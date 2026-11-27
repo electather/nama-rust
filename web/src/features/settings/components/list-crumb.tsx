@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { type Section, sectionSearch, sectionTitles } from "@/features/settings/lib/sections";
+import { sectionTitles } from "@/features/settings/lib/sections";
+import { type Section, sectionSearch } from "@/shared/lib/settings-address";
 
 /** The crumb back to `section`'s list from what's open in place of it. */
 export function ListCrumb({ section }: { section: Section }) {

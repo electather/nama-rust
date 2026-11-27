@@ -1,7 +1,7 @@
-import { useSearch } from "@tanstack/react-router";
 import { Suspense, lazy } from "react";
 
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
 
 // Not on screen until it's asked for, so it stays out of the first page's code.
 const SettingsModal = lazy(async () => {
@@ -21,13 +21,13 @@ export function SettingsLoader({
   user: User | undefined;
   atHub?: boolean;
 }) {
-  const section = useSearch({ strict: false, select: ({ settings }) => settings });
-  if (section === undefined) {
+  const { page } = useSettingsAddress();
+  if (page === undefined) {
     return null;
   }
   return (
     <Suspense fallback={null}>
-      <SettingsModal section={section} user={user} atHub={atHub} />
+      <SettingsModal section={page} user={user} atHub={atHub} />
     </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import { closedSearch } from "@/features/settings/lib/sections";
+import { closedSearch } from "@/shared/lib/settings-address";
 
 /** Closes Settings, leaving the page under it. */
 export function useCloseSettings() {

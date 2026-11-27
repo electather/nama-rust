@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 
+import { detailSearch } from "@/shared/lib/settings-address";
 import { textLink } from "@/shared/lib/text-link-classes";
 
 /**
@@ -19,7 +20,7 @@ export function FulfillerLink({
     mayFix && (
       <Link
         to="."
-        search={(rest) => ({ ...rest, settings: "plugins", plugin: pluginId })}
+        search={(rest) => ({ ...rest, ...detailSearch({ kind: "plugin", id: pluginId }) })}
         className={cn(textLink, "text-sm")}
       >
         Fix it in the Plugin’s settings

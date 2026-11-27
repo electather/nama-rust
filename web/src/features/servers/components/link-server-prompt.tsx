@@ -3,6 +3,8 @@ import { HardDrive } from "lucide-react";
 import { buttonVariants } from "nama-ui/components/button";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "nama-ui/components/empty";
 
+import { sectionSearch } from "@/shared/lib/settings-address";
+
 /** Home at the Hub for an Account with no Linked Server: Linking one, in Settings. */
 export function LinkServerPrompt() {
   const icon = (
@@ -18,7 +20,7 @@ export function LinkServerPrompt() {
       </EmptyHeader>
       <Link
         to="."
-        search={(rest) => ({ ...rest, settings: "account-servers" })}
+        search={(rest) => ({ ...rest, ...sectionSearch("account-servers") })}
         className={buttonVariants({ size: "lg" })}
       >
         Link a Server

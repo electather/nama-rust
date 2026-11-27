@@ -6,8 +6,9 @@ import { useCloseOnScrim } from "@/features/settings/hooks/use-close-on-scrim";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
 import { holdsText } from "@/features/settings/lib/holds-text";
 import { phoneWidth } from "@/features/settings/lib/phone-width";
-import { type SettingsPage, groupsFor } from "@/features/settings/lib/sections";
+import { groupsFor } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import type { SettingsPage } from "@/shared/lib/settings-address";
 
 /** Keeps Settings open on Escape in a text field while it or its form holds text. */
 function keepTypedText(event: KeyboardEvent<HTMLDialogElement>) {

@@ -3,12 +3,6 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { HubMemberLayout } from "@/app/hub-member-layout";
 import { MemberLayout } from "@/app/member-layout";
-import {
-  type SettingsPage,
-  idParam,
-  sectionParam,
-  userParam,
-} from "@/features/settings/lib/sections";
 import { WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import {
   accountOrSignIn,
@@ -18,34 +12,18 @@ import {
   whoIsSignedIn,
 } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
+import { type SettingsSearch, settingsSearch } from "@/shared/lib/settings-address";
 import { wordsParam } from "@/shared/lib/words-param";
 
-// On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), the
-// section Settings is open on (`src/app/settings-loader.tsx`), the Plugin, User, Job or Library open
-// in its Plugins, Users, Jobs or Libraries section, the setting a search found in it, and at the Hub,
-// the Linked Server whose Settings show.
-interface MemberSearch {
-  search?: string | undefined;
-  settings?: SettingsPage | undefined;
-  manage?: string | undefined;
-  plugin?: string | undefined;
-  user?: number | undefined;
-  library?: string | undefined;
-  job?: string | undefined;
-  setting?: string | undefined;
-}
+// On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), and
+// where Settings is (`src/shared/lib/settings-address.ts`).
+type MemberSearch = { search?: string | undefined } & SettingsSearch;
 
 /** Pages for signed-in Users. */
 export const Route = createFileRoute("/_member")({
   validateSearch: (search): MemberSearch => ({
     search: wordsParam(search["search"]),
-    settings: sectionParam(search["settings"]),
-    manage: idParam(search["manage"]),
-    plugin: idParam(search["plugin"]),
-    user: userParam(search["user"]),
-    library: idParam(search["library"]),
-    job: idParam(search["job"]),
-    setting: idParam(search["setting"]),
+    ...settingsSearch(search),
   }),
   beforeLoad: async ({ context, location }) => {
     // Asked together, so the page's own calls wait on one round trip, not two; at the Hub the

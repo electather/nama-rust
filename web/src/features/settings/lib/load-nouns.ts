@@ -1,4 +1,4 @@
-import type { Section } from "@/features/settings/lib/sections";
+import type { Section } from "@/shared/lib/settings-address";
 
 /** What a pane that didn't load says it couldn't load. */
 export const loadNouns: Record<Section, string> = {

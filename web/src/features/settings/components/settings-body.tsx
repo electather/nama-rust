@@ -8,16 +8,10 @@ import { SettingsSide } from "@/features/settings/components/settings-side";
 import { UpdateServer } from "@/features/settings/components/update-server";
 import type { AdminServer } from "@/features/settings/data/use-admin-servers";
 import { usePhoneWidth } from "@/features/settings/hooks/use-phone-width";
-import {
-  type Section,
-  type SectionGroup,
-  type SettingsPage,
-  allSections,
-  openSection,
-  sectionTitles,
-} from "@/features/settings/lib/sections";
+import { type SectionGroup, openSection, sectionTitles } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
+import { type Section, type SettingsPage, allSections } from "@/shared/lib/settings-address";
 
 /**
  * What Settings holds: the sections in `groups` beside the pane of the one `section` asks for, run

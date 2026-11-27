@@ -1,4 +1,4 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useId } from "react";
 
 import { LibraryFilter } from "@/features/admin-needs-a-match/components/library-filter";
@@ -6,6 +6,8 @@ import { pickedLibraries } from "@/features/admin-needs-a-match/lib/picked-libra
 import { UnmatchedLists } from "@/features/settings/components/unmatched-lists";
 import { sectionTitles } from "@/features/settings/lib/sections";
 import { useLibraries } from "@/shared/hooks/use-libraries";
+import { useSettingsAddress } from "@/shared/hooks/use-settings-address";
+import { detailSearch, openedId, sectionSearch } from "@/shared/lib/settings-address";
 
 /**
  * Each Library's Unmatched Items, or only those of the one `?library=<id>` picks, to Match by hand,
@@ -14,7 +16,7 @@ import { useLibraries } from "@/shared/hooks/use-libraries";
 export function NeedsAMatchPane() {
   const titleId = useId();
   const libraries = useLibraries();
-  const picked = useSearch({ strict: false, select: ({ library }) => library });
+  const picked = openedId(useSettingsAddress().detail, "library-filter");
   const navigate = useNavigate();
   const shown = pickedLibraries(libraries, picked);
   const filter = (libraries.length > 1 || !shown) && (
@@ -23,7 +25,11 @@ export function NeedsAMatchPane() {
       picked={picked}
       onPick={(library) => {
         // As a section's link does, so Back still closes Settings.
-        void navigate({ to: ".", search: (rest) => ({ ...rest, library }), replace: true });
+        const filtered =
+          library === undefined
+            ? sectionSearch("needs-a-match")
+            : detailSearch({ kind: "library-filter", id: library });
+        void navigate({ to: ".", search: (rest) => ({ ...rest, ...filtered }), replace: true });
       }}
     />
   );

@@ -5,8 +5,9 @@ import { SearchResults } from "@/features/settings/components/search-results";
 import { SectionNav } from "@/features/settings/components/section-nav";
 import { SettingsSearch } from "@/features/settings/components/settings-search";
 import { useSettingsSearch } from "@/features/settings/hooks/use-settings-search";
-import type { Section, SectionGroup } from "@/features/settings/lib/sections";
+import type { SectionGroup } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * Where a section of Settings is picked, under the field that finds settings and, at the Hub, the

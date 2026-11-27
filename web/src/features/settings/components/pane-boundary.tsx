@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { SectionBoundary } from "@/features/settings/components/section-boundary";
 import { loadNouns } from "@/features/settings/lib/load-nouns";
-import type { Section } from "@/features/settings/lib/sections";
+import type { Section } from "@/shared/lib/settings-address";
 
 /**
  * A pane's settings while they load, and in their place, if they don't, what couldn't load and a

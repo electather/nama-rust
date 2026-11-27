@@ -1,4 +1,4 @@
-import { allSections } from "@/features/settings/lib/sections";
+import { allSections } from "@/shared/lib/settings-address";
 
 // What a phone's list of sections hands the section it opens, kept per history entry.
 declare module "@tanstack/history" {
