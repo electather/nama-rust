@@ -107,7 +107,7 @@ async fn a_title_matched_again_through_another_source_has_only_that_sources_scor
 }
 
 #[tokio::test]
-async fn a_trailers_thumbnail_is_stored_only_while_a_match_stores_its_title() {
+async fn a_trailer_thumbnail_is_stored_and_listed_to_resize_only_while_its_title_is_matched() {
     let fx = Fixture::new().await;
     fx.store(ALIEN, 10, movie("Alien", 1979)).await;
     let thumbnail = "https://i.ytimg.com/vi/ESEUoa-mz2c/maxresdefault.jpg";
@@ -123,7 +123,8 @@ async fn a_trailers_thumbnail_is_stored_only_while_a_match_stores_its_title() {
         let images = fx.contents.images(Some(fx.library)).await.unwrap();
         let listed = images.contains(&("tmdb".to_owned(), thumbnail.to_owned()));
         let served = fx.contents.stores_image("tmdb", thumbnail).await.unwrap();
-        (listed, served)
+        let resized_ahead = fx.contents.trailer_thumbnails(fx.library).await.unwrap();
+        (listed, served, resized_ahead.len())
     };
     let matched = stored().await;
     let item = fx.item(ALIEN).await;
@@ -132,5 +133,8 @@ async fn a_trailers_thumbnail_is_stored_only_while_a_match_stores_its_title() {
         .await
         .unwrap();
 
-    assert_eq!((matched, stored().await), ((true, true), (false, false)));
+    assert_eq!(
+        (matched, stored().await),
+        ((true, true, 1), (false, false, 0))
+    );
 }

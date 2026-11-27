@@ -315,10 +315,10 @@ impl Artwork {
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
     /// Poster and Backdrop a title of it shows, downloaded before or just now or beside its media,
-    /// and each downloaded titled Backdrop and Title Logo, and each Custom Image of it and its
-    /// titles, is resized to the widths the web app offers it at too, where resizing is on now and
-    /// those copies aren't there. A downloaded Poster or Backdrop that a Custom Image or image
-    /// beside the media stands in for gets none.
+    /// and each downloaded titled Backdrop, Title Logo and Trailer thumbnail (at a Backdrop's
+    /// widths), and each Custom Image of it and its titles, is resized to the widths the web app
+    /// offers it at too, where resizing is on now and those copies aren't there. A downloaded
+    /// Poster or Backdrop that a Custom Image or image beside the media stands in for gets none.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
@@ -338,12 +338,14 @@ impl Artwork {
             let listed = tokio::try_join!(
                 contents.images(Some(library)),
                 artwork.shown_downloaded(&contents, library),
-                contents.titled_backdrops_and_title_logos(library)
+                contents.titled_backdrops_and_title_logos(library),
+                contents.trailer_thumbnails(library)
             );
             match listed {
-                Ok((images, (posters, backdrops), (titled_backdrops, title_logos))) => {
+                Ok((images, (posters, backdrops), (titled_backdrops, title_logos), thumbnails)) => {
                     // A Poster that is also a Backdrop is rare enough to get only a Poster's.
                     let ahead = (backdrops.into_iter().chain(titled_backdrops))
+                        .chain(thumbnails)
                         .map(|image| (image, &*copies.backdrops))
                         .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
                         .chain(posters.into_iter().map(|image| (image, &*copies.posters)))

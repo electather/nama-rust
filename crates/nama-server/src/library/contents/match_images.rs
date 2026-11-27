@@ -161,6 +161,35 @@ impl Contents {
         Ok((titled_backdrops, title_logos))
     }
 
+    /// Each Trailer thumbnail of the titles Matched in the Library `library`, as its Plugin and
+    /// path.
+    pub(crate) async fn trailer_thumbnails(
+        &self,
+        library: i64,
+    ) -> Result<Vec<(String, String)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT DISTINCT title_details.plugin AS "plugin!",
+                      json_extract(trailer.value, '$.thumbnail') AS "path!: String"
+               FROM title_details, json_each(title_details.trailers) AS trailer
+               WHERE json_extract(trailer.value, '$.thumbnail') IS NOT NULL
+                 -- As `images` lists it.
+                 AND EXISTS (SELECT 1 FROM item_matches
+                             JOIN item_match_ids AS keyed ON keyed.item_id = item_matches.item_id
+                             JOIN library_items ON library_items.id = item_matches.item_id
+                             JOIN library_files ON library_files.id = library_items.file_id
+                             WHERE item_matches.state = 'matched'
+                               AND library_files.library_id = ?
+                               AND item_matches.plugin = title_details.plugin
+                               AND keyed.scope = iif(title_details.kind = 'movie', 'title', 'show')
+                               AND keyed.namespace = title_details.namespace
+                               AND keyed.value = title_details.value)"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
+
     /// Each Backdrop, not titled, a Match in the Library `library` stores, with whose it is: the
     /// Movie's, or the Episode's Show's.
     pub(crate) async fn backdrops(
