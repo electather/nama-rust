@@ -236,10 +236,7 @@ pub(super) async fn use_up(
         .await?;
         sessions::end_all(&mut tx, account.id).await?;
     }
-    if let Some(session) = replacing {
-        sessions::end(&mut *tx, session).await?;
-    }
-    let session_token = sessions::start(&mut tx, account.id).await?;
+    let session_token = sessions::start_replacing(&mut tx, account.id, replacing).await?;
     tx.commit().await?;
     Ok(SignedInByLink {
         signed_in: SignedIn {

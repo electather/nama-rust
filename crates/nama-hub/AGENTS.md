@@ -4,6 +4,7 @@
 
 - **The Server's structure rules, with the Hub's rows.** Areas, rows and surfaces follow ADR 0051 and the "Structure" rules in `crates/nama-server/AGENTS.md`, with the rows of ADR 0099: neighbours import only what an area's root re-exports, each table has one owning area, a module calls only a lower row or one to its right in its own, no `.rs` file is over 800 lines, `foo.rs`'s unit tests live in `foo_tests.rs`, and an area's `AGENTS.md` is at most 30 lines. `tests/structure.rs` holds the Hub's tables and checks them with the Server's checks, from `crates/nama-structure`.
 - **Proto types stop at `api`.** Areas take and return their own types, and `api` converts in both directions (ADR 0099). `tests/structure.rs` fails on `nama_hub_proto` named outside `api`.
+- **An RPC's body lives in the `api` part of its concept**, beside its conversions and the mapping of its errors to Refusals. A service whose RPCs span concepts, such as `LinkedServerService`, keeps one impl that calls each part in one line.
 - **Traits only at true externals**, such as mail or the DNS provider, each with a production adapter and a test fake. Nothing inside the Hub gets one until it has two implementations.
 
 ### Callers

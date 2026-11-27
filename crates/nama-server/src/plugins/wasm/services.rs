@@ -113,6 +113,7 @@ pub(super) const SHOW_STOP_MONITORING: Method = optional(
 );
 pub(super) const SHOW_PROGRESS: Method = required(services::SHOW_FULFILLER, "Progress", "progress");
 pub(super) const SHOW_UNFOLLOW: Method = required(services::SHOW_FULFILLER, "Unfollow", "unfollow");
+pub(super) const SHOW_FOLLOW: Method = optional(services::SHOW_FULFILLER, "Follow", "follow");
 pub(super) const DELIVER: Method = required(services::NOTIFIER, "Deliver", "deliver");
 pub(super) const START_CONNECTION: Method =
     required(services::CONNECTOR, "StartConnection", "start_connection");
@@ -202,6 +203,7 @@ pub(super) const POINTS: &[Point] = &[
             SHOW_STOP_MONITORING,
             SHOW_PROGRESS,
             SHOW_UNFOLLOW,
+            SHOW_FOLLOW,
         ],
         key: PointKey::provide::<dyn Fulfiller<Shows>>,
         register: |registrar, running| {

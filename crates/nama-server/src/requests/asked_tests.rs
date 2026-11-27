@@ -31,6 +31,7 @@ async fn ask_kind(db: &Database, kind: Asked, user: i64) -> Applied<i64> {
                 events,
                 hand_off,
                 unfollow,
+                follow,
                 removed,
             } = ask_for(db, user, 949, RequestState::Pending).await;
             Applied {
@@ -38,6 +39,7 @@ async fn ask_kind(db: &Database, kind: Asked, user: i64) -> Applied<i64> {
                 events,
                 hand_off,
                 unfollow,
+                follow,
                 removed,
             }
         }
@@ -47,6 +49,7 @@ async fn ask_kind(db: &Database, kind: Asked, user: i64) -> Applied<i64> {
                 events,
                 hand_off,
                 unfollow,
+                follow,
                 removed,
             } = follow_as(db, user, dark(), RequestState::Pending).await;
             Applied {
@@ -54,6 +57,7 @@ async fn ask_kind(db: &Database, kind: Asked, user: i64) -> Applied<i64> {
                 events,
                 hand_off,
                 unfollow,
+                follow,
                 removed,
             }
         }

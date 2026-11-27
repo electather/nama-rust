@@ -1,13 +1,52 @@
-//! The conversions `LinkedServerService.PushTrackPreferences` and `PullTrackPreferences` use.
+//! Subtitle and Audio Preferences for a Linked Server: `LinkedServerService.PushTrackPreferences`
+//! and `PullTrackPreferences`, and the conversions and refusals they use.
 
-use connectrpc::ConnectError;
-use nama_hub_proto::nama::hub::v1::{self as proto, RefusalReason, TitleKind};
+use connectrpc::{ConnectError, RequestContext, Response, ServiceResult};
+use nama_hub_proto::nama::hub::v1::{
+    self as proto, PullTrackPreferencesRequest, PullTrackPreferencesResponse,
+    PushTrackPreferencesRequest, PushTrackPreferencesResponse, RefusalReason, TitleKind,
+};
 
-use super::refuse;
+use super::{
+    hub_failed,
+    links::{LinkedServerServiceHandler, linked_server},
+    refuse,
+};
 use crate::sync::{
     Like, MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_LANGUAGE_LENGTH, MAX_TITLE_LENGTH,
     PreferenceFor, TrackPreferenceChange,
 };
+
+pub(super) async fn push_track_preferences(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: PushTrackPreferencesRequest,
+) -> ServiceResult<PushTrackPreferencesResponse> {
+    let server = linked_server(ctx)?;
+    let changes = changes_from_proto(request.changes)?;
+    handler
+        .track_preferences
+        .push(&handler.links, server, changes)
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(PushTrackPreferencesResponse::default())
+}
+
+pub(super) async fn pull_track_preferences(
+    handler: &LinkedServerServiceHandler,
+    ctx: &RequestContext,
+    request: PullTrackPreferencesRequest,
+) -> ServiceResult<PullTrackPreferencesResponse> {
+    let pulled = handler
+        .track_preferences
+        .pull(&handler.links, linked_server(ctx)?, request.user_id)
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(PullTrackPreferencesResponse {
+        preferences: pulled.into_iter().map(change_to_proto).collect(),
+        ..Default::default()
+    })
+}
 
 /// `changes` as `sync` takes them, or the refusal of the first limit they break.
 pub(super) fn changes_from_proto(

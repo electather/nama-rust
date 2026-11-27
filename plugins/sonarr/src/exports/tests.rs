@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use nama_pdk::{
-    Download, Fulfiller, Request, Response, StopMonitoring, TitleId, TryAgainIn,
+    Download, FollowShow, Fulfiller, Request, Response, StopMonitoring, TitleId, TryAgainIn,
     extism_pdk::{
         Error,
         json::{self, Value, json},
@@ -322,7 +322,7 @@ fn a_whole_show_sonarr_has_gets_its_new_seasons_monitored() {
     );
     assert_eq!(
         body_of(&kernel, "PUT series/editor"),
-        json!({"seriesIds": [DARK_SONARR_ID], "monitorNewItems": "all"})
+        json!({"seriesIds": [DARK_SONARR_ID], "monitored": true, "monitorNewItems": "all"})
     );
     assert_eq!(
         body_of(&kernel, "POST seasonpass"),
@@ -464,6 +464,70 @@ fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
     assert_eq!(
         body_of(&kernel, "PUT series/editor"),
         json!({"seriesIds": [DARK_SONARR_ID], "monitorNewItems": "none"})
+    );
+}
+
+/// Dark, as its Followed Show asks Sonarr to follow it, at no Quality.
+fn dark_to_follow() -> FollowShow {
+    FollowShow {
+        show_ids: vec![id("tvdb", &DARK_TVDB.to_string())],
+        ..FollowShow::default()
+    }
+}
+
+#[test]
+fn following_a_show_sonarr_lacks_adds_it_monitoring_only_its_new_seasons_without_a_search() {
+    let mut kernel = sonarr_answering(vec![none(), profiles(), dark_looked_up(), (201, json!({}))]);
+
+    with(&mut kernel, || SonarrFulfiller::follow(dark_to_follow())).unwrap();
+
+    assert_eq!(
+        asked(&kernel),
+        [
+            "GET series?tvdbId=334824",
+            "GET qualityprofile",
+            "GET series/lookup?term=tvdb:334824",
+            "POST series",
+        ]
+    );
+    assert_eq!(
+        body_of(&kernel, "POST series"),
+        json!({
+            "tvdbId": DARK_TVDB,
+            "title": "Dark",
+            "qualityProfileId": 4,
+            "rootFolderPath": "/tv",
+            "monitored": true,
+            "monitorNewItems": "all",
+            "seasonFolder": true,
+            "seasons": [
+                {"seasonNumber": 0, "monitored": false},
+                {"seasonNumber": 1, "monitored": false},
+                {"seasonNumber": 2, "monitored": false},
+                {"seasonNumber": 3, "monitored": false}
+            ],
+            "addOptions": {"monitor": "skip", "searchForMissingEpisodes": false},
+        })
+    );
+}
+
+#[test]
+fn following_a_show_sonarr_has_monitors_it_and_its_new_seasons_without_a_search() {
+    let mut kernel = sonarr_answering(vec![dark_found(), no_commands(), accepted()]);
+
+    with(&mut kernel, || SonarrFulfiller::follow(dark_to_follow())).unwrap();
+
+    assert_eq!(
+        asked(&kernel),
+        [
+            "GET series?tvdbId=334824",
+            "GET command",
+            "PUT series/editor"
+        ]
+    );
+    assert_eq!(
+        body_of(&kernel, "PUT series/editor"),
+        json!({"seriesIds": [DARK_SONARR_ID], "monitored": true, "monitorNewItems": "all"})
     );
 }
 
