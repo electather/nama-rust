@@ -18055,6 +18055,13 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
                 )?;
                 view.reachable = ::buffa::types::decode_bool(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.server_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -18065,13 +18072,6 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
                     ::buffa::__private::element_footprint(&__elem),
                 )?;
                 view.names.push(__elem);
-            }
-            4u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                view.server_id = ::buffa::types::borrow_str(&mut cur)?;
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
