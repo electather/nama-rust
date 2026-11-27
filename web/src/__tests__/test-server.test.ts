@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { Code, createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { describe, expect, test } from "vite-plus/test";
 
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
@@ -14,14 +14,15 @@ describe("a method a test overrides", () => {
   const playback = createClient(PlaybackService, transport);
 
   test("answers as the test says", async () => {
-    await expect(playback.getAutoplay({})).resolves.toHaveProperty("on", false);
+    const autoplay = await playback.getAutoplay({});
+
+    expect(autoplay.on).toBe(false);
   });
 
   test("keeps its siblings' answers", async () => {
-    await expect(playback.getSubtitleAppearance({})).resolves.toHaveProperty(
-      "background",
-      SubtitleBackground.OUTLINE,
-    );
+    const appearance = await playback.getSubtitleAppearance({});
+
+    expect(appearance.background).toBe(SubtitleBackground.OUTLINE);
   });
 });
 
@@ -66,7 +67,9 @@ describe("a Plugin's one record", () => {
   });
 
   test("is the only one there is", async () => {
-    await expect(plugins.getPlugin({ id: "radarr" })).rejects.toHaveProperty("code", Code.NotFound);
+    const refusal = await refusalOf(plugins.getPlugin({ id: "radarr" }));
+
+    expect(refusal).toStrictEqual({ code: Code.NotFound, rawMessage: "there is no Plugin radarr" });
   });
 });
 
@@ -80,15 +83,30 @@ describe("a method nothing answers", () => {
   test("in strict mode, fails naming the method", async () => {
     const browse = createClient(BrowseService, fakeServer({}, {}, { strict: true }).transport);
 
-    await expect(browse.listMovies({})).rejects.toHaveProperty(
-      "rawMessage",
-      "nothing answers BrowseService.ListMovies",
-    );
+    const refusal = await refusalOf(browse.listMovies({}));
+
+    expect(refusal).toStrictEqual({
+      code: Code.Unimplemented,
+      rawMessage: "nothing answers BrowseService.ListMovies",
+    });
   });
 
   test("of the Hub's API is Unimplemented, as at a Server", async () => {
     const hub = createClient(HubService, fakeServer().transport);
 
-    await expect(hub.getHubInfo({})).rejects.toHaveProperty("code", Code.Unimplemented);
+    const refusal = await refusalOf(hub.getHubInfo({}));
+
+    expect(refusal.code).toBe(Code.Unimplemented);
   });
 });
+
+/** The code and message `call` fails with, compared on their own since the error carries headers. */
+async function refusalOf(call: Promise<unknown>) {
+  try {
+    await call;
+  } catch (error) {
+    const { code, rawMessage } = ConnectError.from(error);
+    return { code, rawMessage };
+  }
+  throw new Error("the call was answered");
+}

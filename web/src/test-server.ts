@@ -90,7 +90,8 @@ function derived(server: ServerModel): Answers {
         plugin: found(server.plugins, (plugin) => plugin.summary?.id === id, `Plugin ${id}`),
       }),
     },
-    // A fresh stream each time: the app subscribes again after a drop, and a read stream is locked.
+    // With no Events, a fresh stream each time: the app subscribes again after a drop, and a read
+    // stream is locked. A test that gives Events gives the one subscription it feeds.
     EventService: { subscribe: () => server.events ?? new ReadableStream() },
     PlaybackService: {
       getSubtitleAppearance: () => ({

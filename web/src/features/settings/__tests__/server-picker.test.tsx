@@ -110,7 +110,7 @@ test("a Section the picked Server doesn't report says to update it, and offers n
   expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
 });
 
-/** A fake Server whose Admin is signed in, serving only Plugins, holding `facts` and answering `answers`. */
+/** A fake Server whose Admin is signed in, whose only Settings Section is Plugins, holding `facts` and answering `answers`. */
 function fakeServerOfPlugins(facts: Partial<ServerModel>, answers: Answers = {}) {
   return fakeServer(
     {
