@@ -14,9 +14,9 @@ use super::{
         ImageStore, Resize,
         testing::{Held, InMemory, body, counted, get, in_memory, on_disk, png},
     },
-    copies, evict_listed,
+    copies, evict_listed, touch,
 };
-use crate::db::Database;
+use crate::db::{self, Database};
 
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
 
@@ -332,4 +332,17 @@ fn eviction_counts_a_copy_deleted_after_listing_as_evicted_and_carries_on_to_the
     assert_eq!(left, 100);
     assert!(!next.exists());
     assert!(made.exists());
+}
+
+#[test]
+fn touching_a_copy_after_the_clock_moves_marks_it_sent_later() {
+    let copy = tempfile::NamedTempFile::new().unwrap();
+    let accessed = || std::fs::metadata(copy.path()).unwrap().accessed().unwrap();
+
+    touch(copy.path()).unwrap();
+    let first = accessed();
+    db::advance_clock(Duration::from_secs(5));
+    touch(copy.path()).unwrap();
+
+    assert!(accessed() >= first + Duration::from_secs(5));
 }

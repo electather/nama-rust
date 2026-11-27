@@ -17,7 +17,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use tracing::Instrument as _;
@@ -28,7 +28,7 @@ use super::{
     resized::{self, Copied, Format, ResizeThread},
     row_key, under, unescape, unless_gone,
 };
-use crate::diagnostics;
+use crate::{db, diagnostics};
 
 /// The folder in the data directory resized copies are kept in (`AGENTS.md`).
 pub(super) const RESIZED_DIR: &str = "resized";
@@ -343,10 +343,12 @@ async fn mark_sent(copy: &Path) -> bool {
 fn touch(copy: &Path) -> io::Result<()> {
     // Set explicitly, as mounts with `noatime` or `relatime` don't update it on every read. Opened
     // for writing, as Windows refuses to set a file's times through a read-only handle.
+    let now = SystemTime::UNIX_EPOCH
+        + Duration::from_millis(u64::try_from(db::now_ms()).unwrap_or_default());
     File::options()
         .write(true)
         .open(copy)?
-        .set_times(FileTimes::new().set_accessed(SystemTime::now()))
+        .set_times(FileTimes::new().set_accessed(now))
 }
 
 /// Leaves an empty file at `marker`, which says the image goes unresized at the width and format
