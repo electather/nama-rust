@@ -1,19 +1,18 @@
 import { type UseQueryResult, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import {
-  type ServerToSearch,
-  useServersToSearch,
-} from "@/features/action-bar/data/use-servers-to-search";
+import { useServersToSearch } from "@/features/action-bar/data/use-servers-to-search";
 import { foundIn } from "@/features/action-bar/lib/titles";
 import type { TitleKind } from "@/gen/nama/v1/match_pb";
 import type { SearchResponse } from "@/gen/nama/v1/search_pb";
 import { searchQuery } from "@/shared/hooks/search-query";
+import type { TitleServer } from "@/shared/lib/title-server";
 
 /**
  * What a search for `words` of `kind` finds, in the signed-in User's Libraries and to request, and
  * nothing for no words. At the Hub, it's what each of the Account's Servers finds, as one list
- * (ADR 0105). The last answer stays while the next one loads, and a new search aborts the last.
+ * (ADR 0105), with the `servers` it asks. The last answer stays while the next one loads, and a new
+ * search aborts the last.
  */
 export function useFound(words: string, kind: TitleKind) {
   const queryClient = useQueryClient();
@@ -52,7 +51,7 @@ export function useFound(words: string, kind: TitleKind) {
   if (search.answered && kept !== words) {
     setKept(words);
   }
-  return search;
+  return { ...search, servers };
 }
 
 /** One Server's answer to a search, as it stands. */
@@ -63,12 +62,14 @@ type Answer = UseQueryResult<SearchResponse[]>;
  * `searching` and none has answered the words asked; after that they'd list titles for other words.
  */
 function answersToList(
-  servers: readonly ServerToSearch[],
+  servers: readonly TitleServer[],
   answers: readonly Answer[],
   searching: boolean,
 ) {
   const answered = answers.flatMap(({ data, isPlaceholderData }, at) =>
-    data === undefined ? [] : [{ server: servers[at]?.server, responses: data, isPlaceholderData }],
+    data === undefined
+      ? []
+      : [{ server: servers[at]?.server?.id, responses: data, isPlaceholderData }],
   );
   const fresh = answered.filter(({ isPlaceholderData }) => !isPlaceholderData);
   return searching && fresh.length === 0 ? answered : fresh;

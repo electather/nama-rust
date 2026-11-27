@@ -1,4 +1,3 @@
-import type { Transport } from "@connectrpc/connect";
 import type { LinkOptions } from "@tanstack/react-router";
 
 import type { Episode, FeaturedTitle, Movie, Show } from "@/gen/nama/v1/browse_pb";
@@ -6,6 +5,7 @@ import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { metadataLine, runtimeOf, yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
+import type { TitleServer } from "@/shared/lib/title-server";
 
 /**
  * What a Featured panel's one action is: playing, or resuming, what `state` says, or, with
@@ -32,11 +32,8 @@ export interface Panel {
   watchlist: { kind: TitleKind; id: ExternalId; on: boolean };
 }
 
-/** A Featured panel on the Server `transport` reaches. */
-export interface PanelOn {
-  transport: Transport;
-  panel: Panel;
-}
+/** A Featured panel on its Server. */
+export type PanelOn = TitleServer & { panel: Panel };
 
 /** The panels of your Featured, leaving out any title the Server left incomplete. */
 export function featuredPanels(titles: FeaturedTitle[]): Panel[] {

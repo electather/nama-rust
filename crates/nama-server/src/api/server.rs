@@ -26,10 +26,9 @@ use nama_proto::nama::v1::{
 
 use crate::{
     backup::Backups,
-    browse::Browsing,
+    browse::HomeLayouts,
     diagnostics::Sharing,
     ffmpeg::{self, Abilities, Ffmpeg},
-    home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     link::Linking,
     playback::{MessageTooLong, RunningPlans, STOP_MESSAGE_LENGTH, SubtitleCache, accel_to_proto},
@@ -44,7 +43,7 @@ pub(super) use self::playback_settings::gpu_to_proto;
 use self::playback_settings::{hardware_choice, playback_settings_to_proto, tone_mapping_to_proto};
 use super::{
     BrowserSpans,
-    browse::recently_added_rows,
+    browse::{home_layout_refused, home_layout_to_proto},
     database_failed, libraries,
     playback::{limit_from_proto, play_to_proto},
     refuse, server_link, unknown_enum_value,
@@ -64,15 +63,13 @@ pub(super) struct ServerServiceHandler {
     pub(super) users: Users,
     /// Asked about the Server's Link.
     pub(super) linking: Linking,
-    /// Lists each Library's Recently Added row for the default Home layout.
-    pub(super) browse: Browsing,
+    /// Reads the default Home layout with every row it could place.
+    pub(super) home_layouts: HomeLayouts,
     pub(super) settings: server_settings::Settings,
     pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
     pub(super) images: ImageStore,
     pub(super) points: ExtensionPoints,
-    /// Lists the Home rows the default Home layout places.
-    pub(super) home_rows: HomeRows,
     /// Where local disk keeps the images.
     pub(super) data_dir: PathBuf,
     pub(super) backups: Backups,
@@ -446,29 +443,10 @@ impl ServerService for ServerServiceHandler {
 }
 
 impl ServerServiceHandler {
-    /// The default Home layout, every User's, with every Library's Home rows, as the API has it.
+    /// The default Home layout, every User's, with every row it could place, as the API has it.
     async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
-        let placeable = self.home_rows.placeable().await.map_err(database_failed)?;
-        let recently_added = recently_added_rows(&self.browse.everything()).await?;
-        let with_proto =
-            |(id, heading): (HomeRowId, String)| (id.clone(), layout_row_to_proto(id, heading));
-        let rows = std::iter::once(with_proto((HomeRowId::ContinueWatching, String::new())))
-            .chain((recently_added.into_iter()).map(|(id, row)| (id, row.into())))
-            .chain(placeable.into_iter().map(with_proto))
-            .collect();
-        let layout = self.settings.now().default_home_layout;
-        let rows = layout.arrange(rows);
-        Ok(proto::HomeLayout {
-            featured_hidden: Some(!layout.featured_shown),
-            rows: (rows.into_iter())
-                .map(|((_, row), shown)| HomeLayoutRow {
-                    row: Some(row),
-                    hidden: !shown,
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        })
+        let layout = self.home_layouts.default_layout().await;
+        Ok(home_layout_to_proto(layout.map_err(home_layout_refused)?))
     }
 
     /// The image settings `values` as the API has them, with the store in use.
@@ -480,30 +458,6 @@ impl ServerServiceHandler {
                 .map_or_default(|plugin| plugin.to_string()),
             ..Default::default()
         }
-    }
-}
-
-/// The row `id` of a Home layout, headed `heading` if a Plugin gives it, as the API has it. A
-/// Recently Added row gets only its Library's id: `recently_added_rows` names the Library.
-fn layout_row_to_proto(id: HomeRowId, heading: String) -> LayoutRow {
-    match id {
-        HomeRowId::ContinueWatching => {
-            LayoutRow::Kernel(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into())
-        }
-        HomeRowId::Shared { plugin, key } | HomeRowId::Own { plugin, key } => {
-            LayoutRow::Plugin(Box::new(proto::PluginHomeRow {
-                plugin_id: plugin.to_string(),
-                key,
-                heading,
-                ..Default::default()
-            }))
-        }
-        HomeRowId::UsersOwn { plugin } => LayoutRow::PluginUsersRows(plugin.to_string()),
-        HomeRowId::RecentlyAdded { library } => proto::RecentlyAddedHomeRow {
-            library_id: library,
-            ..Default::default()
-        }
-        .into(),
     }
 }
 

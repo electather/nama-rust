@@ -3,9 +3,9 @@ import { createRouterTransport } from "@connectrpc/connect";
 import { expect, test } from "vite-plus/test";
 
 import { entryCard } from "@/features/home/lib/continue-watching-cards";
-import { type ReachedServer, mergeRows } from "@/features/home/lib/hub-rows";
+import { mergeRows } from "@/features/home/lib/hub-rows";
 import { mergeContinueWatching, mergeTitles } from "@/features/home/lib/hub-titles";
-import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
+import { type LinkedServer, LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
 import {
   ContinueWatchingEntrySchema,
   HomeRowSchema,
@@ -13,9 +13,10 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { MovieHitSchema } from "@/gen/nama/v1/request_pb";
+import type { TitleServer } from "@/shared/lib/title-server";
 import { type HomeRowInit, pluginRow, recentlyAddedRow } from "@/test-home-rows";
 
-function reached(id: string): ReachedServer {
+function reached(id: string): TitleServer<LinkedServer> {
   return { server: create(LinkedServerSchema, { id }), transport: createRouterTransport(() => {}) };
 }
 
@@ -24,7 +25,7 @@ const cabin = reached("cabin");
 const alien = { namespace: "tmdb", value: "348" };
 
 /** `server`'s Continue Watching card for the Movie `title`, last watched at `updatedAt`. */
-function movieCard(server: ReachedServer, title: string, updatedAt: bigint) {
+function movieCard(server: TitleServer<LinkedServer>, title: string, updatedAt: bigint) {
   const value = { id: { namespace: "tmdb", value: title }, title, watchState: { updatedAt } };
   const entry = create(ContinueWatchingEntrySchema, {
     libraryId: 1n,
@@ -38,7 +39,7 @@ function movieCard(server: ReachedServer, title: string, updatedAt: bigint) {
 }
 
 /** `server`'s Continue Watching card for the next Episode of the Show `title`. */
-function nextEpisodeCard(server: ReachedServer, title: string) {
+function nextEpisodeCard(server: TitleServer<LinkedServer>, title: string) {
   const show = { id: { namespace: "tmdb", value: title }, title };
   const episode = { id: { namespace: "tmdb", value: `${title}-1-2` } };
   const entry = create(ContinueWatchingEntrySchema, {

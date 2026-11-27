@@ -25,9 +25,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** A row title for the Movie `id`, `title`, in Library 1. */
-function movieTitle(id: typeof alien, title: string) {
-  return { movieOrShow: { case: "movie", value: { libraryId: 1n, id, title } } } as const;
+/** A row title for the Movie `id`, `title`, in Library 1, its poster at `posterUrl` if given. */
+function movieTitle(id: typeof alien, title: string, posterUrl?: string) {
+  const value = { libraryId: 1n, id, title, posterUrl };
+  return { movieOrShow: { case: "movie", value } } as const;
 }
 
 /** A Featured Movie `title`, `id`, in Library 1. */
@@ -136,6 +137,30 @@ test("home at the Hub merges each kind of row across the Account's Servers", asy
     expect(linksIn("Recently added Movies")).toStrictEqual([
       { name: "Heat", server: "basement" },
       { name: "Alien", server: "cabin" },
+    ]);
+  });
+});
+
+test("a row's posters at the Hub are drawn from each title's own Server", async () => {
+  const trending = pluginRow("discover", "trending", "Trending this week");
+  openHub({
+    "https://basement.example": fakeLinkedServer({
+      listHomeRows: () => ({ rows: [trending] }),
+      listHomeRowTitles: () => ({ titles: [movieTitle(alien, "Alien", "/alien.jpg")] }),
+    }),
+    "https://cabin.example": fakeLinkedServer({
+      listHomeRows: () => ({ rows: [trending] }),
+      listHomeRowTitles: () => ({ titles: [movieTitle(heat, "Heat", "/heat.jpg")] }),
+    }),
+  });
+
+  await waitFor(() => {
+    const images = screen
+      .getByRole("region", { name: "Trending this week" })
+      .querySelectorAll("img");
+    expect(Array.from(images, (img) => [img.src, img.getAttribute("srcset")])).toStrictEqual([
+      ["https://basement.example/alien.jpg", "https://basement.example/alien.jpg?width=320 320w"],
+      ["https://cabin.example/heat.jpg", "https://cabin.example/heat.jpg?width=320 320w"],
     ]);
   });
 });

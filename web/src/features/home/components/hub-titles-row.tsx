@@ -1,13 +1,14 @@
 import { useId } from "react";
 
-import { OnServer } from "@/features/home/components/on-server";
 import { RowFrame } from "@/features/home/components/row-frame";
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
-import { type TitleOn, onLinkedServer } from "@/features/home/lib/hub-titles";
+import type { TitleOn } from "@/features/home/lib/hub-titles";
 import { posterTile } from "@/features/home/lib/shelf-tiles";
+import { OnServer } from "@/shared/components/on-server";
 import { RowPoster } from "@/shared/components/row-poster/row-poster";
 import { rowTile } from "@/shared/components/row-poster/row-tiles";
 import { rowTitleKey } from "@/shared/lib/row-titles";
+import { linkOn } from "@/shared/lib/title-server";
 
 /** A row at the Hub: `titles` as posters, each opening on its Server, or nothing without any. */
 export function HubTitlesRow({ heading, titles }: { heading: string; titles: TitleOn[] }) {
@@ -15,13 +16,13 @@ export function HubTitlesRow({ heading, titles }: { heading: string; titles: Tit
   if (titles.length === 0) {
     return null;
   }
-  const tiles = titles.map(({ server, transport, title }) => {
-    const tile = rowTile(title);
+  const tiles = titles.map((on) => {
+    const tile = rowTile(on.title);
     return {
-      key: `${server.id}/${rowTitleKey(title)}`,
+      key: `${on.server.id}/${rowTitleKey(on.title)}`,
       tile: (
-        <OnServer transport={transport}>
-          <RowPoster tile={{ ...tile, link: onLinkedServer(tile.link, server) }} />
+        <OnServer on={on}>
+          <RowPoster tile={{ ...tile, link: linkOn(tile.link, on) }} />
         </OnServer>
       ),
     };

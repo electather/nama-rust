@@ -8,4 +8,4 @@ The answers Plugins give ahead of time through `HomeRowSource`, stored per Plugi
 ### Neighbours
 
 - Uses: `db`, `library` (`Libraries`, `Contents`, `OnServer`, `Whereabouts`, `TitleKind`), `page`, `plugins` (`ExtensionPoints`, `Answer`, `without_secrets`), `requests` (`listed_movie`, `listed_show`, `open_movie_request`), `server_settings` (`HomeRowId`) and `users` (`User`, a User's Personal settings and their `Reach`).
-- Used by: the `api` parts for browse, the Server and the Watchlist (`HomeRows`, whose `shown_to` shows a Watchlist's titles as a row does), `browse` (`Suggested`), `automation` (`forget_unvisited`) and startup in `lib.rs`.
+- Used by: the `api` parts for browse and the Watchlist (`HomeRows`, whose `titles` pages a row and `shown_to` shows a Watchlist's titles as a row does), `browse` (`HomeRows`, which a User's Home and the default Home layout list, and `Suggested`), `automation` (`forget_unvisited`) and startup in `lib.rs`.

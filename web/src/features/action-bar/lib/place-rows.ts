@@ -14,6 +14,7 @@ export function personRows(
     hint: "",
     icon: "person",
     poster: person.headshot ?? null,
+    server: person.server,
     action: "Open",
     run: () => {
       openPerson(person);

@@ -16,7 +16,7 @@ export function ActionRow({
   listId,
 }: {
   row: Row;
-  bar: Pick<Bar, "active" | "pick">;
+  bar: Pick<Bar, "active" | "pick" | "serverOf">;
   listId: string;
 }) {
   const selected = bar.active?.id === row.id;
@@ -40,7 +40,7 @@ export function ActionRow({
         aria-hidden
         className="absolute inset-y-2 inset-s-0 hidden w-0.5 rounded-full bg-primary group-aria-selected:block"
       />
-      <RowLead row={row} />
+      <RowLead row={row} on={bar.serverOf(row.server)} />
       <RowText row={row} />
       <Keys keys={row.chips} />
       {selected && <RowAction action={row.action} />}
