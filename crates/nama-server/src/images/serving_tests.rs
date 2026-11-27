@@ -506,7 +506,9 @@ async fn copies_ahead_resume_once_deleting_an_image_frees_the_cache() {
     }
     store.copy_ahead(other, &[AT_320]).await;
     let files = walkdir::WalkDir::new(store.copies_path(other)).into_iter();
+    // Files only: a folder's own size (4 KiB on ext4) would leave the limit well above the copies.
     let taken: u64 = (files.map(Result::unwrap))
+        .filter(|entry| entry.file_type().is_file())
         .map(|file| file.metadata().unwrap().len())
         .sum();
     let full = Resize {
