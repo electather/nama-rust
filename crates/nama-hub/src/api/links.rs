@@ -2,7 +2,7 @@
 //! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
 //! asks of the Hub's titles.
 
-use std::net::SocketAddr;
+use std::net::IpAddr;
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_forwarded::RequestSource;
@@ -557,8 +557,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let reported = ReportedAddresses {
             url: request.url,
             lan_addresses: &lan_addresses,
-            public: public_address(&ctx, request.public_port)?,
-            relay: parse_relay(request.relay)?,
+            public_port: request.public_port,
+            relay: request.relay,
+            request_ip: request_ip(&ctx)?,
         };
         let server = linked_server(&ctx)?;
         let checked = self
@@ -648,35 +649,13 @@ impl LinkedServerService for LinkedServerServiceHandler {
     }
 }
 
-/// The address to check the calling Server's public `port` at: the IP address its request `ctx`
-/// came from (ADR 0018), never one it names, so a Server can't have the Hub call anyone else.
-/// `None` for port 0.
-fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>, ConnectError> {
-    if port == 0 {
-        return Ok(None);
-    }
-    let port = u16::try_from(port).map_err(|_too_big| refused(links::Error::AddressInvalid))?;
-    let source = ctx
-        .extensions()
+/// The IP address the request `ctx` came from (ADR 0018). Every request has one, so its absence
+/// is a Hub bug and never a Refusal.
+fn request_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    ctx.extensions()
         .get::<RequestSource>()
-        .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?;
-    Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
-}
-
-/// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty. One no client could connect
-/// to, such as on port 0 or a loopback address, is refused, since the Hub names it and offers it.
-fn parse_relay(relay: &str) -> Result<Option<SocketAddr>, ConnectError> {
-    if relay.is_empty() {
-        return Ok(None);
-    }
-    let relay: SocketAddr = relay
-        .parse()
-        .map_err(|_not_an_address| refused(links::Error::AddressInvalid))?;
-    let ip = relay.ip().to_canonical();
-    if relay.port() == 0 || ip.is_unspecified() || ip.is_loopback() || ip.is_multicast() {
-        return Err(refused(links::Error::AddressInvalid));
-    }
-    Ok(Some(relay))
+        .map(|source| source.client_ip)
+        .ok_or_else(|| hub_failed(&"a request came without its peer's address"))
 }
 
 /// The invite `id` names. One that isn't a UUID names none.

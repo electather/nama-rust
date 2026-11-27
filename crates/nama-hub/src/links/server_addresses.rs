@@ -9,7 +9,7 @@
 //! the HTTPS names the Hub gave those and its Relay's address are return addresses; the Hub makes
 //! the last two itself, so a Server can't widen them by reporting anything.
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use reqwest::Url;
 
@@ -32,11 +32,13 @@ pub(crate) struct ReportedAddresses<'a> {
     pub(crate) url: &'a str,
     /// Such as `http://192.168.1.10:7980`.
     pub(crate) lan_addresses: &'a [String],
-    /// Its router's public IP address with the port that reaches it, if it has one: the request's
-    /// own IP, never one the Server names (ADR 0057).
-    pub(crate) public: Option<SocketAddr>,
-    /// The Relay it dials out to, if any (ADR 0057).
-    pub(crate) relay: Option<SocketAddr>,
+    /// The port that reaches the Server from outside, as sent: 0 for none.
+    pub(crate) public_port: u32,
+    /// The Relay it dials out to as `<ip>:<port>`, as sent: empty for none (ADR 0057).
+    pub(crate) relay: &'a str,
+    /// The IP address the request came from (ADR 0018), the only one the public port is probed
+    /// at, never one the Server names (ADR 0057).
+    pub(crate) request_ip: IpAddr,
 }
 
 /// What the Hub found of a Server's addresses it reported.
@@ -104,17 +106,9 @@ impl Links {
         reported: ReportedAddresses<'_>,
     ) -> Result<Checked, Error> {
         let ReportedAddresses {
-            url,
-            lan_addresses,
-            public,
-            relay,
+            url, lan_addresses, ..
         } = reported;
-        let addresses_valid = lan_addresses.len() <= MAX_LAN_ADDRESSES
-            && (url.is_empty() || is_address(url))
-            && lan_addresses.iter().all(|address| is_address(address));
-        if !addresses_valid {
-            return Err(Error::AddressInvalid);
-        }
+        let (public, relay) = checked_endpoints(&reported)?;
         // Stored before the probe, which can take seconds, so a sign-in returning to the new
         // Server URL meanwhile isn't refused by `is_return_address`.
         sqlx::query!(
@@ -224,6 +218,46 @@ impl Links {
             _ => String::new(),
         }
     }
+}
+
+/// The public address to probe and the Relay `reported` holds, or [`Error::AddressInvalid`] for
+/// any part of it that isn't valid, so nothing is stored from a bad report.
+fn checked_endpoints(
+    reported: &ReportedAddresses<'_>,
+) -> Result<(Option<SocketAddr>, Option<SocketAddr>), Error> {
+    let addresses_valid = reported.lan_addresses.len() <= MAX_LAN_ADDRESSES
+        && (reported.url.is_empty() || is_address(reported.url))
+        && reported
+            .lan_addresses
+            .iter()
+            .all(|address| is_address(address));
+    if !addresses_valid {
+        return Err(Error::AddressInvalid);
+    }
+    let public = match reported.public_port {
+        0 => None,
+        port => {
+            let port = u16::try_from(port).map_err(|_too_big| Error::AddressInvalid)?;
+            Some(SocketAddr::new(reported.request_ip.to_canonical(), port))
+        }
+    };
+    Ok((public, parse_relay(reported.relay)?))
+}
+
+/// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty. One no client could connect
+/// to, such as on port 0 or a loopback address, is refused, since the Hub names it and offers it.
+fn parse_relay(relay: &str) -> Result<Option<SocketAddr>, Error> {
+    if relay.is_empty() {
+        return Ok(None);
+    }
+    let relay: SocketAddr = relay
+        .parse()
+        .map_err(|_not_an_address| Error::AddressInvalid)?;
+    let ip = relay.ip().to_canonical();
+    if relay.port() == 0 || ip.is_unspecified() || ip.is_loopback() || ip.is_multicast() {
+        return Err(Error::AddressInvalid);
+    }
+    Ok(Some(relay))
 }
 
 /// Whether `address` may be a Server Address: an absolute `http` or `https` URL with a host, so
