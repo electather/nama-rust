@@ -1,15 +1,13 @@
 //! Viewing Events and pooling: `nama.hub.v1.ViewingEventService` for a signed-in Account, and
-//! `LinkedServerService.RecordViewingEvents` with the conversions and refusals it uses, and
-//! `ListTrendingTitles`.
+//! `LinkedServerService.RecordViewingEvents` with the conversions and refusals it uses.
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     self as proto, DeleteViewingEventRequest, DeleteViewingEventResponse,
-    DeviceKind as ProtoDevice, GetPoolingRequest, GetPoolingResponse, ListTrendingTitlesResponse,
-    ListViewingEventsRequest, ListViewingEventsResponse, RecordViewingEventsRequest,
-    RecordViewingEventsResponse, RefusalReason, SetPoolingRequest, SetPoolingResponse,
-    ViewingEventService,
+    DeviceKind as ProtoDevice, GetPoolingRequest, GetPoolingResponse, ListViewingEventsRequest,
+    ListViewingEventsResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    RefusalReason, SetPoolingRequest, SetPoolingResponse, ViewingEventService,
 };
 
 use super::{
@@ -17,7 +15,6 @@ use super::{
     hub_failed,
     links::{LinkedServerServiceHandler, linked_server},
     refuse,
-    titles::trending_to_proto,
 };
 use crate::viewing::{
     self, DeviceKind, Kind, ListedViewingEvent, MAX_RECORDED, UserViewingEvent, Viewing,
@@ -104,18 +101,6 @@ pub(super) async fn record_viewing_events(
         .await
         .map_err(|err| refused(&err))?;
     Response::ok(RecordViewingEventsResponse::default())
-}
-
-pub(super) async fn list_trending_titles(
-    handler: &LinkedServerServiceHandler,
-) -> ServiceResult<ListTrendingTitlesResponse> {
-    let trending = (handler.viewing.trending())
-        .await
-        .map_err(|err| hub_failed(&err))?;
-    Response::ok(ListTrendingTitlesResponse {
-        titles: trending.iter().filter_map(trending_to_proto).collect(),
-        ..Default::default()
-    })
 }
 
 /// The Viewing Events a Linked Server sent, or the refusal for one it can't have meant.

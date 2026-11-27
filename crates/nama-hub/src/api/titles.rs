@@ -1,10 +1,10 @@
 //! What a Linked Server asks of the Hub's titles: `LinkedServerService.ListSimilarTitles` and
-//! `ListRecommendedTitles`, and the conversions they and `ListTrendingTitles` use.
+//! `ListRecommendedTitles` and `ListTrendingTitles`, and the conversions they use.
 
 use connectrpc::{RequestContext, Response, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     self as proto, ListRecommendedTitlesRequest, ListRecommendedTitlesResponse,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListTrendingTitlesResponse,
 };
 
 use super::{
@@ -58,6 +58,18 @@ pub(super) async fn list_recommended_titles(
         .map_err(|err| hub_failed(&err))?;
     Response::ok(ListRecommendedTitlesResponse {
         titles: recommended.into_iter().map(recommended_to_proto).collect(),
+        ..Default::default()
+    })
+}
+
+pub(super) async fn list_trending_titles(
+    handler: &LinkedServerServiceHandler,
+) -> ServiceResult<ListTrendingTitlesResponse> {
+    let trending = (handler.viewing.trending())
+        .await
+        .map_err(|err| hub_failed(&err))?;
+    Response::ok(ListTrendingTitlesResponse {
+        titles: trending.iter().filter_map(trending_to_proto).collect(),
         ..Default::default()
     })
 }

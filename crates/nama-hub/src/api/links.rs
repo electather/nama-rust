@@ -529,7 +529,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
     ) -> ServiceResult<ListTrendingTitlesResponse> {
-        viewing::list_trending_titles(self).await
+        titles::list_trending_titles(self).await
     }
 
     async fn list_most_watchlisted_titles(
