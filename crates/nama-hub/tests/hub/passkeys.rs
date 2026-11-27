@@ -127,6 +127,13 @@ async fn a_passkey_added_by_a_fresh_session_signs_in_without_an_email_or_passwor
     assert_eq!(account.account.unwrap().email, "ada@example.com");
 }
 
+async fn session_works(hub: &TestHub, token: &str) -> bool {
+    signed_in(hub, token)
+        .get_account(GetAccountRequest::default())
+        .await
+        .is_ok()
+}
+
 #[sqlx::test(migrations = false)]
 async fn signing_in_with_a_passkey_ends_the_browsers_session_and_leaves_the_others(db: PgPool) {
     let hub = TestHub::start(db, None).await;
@@ -151,18 +158,9 @@ async fn signing_in_with_a_passkey_ends_the_browsers_session_and_leaves_the_othe
             .headers(),
     );
 
-    let works = |token: String| {
-        let session = signed_in(&hub, &token);
-        async move {
-            session
-                .get_account(GetAccountRequest::default())
-                .await
-                .is_ok()
-        }
-    };
-    assert!(works(replacement).await);
-    assert!(works(other).await);
-    assert!(!works(browser).await);
+    assert!(session_works(&hub, &replacement).await);
+    assert!(session_works(&hub, &other).await);
+    assert!(!session_works(&hub, &browser).await);
 }
 
 #[sqlx::test(migrations = false)]

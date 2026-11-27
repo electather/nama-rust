@@ -195,7 +195,6 @@ impl Accounts {
         session: &AccountSession,
         id: Uuid,
     ) -> Result<(), Error> {
-        session.require_recent_authentication()?;
         let account = session.account.id;
         // The Account's row lock makes removals of its passkeys take turns, so what's left is read
         // in statements of their own after it.
