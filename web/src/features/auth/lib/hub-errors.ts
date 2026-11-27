@@ -41,7 +41,7 @@ export type HubWording<Field extends string = never> = Partial<
 /** What `wording` says about the Hub's Refusal on `error`, or `fallback` for the whole form. */
 export function sayHubRefusal<Field extends string = never>(
   error: unknown,
-  wording: HubWording<Field>,
+  wording: HubWording<NoInfer<Field>>,
   fallback: string,
 ): FormErrors<Field> {
   const refusal = hubRefusalOf(error);

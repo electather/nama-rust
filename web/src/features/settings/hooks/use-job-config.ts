@@ -19,6 +19,10 @@ export function useJobConfig(job: Job) {
       await mutateAsync({ pluginId: job.pluginId, jobId: job.id, ...wanted });
     },
   );
-  const words = refusedWords(refused, labels, refused && jobRefusalFields(refused.failure));
+  const words = refusedWords<"schedule">(
+    refused,
+    labels,
+    refused && jobRefusalFields(refused.failure),
+  );
   return { values, words, edit, dismiss };
 }

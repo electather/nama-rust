@@ -15,7 +15,7 @@ export interface Refused {
 export function refusedWords<Field extends string = never>(
   refused: Refused | undefined,
   labels: Record<string, { label: string }>,
-  byReason?: Partial<Record<RefusalReason, FormErrors<Field>>>,
+  byReason?: Partial<Record<RefusalReason, FormErrors<NoInfer<Field>>>>,
 ): FormErrors<Field> {
   if (refused === undefined) {
     return {};
