@@ -5,8 +5,7 @@ import type { Library } from "@/gen/nama/v1/library_pb";
 import { useModalContainer } from "@/shared/hooks/use-modal-container";
 
 /**
- * Picks the Library whose Items show, or every one's (`undefined`), calling `onPick` with it. Where
- * there's room it stays at the top of the pane while the list scrolls under it.
+ * Picks the Library whose Items show, or every one's (`undefined`), calling `onPick` with it.
  */
 export function LibraryFilter({
   libraries,
@@ -42,14 +41,12 @@ export function LibraryFilter({
     </Select>
   );
   return (
-    <div data-sticks className="top-0 z-10 bg-background px-4 pt-4 pb-3 md:sticky md:px-6 md:pt-2">
-      {/* The field fills what the label leaves, up to a dropdown's width. */}
-      <div className="flex max-w-80 items-center gap-3">
-        <label htmlFor={id} className="text-sm font-medium">
-          Library
-        </label>
-        {select}
-      </div>
+    // The field fills what the label leaves, up to a dropdown's width.
+    <div className="flex max-w-80 items-center gap-3">
+      <label htmlFor={id} className="text-sm font-medium">
+        Library
+      </label>
+      {select}
     </div>
   );
 }

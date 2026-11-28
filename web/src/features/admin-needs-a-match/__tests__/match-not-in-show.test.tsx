@@ -25,7 +25,7 @@ test.each([
     " 2 other Episodes Matched to it.",
   ],
 ])(
-  "matching an Episode to a Show without it says so %s, and keeps it listed",
+  "matching an Episode to a Show without it says so %s, and stays on its screen",
   async (_, answer, also) => {
     const listed: MessageInitShape<typeof UnmatchedItemSchema> = {
       ...episode,
@@ -51,14 +51,15 @@ test.each([
       ).transport,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /^Find a Match for Bake Off/u }));
-    fireEvent.click(await screen.findByRole("button", { name: "Match to Bake Off" }));
+    fireEvent.click(await screen.findByRole("link", { name: /^Bake Off/u }));
+    await screen.findByRole("radio", { name: "Bake Off" });
+    fireEvent.click(screen.getByRole("button", { name: "Match" }));
 
     const said = await screen.findByText(`That Show has no Season 10, Episode 1.${also}`);
     expect(screen.getAllByRole("status")).toContain(said);
     await expect(
-      screen.findByText("Its Show has no such Episode. Matching it to another Show may help."),
+      screen.findByText("Its Show has no Season 10, Episode 1. Pick another Show."),
     ).resolves.toBeDefined();
-    expect(screen.getByText(episode.path)).toBeDefined();
+    expect(screen.getByRole("heading", { name: /^Bake Off/u, level: 3 })).toBeDefined();
   },
 );
