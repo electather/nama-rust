@@ -26,7 +26,7 @@ export function FoundShowEpisodes({
   return (
     <ShowEpisodes
       {...{ seasons, scroller, opening, backdrop }}
-      libraryId={undefined}
+      show={undefined}
       row={rowRef}
       episodes={row}
       current={season}

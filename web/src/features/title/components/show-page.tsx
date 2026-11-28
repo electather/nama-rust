@@ -24,6 +24,7 @@ import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { isGone } from "@/shared/hooks/browse";
 import { useMay } from "@/shared/hooks/use-may";
+import type { DeletedSearch } from "@/shared/lib/deleted-search";
 import { backdropOf } from "@/shared/lib/server-image";
 
 /**
@@ -32,15 +33,18 @@ import { backdropOf } from "@/shared/lib/server-image";
  * it to another, its Trailers, then its Details. To a User who may Request Shows, the row holds
  * the Episodes missing from the Server too, dimmed. The row opens on the Season `asked`, if it
  * has it, or else on the Season of the main button's Episode. Then the Similar titles in a Library.
+ * Over the row, what a delete on the page left `deleted` to report.
  */
 export function ShowPage({
   libraryId,
   showId,
   asked,
+  deleted,
 }: {
   libraryId: bigint;
   showId: ExternalId;
   asked: number | undefined;
+  deleted: DeletedSearch;
 }) {
   const show = { libraryId, showId };
   const { data, error } = useShow(show);
@@ -77,9 +81,9 @@ export function ShowPage({
           />
         }
       >
-        <NotToldNotice />
+        <NotToldNotice {...deleted} />
         <ShowEpisodes
-          {...{ libraryId, seasons, scroller, opening }}
+          {...{ show, seasons, scroller, opening }}
           row={rowRef}
           episodes={row}
           current={season}

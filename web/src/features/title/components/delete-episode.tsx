@@ -10,7 +10,7 @@ import type { Opener } from "@/shared/lib/opener";
 /**
  * Deletes an Episode's every Version, or one of them, once `ref` opens it. Its
  * card goes with its last Version, so the page's URL then says which Fulfillers may download it
- * again.
+ * again, its other search kept.
  */
 export function DeleteEpisode({
   ref,
@@ -23,7 +23,7 @@ export function DeleteEpisode({
   episodeId: ExternalId;
   episode: Episode;
 }) {
-  const navigate = useNavigate({ from: "/libraries/$libraryId/shows/$showId/" });
+  const navigate = useNavigate();
   return (
     <DeleteMedia
       ref={ref}
@@ -34,6 +34,7 @@ export function DeleteEpisode({
       })}
       onDeletedEveryVersion={async (notTold) => {
         await navigate({
+          to: ".",
           search: (shown) => ({ ...shown, ...deletedSearch(episode.title, notTold) }),
         });
       }}

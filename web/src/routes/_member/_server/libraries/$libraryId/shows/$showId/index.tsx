@@ -61,5 +61,8 @@ export const Route = createFileRoute("/_member/_server/libraries/$libraryId/show
 
 function Show() {
   const { libraryId, showId, asked } = Route.useLoaderData();
-  return <ShowPage libraryId={libraryId} showId={showId} asked={asked} />;
+  const { deleted, notTold } = Route.useSearch();
+  return (
+    <ShowPage libraryId={libraryId} showId={showId} asked={asked} deleted={{ deleted, notTold }} />
+  );
 }

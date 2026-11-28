@@ -4,6 +4,7 @@ import { EpisodeRow } from "@/features/title/components/episode-row";
 import { SeasonBar } from "@/features/title/components/season-bar";
 import type { RowScroller } from "@/features/title/lib/season-row";
 import type { RowEpisode } from "@/features/title/lib/show-row";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
@@ -15,7 +16,7 @@ export function ShowEpisodes({
   row,
   scroller,
   opening,
-  libraryId,
+  show,
   seasons,
   episodes,
   current,
@@ -25,7 +26,7 @@ export function ShowEpisodes({
   row: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
   opening: number;
-  libraryId: bigint | undefined;
+  show: { libraryId: bigint; showId: ExternalId } | undefined;
   seasons: number[];
   episodes: RowEpisode[];
   current: number;
@@ -38,7 +39,7 @@ export function ShowEpisodes({
       <EpisodeRow
         ref={row}
         scroller={scroller}
-        libraryId={libraryId}
+        show={show}
         episodes={episodes}
         opening={opening}
         backdrop={backdrop}

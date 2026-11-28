@@ -5,12 +5,13 @@ import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtua
 import { rowLook } from "@/features/title/lib/row-look";
 import type { RowScroller } from "@/features/title/lib/season-row";
 import type { RowEpisode } from "@/features/title/lib/show-row";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { paddingFor } from "@/shared/lib/padding-for";
 import type { ServerImage } from "@/shared/lib/server-image";
 import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
- * Every one of a Show's `episodes` in one row, those of the page's Library, `libraryId`, and those it
+ * Every one of a Show's `episodes` in one row, those of the page's Library Show, `show`, and those it
  * lacks, `ref`, that scrolls sideways, snapping to each, past
  * the page's column to the screen's edges, keeping only the cards near the view in the page. It
  * takes focus, so arrow keys scroll it, opens on the card at `opening`, and `scroller` scrolls it.
@@ -19,14 +20,14 @@ import { tileGap } from "@/shared/lib/tile-shapes";
 export function EpisodeRow({
   ref,
   scroller,
-  libraryId,
+  show,
   episodes,
   opening,
   backdrop,
 }: {
   ref: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
-  libraryId: bigint | undefined;
+  show: { libraryId: bigint; showId: ExternalId } | undefined;
   episodes: RowEpisode[];
   opening: number;
   backdrop: ServerImage | undefined;
@@ -60,7 +61,7 @@ export function EpisodeRow({
         {shown.map(({ index, key }) => {
           const item = episodes[index];
           const place = { index, of: episodes.length };
-          return item && <RowCard key={key} {...{ libraryId, item, place, look }} />;
+          return item && <RowCard key={key} {...{ show, item, place, look }} />;
         })}
       </ul>
     </div>
