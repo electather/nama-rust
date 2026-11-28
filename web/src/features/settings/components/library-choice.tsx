@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 
 import { LibraryFilter } from "@/features/admin-needs-a-match/components/library-filter";
 import {
@@ -6,6 +6,15 @@ import {
   filesNeedingAMatch,
 } from "@/features/admin-needs-a-match/lib/unmatched-group";
 import { Segmented } from "@/features/settings/components/segmented";
+
+/** A segment's `name`, with how many files it holds quieter beside it. */
+function counted(name: string, count: number) {
+  return (
+    <>
+      {name} <span className="ms-1 text-muted-foreground tabular-nums">{count}</span>
+    </>
+  );
+}
 
 /** Up to this many Libraries get a segment each; more are picked from a dropdown. */
 const MOST_SEGMENTS = 4;
@@ -39,11 +48,11 @@ export function LibraryChoice({
       />
     );
   }
-  const options: [string, string][] = [
-    ["", `All ${filesNeedingAMatch(groups)}`],
-    ...groups.map(({ library, count }): [string, string] => [
+  const options: [string, ReactNode][] = [
+    ["", counted("All", filesNeedingAMatch(groups))],
+    ...groups.map(({ library, count }): [string, ReactNode] => [
       String(library.id),
-      `${library.name} ${count}`,
+      counted(library.name, count),
     ]),
   ];
   return (

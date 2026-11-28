@@ -44,7 +44,7 @@ function listing() {
 }
 
 describe("the list", () => {
-  test("says how many files there are over each Library's own inset list", async () => {
+  test("says how many files there are over each Library's own list", async () => {
     openSettings("needs-a-match", listing());
 
     await expect(
@@ -52,10 +52,10 @@ describe("the list", () => {
         "The Server couldn’t tell what these 2 files are. Open one to pick its title.",
       ),
     ).resolves.toBeDefined();
-    const movies = screen.getByRole("region", { name: "Films" });
+    const movies = screen.getByRole("list", { name: "Films" });
     expect(within(movies).getByRole("link", { name: "Alien (1979)" })).toBeDefined();
     expect(within(movies).getByText("No title fits this name")).toBeDefined();
-    const episodes = screen.getByRole("region", { name: "Shows" });
+    const episodes = screen.getByRole("list", { name: "Shows" });
     expect(
       within(episodes).getByRole("link", { name: "Severance · Season 1, Episode 2" }),
     ).toBeDefined();
@@ -68,7 +68,7 @@ describe("the list", () => {
     await screen.findByRole("link", { name: "Alien (1979)" });
 
     expect(screen.queryByText(alien.path)).toBeNull();
-    const list = screen.getByRole("region", { name: "Films" });
+    const list = screen.getByRole("list", { name: "Films" });
     expect(within(list).queryAllByRole("button")).toStrictEqual([]);
   });
 

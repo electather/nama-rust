@@ -4,7 +4,6 @@ import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { tileRing } from "@/shared/lib/tile-shapes";
 
 const SIZES = {
-  row: { box: "h-12 w-8 [&_svg]:size-4", radius: "rounded-md" },
   // 80 by 120, and on a phone 56 by 84.
   header: {
     box: "h-21 w-14 md:h-30 md:w-20 [&_svg]:size-5 md:[&_svg]:size-6",
