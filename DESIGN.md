@@ -93,7 +93,7 @@ The system rejects Plex's busy home screen with its promoted rows and upsells, t
 - Artwork is the loudest element on every screen. The interface never competes with it.
 - Restrained colour: pure black-and-grey neutrals, with near-white as the only emphasis.
 - One clean sans (Geist) in several weights. No second family.
-- Flat surfaces separated by tone, not by shadows or borders.
+- Flat surfaces separated by tone, not by shadows or borders. Only a lifted card carries a shadow.
 - Responsive motion that confirms and connects, and is never decorative.
 
 ## 2. Colors
@@ -152,10 +152,18 @@ Only Display is a token (`--text-display`); every other step is Tailwind's own s
 
 ## 4. Elevation
 
-Flat by default. Depth comes from tonal layering plus a hairline: each surface steps one notch along the neutral ramp and carries a 1px white-at-8% border. Shadows are reserved for elements that genuinely float above the content, such as the player controls overlay, menus and dialogs. The one step above the page is `--card`, things that float are `--popover` with `shadow-md` (menus) or `shadow-lg` (dialogs, the player bar), and text over artwork sits on the `--scrim` token.
+Flat by default. Depth comes from tonal layering plus a hairline: each surface steps one notch along the neutral ramp and carries a 1px white-at-8% border. Shadows are reserved for elements that genuinely float above the content, such as the player controls overlay, menus and dialogs, and a card lifted by the pointer or the keyboard (Card motion). The one step above the page is `--card`, things that float are `--popover` with `shadow-md` (menus) or `shadow-lg` (dialogs, the player bar), and text over artwork sits on the `--scrim` token.
 
 ### Named Rules
 **The Flat-By-Default Rule.** Surfaces are flat at rest. If a poster grid needs shadows to separate its items, the spacing is wrong.
+
+**Card motion.** Every Poster and backdrop card (Continue Watching, Episodes) answers the pointer, all on ease-out-expo and in `scale`, `box-shadow` and `opacity` only, so no card's size, margin or padding changes and no neighbour moves (`tileMotion` in `shared/lib/tile-shapes.ts`; `tile-sheen` in `styles.css`).
+- **Lift.** On hover and keyboard focus the card scales to 1.02 over 300ms, takes `shadow-lg`, rises above its neighbours (`z-index`), and its inner hairline fades out. The focus ring stays. A shelf's scroller and the Library's grid give a lifted card and its shadow room with padding that a negative margin takes back (`shelfLift`), so nothing clips and nothing shifts.
+- **Press.** `:active` scales to 0.97 over 100ms, and the card settles back on release.
+- **Sheen.** Where a hover is a fine pointer's, a white-at-8% radial light follows it, placed by `--mx` and `--my` that one handler sets on pointer move (`followPointer`), with no render.
+- **Art.** A full image fades from 0 to 1 and settles from 1.03 to 1 over its thumbhash once it loads.
+- **Progress.** A Continue Watching bar grows from 0 to its value over 900ms the first time its card is in view, once per mount.
+- **Reduced motion.** No scale and no growth: the ring and shadow change at once, and the art crossfades.
 
 ## 5. Components
 
