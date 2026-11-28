@@ -92,16 +92,15 @@ describe("a Library's Unmatched Items as tiles", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Find a Match" }));
 
-    await expect(
-      screen.findByRole("button", { name: "Match to Alien (1979)" }),
-    ).resolves.toBeDefined();
+    await expect(screen.findByRole("radio", { name: "Alien (1979)" })).resolves.toBeDefined();
   });
 
   test("lose a tile once its item is Matched", async () => {
     openApp("/libraries/1", libraryWith([alien], admin));
 
     fireEvent.click(await screen.findByRole("button", { name: "Find a Match" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Match to Alien (1979)" }));
+    await screen.findByRole("radio", { name: "Alien (1979)" });
+    fireEvent.click(screen.getByRole("button", { name: "Match" }));
 
     await waitFor(() => {
       expect(screen.queryByRole("link", { name: "Play Alien (1979)" })).toBeNull();

@@ -1,43 +1,51 @@
+import { RadioGroup } from "nama-ui/components/radio-group";
+import { useState } from "react";
+
 import type { TitleCandidate } from "@/gen/nama/v1/match_pb";
 import { CandidateRow } from "@/shared/components/find-a-match/candidate-row";
-import { useSetMatch } from "@/shared/hooks/use-set-match";
-import { type ToMatch, matchTarget, notInShow, setMatchRefusal } from "@/shared/lib/find-a-match";
+import { MoreResults } from "@/shared/components/find-a-match/more-results";
+import { candidateKey } from "@/shared/lib/find-a-match";
 
-/** The titles found, each with a button that Matches `item` to it, and what Matching did. */
+/** How many titles show before "N more results". */
+const BEST_FITS = 3;
+
+/**
+ * The titles found, the best fits first as radios of which `picked` is chosen, and the rest behind
+ * "N more results".
+ */
 export function Candidates({
   candidates,
-  item,
-  libraryId,
-  onMatched,
-}: ToMatch & { candidates: TitleCandidate[] }) {
-  const setMatch = useSetMatch(libraryId);
+  picked,
+  onPick,
+}: {
+  candidates: TitleCandidate[];
+  picked: TitleCandidate | undefined;
+  onPick: (key: string) => void;
+}) {
+  const [all, setAll] = useState(false);
+  const shown = all ? candidates : candidates.slice(0, BEST_FITS);
+  const more = candidates.length - shown.length;
   return (
-    <>
-      <ul aria-label="Titles found" className="-mx-3 flex flex-col">
-        {candidates.map((candidate) => (
-          <CandidateRow
-            key={`${candidate.id?.namespace}:${candidate.id?.value}`}
-            candidate={candidate}
-            pending={setMatch.isPending}
-            onMatch={() => {
-              setMatch.mutate(
-                { ...matchTarget(item), titleId: candidate.id },
-                {
-                  onSuccess: (matched) => {
-                    onMatched?.(candidate.id, matched);
-                  },
-                },
-              );
-            }}
-          />
+    <fieldset className="flex min-w-0 flex-col gap-1.5">
+      <legend className="pb-1.5 text-xs text-muted-foreground">Best fits</legend>
+      <RadioGroup
+        value={picked === undefined ? "" : candidateKey(picked)}
+        onValueChange={(key) => {
+          onPick(String(key));
+        }}
+      >
+        {shown.map((candidate) => (
+          <CandidateRow key={candidateKey(candidate)} candidate={candidate} />
         ))}
-      </ul>
-      <output className="block text-sm text-pretty empty:hidden">
-        {setMatch.data && "itemId" in item && notInShow(item, setMatch.data)}
-      </output>
-      <p role="alert" className="text-sm text-destructive empty:hidden">
-        {setMatch.error && setMatchRefusal(setMatch.error)}
-      </p>
-    </>
+      </RadioGroup>
+      {more > 0 && (
+        <MoreResults
+          more={more}
+          onShow={() => {
+            setAll(true);
+          }}
+        />
+      )}
+    </fieldset>
   );
 }

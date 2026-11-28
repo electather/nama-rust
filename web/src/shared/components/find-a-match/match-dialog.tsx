@@ -24,15 +24,25 @@ export function MatchDialog({
       // controls hide.
       className="pointer-events-auto m-auto w-full max-w-sm rounded-xl border bg-popover p-6 text-start text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-lg"
     >
-      <h2 id={heading} className="mb-4 text-lg font-semibold tracking-tight text-balance">
+      <h2 id={heading} className="mb-5 text-lg font-semibold tracking-tight text-balance">
         Match {parsedAs(toMatch.item)}
       </h2>
-      {opened > 0 && <FindAMatch key={opened} {...toMatch} />}
-      <div className="mt-6 flex justify-end">
-        <Button variant="ghost" onClick={() => dialog.current?.close()}>
-          Close
-        </Button>
-      </div>
+      {opened > 0 && (
+        <FindAMatch
+          key={opened}
+          cancel={
+            <Button
+              type="button"
+              variant="ghost"
+              size="touch"
+              onClick={() => dialog.current?.close()}
+            >
+              Close
+            </Button>
+          }
+          {...toMatch}
+        />
+      )}
     </dialog>
   );
 }

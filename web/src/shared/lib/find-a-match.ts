@@ -1,8 +1,8 @@
 import { Code } from "@connectrpc/connect";
 
-import type { ExternalId, SetMatchResponse, TitleKind } from "@/gen/nama/v1/match_pb";
+import type { ExternalId, SetMatchResponse, TitleCandidate } from "@/gen/nama/v1/match_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { formText, refusal } from "@/shared/lib/forms";
+import { refusal } from "@/shared/lib/forms";
 import { episodeName } from "@/shared/lib/title-facts";
 import type { ItemToMatch } from "@/shared/lib/unmatched-names";
 
@@ -28,10 +28,15 @@ export function matchTarget(toMatch: ItemToMatch | TitleToMatch) {
     : { itemId: toMatch.itemId };
 }
 
-/** What the title source is searched for, as the Find a Match form typed it. */
-export function searchTyped(typed: FormData, kind: TitleKind) {
-  const year = formText(typed, "year");
-  return { kind, title: formText(typed, "title"), year: year === "" ? undefined : Number(year) };
+/** The year typed in Find a Match's Year field: none while it's blank or isn't a whole year. */
+export function yearTyped(typed: string) {
+  const year = Number(typed.trim());
+  return typed.trim() !== "" && Number.isInteger(year) && year > 0 ? year : undefined;
+}
+
+/** What names a title found in the radio that picks it: its title source and its id there. */
+export function candidateKey({ id }: TitleCandidate) {
+  return `${id?.namespace}:${id?.value}`;
 }
 
 /**
