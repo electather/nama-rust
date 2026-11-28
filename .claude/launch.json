@@ -48,14 +48,6 @@
       },
       "port": 5174,
       "autoPort": false
-    },
-    {
-      "name": "web-posters",
-      "runtimeExecutable": "mise",
-      "cwd": ".claude/worktrees/agent-a229cfdfe97205086/web",
-      "runtimeArgs": ["exec", "--", "vp", "dev", "--port", "5175", "--strictPort"],
-      "port": 5175,
-      "autoPort": false
     }
   ]
 }
