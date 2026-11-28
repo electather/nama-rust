@@ -9,8 +9,8 @@ import { detailSearch } from "@/shared/lib/settings-address";
 import { parsedAs } from "@/shared/lib/unmatched-names";
 
 /**
- * One file on a Library's list: a Movie's film or a Show's screen, what its name was parsed as
- * over why it needs a Match, as an icon and a few words. All of the row opens the file's own screen, which still has the
+ * One file on a Library's list: a Movie's film or a Show's screen, what its name was parsed as,
+ * and at its end why it needs a Match, as an icon named on hover. All of the row opens the file's own screen, which still has the
  * Library `picked` filtered to when Back returns.
  */
 export function UnmatchedLink({
@@ -34,6 +34,8 @@ export function UnmatchedLink({
   );
   const icon = <IconTile Icon={item.kind === TitleKind.SHOW ? Tv : Film} />;
   return (
-    <ItemRow beside linked start={icon} name={name} meta={<UnmatchedReasonLabel item={item} />} />
+    <ItemRow beside linked start={icon} name={name}>
+      <UnmatchedReasonLabel item={item} />
+    </ItemRow>
   );
 }
