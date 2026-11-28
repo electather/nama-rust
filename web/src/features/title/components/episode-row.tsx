@@ -4,6 +4,7 @@ import type { ShowRow } from "@/features/title/hooks/use-show-row";
 import type { RowLook } from "@/features/title/lib/row-look";
 import type { ShowInLibrary } from "@/features/title/lib/show-params";
 import { paddingFor } from "@/shared/lib/padding-for";
+import { shelfLift } from "@/shared/lib/shelf-bleed";
 import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
@@ -42,7 +43,7 @@ export function EpisodeRow({
       // proximity: mandatory, a jump past the cards it shows, as to a picked Season or with End,
       // would snap back to the nearest card still in the page. Its inset is the virtualizer's
       // padding, so it holds none of its own.
-      className="mx-bleed snap-x snap-proximity scroll-px-shelf-edge scrollbar-none overflow-x-auto overscroll-x-contain pt-1 pb-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      className={`mx-bleed ${shelfLift} snap-x snap-proximity scroll-px-shelf-edge scrollbar-none overflow-x-auto overscroll-x-contain outline-none focus-visible:ring-3 focus-visible:ring-ring/50`}
     >
       <ul
         aria-label="Episodes"

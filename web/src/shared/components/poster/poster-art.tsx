@@ -1,6 +1,6 @@
 import { ServerImg } from "@/shared/components/server-img";
 import type { ServerImage } from "@/shared/lib/server-image";
-import { posterRing, posterSizes, posterTile } from "@/shared/lib/tile-shapes";
+import { posterSizes, posterTile, tileRing } from "@/shared/lib/tile-shapes";
 
 /**
  * A poster's art alone in its 2:3 box and hairline, at `size`: no link and no label. Without art,
@@ -25,6 +25,7 @@ export function PosterArt({
         images={[art]}
         sizes={sizes}
         className="absolute inset-0 size-full object-cover"
+        fades
         fallback={
           named ? (
             <span className="p-3 text-center text-sm font-medium text-balance text-muted-foreground">
@@ -33,7 +34,7 @@ export function PosterArt({
           ) : null
         }
       />
-      <span aria-hidden className={`${posterRing} ${radius}`} />
+      <span aria-hidden className={`${tileRing} ${radius}`} />
     </div>
   );
 }

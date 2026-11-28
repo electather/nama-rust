@@ -3,8 +3,9 @@ import { useId } from "react";
 
 import { PosterArt } from "@/shared/components/poster/poster-art";
 import { TileBadge, type TileBadgeShown } from "@/shared/components/poster/tile-badge";
+import { followPointer } from "@/shared/lib/follow-pointer";
 import type { ServerImage } from "@/shared/lib/server-image";
-import { posterSizes } from "@/shared/lib/tile-shapes";
+import { posterSizes, tileMotion } from "@/shared/lib/tile-shapes";
 
 /** A title as a poster shows it: its art, its link, and what labels it for assistive technology. */
 export interface PosterData {
@@ -38,7 +39,8 @@ export function Poster({
       aria-label={detail === undefined ? title : `${title}, ${detail}`}
       aria-current={current ? "page" : undefined}
       aria-describedby={badge && badgeId}
-      className={`relative block outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${posterSizes[size].radius}`}
+      onPointerMove={followPointer}
+      className={`relative block outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${tileMotion} ${posterSizes[size].radius}`}
     >
       <PosterArt art={art} title={title} size={size} />
       {badge && <TileBadge id={badgeId} badge={badge} />}
