@@ -1,6 +1,6 @@
 import { ServerImg } from "@/shared/components/server-img";
 import type { ServerImage } from "@/shared/lib/server-image";
-import { posterSizes, posterTile, tileArt, tileRing } from "@/shared/lib/tile-shapes";
+import { posterSizes, posterTile, tileRing } from "@/shared/lib/tile-shapes";
 
 /**
  * A poster's art alone in its 2:3 box and hairline, at `size`: no link and no label. Without art,
@@ -24,7 +24,7 @@ export function PosterArt({
       <ServerImg
         images={[art]}
         sizes={sizes}
-        className={tileArt}
+        className="absolute inset-0 size-full object-cover"
         fades
         fallback={
           named ? (

@@ -78,7 +78,7 @@ export const tileRing =
 /**
  * How a linked tile, a Poster or backdrop card, moves (DESIGN.md, "Card motion"): it lifts on hover
  * and keyboard focus, sinks on press, and leans toward the pointer as a sheen follows it
- * (`tile-tilt`, `tile-sheen`, `followPointer`); its art reads `tileArt`. Only `scale`, `transform`
+ * (`tile-tilt`, `tile-sheen`, `followPointer`). Only `scale`, `transform`
  * and `box-shadow` change, never a size or margin, so no neighbour
  * moves; `z-1` lets the lifted tile overlap them, and a row's room for the lift is `shelfBleed`.
  * Under reduced motion nothing scales and the shadow changes at once. The tile's ring and art
@@ -91,9 +91,6 @@ export const tileMotion = [
   "motion-safe:hover:scale-102 motion-safe:focus-visible:scale-102 motion-safe:has-focus-visible:scale-102",
   "motion-safe:active:scale-97 motion-safe:active:duration-100",
 ].join(" ");
-
-/** A tile's full-bleed art, drifting against its lean while `tileMotion` tilts it. */
-export const tileArt = "absolute inset-0 size-full object-cover tile-parallax";
 
 /** How a poster's box sits and loads: its extra classes, `sizes`, corners, and whether it names its title. */
 export interface PosterSize {
