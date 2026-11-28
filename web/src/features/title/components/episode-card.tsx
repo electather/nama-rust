@@ -2,17 +2,17 @@ import { EpisodeCaption } from "@/features/title/components/episode-caption";
 import { EpisodeMoreLoader } from "@/features/title/components/episode-more-loader";
 import { episodeCardLabel } from "@/features/title/lib/episode-card-label";
 import type { RowLook } from "@/features/title/lib/row-look";
+import { type ShowInLibrary, showParams } from "@/features/title/lib/show-params";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
 import { stillOf } from "@/shared/lib/server-image";
 import { backdropTile } from "@/shared/lib/tile-shapes";
-import { titleParam } from "@/shared/lib/title-param";
 
 /**
- * An Episode of the Library Show `show` by its Still, which plays its largest Version, with its caption over
- * the Still and a "…" to mark it watched or delete it, as Continue Watching's cards are drawn. It is
- * the card at `place.index` of the `place.of` in its row, drawn as the row's `look` says.
+ * An Episode of the Show `show` by its Still, which plays its largest Version, with its caption
+ * over the Still and a "…" to mark it watched or delete it, as Continue Watching's cards are
+ * drawn. It is the card at `place.index` of the `place.of` in its row, drawn as the row's `look`
+ * says.
  */
 export function EpisodeCard({
   show,
@@ -20,7 +20,7 @@ export function EpisodeCard({
   place,
   look,
 }: {
-  show: { libraryId: bigint; showId: ExternalId };
+  show: ShowInLibrary;
   episode: Episode;
   place: { index: number; of: number };
   look: RowLook;
@@ -41,8 +41,7 @@ export function EpisodeCard({
         link={{
           to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
           params: {
-            libraryId: String(show.libraryId),
-            showId: titleParam(show.showId),
+            ...showParams(show),
             season: String(episode.seasonNumber),
             episode: String(episode.episodeNumber),
           },
@@ -51,9 +50,7 @@ export function EpisodeCard({
         tall={look.tall}
         caption={<EpisodeCaption episode={episode} />}
         menu={
-          episodeId && (
-            <EpisodeMoreLoader libraryId={show.libraryId} episodeId={episodeId} episode={episode} />
-          )
+          episodeId && <EpisodeMoreLoader show={show} episodeId={episodeId} episode={episode} />
         }
       />
     </li>

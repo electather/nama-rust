@@ -3,8 +3,8 @@ import type { Ref, RefObject } from "react";
 import { EpisodeRow } from "@/features/title/components/episode-row";
 import { SeasonBar } from "@/features/title/components/season-bar";
 import type { RowScroller } from "@/features/title/lib/season-row";
+import type { ShowInLibrary } from "@/features/title/lib/show-params";
 import type { RowEpisode } from "@/features/title/lib/show-row";
-import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
@@ -26,7 +26,7 @@ export function ShowEpisodes({
   row: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
   opening: number;
-  show: { libraryId: bigint; showId: ExternalId } | undefined;
+  show: ShowInLibrary | undefined;
   seasons: number[];
   episodes: RowEpisode[];
   current: number;

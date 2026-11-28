@@ -4,14 +4,14 @@ import { RowCard } from "@/features/title/components/row-card";
 import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtualizer";
 import { rowLook } from "@/features/title/lib/row-look";
 import type { RowScroller } from "@/features/title/lib/season-row";
+import type { ShowInLibrary } from "@/features/title/lib/show-params";
 import type { RowEpisode } from "@/features/title/lib/show-row";
-import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { paddingFor } from "@/shared/lib/padding-for";
 import type { ServerImage } from "@/shared/lib/server-image";
 import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
- * Every one of a Show's `episodes` in one row, those of the page's Library Show, `show`, and those it
+ * Every one of a Show's `episodes` in one row, those of the page's Show `show`, and those it
  * lacks, `ref`, that scrolls sideways, snapping to each, past
  * the page's column to the screen's edges, keeping only the cards near the view in the page. It
  * takes focus, so arrow keys scroll it, opens on the card at `opening`, and `scroller` scrolls it.
@@ -27,7 +27,7 @@ export function EpisodeRow({
 }: {
   ref: RefObject<HTMLDivElement | null>;
   scroller: Ref<RowScroller>;
-  show: { libraryId: bigint; showId: ExternalId } | undefined;
+  show: ShowInLibrary | undefined;
   episodes: RowEpisode[];
   opening: number;
   backdrop: ServerImage | undefined;
