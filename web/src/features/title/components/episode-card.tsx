@@ -6,8 +6,8 @@ import { episodeCardLabel } from "@/features/title/lib/episode-card-label";
 import type { RowLook } from "@/features/title/lib/row-look";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
-import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
 import { stillOf } from "@/shared/lib/server-image";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * An Episode of a Show's row by its Still, with its caption over the Still, as Continue Watching's
@@ -34,10 +34,11 @@ export function EpisodeCard({
       data-season={item.seasonNumber}
       aria-setsize={place.of}
       aria-posinset={place.index + 1}
-      className="w-tile-backdrop shrink-0 snap-start"
+      className={`shrink-0 snap-start ${backdropTile.widthClass}`}
+      style={{ "--tile-width": backdropTile.width }}
     >
       <BackdropFrame
-        art={{ images: [stillOf(item.episode), look.backdrop], sizes: backdropTileSizes }}
+        art={{ images: [stillOf(item.episode), look.backdrop], sizes: backdropTile.sizes }}
         tall={look.tall}
         caption={<EpisodeCaption item={item} />}
         menu={<EpisodeCardMenu libraryId={libraryId} item={item} />}

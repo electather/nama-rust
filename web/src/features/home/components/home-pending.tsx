@@ -2,7 +2,7 @@ import { ContinueWatchingFrame } from "@/features/home/components/continue-watch
 import { FeaturedSkeleton } from "@/features/home/components/featured-skeleton";
 import { HomeLayout } from "@/features/home/components/home-layout";
 import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
-import { backdropTile } from "@/features/home/lib/shelf-tiles";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * Home while its layout, the Kernel's rows and those Plugins give, loads: skeletons only, since
@@ -12,7 +12,7 @@ export function HomePending() {
   return (
     <HomeLayout hero={<FeaturedSkeleton />}>
       <ContinueWatchingFrame headingId="continue-watching-pending">
-        <ShelfSkeleton tile={backdropTile} aspect="aspect-4/3" />
+        <ShelfSkeleton tile={backdropTile} />
       </ContinueWatchingFrame>
     </HomeLayout>
   );

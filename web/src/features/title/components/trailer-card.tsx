@@ -5,6 +5,7 @@ import { TrailerTile } from "@/features/title/components/trailer-tile";
 import { trailerPlayer } from "@/features/title/lib/trailer-player";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
 import type { ServerImage } from "@/shared/lib/server-image";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 
 /**
  * One of a title's Trailers in its row, over the title's `art`, playing in a pop-up in its host's
@@ -15,7 +16,10 @@ export function TrailerCard({ trailer, art }: { trailer: Trailer; art: ServerIma
   const [open, setOpen] = useState(false);
   const player = trailerPlayer(trailer.url);
   return (
-    <li className="w-tile-backdrop shrink-0 snap-start">
+    <li
+      className={`shrink-0 snap-start ${backdropTile.widthClass}`}
+      style={{ "--tile-width": backdropTile.width }}
+    >
       <TrailerTile
         trailer={trailer}
         art={art}

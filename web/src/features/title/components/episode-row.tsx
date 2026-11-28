@@ -3,6 +3,7 @@ import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtua
 import type { ShowRow } from "@/features/title/hooks/use-show-row";
 import type { RowLook } from "@/features/title/lib/row-look";
 import { paddingFor } from "@/shared/lib/padding-for";
+import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
  * Every one of a Show's Episodes in one row, those of the page's Library, `libraryId`, and those it
@@ -44,7 +45,7 @@ export function EpisodeRow({
     >
       <ul
         aria-label="Episodes"
-        className="flex w-max gap-5 ps-(--tiles-before) pe-(--tiles-after)"
+        className={`flex w-max ps-(--tiles-before) pe-(--tiles-after) ${tileGap.className}`}
         style={{ "--tiles-before": padding.above, "--tiles-after": padding.below }}
       >
         {shown.map(({ index, key }) => {
