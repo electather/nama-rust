@@ -3,7 +3,8 @@ import { episodeName } from "@/shared/lib/title-facts";
 import { titleWord } from "@/shared/lib/title-word";
 import { withYear } from "@/shared/lib/unmatched-names";
 
-type Reasoned = Pick<
+/** What of an Unmatched Item says why it is, and what to name it. */
+export type Reasoned = Pick<
   UnmatchedItem,
   "reason" | "kind" | "title" | "year" | "season" | "episode" | "tiedTitles"
 >;
