@@ -26,7 +26,7 @@ function LiesCard() {
           libraryId: 2n,
           showId: create(ExternalIdSchema, { namespace: "tmdb", value: "70 523" }),
         }}
-        episode={lies}
+        item={{ kind: "here", seasonNumber: 1, episodeNumber: 2, episode: lies }}
         place={{ index: 0, of: 1 }}
         look={{ tall: false, backdrop: undefined }}
       />

@@ -1,38 +1,29 @@
-import type { Ref, RefObject } from "react";
-
-import { RowCard } from "@/features/title/components/row-card";
+import { EpisodeCard } from "@/features/title/components/episode-card";
 import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtualizer";
-import { rowLook } from "@/features/title/lib/row-look";
-import type { RowScroller } from "@/features/title/lib/season-row";
+import type { ShowRow } from "@/features/title/hooks/use-show-row";
+import type { RowLook } from "@/features/title/lib/row-look";
 import type { ShowInLibrary } from "@/features/title/lib/show-params";
-import type { RowEpisode } from "@/features/title/lib/show-row";
 import { paddingFor } from "@/shared/lib/padding-for";
-import type { ServerImage } from "@/shared/lib/server-image";
 import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
- * Every one of a Show's `episodes` in one row, those of the page's Show `show`, and those it
- * lacks, `ref`, that scrolls sideways, snapping to each, past
- * the page's column to the screen's edges, keeping only the cards near the view in the page. It
- * takes focus, so arrow keys scroll it, opens on the card at `opening`, and `scroller` scrolls it.
- * The Show's `backdrop` stands in for a missing Still.
+ * Every one of a Show's Episodes in one row, those of the page's Show, `show`, and those it
+ * lacks, that scrolls sideways, snapping to each, past the page's column to the screen's edges,
+ * keeping only the cards near the view in the page. It takes focus, so arrow keys scroll it, and
+ * opens on the card `useShowRow` picked. Every card is drawn as its `look` says.
  */
 export function EpisodeRow({
-  ref,
-  scroller,
+  row: {
+    episodes,
+    view: { element: ref, scroller, opening },
+  },
   show,
-  episodes,
-  opening,
-  backdrop,
+  look,
 }: {
-  ref: RefObject<HTMLDivElement | null>;
-  scroller: Ref<RowScroller>;
+  row: ShowRow;
   show: ShowInLibrary | undefined;
-  episodes: RowEpisode[];
-  opening: number;
-  backdrop: ServerImage | undefined;
+  look: RowLook;
 }) {
-  const look = rowLook(episodes, backdrop);
   const virtualizer = useEpisodeVirtualizer({
     row: ref,
     scroller,
@@ -61,7 +52,7 @@ export function EpisodeRow({
         {shown.map(({ index, key }) => {
           const item = episodes[index];
           const place = { index, of: episodes.length };
-          return item && <RowCard key={key} {...{ show, item, place, look }} />;
+          return item && <EpisodeCard key={key} {...{ show, item, place, look }} />;
         })}
       </ul>
     </div>
