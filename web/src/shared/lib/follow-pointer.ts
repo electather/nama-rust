@@ -26,7 +26,7 @@ export function followPointer({
   const { style } = currentTarget;
   style.setProperty("--mx", `${String(clientX - left)}px`);
   style.setProperty("--my", `${String(clientY - top)}px`);
-  // The edge under the pointer dips away, as if the pointer pressed it.
-  style.setProperty("--tilt-x", `${String(-y * 2 * TILT_DEG)}deg`);
-  style.setProperty("--tilt-y", `${String(x * 2 * TILT_DEG)}deg`);
+  // The edge under the pointer rises toward the viewer, as if drawn up by it.
+  style.setProperty("--tilt-x", `${String(y * 2 * TILT_DEG)}deg`);
+  style.setProperty("--tilt-y", `${String(-x * 2 * TILT_DEG)}deg`);
 }
