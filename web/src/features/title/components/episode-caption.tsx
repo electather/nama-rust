@@ -1,5 +1,5 @@
 import { EpisodeProgress } from "@/features/title/components/episode-progress";
-import { foundEpisodeStatus } from "@/features/title/lib/found-episode-label";
+import { foundEpisodeStatus } from "@/features/title/lib/found-episode-status";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import { episodeName } from "@/shared/lib/title-facts";
 

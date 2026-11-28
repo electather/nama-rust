@@ -1,4 +1,4 @@
-import { foundEpisodeStatus } from "@/features/title/lib/found-episode-label";
+import { foundEpisodeStatus } from "@/features/title/lib/found-episode-status";
 import type { RowEpisode } from "@/features/title/lib/show-row";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { episodeName, runtimeOf, timeLeft } from "@/shared/lib/title-facts";

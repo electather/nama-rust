@@ -15,12 +15,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const backdropUrl = "/media/backdrops/dark.jpg";
+
 /**
  * Dark in the TV Library with Season 1's two Episodes, watched, the first with a synopsis and a
  * Still, where the title source lists Season 2 too, without a Still, for a User with `permissions`.
  */
-const backdropUrl = "/media/backdrops/dark.jpg";
-
 function openDark(permissions: Permission[]) {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
   const { transport } = fakeServer(
@@ -81,7 +81,7 @@ function openDark(permissions: Permission[]) {
   openApp("/libraries/2/shows/tmdb-70523", transport);
 }
 
-test("a Library's Show lists the Episodes missing from the Server after its own, and Requests the next Season", async () => {
+test("a Library's Show lists the Episodes missing from the Server after its own, its Backdrop standing in for their Stills, and Requests the next Season", async () => {
   openDark(newUser);
 
   const missing = await screen.findByText(
@@ -89,7 +89,6 @@ test("a Library's Show lists the Episodes missing from the Server after its own,
   );
   expect(screen.getByRole("link", { name: /^Play Season 1, Episode 1: Secrets/u })).toBeDefined();
   expect(screen.getByRole("button", { name: "Request Season 2 of Dark" })).toBeDefined();
-  // The Show's Backdrop stands in for the missing Episode's Still.
   expect(missing.closest("li")?.querySelector("img")?.getAttribute("src")).toBe(backdropUrl);
 });
 

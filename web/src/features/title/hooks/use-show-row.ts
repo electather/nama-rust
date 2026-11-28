@@ -19,9 +19,10 @@ export type ShowRow = ReturnType<typeof useShowRow>;
 /**
  * A Show's row: the page's Library's `episodes` and `seasons`, with the Episodes of `asking`'s
  * found Show the Library lacks, for a User who may Request Shows. It gives the row, `episodes`, its
- * `seasons`, the main button's `target`, the Episode Continue Watching has, `resumed`, else the
- * next to watch, and the `season` the row is on. It opens on `asked` if the Show has it, else the
- * target's Season, else the first, and goes back there once its Season is deleted.
+ * `seasons`, the main button's `target` (`resumed`, the Episode Continue Watching has, else the
+ * next to watch), the `season` the row is on, whether its cards are `tall`, and the `view` that
+ * `ShowEpisodes` draws. It opens on `asked` if the Show has it, else the target's Season, else the
+ * first, and goes back there once its Season is deleted.
  */
 export function useShowRow({
   episodes = NONE,

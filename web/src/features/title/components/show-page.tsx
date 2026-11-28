@@ -51,12 +51,9 @@ export function ShowPage({
         name={data.show.title}
         hero={
           <ShowHero
-            {...{ libraryId, showId, episodes }}
+            {...{ libraryId, showId, episodes, row }}
             show={data.show}
             seasons={data.seasons}
-            row={row.episodes}
-            target={row.target}
-            seasonNumber={row.season}
           />
         }
       >

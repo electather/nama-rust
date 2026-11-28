@@ -11,9 +11,9 @@ import { stillOf } from "@/shared/lib/server-image";
 
 /**
  * An Episode of a Show's row by its Still, with its caption over the Still, as Continue Watching's
- * cards are drawn. One in the page's Library, `libraryId`, plays its largest Version and has a "…"
- * to mark it watched or delete it; one in another Library plays nothing; one missing from the
- * Server is dimmed, with where its Season's Request is in its top corner. It is the card at
+ * cards are drawn. One in the page's Library plays its largest Version and has a "…", by
+ * `libraryId`, to mark it watched or delete it; one in another Library plays nothing; one missing
+ * from the Server is dimmed, with where its Season's Request is in its top corner. It is the card at
  * `place.index` of the `place.of` in its row, drawn as the row's `look` says.
  */
 export function EpisodeCard({
