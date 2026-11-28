@@ -3,6 +3,7 @@ import { useId } from "react";
 import { SimilarPoster } from "@/features/title/components/similar-poster";
 import type { SimilarTitle } from "@/features/title/lib/similar-titles";
 import { shelfBleed } from "@/shared/lib/shelf-bleed";
+import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
  * A title's Similar titles that are in a Library, under `heading`, in one row of posters that
@@ -21,7 +22,7 @@ export function SimilarTitles({ heading, titles }: { heading: string; titles: Si
       </h2>
       {/* Overscroll stays on the row, so a swipe at its end doesn't go back a page. */}
       <ul
-        className={`flex snap-x snap-mandatory scroll-px-shelf-edge scrollbar-none gap-5 overflow-x-auto overscroll-x-contain ${shelfBleed}`}
+        className={`flex snap-x snap-mandatory scroll-px-shelf-edge scrollbar-none overflow-x-auto overscroll-x-contain ${tileGap.className} ${shelfBleed}`}
       >
         {titles.map((title) => (
           <SimilarPoster key={title.key} title={title} />

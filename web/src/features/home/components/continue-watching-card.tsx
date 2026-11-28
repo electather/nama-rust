@@ -3,7 +3,7 @@ import { ContinueWatchingCaption } from "@/features/home/components/continue-wat
 import type { CardActions } from "@/features/home/lib/card-actions";
 import type { Card } from "@/features/home/lib/continue-watching-cards";
 import { BackdropCard } from "@/shared/components/backdrop-card/backdrop-card";
-import { backdropTileSizes } from "@/shared/lib/backdrop-tile-sizes";
+import { backdropTile } from "@/shared/lib/tile-shapes";
 import { isStarted } from "@/shared/lib/watch-progress";
 
 /**
@@ -15,7 +15,7 @@ export function ContinueWatchingCard({ card, actions }: { card: Card; actions: C
   const verb = isStarted(watchState) ? "Resume" : "Play";
   return (
     <BackdropCard
-      art={{ images: [art], sizes: backdropTileSizes }}
+      art={{ images: [art], sizes: backdropTile.sizes }}
       link={card.link}
       label={[`${verb} ${title}`, detail].filter(Boolean).join(", ")}
       caption={

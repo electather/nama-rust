@@ -3,6 +3,7 @@ import { useId } from "react";
 import { BoxSetPoster } from "@/features/title/components/box-set-poster";
 import { boxSetTiles } from "@/features/title/lib/box-set-tiles";
 import type { BoxSet } from "@/gen/nama/v1/browse_pb";
+import { tileGap } from "@/shared/lib/tile-shapes";
 
 /** A Box Set's Movies, in its order, under "Movies", as posters that wrap. */
 export function BoxSetMovies({ boxSet }: { boxSet: BoxSet }) {
@@ -12,7 +13,7 @@ export function BoxSetMovies({ boxSet }: { boxSet: BoxSet }) {
       <h2 id={headingId} className="text-lg font-semibold">
         Movies
       </h2>
-      <ul className="flex flex-wrap gap-5">
+      <ul className={`flex flex-wrap ${tileGap.className}`}>
         {boxSetTiles(boxSet).map((tile) => (
           <BoxSetPoster key={tile.key} tile={tile} />
         ))}

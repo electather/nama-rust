@@ -3,9 +3,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type ReactNode, useMemo, useRef } from "react";
 
 import { useLoadAtEnd } from "@/features/home/hooks/use-load-at-end";
-import type { ShelfTile } from "@/features/home/lib/shelf-tiles";
 import { paddingFor } from "@/shared/lib/padding-for";
 import { shelfBleed } from "@/shared/lib/shelf-bleed";
+import { type TileShape, tileGap } from "@/shared/lib/tile-shapes";
 
 declare module "react" {
   interface CSSProperties {
@@ -16,20 +16,18 @@ declare module "react" {
   }
 }
 
-/** The gap between tiles, `gap-5`. */
-const GAP = 20;
-
 /**
  * How wide `tile` is on this screen, its CSS width measured in a probe, or its guess where nothing
  * is laid out, as in tests.
  */
-function tileWidth(tile: ShelfTile) {
+function tileWidth(tile: TileShape) {
   const probe = document.createElement("div");
-  probe.className = `invisible absolute ${tile.width}`;
+  probe.className = `invisible absolute ${tile.widthClass}`;
+  probe.style.setProperty("--tile-width", tile.width);
   document.body.append(probe);
   const { width } = probe.getBoundingClientRect();
   probe.remove();
-  return width > 0 ? width : tile.estimate;
+  return width > 0 ? width : tile.widest;
 }
 
 /** Where the shelf `restoreId` names was scrolled when its page was last left, or its start. */
@@ -51,7 +49,7 @@ export function VirtualShelf({
   next,
 }: {
   tiles: { key: string; tile: ReactNode }[];
-  tile: ShelfTile;
+  tile: TileShape;
   setSize: number | undefined;
   restoreId: string;
   next?: Parameters<typeof useLoadAtEnd>[0]["next"];
@@ -75,7 +73,7 @@ export function VirtualShelf({
     initialRect: { width: globalThis.innerWidth, height: 0 },
     estimateSize: () => estimate,
     getItemKey: (index) => tiles[index]?.key ?? index,
-    gap: GAP,
+    gap: tileGap.px,
     // ponytail: the virtualizer counts from the scroller's padding edge, not its `shelf-edge` inset,
     // so its window sits up to a tile off; overscan covers it. Pass `paddingStart` if it shows.
     overscan: 3,
@@ -91,7 +89,7 @@ export function VirtualShelf({
       className={`snap-x snap-mandatory scroll-px-shelf-edge scrollbar-none overflow-x-auto overscroll-x-contain ${shelfBleed}`}
     >
       <ul
-        className="flex w-max gap-5 ps-(--tiles-before) pe-(--tiles-after)"
+        className={`flex w-max ps-(--tiles-before) pe-(--tiles-after) ${tileGap.className}`}
         style={{ "--tiles-before": padding.above, "--tiles-after": padding.below }}
       >
         {shown.map(({ index, key }) => (
@@ -101,7 +99,8 @@ export function VirtualShelf({
             data-index={index}
             aria-setsize={setSize}
             aria-posinset={index + 1}
-            className={`relative shrink-0 snap-start ${tile.width}`}
+            className={`relative shrink-0 snap-start ${tile.widthClass}`}
+            style={{ "--tile-width": tile.width }}
           >
             {tiles[index]?.tile}
           </li>

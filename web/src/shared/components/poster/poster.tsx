@@ -3,11 +3,7 @@ import type { ReactNode } from "react";
 
 import { ServerImg } from "@/shared/components/server-img";
 import type { ServerImage } from "@/shared/lib/server-image";
-
-/** The `sizes` of a shelf's poster, as wide as `w-tile-poster`. */
-const shelfSizes = "(max-width: 1071px) 150px, (max-width: 1500px) 14vw, 210px";
-
-const radius = "rounded-xl";
+import { posterTile } from "@/shared/lib/tile-shapes";
 
 /**
  * A Movie's, Show's or Box Set's poster alone, opening `link`: its name, `title`, and `detail`,
@@ -21,7 +17,7 @@ export function Poster({
   title,
   detail,
   art,
-  sizes = shelfSizes,
+  sizes = posterTile.sizes,
   current = false,
   describedBy,
   children,
@@ -41,7 +37,7 @@ export function Poster({
       aria-label={detail === undefined ? title : `${title}, ${detail}`}
       aria-current={current ? "page" : undefined}
       aria-describedby={describedBy}
-      className={`relative isolate flex aspect-2/3 items-center justify-center overflow-hidden bg-muted p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${radius}`}
+      className={`relative isolate flex items-center justify-center overflow-hidden bg-muted p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${posterTile.aspect} ${posterTile.radius}`}
     >
       <ServerImg
         images={[art]}
@@ -53,7 +49,10 @@ export function Poster({
           </span>
         }
       />
-      <span aria-hidden className={`absolute inset-0 inset-ring inset-ring-border ${radius}`} />
+      <span
+        aria-hidden
+        className={`absolute inset-0 inset-ring inset-ring-border ${posterTile.radius}`}
+      />
       {children}
     </Link>
   );

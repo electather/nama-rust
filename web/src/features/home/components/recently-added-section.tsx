@@ -6,16 +6,16 @@ import { NewestShows } from "@/features/home/components/newest-shows";
 import { RecentlyAddedFrame } from "@/features/home/components/recently-added-frame";
 import { RowLoader } from "@/features/home/components/row-loader";
 import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
-import { posterTile } from "@/features/home/lib/shelf-tiles";
 import type { RecentlyAddedHomeRow } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { posterTile } from "@/shared/lib/tile-shapes";
 
 /** A Library's Recently Added row, loading on its own once you scroll near it. */
 export function RecentlyAddedSection({ row }: { row: RecentlyAddedHomeRow }) {
   const headingId = useId();
   const loading = (
     <RecentlyAddedFrame row={row} headingId={headingId}>
-      <ShelfSkeleton tile={posterTile} aspect="aspect-2/3" />
+      <ShelfSkeleton tile={posterTile} />
     </RecentlyAddedFrame>
   );
   const Newest = row.libraryKind === LibraryKind.SHOWS ? NewestShows : NewestMovies;

@@ -5,15 +5,15 @@ import { PluginRowFrame } from "@/features/home/components/plugin-row-frame";
 import { RowLoader } from "@/features/home/components/row-loader";
 import { RowShelf } from "@/features/home/components/row-shelf";
 import { ShelfSkeleton } from "@/features/home/components/shelf-skeleton";
-import { posterTile } from "@/features/home/lib/shelf-tiles";
 import type { PluginHomeRow } from "@/gen/nama/v1/browse_pb";
+import { posterTile } from "@/shared/lib/tile-shapes";
 
 /** A Plugin's row, loading on its own: at once when `eager`, else once you scroll near it. */
 export function HomeRowSection({ row, eager }: { row: PluginHomeRow; eager: boolean }) {
   const headingId = useId();
   const loading = (
     <PluginRowFrame row={row} headingId={headingId}>
-      <ShelfSkeleton tile={posterTile} aspect="aspect-2/3" />
+      <ShelfSkeleton tile={posterTile} />
     </PluginRowFrame>
   );
   const shelf = (

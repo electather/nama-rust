@@ -23,9 +23,6 @@
      first tile by `shelf-edge` to line it up with the column: its 20px gutter, or more past 1400px. */
   --spacing-bleed: calc(50% - 50vw);
   --spacing-shelf-edge: max(1.25rem, calc(50vw - 42.5rem));
-  /* A shelf's tiles: a 4:3 card about three to a wide screen, a poster about seven. */
-  --spacing-tile-backdrop: clamp(17.5rem, 30vw, 27.5rem);
-  --spacing-tile-poster: clamp(9.375rem, 14vw, 13.125rem);
   /* A Featured panel's art, wider than the open panel (52% of the row) so its drift never shows
      an edge, and its copy, inside the open panel. */
   --spacing-featured-art: 63.4cqw;
