@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { foundEpisodeStatus } from "@/features/title/lib/found-episode-label";
+import { foundEpisodeStatus } from "@/features/title/lib/found-episode-status";
 import { FoundEpisodeSchema, RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
 import { type TitleFacts, titleStanding } from "@/shared/lib/request-standing";
 import { calendarDay } from "@/shared/lib/title-facts";

@@ -1,4 +1,3 @@
-import type { RowEpisode } from "@/features/title/lib/show-row";
 import type { ServerImage } from "@/shared/lib/server-image";
 
 /**
@@ -8,9 +7,4 @@ import type { ServerImage } from "@/shared/lib/server-image";
 export interface RowLook {
   tall: boolean;
   backdrop: ServerImage | undefined;
-}
-
-/** How the row of `episodes` draws its cards, with the Show's `backdrop`. */
-export function rowLook(episodes: RowEpisode[], backdrop: ServerImage | undefined): RowLook {
-  return { tall: episodes.some(({ episode }) => episode.overview !== undefined), backdrop };
 }

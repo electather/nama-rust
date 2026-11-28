@@ -13,17 +13,11 @@ import { useFoundShowIfMay } from "@/features/title/data/use-found-show-if-may";
 import { useShow } from "@/features/title/data/use-show";
 import { useShowEpisodes } from "@/features/title/data/use-show-episodes";
 import { SeasonAskingContext, usePageSeasonAsking } from "@/features/title/hooks/season-asking";
-import { useSeasonRow } from "@/features/title/hooks/use-season-row";
+import { useShowRow } from "@/features/title/hooks/use-show-row";
 import { episodeToResume } from "@/features/title/lib/episode-to-resume";
-import { heroTarget, targetSeason } from "@/features/title/lib/hero-target";
-import { openingSeason, seasonShown } from "@/features/title/lib/opening-season";
-import { rowSeasons } from "@/features/title/lib/row-seasons";
-import { seasonsOfRow, showRow } from "@/features/title/lib/show-row";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { isGone } from "@/shared/hooks/browse";
-import { useMay } from "@/shared/hooks/use-may";
 import { backdropOf } from "@/shared/lib/server-image";
 
 /**
@@ -44,23 +38,10 @@ export function ShowPage({
 }) {
   const show = { libraryId, showId };
   const { data, error } = useShow(show);
-  const librarySeasons = rowSeasons(data.seasons);
-  const episodes = useShowEpisodes(show, librarySeasons);
-  const found = useFoundShowIfMay(showId);
-  const asking = usePageSeasonAsking(found);
-  const row = showRow(episodes, found, asking?.you);
-  const seasons = seasonsOfRow(row, librarySeasons);
+  const episodes = useShowEpisodes(show, data.seasons);
+  const asking = usePageSeasonAsking(useFoundShowIfMay(showId));
   const resumed = episodeToResume(useContinueWatchingEntries(), libraryId, showId);
-  const target = heroTarget(row, resumed, useMay(Permission.MANAGE_REQUESTS));
-  const toPlay = targetSeason(target);
-  const {
-    row: rowRef,
-    scroller,
-    season: rowSeason,
-    opening,
-    pick,
-  } = useSeasonRow(openingSeason(seasons, asked, toPlay), row);
-  const season = seasonShown(seasons, rowSeason, toPlay);
+  const row = useShowRow({ episodes, seasons: data.seasons, asking, resumed, asked });
   if (!data.show || isGone(error)) {
     throw notFound();
   }
@@ -70,22 +51,14 @@ export function ShowPage({
         name={data.show.title}
         hero={
           <ShowHero
-            {...{ libraryId, showId, episodes, row, target }}
+            {...{ libraryId, showId, episodes, row }}
             show={data.show}
             seasons={data.seasons}
-            seasonNumber={season}
           />
         }
       >
         <NotToldNotice />
-        <ShowEpisodes
-          {...{ libraryId, seasons, scroller, opening }}
-          row={rowRef}
-          episodes={row}
-          current={season}
-          onPick={pick}
-          backdrop={backdropOf(data.show)}
-        />
+        <ShowEpisodes row={row} libraryId={libraryId} backdrop={backdropOf(data.show)} />
         <TitleTrailers trailers={data.show.trailers} art={backdropOf(data.show)} />
         <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
         <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
