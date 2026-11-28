@@ -24,6 +24,7 @@ describe("the Settings address", () => {
     user: 2,
     job: "upkeep:back-up",
     library: "3",
+    item: "9",
     setting: "schedule",
   };
 
@@ -46,6 +47,8 @@ describe("the Settings address", () => {
     [{ kind: "library", id: "4" }, "libraries"],
     [{ kind: "library", id: "new" }, "libraries"],
     [{ kind: "library-filter", id: "4" }, "needs-a-match"],
+    [{ kind: "unmatched-item", id: "7", inLibrary: undefined }, "needs-a-match"],
+    [{ kind: "unmatched-item", id: "7", inLibrary: "4" }, "needs-a-match"],
   ])("opening %o opens %s with no other detail", (detail, page) => {
     expect(parseSettings({ ...everyWord, ...detailSearch(detail) })).toStrictEqual({
       page,
@@ -85,6 +88,7 @@ describe("the Settings address", () => {
       user: undefined,
       job: undefined,
       library: undefined,
+      item: undefined,
       setting: undefined,
     });
   });
@@ -97,6 +101,7 @@ describe("the Settings address", () => {
       user: undefined,
       job: "upkeep:back-up",
       library: undefined,
+      item: undefined,
       setting: "schedule",
     });
   });
