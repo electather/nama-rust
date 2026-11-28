@@ -96,7 +96,7 @@ describe("the Now Playing section", () => {
     const plays: Play[] = [];
     const events = eventFeed();
     openNowPlaying(plays, events);
-    await expect(screen.findByText("Nothing is playing.")).resolves.toBeDefined();
+    await expect(screen.findByText("Nothing is playing")).resolves.toBeDefined();
 
     plays.push(darkOnTv);
     events.send({ event: { case: "playbackStarted", value: { playback: darkOnTv.playback } } });
@@ -108,7 +108,7 @@ describe("the Now Playing section", () => {
 
     plays.pop();
     events.send({ event: { case: "playbackEnded", value: { playback: darkOnTv.playback } } });
-    await expect(screen.findByText("Nothing is playing.")).resolves.toBeDefined();
+    await expect(screen.findByText("Nothing is playing")).resolves.toBeDefined();
     expect(screen.queryByText("Dark S01E02")).toBeNull();
   });
 
@@ -123,7 +123,7 @@ describe("the Now Playing section", () => {
     fill("Message (optional)", "Bedtime!");
     fireEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
 
-    await expect(screen.findByText("Nothing is playing.")).resolves.toBeDefined();
+    await expect(screen.findByText("Nothing is playing")).resolves.toBeDefined();
     expect(stopped.map(({ planId, message }) => ({ planId, message }))).toStrictEqual([
       { planId: 7n, message: "Bedtime!" },
     ]);

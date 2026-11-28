@@ -1,8 +1,8 @@
-import { PosterTile } from "@/features/library/components/poster-tile";
 import { RailLayout } from "@/features/library/components/rail-layout";
 import { TitleGrid } from "@/features/library/components/title-grid";
 import { firstBoxSetPage } from "@/features/library/lib/library-view";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { Poster } from "@/shared/components/poster/poster";
 import { usePaged } from "@/shared/hooks/use-paged";
 import { posterOf } from "@/shared/lib/server-image";
 import { titleParam } from "@/shared/lib/title-param";
@@ -17,7 +17,8 @@ export function LibraryBoxSets({ libraryId }: { libraryId: bigint }) {
     .map((boxSet) => ({
       key: titleParam(boxSet.id),
       poster: (
-        <PosterTile
+        <Poster
+          size="tile"
           link={{ to: "/box-sets/$boxSetId", params: { boxSetId: titleParam(boxSet.id) } }}
           title={boxSet.name}
           art={posterOf(boxSet)}

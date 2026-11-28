@@ -2,6 +2,7 @@ import { FileQuestionMark, Library } from "lucide-react";
 
 import { LibrariesPane } from "@/features/settings/components/libraries-pane";
 import { LibraryCrumbs } from "@/features/settings/components/library-crumbs";
+import { NeedsAMatchCrumbs } from "@/features/settings/components/needs-a-match-crumbs";
 import { NeedsAMatchPane } from "@/features/settings/components/needs-a-match-pane";
 import { NewLibraryLink } from "@/features/settings/components/new-library-link";
 import type { SectionGroupDefinition } from "@/features/settings/lib/section-definition";
@@ -31,6 +32,7 @@ export const media = {
       couldntLoad: "what needs a Match",
       labels: {},
       pane: NeedsAMatchPane,
+      crumbs: NeedsAMatchCrumbs,
     },
   },
 } satisfies SectionGroupDefinition;

@@ -1,8 +1,8 @@
 import { RemoveFromWatchlist } from "@/features/watchlist/components/remove-from-watchlist";
 import type { WatchlistEntry } from "@/features/watchlist/lib/merged-watchlist";
 import { OnServer } from "@/shared/components/on-server";
-import { RowPoster } from "@/shared/components/row-poster/row-poster";
-import { rowTile } from "@/shared/components/row-poster/row-tiles";
+import { Poster } from "@/shared/components/poster/poster";
+import { rowTile } from "@/shared/components/poster/row-tiles";
 import { linkOn } from "@/shared/lib/title-server";
 
 /**
@@ -14,7 +14,7 @@ export function WatchlistCard({ entry }: { entry: WatchlistEntry }) {
   return (
     <li className="relative">
       <OnServer on={entry}>
-        <RowPoster tile={{ ...tile, link: linkOn(tile.link, entry) }} />
+        <Poster {...tile} link={linkOn(tile.link, entry)} size="tile" />
       </OnServer>
       <RemoveFromWatchlist title={tile.title} listed={entry.listed} />
     </li>

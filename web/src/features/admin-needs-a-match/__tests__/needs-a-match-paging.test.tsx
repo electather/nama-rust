@@ -42,8 +42,8 @@ test("needs a Match lists a Library's next page of Items with Show more", async 
 
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
-  await expect(screen.findByText("/srv/films/Heat.mkv")).resolves.toBeDefined();
-  expect(screen.getByText("/srv/films/Alien.mkv")).toBeDefined();
+  await expect(screen.findByRole("link", { name: "Heat" })).resolves.toBeDefined();
+  expect(screen.getByRole("link", { name: "Alien" })).toBeDefined();
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   expect(asked.map((request) => request.filter?.libraryId)).toStrictEqual([films.id, films.id]);
 });

@@ -2,7 +2,7 @@ import { cn } from "cn";
 import type { ComponentProps } from "react";
 
 // shadcn's base-nova empty, trimmed to the parts we use and restyled to DESIGN.md: an icon on a
-// Muted tile with a hairline, as a Settings row's, over a title in Interface.
+// Muted tile with a hairline, as a Settings row's, over a title in Interface and what to do in Quiet ink.
 
 /** Where a list or pane says it has nothing to show, centred in the space it has. */
 function Empty({ className, ...props }: ComponentProps<"div">) {
@@ -50,4 +50,15 @@ function EmptyTitle({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-export { Empty, EmptyHeader, EmptyMedia, EmptyTitle };
+/** What to do about it, under its title in Quiet ink. */
+function EmptyDescription({ className, ...props }: ComponentProps<"p">) {
+  return (
+    <p
+      data-slot="empty-description"
+      className={cn("text-sm text-pretty text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
+export { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle };

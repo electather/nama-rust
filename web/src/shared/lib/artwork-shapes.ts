@@ -1,6 +1,8 @@
+import { posterTile } from "@/shared/lib/tile-shapes";
+
 /** Each shape's artwork to pick from, smaller than the preview, and the width it's shown at. */
 export const choiceShapes = {
-  poster: { className: "w-12 aspect-2/3", sizes: "48px" },
+  poster: { className: `w-12 ${posterTile.aspect}`, sizes: "48px" },
   backdrop: { className: "w-24 aspect-video", sizes: "96px" },
 };
 

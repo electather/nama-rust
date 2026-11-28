@@ -1,8 +1,8 @@
-import { PosterTile } from "@/features/library/components/poster-tile";
 import { Titles } from "@/features/library/components/titles";
 import { firstPageOf } from "@/features/library/lib/title-listing";
 import type { TitlesProps } from "@/features/library/lib/titles-props";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { Poster } from "@/shared/components/poster/poster";
 import { usePaged } from "@/shared/hooks/use-paged";
 import { posterOf } from "@/shared/lib/server-image";
 import { yearOf } from "@/shared/lib/title-facts";
@@ -19,7 +19,8 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
     .map((show) => ({
       key: titleParam(show.id),
       poster: (
-        <PosterTile
+        <Poster
+          size="tile"
           link={{
             to: "/libraries/$libraryId/shows/$showId",
             params: { libraryId: String(libraryId), showId: titleParam(show.id) },
@@ -34,7 +35,7 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
     <Titles
       titles={{ one: "Show", many: "Shows" }}
       index={paged.data.pages[0]?.index ?? []}
-      {...{ listing, change, paged, posters }}
+      {...{ libraryId, listing, change, paged, posters }}
     />
   );
 }

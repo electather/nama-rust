@@ -5,7 +5,7 @@ import { type ReactNode, useMemo, useRef } from "react";
 import { useLoadAtEnd } from "@/features/home/hooks/use-load-at-end";
 import { paddingFor } from "@/shared/lib/padding-for";
 import { shelfBleed } from "@/shared/lib/shelf-bleed";
-import { type TileShape, tileGap } from "@/shared/lib/tile-shapes";
+import { type TileShape, tileGap, tileItem } from "@/shared/lib/tile-shapes";
 
 declare module "react" {
   interface CSSProperties {
@@ -99,8 +99,7 @@ export function VirtualShelf({
             data-index={index}
             aria-setsize={setSize}
             aria-posinset={index + 1}
-            className={`relative shrink-0 snap-start ${tile.widthClass}`}
-            style={{ "--tile-width": tile.width }}
+            {...tileItem(tile)}
           >
             {tiles[index]?.tile}
           </li>

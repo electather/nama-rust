@@ -1,7 +1,7 @@
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import type { ShelfTitles } from "@/features/home/lib/shelf-tiles";
-import { RowPoster } from "@/shared/components/row-poster/row-poster";
-import { rowTile } from "@/shared/components/row-poster/row-tiles";
+import { Poster } from "@/shared/components/poster/poster";
+import { rowTile } from "@/shared/components/poster/row-tiles";
 import { rowTitleKey } from "@/shared/lib/row-titles";
 import { posterTile } from "@/shared/lib/tile-shapes";
 
@@ -19,7 +19,7 @@ export function PosterShelf({
     <VirtualShelf
       tiles={titles.map((title) => ({
         key: rowTitleKey(title),
-        tile: <RowPoster tile={rowTile(title)} />,
+        tile: <Poster {...rowTile(title)} />,
       }))}
       tile={posterTile}
       setSize={setSize}

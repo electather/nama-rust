@@ -2,10 +2,11 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import type { ListArtworkRequestSchema } from "@/gen/nama/v1/library_pb";
 import type { ServerImage } from "@/shared/lib/server-image";
+import { posterTile } from "@/shared/lib/tile-shapes";
 
 /** Each shape's preview: a Poster tall, a Backdrop wide. */
 export const shapes = {
-  poster: "w-24 aspect-2/3",
+  poster: `w-24 ${posterTile.aspect}`,
   backdrop: "w-40 aspect-video",
 };
 

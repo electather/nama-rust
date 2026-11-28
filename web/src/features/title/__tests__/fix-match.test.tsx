@@ -99,9 +99,9 @@ test("fix Match searches for the Movie, shows each title's year and Poster, and 
   await pickFromMenu("More actions", "Fix Match");
   const dialog = await screen.findByRole("dialog", { name: "Match Alien (1979)" });
 
-  const heat = await within(dialog).findByRole("button", { name: "Match to Heat (1995)" });
-  const row = heat.closest("li");
+  const heat = await within(dialog).findByRole("radio", { name: "Heat (1995)" });
   fireEvent.click(heat);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Match" }));
 
   expect(asked.searched).toMatchObject({
     kind: TitleKind.MOVIE,
@@ -109,7 +109,7 @@ test("fix Match searches for the Movie, shows each title's year and Poster, and 
     year: 1979,
     libraryId: 1n,
   });
-  expect(row?.querySelector("img")?.getAttribute("src")).toBe(POSTER);
+  expect(heat.querySelector("img")?.getAttribute("src")).toBe(POSTER);
   await expect(screen.findByRole("heading", { name: "Heat" })).resolves.toBeDefined();
   expect(asked.matched).toMatchObject({
     matchedTitle: { libraryId: 1n, id: tmdb("348") },
@@ -148,7 +148,8 @@ test("fix Match on a Show Matches its every Episode and goes to the Show picked"
   await pickFromMenu("More actions", "Fix Match");
   const dialog = await screen.findByRole("dialog", { name: "Match Dark" });
 
-  fireEvent.click(await within(dialog).findByRole("button", { name: "Match to Heat (1995)" }));
+  fireEvent.click(await within(dialog).findByRole("radio", { name: "Heat (1995)" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Match" }));
 
   await waitFor(() => {
     expect(asked.searched).toMatchObject({ kind: TitleKind.SHOW, title: "Dark", libraryId: 2n });
