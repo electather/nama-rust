@@ -63,6 +63,6 @@ function Show() {
   const { libraryId, showId, asked } = Route.useLoaderData();
   const { deleted, notTold } = Route.useSearch();
   return (
-    <ShowPage libraryId={libraryId} showId={showId} asked={asked} deleted={{ deleted, notTold }} />
+    <ShowPage libraryId={libraryId} showId={showId} asked={asked} report={{ deleted, notTold }} />
   );
 }

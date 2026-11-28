@@ -33,18 +33,18 @@ import { backdropOf } from "@/shared/lib/server-image";
  * it to another, its Trailers, then its Details. To a User who may Request Shows, the row holds
  * the Episodes missing from the Server too, dimmed. The row opens on the Season `asked`, if it
  * has it, or else on the Season of the main button's Episode. Then the Similar titles in a Library.
- * Over the row, what a delete on the page left `deleted` to report.
+ * Over the row, what a delete on the page left to `report`.
  */
 export function ShowPage({
   libraryId,
   showId,
   asked,
-  deleted,
+  report,
 }: {
   libraryId: bigint;
   showId: ExternalId;
   asked: number | undefined;
-  deleted: DeletedSearch;
+  report: DeletedSearch;
 }) {
   const show = { libraryId, showId };
   const { data, error } = useShow(show);
@@ -81,7 +81,7 @@ export function ShowPage({
           />
         }
       >
-        <NotToldNotice {...deleted} />
+        <NotToldNotice {...report} />
         <ShowEpisodes
           {...{ show, seasons, scroller, opening }}
           row={rowRef}
