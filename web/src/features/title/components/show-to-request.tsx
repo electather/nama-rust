@@ -29,7 +29,7 @@ export function ShowToRequest({ showId }: { showId: ExternalId }) {
   return (
     <SeasonAskingContext value={asking}>
       <TitlePage name={show.title} hero={<FoundShowHero {...{ show, showId, row }} />}>
-        <ShowEpisodes row={row} libraryId={undefined} backdrop={backdropOf(show)} />
+        <ShowEpisodes row={row} show={undefined} backdrop={backdropOf(show)} />
         <TitleTrailers trailers={show.trailers} art={backdropOf(show)} />
         <SimilarTitles heading="On this Server" titles={similarShows(show.similar)} />
         <CastAndCrew cast={show.cast} crew={show.crew} />

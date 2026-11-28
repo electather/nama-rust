@@ -18,6 +18,7 @@ import { episodeToResume } from "@/features/title/lib/episode-to-resume";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { isGone } from "@/shared/hooks/browse";
+import type { DeletedSearch } from "@/shared/lib/deleted-search";
 import { backdropOf } from "@/shared/lib/server-image";
 
 /**
@@ -26,15 +27,18 @@ import { backdropOf } from "@/shared/lib/server-image";
  * it to another, its Trailers, then its Details. To a User who may Request Shows, the row holds
  * the Episodes missing from the Server too, dimmed. The row opens on the Season `asked`, if it
  * has it, or else on the Season of the main button's Episode. Then the Similar titles in a Library.
+ * Over the row, what a delete on the page left to `report`.
  */
 export function ShowPage({
   libraryId,
   showId,
   asked,
+  report,
 }: {
   libraryId: bigint;
   showId: ExternalId;
   asked: number | undefined;
+  report: DeletedSearch;
 }) {
   const show = { libraryId, showId };
   const { data, error } = useShow(show);
@@ -57,8 +61,8 @@ export function ShowPage({
           />
         }
       >
-        <NotToldNotice />
-        <ShowEpisodes row={row} libraryId={libraryId} backdrop={backdropOf(data.show)} />
+        <NotToldNotice {...report} />
+        <ShowEpisodes row={row} show={show} backdrop={backdropOf(data.show)} />
         <TitleTrailers trailers={data.show.trailers} art={backdropOf(data.show)} />
         <SimilarTitles heading="Similar titles" titles={similarShows(data.similar)} />
         <CastAndCrew cast={data.show.cast} crew={data.show.crew} />

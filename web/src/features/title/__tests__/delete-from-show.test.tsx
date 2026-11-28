@@ -97,8 +97,8 @@ function openDark(
       },
     },
   );
-  openApp("/libraries/2/shows/tmdb-70523", transport);
-  return events;
+  const router = openApp("/libraries/2/shows/tmdb-70523", transport);
+  return { events, router };
 }
 
 /** The names of the items of the menu of the "…" named `name`, which it then closes. */
@@ -248,7 +248,7 @@ function removeAnItem(events: ReturnType<typeof eventFeed>) {
 
 test("an open Show page drops a deleted Episode when its Item is removed", async () => {
   const season = [secrets, lies];
-  const events = openDark(newUser, {}, { listEpisodes: withSeasonTwo(() => season) });
+  const { events } = openDark(newUser, {}, { listEpisodes: withSeasonTwo(() => season) });
   await screen.findByText(/Lies/u);
 
   season.pop();
@@ -273,7 +273,7 @@ function until<T>(gone: { now: boolean }, answer: T) {
 test("an open Show page drops a Season deleted elsewhere, keeping the one left", async () => {
   const seasons = [{ number: 1 }, { number: 2 }];
   const seasonOne = [secrets, lies];
-  const events = openDark(
+  const { events } = openDark(
     newUser,
     {},
     {
@@ -297,7 +297,7 @@ test("an open Show page drops a Season deleted elsewhere, keeping the one left",
 test("an open Show page says so once the Show was deleted elsewhere", async () => {
   const gone = { now: false };
   const show = { show: { id: darkId, title: "Dark" }, seasons: [{ number: 1 }] };
-  const events = openDark(newUser, {}, { getShow: until(gone, show) });
+  const { events } = openDark(newUser, {}, { getShow: until(gone, show) });
   await screen.findByText(/Lies/u);
 
   gone.now = true;
@@ -311,8 +311,9 @@ const sonarrNotTold: Partial<ServiceImpl<typeof LibraryService>> = {
   deleteMedia: () => ({ fulfillersNotTold: ["Sonarr"] }),
 };
 
-test("deleting an Episode when Sonarr couldn't be told says so on the Show", async () => {
-  openDark(deletesMedia, sonarrNotTold);
+test("deleting an Episode when Sonarr couldn't be told says so on the Show, on the same Season", async () => {
+  const { router } = openDark(deletesMedia, sonarrNotTold);
+  await router.navigate({ to: ".", search: { season: 1 } });
   const dialog = await openDialog("More for Lies", "Delete", "Lies");
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
@@ -320,6 +321,11 @@ test("deleting an Episode when Sonarr couldn't be told says so on the Show", asy
   await expect(
     screen.findByText("Sonarr couldn’t be told about the delete, so it may download Lies again."),
   ).resolves.toBeDefined();
+  expect(router.state.location.search).toMatchObject({
+    season: 1,
+    deleted: "Lies",
+    notTold: ["Sonarr"],
+  });
 });
 
 test("deleting a whole Show when Sonarr couldn't be told says so on its Library", async () => {

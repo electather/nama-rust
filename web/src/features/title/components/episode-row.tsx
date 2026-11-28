@@ -2,11 +2,12 @@ import { EpisodeCard } from "@/features/title/components/episode-card";
 import { useEpisodeVirtualizer } from "@/features/title/hooks/use-episode-virtualizer";
 import type { ShowRow } from "@/features/title/hooks/use-show-row";
 import type { RowLook } from "@/features/title/lib/row-look";
+import type { ShowInLibrary } from "@/features/title/lib/show-params";
 import { paddingFor } from "@/shared/lib/padding-for";
 import { tileGap } from "@/shared/lib/tile-shapes";
 
 /**
- * Every one of a Show's Episodes in one row, those of the page's Library, `libraryId`, and those it
+ * Every one of a Show's Episodes in one row, those of the page's Show, `show`, and those it
  * lacks, that scrolls sideways, snapping to each, past the page's column to the screen's edges,
  * keeping only the cards near the view in the page. It takes focus, so arrow keys scroll it, and
  * opens on the card `useShowRow` picked. Every card is drawn as its `look` says.
@@ -16,11 +17,11 @@ export function EpisodeRow({
     episodes,
     view: { element: ref, scroller, opening },
   },
-  libraryId,
+  show,
   look,
 }: {
   row: ShowRow;
-  libraryId: bigint | undefined;
+  show: ShowInLibrary | undefined;
   look: RowLook;
 }) {
   const virtualizer = useEpisodeVirtualizer({
@@ -51,7 +52,7 @@ export function EpisodeRow({
         {shown.map(({ index, key }) => {
           const item = episodes[index];
           const place = { index, of: episodes.length };
-          return item && <EpisodeCard key={key} {...{ libraryId, item, place, look }} />;
+          return item && <EpisodeCard key={key} {...{ show, item, place, look }} />;
         })}
       </ul>
     </div>

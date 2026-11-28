@@ -1,16 +1,24 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
+import { type ShowInLibrary, showParams } from "@/features/title/lib/show-params";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
 import { backdropLink } from "@/shared/lib/backdrop-card-classes";
 
-/** What covers a Library Episode's card and plays its largest Version, named `label`. */
-export function EpisodePlayLink({ episode, label }: { episode: Episode; label: string }) {
-  const show = useParams({ from: "/_member/_server/libraries/$libraryId/shows/$showId/" });
+/** What covers an Episode's card of `show` and plays its largest Version, named `label`. */
+export function EpisodePlayLink({
+  show,
+  episode,
+  label,
+}: {
+  show: ShowInLibrary;
+  episode: Episode;
+  label: string;
+}) {
   return (
     <Link
       to="/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play"
       params={{
-        ...show,
+        ...showParams(show),
         season: String(episode.seasonNumber),
         episode: String(episode.episodeNumber),
       }}
