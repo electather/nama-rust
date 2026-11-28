@@ -1,7 +1,7 @@
 import { Film, Tv } from "lucide-react";
 
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { posterRing } from "@/shared/lib/tile-shapes";
+import { tileRing } from "@/shared/lib/tile-shapes";
 
 const SIZES = {
   row: { box: "h-12 w-8 [&_svg]:size-4", radius: "rounded-md" },
@@ -25,7 +25,7 @@ export function FilePoster({ kind, size }: { kind: TitleKind; size: keyof typeof
       className={`relative flex shrink-0 items-center justify-center bg-muted text-muted-foreground ${box} ${radius}`}
     >
       <Icon strokeWidth={1.5} />
-      <span className={`${posterRing} ${radius}`} />
+      <span className={`${tileRing} ${radius}`} />
     </span>
   );
 }
