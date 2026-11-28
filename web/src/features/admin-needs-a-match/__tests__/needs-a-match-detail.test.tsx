@@ -179,7 +179,7 @@ describe("finding the title", () => {
 
     fireEvent.change(screen.getByRole("searchbox", { name: "Title" }), { target: { value: " " } });
 
-    await expect(screen.findByText("Type a title to search for.")).resolves.toBeDefined();
+    await expect(screen.findByText("No title to search for")).resolves.toBeDefined();
     expect(asked.searched).toHaveLength(searchedBefore);
   });
 
@@ -249,9 +249,7 @@ describe("matching", () => {
   test("can't Match while nothing is found", async () => {
     openApp("/code?settings=needs-a-match&item=7", odysseyServer(newAsked(), []));
 
-    await expect(
-      screen.findByText("Nothing found. Try another title or year."),
-    ).resolves.toBeDefined();
+    await expect(screen.findByText("Nothing found")).resolves.toBeDefined();
 
     expect(screen.getByRole("button", { name: "Match" }).hasAttribute("disabled")).toBe(true);
   });

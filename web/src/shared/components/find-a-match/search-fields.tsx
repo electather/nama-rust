@@ -1,4 +1,4 @@
-import { Input } from "nama-ui/components/input";
+import { NumberInput } from "nama-ui/components/number-field";
 import { useId } from "react";
 
 import { SearchField } from "@/shared/components/search-field";
@@ -28,18 +28,19 @@ export function SearchFields({
           }}
         />
       </div>
-      <div className="w-24 shrink-0 md:w-28">
+      <div className="w-36 shrink-0">
         <label htmlFor={yearId} className="sr-only">
           Year
         </label>
-        <Input
+        <NumberInput
           id={yearId}
-          inputMode="numeric"
           autoComplete="off"
           placeholder="Any year"
+          min={1870}
+          max={2100}
           value={typed.year}
-          onChange={(event) => {
-            onType({ ...typed, year: event.target.value });
+          onValueChange={(year) => {
+            onType({ ...typed, year });
           }}
         />
       </div>
