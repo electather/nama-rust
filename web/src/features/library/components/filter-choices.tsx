@@ -1,11 +1,12 @@
 import { GenreChips } from "@/features/library/components/genre-chips";
+import { UnmatchedChoice } from "@/features/library/components/unmatched-choice";
 import { WatchStateChoice } from "@/features/library/components/watch-state-choice";
-import type { BarProps } from "@/features/library/lib/listing-bar";
+import type { FilterProps } from "@/features/library/lib/listing-bar";
 
 const heading = "text-sm font-medium";
 
-/** The Filter panel's choices: genres, then Watch State, scrolling in a short window. */
-export function FilterChoices({ genres, ...bar }: BarProps & { genres: string[] }) {
+/** The Filter panel's choices: genres, then Watch State, then Not matched, scrolling in a short window. */
+export function FilterChoices({ genres, unmatched, ...bar }: FilterProps) {
   return (
     // A short window scrolls the panel. While the popover eases to a new size it clips instead,
     // or a scrollbar coming and going narrows the chips, rewraps them and resizes it again.
@@ -15,6 +16,7 @@ export function FilterChoices({ genres, ...bar }: BarProps & { genres: string[] 
         <p className={heading}>Watch State</p>
         <WatchStateChoice {...bar} />
       </div>
+      <UnmatchedChoice count={unmatched} {...bar} />
     </div>
   );
 }

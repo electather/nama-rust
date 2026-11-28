@@ -1,7 +1,7 @@
-import { RowArt } from "@/features/action-bar/components/row-art";
 import { RowIcon } from "@/features/action-bar/components/row-icon";
 import type { Row } from "@/features/action-bar/lib/rows";
 import { OnServer } from "@/shared/components/on-server";
+import { PosterArt } from "@/shared/components/poster/poster-art";
 import { Still } from "@/shared/components/still";
 import type { TitleServer } from "@/shared/lib/title-server";
 
@@ -23,7 +23,10 @@ export function RowLead({ row, on }: { row: Row; on: TitleServer | undefined }) 
   if (on !== undefined && row.poster) {
     return (
       <OnServer on={on}>
-        <RowArt poster={row.poster} />
+        {/* The row's label names the title, so the art says nothing more. */}
+        <span className="flex w-10 shrink-0 justify-center">
+          <PosterArt art={row.poster} title={row.label} size="thumb" />
+        </span>
       </OnServer>
     );
   }

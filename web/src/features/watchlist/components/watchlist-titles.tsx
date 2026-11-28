@@ -1,6 +1,6 @@
 import { WatchlistCard } from "@/features/watchlist/components/watchlist-card";
 import type { WatchlistEntry } from "@/features/watchlist/lib/merged-watchlist";
-import { posterGrid } from "@/shared/lib/poster-classes";
+import { posterGrid } from "@/shared/lib/tile-shapes";
 
 /**
  * The Watchlist's titles as a Library's grid of posters, or, once every Server has answered (`loading`

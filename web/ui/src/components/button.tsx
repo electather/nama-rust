@@ -36,6 +36,8 @@ const variants = cva(
         lg: "h-9 px-2.5 [&_svg]:size-4",
         // Text only, with a 44px tall hit area that its negative margins keep out of the layout.
         link: "-my-3 h-auto rounded-sm px-0 py-3",
+        // A form's actions: 44px tall on a phone, where a finger taps, and the default's height from `md`.
+        touch: "h-11 px-2.5 md:h-8 [&_svg:not([class*='size-'])]:size-4",
         // The app bar's links: tighter on phones, so five fit across 390px; narrower, the bar wraps.
         bar: "h-9 px-2.5 sm:px-4",
         // A dialog's ✕ in its corner, quiet until hovered or focused.

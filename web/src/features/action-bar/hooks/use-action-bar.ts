@@ -2,7 +2,6 @@ import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
 
 import { useFound } from "@/features/action-bar/data/use-found";
-import { useDebounced } from "@/features/action-bar/hooks/use-debounced";
 import { useListed } from "@/features/action-bar/hooks/use-listed";
 import { useRecents } from "@/features/action-bar/hooks/use-recents";
 import { groupsOf } from "@/features/action-bar/lib/groups";
@@ -12,6 +11,7 @@ import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
 import type { FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
+import { useDebounced } from "@/shared/hooks/use-debounced";
 import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
 import { linkOn } from "@/shared/lib/title-server";
 

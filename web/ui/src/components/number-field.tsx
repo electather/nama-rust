@@ -129,7 +129,7 @@ function NumberInput({
       <NumberFieldPrimitive.Group
         data-slot="number-field"
         className={cn(
-          "flex h-11 w-full min-w-0 items-stretch overflow-hidden rounded-lg border border-input bg-input/30 text-base transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 has-aria-invalid:border-destructive/50 has-aria-invalid:ring-3 has-aria-invalid:ring-destructive/40 md:h-8 data-disabled:cursor-not-allowed data-disabled:bg-muted",
+          "flex h-11 w-full min-w-0 items-stretch overflow-hidden rounded-lg border border-input bg-input/30 text-base transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 has-aria-invalid:border-destructive/50 has-aria-invalid:ring-3 has-aria-invalid:ring-destructive/40 md:h-8 md:text-sm data-disabled:cursor-not-allowed data-disabled:bg-muted",
           className,
         )}
       >

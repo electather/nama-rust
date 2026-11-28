@@ -31,7 +31,7 @@ export function ItemRow({
 }: {
   start: ReactNode;
   name: ReactNode;
-  meta: ReactNode;
+  meta?: ReactNode;
   failed?: string | undefined;
   /** Keeps what's at the end beside the name on a phone while it fits, as a lone "…" does. */
   beside?: boolean;
@@ -45,7 +45,7 @@ export function ItemRow({
   const words = (
     <div className="flex min-w-0 flex-1 basis-50 flex-col gap-0.5">
       <span className="truncate text-sm">{name}</span>
-      <span className="text-xs text-pretty text-muted-foreground">{meta}</span>
+      <span className="text-xs text-pretty text-muted-foreground empty:hidden">{meta}</span>
       <span role="alert" className="text-xs text-pretty text-destructive empty:hidden">
         {failed}
       </span>

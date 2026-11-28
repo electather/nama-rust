@@ -1,7 +1,7 @@
 import { RadioSegment, RadioSegments } from "nama-ui/components/radio-group";
 
 import { ANY, type BarProps } from "@/features/library/lib/listing-bar";
-import { type Watched, watchedStates } from "@/features/library/lib/title-listing";
+import { type Watched, watchedStates, withFilter } from "@/features/library/lib/title-listing";
 
 const choices: Record<string, string> = { [ANY]: "All", ...watchedStates };
 
@@ -15,7 +15,7 @@ export function WatchStateChoice({ listing, change }: BarProps) {
         const watched = Object.keys(watchedStates).find(
           (state): state is Watched => state === value,
         );
-        change({ ...listing, watched });
+        change(withFilter(listing, { watched }));
       }}
     >
       {Object.entries(choices).map(([value, name]) => (

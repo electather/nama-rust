@@ -41,10 +41,12 @@ export type SettingsPage = Section | typeof allSections;
 
 /**
  * What a Section opens in place of its list: a Plugin, a User, a Job or a Library (`new` for the
- * form that adds one), or in Needs a Match, the Library whose Items it filters to.
+ * form that adds one), or in Needs a Match, the Library whose Items it filters to, or the Item
+ * it opens (`inLibrary`: the filter it was opened under, which Back keeps).
  */
 export type SettingsDetail =
   | { kind: "plugin" | "library" | "library-filter"; id: string }
+  | { kind: "unmatched-item"; id: string; inLibrary: string | undefined }
   | { kind: "user"; id: number }
   | { kind: "job"; pluginId: string; jobId: string };
 
@@ -69,6 +71,7 @@ export interface SettingsSearch {
   user?: number | undefined;
   job?: string | undefined;
   library?: string | undefined;
+  item?: string | undefined;
   setting?: string | undefined;
 }
 
@@ -77,6 +80,7 @@ const noDetail = {
   user: undefined,
   job: undefined,
   library: undefined,
+  item: undefined,
   setting: undefined,
   // Every word but the page's and the picked Server's, so a builder clears a new detail too.
 } satisfies Record<Exclude<keyof SettingsSearch, "settings" | "manage">, undefined>;
@@ -150,6 +154,9 @@ function detailWords(detail: SettingsDetail): SettingsSearch {
   if (detail.kind === "plugin") {
     return { settings: "plugins", plugin: detail.id };
   }
+  if (detail.kind === "unmatched-item") {
+    return { settings: "needs-a-match", item: detail.id, library: detail.inLibrary };
+  }
   return {
     settings: detail.kind === "library" ? "libraries" : "needs-a-match",
     library: detail.id,
@@ -162,9 +169,18 @@ const detailParams: Partial<Record<Section, (search: Search) => SettingsDetail |
   users: (search) => withId(userParam(search["user"]), (id) => ({ kind: "user", id })),
   jobs: (search) => jobParam(search["job"]),
   libraries: (search) => withId(idParam(search["library"]), (id) => ({ kind: "library", id })),
-  "needs-a-match": (search) =>
-    withId(idParam(search["library"]), (id) => ({ kind: "library-filter", id })),
+  "needs-a-match": needsAMatchParam,
 };
+
+/** The Item `?item=` opens, which keeps `?library=`'s filter, or else only the filter. */
+function needsAMatchParam(search: Search): SettingsDetail | undefined {
+  const library = idParam(search["library"]);
+  const item = idParam(search["item"]);
+  if (item !== undefined) {
+    return { kind: "unmatched-item", id: item, inLibrary: library };
+  }
+  return withId(library, (id) => ({ kind: "library-filter", id }));
+}
 
 function withId<T>(id: T | undefined, open: (id: T) => SettingsDetail) {
   return id === undefined ? undefined : open(id);

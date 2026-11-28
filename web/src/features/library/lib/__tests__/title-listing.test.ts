@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { filterLabel, filterNames, unfiltered } from "@/features/library/lib/title-listing";
+import {
+  filterLabel,
+  filterNames,
+  listingFromSearch,
+  unfiltered,
+  withFilter,
+} from "@/features/library/lib/title-listing";
 
 describe("a listing's filters", () => {
   test("are named genres first, then the years, then the Watch State", () => {
@@ -29,5 +35,32 @@ describe("a listing's filters", () => {
     const listing = { sort: "released" as const, order: "asc" as const, genres: ["Crime"] };
 
     expect(unfiltered(listing)).toStrictEqual({ sort: "released", order: "asc" });
+  });
+
+  test("name Not matched last, and clearing drops it", () => {
+    const listing = { unmatched: true as const, sort: "added" as const };
+
+    expect([filterLabel(listing), unfiltered(listing)]).toStrictEqual([
+      "Filter: Not matched",
+      { sort: "added", order: undefined },
+    ]);
+  });
+
+  test("turn Not matched off when a title filter changes", () => {
+    const listing = { unmatched: true as const };
+
+    expect(withFilter(listing, { genres: ["Crime"] })).toStrictEqual({
+      genres: ["Crime"],
+      unmatched: undefined,
+    });
+  });
+
+  test.each([
+    { search: { unmatched: 1 }, unmatched: true },
+    { search: { unmatched: true }, unmatched: true },
+    { search: { unmatched: "yes" }, unmatched: undefined },
+    { search: {}, unmatched: undefined },
+  ])("read Not matched from $search", ({ search, unmatched }) => {
+    expect(listingFromSearch(search).unmatched).toBe(unmatched);
   });
 });

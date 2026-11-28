@@ -94,3 +94,56 @@
     line-height: 1.3;
   }
 }
+
+/* A tile's pointer sheen (`tileMotion`): a soft light under the pointer, placed by the `--mx` and
+   `--my` that `followPointer` sets. Only where a hover is a pointer's; a touch has none to follow. */
+@utility tile-sheen {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      circle at var(--mx, 50%) var(--my, 30%),
+      color-mix(in oklab, var(--foreground) 8%, transparent),
+      transparent 55%
+    );
+    transition: opacity 300ms var(--ease-out-expo);
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+ * A tile leaning toward a fine pointer (`followPointer` sets `--tilt-x`, `--tilt-y`). It is
+ * `transform`, which composes with the lift's `scale` and, like it, moves no neighbour.
+ */
+@utility tile-tilt {
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    &:hover {
+      transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    }
+  }
+}
+
+/* What a lifting tile animates (`tileMotion`): its scale, lean and shadow, never its size. */
+@utility transition-lift {
+  transition-property: scale, transform, box-shadow;
+  transition-timing-function: var(--ease-out-expo);
+  transition-duration: 300ms;
+}
+
+/* A full image settling in over its thumbhash (`ShownServerImg`): it fades as it shrinks to size. */
+@utility transition-settle {
+  transition-property: opacity, scale;
+  transition-timing-function: var(--ease-out-expo);
+  transition-duration: 500ms;
+}

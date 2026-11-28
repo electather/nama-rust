@@ -1,7 +1,6 @@
 import { LibraryBrowse } from "@/features/library/components/library-browse";
 import { LibraryCountLine } from "@/features/library/components/library-count-line";
 import { LibraryHeader } from "@/features/library/components/library-header";
-import { NotMatched } from "@/features/library/components/not-matched";
 import type { LibraryView } from "@/features/library/lib/library-view";
 import type { TitleListing } from "@/features/library/lib/title-listing";
 import { LibraryKind, type Library } from "@/gen/nama/v1/library_pb";
@@ -11,8 +10,8 @@ import { backdropOf } from "@/shared/lib/server-image";
 
 /**
  * A Library: its name and how many titles it lists, on its Backdrop if it has one, then the bar to
- * sort and filter them, a Movies Library's Box Sets in a tab beside its Movies, their grid, its
- * Unmatched Items and a delete's notice.
+ * sort and filter them, a Movies Library's Box Sets in a tab beside its Movies, their grid, which
+ * ends with its Unmatched Items, and a delete's notice.
  */
 export function LibraryPage({
   library,
@@ -49,7 +48,6 @@ export function LibraryPage({
           switchView={switchView}
           titles={titles}
         />
-        <NotMatched libraryId={library.id} />
       </main>
     </>
   );

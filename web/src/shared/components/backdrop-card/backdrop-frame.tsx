@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 
 import { CardCaption } from "@/shared/components/backdrop-card/card-caption";
 import { ServerImg } from "@/shared/components/server-img";
+import { followPointer } from "@/shared/lib/follow-pointer";
 import type { ServerImage } from "@/shared/lib/server-image";
-import { backdropTile } from "@/shared/lib/tile-shapes";
+import { backdropTile, tileMotion, tileRing } from "@/shared/lib/tile-shapes";
 
 /**
  * A card's box: its art, the first of `art.images` that loads, 4:3, or square when `tall`, with
@@ -30,15 +31,13 @@ export function BackdropFrame({
       <ContextMenuTrigger
         render={
           <div
-            className={`relative isolate overflow-hidden bg-muted ${tall ? backdropTile.tallAspect : backdropTile.aspect} ${backdropTile.radius}`}
+            onPointerMove={followPointer}
+            className={`relative isolate overflow-hidden bg-muted ${tileMotion} ${tall ? backdropTile.tallAspect : backdropTile.aspect} ${backdropTile.radius}`}
           />
         }
       >
-        <ServerImg {...art} className="absolute inset-0 size-full object-cover" />
-        <span
-          aria-hidden
-          className={`absolute inset-0 inset-ring inset-ring-border ${backdropTile.radius}`}
-        />
+        <ServerImg {...art} fades className="absolute inset-0 size-full object-cover" />
+        <span aria-hidden className={`${tileRing} ${backdropTile.radius}`} />
         {children}
         <CardCaption caption={caption} menu={menu} />
       </ContextMenuTrigger>

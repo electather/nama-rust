@@ -4,22 +4,27 @@ import {
   createRootRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { createContext, useContext } from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import { CirclePlus } from "lucide-react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { Poster } from "@/shared/components/poster/poster";
-import { type ServerImage, posterOf } from "@/shared/lib/server-image";
+import { posterOf } from "@/shared/lib/server-image";
 import { onServerAt } from "@/test-server-at";
 
 afterEach(cleanup);
 
-type Art = ServerImage | undefined;
-
-const ArtShown = createContext<Art>(undefined);
-
 function HeatPoster() {
-  return <Poster link={{ to: "/" }} title="Heat" detail="1995" art={useContext(ArtShown)} />;
+  return (
+    <Poster
+      link={{ to: "/" }}
+      title="Heat"
+      detail="1995"
+      art={posterOf({})}
+      badge={{ label: "Not on this Server", short: "Not here", Icon: CirclePlus }}
+      current
+    />
+  );
 }
 
 const router = createRouter({
@@ -27,68 +32,23 @@ const router = createRouter({
   history: createMemoryHistory(),
 });
 
-/** Heat's poster, showing `art`, on a page of its own. */
-function heat(art: Art) {
-  return (
-    <ArtShown.Provider value={art}>
-      <RouterProvider router={router} />
-    </ArtShown.Provider>
+test("a poster is a link labelled by its title and detail, marking the page it is on", async () => {
+  render(<RouterProvider router={router} />, { wrapper: onServerAt() });
+
+  const link = await screen.findByRole("link", { name: "Heat, 1995" });
+
+  expect([link.getAttribute("aria-current"), link.textContent]).toStrictEqual([
+    "page",
+    "HeatNot hereNot on this Server",
+  ]);
+});
+
+test("a poster's badge describes its link from inside it", async () => {
+  render(<RouterProvider router={router} />, { wrapper: onServerAt() });
+
+  const link = await screen.findByRole("link", { name: "Heat, 1995" });
+
+  expect(link.querySelector(`[id="${link.getAttribute("aria-describedby")}"]`)?.textContent).toBe(
+    "Not hereNot on this Server",
   );
-}
-
-const first = "/media/artwork/tmdb/%2Fheat.jpg";
-const thumbhash = new Uint8Array([1, 2, 3]);
-
-/** The poster's art, its image from `url` on the Server. */
-function artOf(link: HTMLElement, url: string) {
-  const art = link.querySelector(`img[src="https://friend.example${url}"]`);
-  if (art === null) {
-    throw new Error(`no art from ${url}`);
-  }
-  return art;
-}
-
-/** The poster's own images, its thumbhash and its art, by `src`. */
-function images(link: HTMLElement) {
-  return [...link.querySelectorAll("img")].map((img) => img.getAttribute("src"));
-}
-
-test("a poster without art shows its title in its box", async () => {
-  render(heat(posterOf({})), { wrapper: onServerAt() });
-
-  const link = await screen.findByRole("link", { name: "Heat, 1995" });
-  expect([link.textContent, images(link)]).toStrictEqual(["Heat", []]);
-});
-
-test("a poster whose art loads shows it, not its title", async () => {
-  render(heat(posterOf({ posterUrl: first })), { wrapper: onServerAt() });
-
-  const link = await screen.findByRole("link", { name: "Heat, 1995" });
-  expect([link.textContent, images(link)]).toStrictEqual(["", [`https://friend.example${first}`]]);
-});
-
-test("a poster whose art fails to load shows its title, as one without art does", async () => {
-  render(heat(posterOf({ posterUrl: first, posterThumbhash: thumbhash })), {
-    wrapper: onServerAt(),
-  });
-  const link = await screen.findByRole("link", { name: "Heat, 1995" });
-
-  fireEvent.error(artOf(link, first));
-
-  expect([link.textContent, images(link)]).toStrictEqual(["Heat", []]);
-  expect(screen.getByRole("link", { name: "Heat, 1995" })).toBe(link);
-});
-
-test("a poster whose art failed tries new art in its place", async () => {
-  const { rerender } = render(heat(posterOf({ posterUrl: first })), {
-    wrapper: onServerAt(),
-  });
-  const link = await screen.findByRole("link", { name: "Heat, 1995" });
-  fireEvent.error(artOf(link, first));
-  expect(link.textContent).toBe("Heat");
-
-  const next = "/media/artwork/tmdb/%2Fheat-2.jpg";
-  rerender(heat(posterOf({ posterUrl: next })));
-
-  expect([link.textContent, images(link)]).toStrictEqual(["", [`https://friend.example${next}`]]);
 });

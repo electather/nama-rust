@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /**
  * A few choices in one pill, of which `value` is chosen, raised on the Rim. Native radios named
  * `name`, so the arrow keys move between them.
@@ -10,7 +12,7 @@ export function Segmented<Value extends string>({
   ...group
 }: {
   name: string;
-  options: [value: Value, label: string][];
+  options: [value: Value, label: ReactNode][];
   value: Value;
   onChange: (value: Value) => void;
   "aria-labelledby": string;

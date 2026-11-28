@@ -1,40 +1,42 @@
 import type { LinkOptions } from "@tanstack/react-router";
 
 import type { MovieHit, ShowHit } from "@/gen/nama/v1/request_pb";
-import { type ServerImage, posterOf } from "@/shared/lib/server-image";
+import type { PosterData } from "@/shared/components/poster/poster";
+import { posterOf } from "@/shared/lib/server-image";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** A Similar title as a title page's row shows it: a poster that opens it in its Library. */
-export interface SimilarTitle {
-  key: string;
-  title: string;
-  year: string | undefined;
-  poster: ServerImage | undefined;
-  link: LinkOptions;
-}
+export type SimilarTitle = PosterData & { key: string };
 
-/** The Similar titles `hits`, Movies, each opening in the Library the Server found it in. */
-export function similarMovies(hits: MovieHit[]): SimilarTitle[] {
+/** What labels a title besides its name, from its year. */
+export type Detail = (year: string | undefined) => string | undefined;
+
+/**
+ * The Similar titles `hits`, Movies, each opening in the Library the Server found it in, labelled
+ * with its year unless `detail` gives its label.
+ */
+export function similarMovies(hits: MovieHit[], detail: Detail = (year) => year) {
   return hits.map((hit) => {
     const params = { libraryId: String(hit.libraryId), movieId: titleParam(hit.id) };
-    return { ...art(hit), link: { to: "/libraries/$libraryId/movies/$movieId", params } };
+    return similar(hit, { to: "/libraries/$libraryId/movies/$movieId", params }, detail);
   });
 }
 
 /** As `similarMovies`, for Shows. */
-export function similarShows(hits: ShowHit[]): SimilarTitle[] {
+export function similarShows(hits: ShowHit[], detail: Detail = (year) => year) {
   return hits.map((hit) => {
     const params = { libraryId: String(hit.libraryId), showId: titleParam(hit.id) };
-    return { ...art(hit), link: { to: "/libraries/$libraryId/shows/$showId", params } };
+    return similar(hit, { to: "/libraries/$libraryId/shows/$showId", params }, detail);
   });
 }
 
-/** What `hit`'s poster shows, and the key it is listed under. */
-function art(hit: MovieHit | ShowHit) {
+/** `hit` as a poster opening `link`, under the key it is listed by. */
+function similar(hit: MovieHit | ShowHit, link: LinkOptions, detail: Detail): SimilarTitle {
   return {
     key: `${hit.libraryId}/${titleParam(hit.id)}`,
     title: hit.title,
-    year: hit.year?.toString(),
-    poster: posterOf(hit),
+    detail: detail(hit.year?.toString()),
+    art: posterOf(hit),
+    link,
   };
 }

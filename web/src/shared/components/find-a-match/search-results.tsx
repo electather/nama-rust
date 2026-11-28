@@ -1,13 +1,24 @@
-import { Candidates } from "@/shared/components/find-a-match/candidates";
-import { useSearchTitles } from "@/shared/hooks/use-search-titles";
-import { type ToMatch, searchRefusal, type searchTyped } from "@/shared/lib/find-a-match";
+import { Search, SearchX } from "lucide-react";
 
-/** The titles the Library's title sources found for `search`, to Match `item` to. */
+import type { TitleCandidate } from "@/gen/nama/v1/match_pb";
+import { EmptyNote } from "@/shared/components/empty-note";
+import { Candidates } from "@/shared/components/find-a-match/candidates";
+import type { useFindAMatch } from "@/shared/hooks/use-find-a-match";
+import { searchRefusal } from "@/shared/lib/find-a-match";
+
+/**
+ * The titles `found` by the search, to pick one of, with `picked` lit; or that it's searching, why
+ * it failed, or that it found none.
+ */
 export function SearchResults({
-  search,
-  ...toMatch
-}: ToMatch & { search: ReturnType<typeof searchTyped> }) {
-  const found = useSearchTitles({ ...search, libraryId: toMatch.libraryId });
+  found,
+  picked,
+  onPick,
+}: {
+  found: ReturnType<typeof useFindAMatch>["found"];
+  picked: TitleCandidate | undefined;
+  onPick: (key: string) => void;
+}) {
   if (found.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
@@ -15,14 +26,16 @@ export function SearchResults({
       </p>
     );
   }
+  if (found.blank) {
+    return (
+      <EmptyNote Icon={Search} title="No title to search for" todo="Type the title this file is." />
+    );
+  }
   if (found.data === undefined) {
     return <p className="text-sm text-muted-foreground">Searching…</p>;
   }
-  const { candidates } = found.data;
-  if (candidates.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">Nothing found. Try another title or year.</p>
-    );
+  if (found.candidates.length === 0) {
+    return <EmptyNote Icon={SearchX} title="Nothing found" todo="Try another title or year." />;
   }
-  return <Candidates candidates={candidates} {...toMatch} />;
+  return <Candidates candidates={found.candidates} picked={picked} onPick={onPick} />;
 }

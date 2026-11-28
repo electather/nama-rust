@@ -24,11 +24,13 @@ export interface TitleListing {
   from?: number | undefined;
   to?: number | undefined;
   watched?: Watched | undefined;
+  /** Whether the grid lists only the Library's Unmatched Items, as tiles. */
+  unmatched?: true | undefined;
 }
 
 /** The listing `search` names, leaving out what it names wrongly, so a bad URL lists as usual. */
 export function listingFromSearch(search: Record<string, unknown>): TitleListing {
-  const { sort, order, genres, from, to, watched } = search;
+  const { sort, order, genres, from, to, watched, unmatched } = search;
   return {
     sort: keyIn(sorts, sort),
     order: keyIn(orders, order),
@@ -36,6 +38,8 @@ export function listingFromSearch(search: Record<string, unknown>): TitleListing
     from: yearIn(from),
     to: yearIn(to),
     watched: keyIn(watchedStates, watched),
+    // `?unmatched=1`, which the router reads as the number 1; `true` is how a link writes it.
+    unmatched: unmatched === true || unmatched === 1 ? true : undefined,
   };
 }
 
@@ -60,9 +64,27 @@ function yearIn(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
-/** Whether `listing` keeps only some titles, rather than sorting them all. */
-export function isFiltered({ genres, from, to, watched }: TitleListing) {
+/** Whether `listing` keeps only some titles by their genres, years or Watch State. */
+export function hasTitleFilter({ genres, from, to, watched }: TitleListing) {
   return [genres, from, to, watched].some((value) => value !== undefined);
+}
+
+/** Whether `listing` lists only the Library's Unmatched Items. */
+export function isUnmatched({ unmatched }: TitleListing) {
+  return unmatched === true;
+}
+
+/** Whether `listing` keeps only some of the Library, rather than sorting all of it. */
+export function isFiltered(listing: TitleListing) {
+  return hasTitleFilter(listing) || isUnmatched(listing);
+}
+
+/**
+ * `listing` with `patch`'s title filters, which turns Not matched off: it lists no title, so it
+ * can't be on beside one.
+ */
+export function withFilter(listing: TitleListing, patch: TitleListing): TitleListing {
+  return { ...listing, ...patch, unmatched: undefined };
 }
 
 /** What the sort menu calls each way `sort` runs, in words. */
@@ -85,7 +107,7 @@ function yearsName({ from, to }: TitleListing) {
   return to === undefined ? `From ${from}` : `${from}–${to}`;
 }
 
-/** The name of each filter `listing` has on: its genres, its years, then its Watch State. */
+/** The name of each filter `listing` has on: its genres, years and Watch State, then Not matched. */
 export function filterNames(listing: TitleListing) {
   const { genres = [], watched } = listing;
   const years = yearsName(listing);
@@ -93,6 +115,7 @@ export function filterNames(listing: TitleListing) {
     ...genres,
     ...(years === undefined ? [] : [years]),
     ...(watched === undefined ? [] : [watchedStates[watched]]),
+    ...(isUnmatched(listing) ? ["Not matched"] : []),
   ];
 }
 

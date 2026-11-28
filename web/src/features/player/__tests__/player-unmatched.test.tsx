@@ -129,7 +129,8 @@ test("match it, for an Admin, opens the Item's Match flow, and the note goes onc
   openApp("/libraries/1/unmatched/7/play", server.transport);
 
   fireEvent.click(await screen.findByRole("button", { name: "Match it" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Match to Alien (1979)" }));
+  await screen.findByRole("radio", { name: "Alien (1979)" });
+  fireEvent.click(screen.getByRole("button", { name: "Match" }));
   await waitFor(() => {
     expect(server.setMatches).toStrictEqual([3n]);
   });
