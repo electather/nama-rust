@@ -115,6 +115,34 @@ test("every Episode shows dimmed, and Request Season 1 shows its Season Pending,
   expect(screen.queryByRole("button", { name: "Request Season 1 of Dark" })).toBeNull();
 });
 
+test("the row holds every Season's Episodes, on the Server or not, in order with Specials last", async () => {
+  const onServer = season(1, {
+    inLibrary: true,
+    episodes: [
+      { ...chapter(1), inLibrary: true },
+      { ...chapter(2), inLibrary: true },
+    ],
+  });
+  const { transport } = showServer({
+    ...dark,
+    seasons: [season(2), season(0), onServer],
+  });
+  openApp("/shows/tmdb-70523", transport);
+  await screen.findByRole("heading", { name: "Dark" });
+
+  const cards = within(screen.getByRole("list", { name: "Episodes" })).getAllByRole("listitem");
+  // A card's name alone says ": Chapter"; its caption shows the title apart.
+  const names = cards.map((card) => within(card).getByText(/: Chapter/u).textContent);
+  expect(names).toStrictEqual([
+    "Season 1, Episode 1: Chapter 1",
+    "Season 1, Episode 2: Chapter 2",
+    "Season 2, Episode 1: Chapter 1, Not on this Server",
+    "Season 2, Episode 2: Chapter 2, Not on this Server",
+    "Specials, Episode 1: Chapter 1, Not on this Server",
+    "Specials, Episode 2: Chapter 2, Not on this Server",
+  ]);
+});
+
 test("the + on a missing Episode Requests its Season", async () => {
   const { transport, asked } = showServer(dark);
   openApp("/shows/tmdb-70523", transport);
