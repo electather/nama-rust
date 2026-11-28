@@ -35,7 +35,7 @@ export function LibraryShows({ libraryId, listing, change }: TitlesProps) {
     <Titles
       titles={{ one: "Show", many: "Shows" }}
       index={paged.data.pages[0]?.index ?? []}
-      {...{ listing, change, paged, posters }}
+      {...{ libraryId, listing, change, paged, posters }}
     />
   );
 }

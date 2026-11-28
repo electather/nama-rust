@@ -2,6 +2,7 @@ import { Button } from "nama-ui/components/button";
 import { useState } from "react";
 
 import type { BarProps } from "@/features/library/lib/listing-bar";
+import { withFilter } from "@/features/library/lib/title-listing";
 
 /** How many genres show before Show more. */
 const FIRST = 5;
@@ -26,7 +27,7 @@ export function GenreChips({ listing, change, genres }: BarProps & { genres: str
             variant="secondary"
             aria-pressed={on}
             onClick={() => {
-              change({ ...listing, genres: changed.length === 0 ? undefined : changed });
+              change(withFilter(listing, { genres: changed.length === 0 ? undefined : changed }));
             }}
           >
             {genre}
