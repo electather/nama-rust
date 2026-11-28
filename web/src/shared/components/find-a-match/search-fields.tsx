@@ -1,6 +1,8 @@
 import { Input } from "nama-ui/components/input";
 import { useId } from "react";
 
+import { SearchField } from "@/shared/components/search-field";
+
 /** The Title and Year to search for, which Find a Match searches for as they're typed. */
 export function SearchFields({
   typed,
@@ -13,17 +15,16 @@ export function SearchFields({
   const yearId = useId();
   return (
     <div className="flex gap-2.5">
-      <div className="relative min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <label htmlFor={titleId} className="sr-only">
           Title
         </label>
-        <Input
+        <SearchField
           id={titleId}
           type="search"
-          autoComplete="off"
           value={typed.title}
-          onChange={(event) => {
-            onType({ ...typed, title: event.target.value });
+          onValueChange={(title) => {
+            onType({ ...typed, title });
           }}
         />
       </div>
