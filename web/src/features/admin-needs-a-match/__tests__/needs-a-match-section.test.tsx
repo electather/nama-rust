@@ -178,12 +178,18 @@ describe("the Library picker", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Shows 1" }));
     fireEvent.click(await screen.findByRole("link", { name: "Dark" }));
     await expect(
-      screen.findByRole("link", { name: "Back to Needs a Match" }),
+      within(await screen.findByRole("navigation", { name: "Breadcrumbs" })).findByRole("link", {
+        name: "Needs a Match",
+      }),
     ).resolves.toBeDefined();
     expect(router.state.location.search.item).toBe("8");
     expect(router.state.location.search.library).toBe("2");
 
-    fireEvent.click(screen.getByRole("link", { name: "Back to Needs a Match" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Breadcrumbs" })).getByRole("link", {
+        name: "Needs a Match",
+      }),
+    );
 
     await waitFor(() => {
       expect(router.state.location.search.item).toBeUndefined();

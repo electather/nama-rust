@@ -6,7 +6,7 @@ export function CandidateName({ candidate }: { candidate: TitleCandidate }) {
   const { originalTitle } = candidate;
   return (
     <span className="flex min-w-0 flex-col">
-      <span className="text-base">{withYear(candidate.title, candidate.year)}</span>
+      <span className="text-sm">{withYear(candidate.title, candidate.year)}</span>
       {originalTitle !== undefined && originalTitle !== candidate.title && (
         <span className="text-xs font-normal text-pretty">{originalTitle}</span>
       )}

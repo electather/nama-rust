@@ -50,3 +50,11 @@ export function filesNeedingAMatch(groups: UnmatchedGroup[]) {
   }
   return total;
 }
+
+/** The listed file whose Item id is `id`, with its Library's group, if one is listed. */
+export function findUnmatched(groups: UnmatchedGroup[], id: string) {
+  const listed = (item: UnmatchedGroup["items"][number]) => String(item.itemId) === id;
+  const group = groups.find(({ items }) => items.some((item) => listed(item)));
+  const item = group?.items.find((each) => listed(each));
+  return group && item ? { group, item } : undefined;
+}

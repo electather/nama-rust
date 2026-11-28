@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
@@ -77,7 +77,7 @@ function newAsked(): Asked {
 }
 
 describe("a file's own screen", () => {
-  test("opens from its row in the address, with the reason as a sentence, and Back returns", async () => {
+  test("opens from its row in the address, with the reason as a sentence, and its crumb returns", async () => {
     const router = openSettings("needs-a-match", odysseyServer(newAsked()));
 
     fireEvent.click(await screen.findByRole("link", { name: "The Odyssey (2026)" }));
@@ -89,7 +89,11 @@ describe("a file's own screen", () => {
     ).resolves.toBeDefined();
     expect(router.state.location.search.item).toBe("7");
     expect(screen.getByRole("heading", { name: "Which Movie is it?" })).toBeDefined();
-    fireEvent.click(screen.getByRole("link", { name: "Back to Needs a Match" }));
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Breadcrumbs" })).getByRole("link", {
+        name: "Needs a Match",
+      }),
+    );
     await expect(screen.findByRole("link", { name: "The Odyssey (2026)" })).resolves.toBeDefined();
     expect(router.state.location.search.item).toBeUndefined();
   });

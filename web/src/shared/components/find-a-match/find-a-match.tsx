@@ -31,7 +31,7 @@ export function FindAMatch({
     >
       {above}
       <section aria-labelledby={headingId} className="flex flex-col gap-3.5">
-        <h4 id={headingId} className="text-base font-medium">
+        <h4 id={headingId} className="text-sm font-medium">
           Which {titleWord(item.kind)} is it?
         </h4>
         <SearchFields typed={typed} onType={setTyped} />
