@@ -2,26 +2,14 @@ import type { LinkOptions } from "@tanstack/react-router";
 import { CirclePlus } from "lucide-react";
 
 import type { MovieHit } from "@/gen/nama/v1/request_pb";
+import type { PosterData } from "@/shared/components/poster/poster";
+import type { TileBadgeShown } from "@/shared/components/poster/tile-badge";
 import { shownRequestState } from "@/shared/components/request-state/request-states";
-import type { Shown } from "@/shared/components/state-label";
 import { titleStanding } from "@/shared/lib/request-standing";
 import type { RowTitle } from "@/shared/lib/row-titles";
-import { type ServerImage, posterOf } from "@/shared/lib/server-image";
+import { posterOf } from "@/shared/lib/server-image";
 import { yearOf } from "@/shared/lib/title-facts";
 import { titleParam } from "@/shared/lib/title-param";
-
-/** A shelf badge's state, with a `short` word to show when its label won't fit a poster's corner. */
-export type TileBadgeShown = Shown & { short?: string };
-
-/** A row's title as its shelf shows it: a poster that opens its page, maybe with a badge. */
-export interface RowTile {
-  title: string;
-  year: string | undefined;
-  poster: ServerImage | undefined;
-  link: LinkOptions;
-  /** Where a title missing from the Server stands; none for one you can watch. */
-  badge: TileBadgeShown | undefined;
-}
 
 /** A missing title nobody has asked for. */
 const notHere: TileBadgeShown = {
@@ -30,13 +18,13 @@ const notHere: TileBadgeShown = {
   Icon: CirclePlus,
 };
 
-/** The tile of a row's `title`. */
-export function rowTile(title: RowTitle): RowTile {
+/** The poster of a row's `title`, badged with where it stands if it's missing from the Server. */
+export function rowTile(title: RowTitle): PosterData {
   const { value } = title;
   const art = {
     title: value.title,
-    year: yearOfRowTitle(title),
-    poster: posterOf(value),
+    detail: yearOfRowTitle(title),
+    art: posterOf(value),
   };
   if (title.case === "missingMovie") {
     return { ...art, link: missingMovieLink(title.value), badge: missingMovieBadge(title.value) };

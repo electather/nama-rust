@@ -4,8 +4,8 @@ import { RowFrame } from "@/features/home/components/row-frame";
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import type { TitleOn } from "@/features/home/lib/hub-titles";
 import { OnServer } from "@/shared/components/on-server";
-import { RowPoster } from "@/shared/components/row-poster/row-poster";
-import { rowTile } from "@/shared/components/row-poster/row-tiles";
+import { Poster } from "@/shared/components/poster/poster";
+import { rowTile } from "@/shared/components/poster/row-tiles";
 import { rowTitleKey } from "@/shared/lib/row-titles";
 import { posterTile } from "@/shared/lib/tile-shapes";
 import { linkOn } from "@/shared/lib/title-server";
@@ -22,7 +22,7 @@ export function HubTitlesRow({ heading, titles }: { heading: string; titles: Tit
       key: `${on.server.id}/${rowTitleKey(on.title)}`,
       tile: (
         <OnServer on={on}>
-          <RowPoster tile={{ ...tile, link: linkOn(tile.link, on) }} />
+          <Poster {...tile} link={linkOn(tile.link, on)} />
         </OnServer>
       ),
     };

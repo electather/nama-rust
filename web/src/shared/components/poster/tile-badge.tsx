@@ -1,4 +1,7 @@
-import type { TileBadgeShown } from "@/shared/components/row-poster/row-tiles";
+import type { Shown } from "@/shared/components/state-label";
+
+/** A poster badge's state, with a `short` word to show when its label won't fit a poster's corner. */
+export type TileBadgeShown = Shown & { short?: string };
 
 /**
  * Where a missing title stands: a one-line pill in its poster's top corner on the scrim, so it

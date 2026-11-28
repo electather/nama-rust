@@ -52,3 +52,46 @@ export const backdropTile: TileShape & { tallAspect: string } = {
 
 /** The gap between a row's tiles, as a class and in pixels for a virtualizer's sums. */
 export const tileGap = { className: "gap-5", px: 20 };
+
+/** The `li` of a row's `tile`: its width, which its shape's `widthClass` reads, and snapping. */
+export function tileItem(tile: TileShape) {
+  return {
+    className: `shrink-0 snap-start ${tile.widthClass}`,
+    style: { "--tile-width": tile.width },
+  };
+}
+
+/**
+ * The classes of a grid of posters: 2 columns, 3 from `sm`, 4 from `md` and 5 from `lg`. A Library's
+ * grid fits columns to its width instead, in `useGridColumns`.
+ */
+export const posterGrid =
+  "mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
+
+/** The hairline inside a poster's edge, drawn over its art by a span of the poster's radius. */
+export const posterRing = "absolute inset-0 inset-ring inset-ring-border";
+
+/** How a poster's box sits and loads: its extra classes, `sizes`, corners, and whether it names its title. */
+export interface PosterSize {
+  /** The box's own size classes: none where its parent sets its width. */
+  box: string;
+  sizes: string;
+  radius: string;
+  /** Whether a poster without art shows its title; a thumbnail is an empty box. */
+  named: boolean;
+}
+
+/** Each size a poster draws at, all in `posterTile`'s 2:3 aspect. */
+export const posterSizes = {
+  /** On a row: as wide as its `posterTile` item. */
+  shelf: { box: "", sizes: posterTile.sizes, radius: posterTile.radius, named: true },
+  /** In a grid, a Library's, a Watchlist's or a Person's: as wide as its column. */
+  tile: {
+    box: "",
+    sizes: "(min-width: 1440px) 220px, (min-width: 768px) 20vw, 45vw",
+    radius: posterTile.radius,
+    named: true,
+  },
+  /** Leading a row of text, 56px tall. */
+  thumb: { box: "h-14 shrink-0", sizes: "38px", radius: "rounded-xs", named: false },
+} satisfies Record<string, PosterSize>;

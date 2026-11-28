@@ -1,59 +1,47 @@
 import { Link, type LinkOptions } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useId } from "react";
 
-import { ServerImg } from "@/shared/components/server-img";
+import { PosterArt } from "@/shared/components/poster/poster-art";
+import { TileBadge, type TileBadgeShown } from "@/shared/components/poster/tile-badge";
 import type { ServerImage } from "@/shared/lib/server-image";
-import { posterTile } from "@/shared/lib/tile-shapes";
+import { posterSizes } from "@/shared/lib/tile-shapes";
+
+/** A title as a poster shows it: its art, its link, and what labels it for assistive technology. */
+export interface PosterData {
+  link: LinkOptions;
+  title: string;
+  /** What more labels it, such as its year. */
+  detail?: string | undefined;
+  art: ServerImage | undefined;
+  /** Where a title missing from the Server stands, over its art's corner (DESIGN.md, "Posters"). */
+  badge?: TileBadgeShown | undefined;
+}
 
 /**
- * A Movie's, Show's or Box Set's poster alone, opening `link`: its name, `title`, and `detail`,
- * such as its year, are its label for assistive technology, and its name shows in place of art it
- * lacks or that fails to load. `children`, such as a badge, sit over it, and `describedBy` names the element that
- * describes the link, since its label hides them. `current` marks the title whose page it is on.
- * `sizes` is how wide it shows, a shelf's tile unless a grid says otherwise.
+ * A Movie's, Show's or Box Set's poster, opening its `link`: its name and `detail` are its label
+ * for assistive technology, which the `badge`, if any, adds to. `current` marks the title whose
+ * page it is on. `size` is how it draws, a shelf's tile unless given.
  */
 export function Poster({
   link,
   title,
   detail,
   art,
-  sizes = posterTile.sizes,
+  badge,
+  size = "shelf",
   current = false,
-  describedBy,
-  children,
-}: {
-  link: LinkOptions;
-  title: string;
-  detail?: string | undefined;
-  art: ServerImage | undefined;
-  sizes?: string;
-  current?: boolean;
-  describedBy?: string | undefined;
-  children?: ReactNode;
-}) {
+}: PosterData & { size?: keyof typeof posterSizes; current?: boolean }) {
+  const badgeId = useId();
   return (
     <Link
       {...link}
       aria-label={detail === undefined ? title : `${title}, ${detail}`}
       aria-current={current ? "page" : undefined}
-      aria-describedby={describedBy}
-      className={`relative isolate flex items-center justify-center overflow-hidden bg-muted p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${posterTile.aspect} ${posterTile.radius}`}
+      aria-describedby={badge && badgeId}
+      className={`relative block outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${posterSizes[size].radius}`}
     >
-      <ServerImg
-        images={[art]}
-        sizes={sizes}
-        className="absolute inset-0 size-full object-cover"
-        fallback={
-          <span className="text-center text-sm font-medium text-balance text-muted-foreground">
-            {title}
-          </span>
-        }
-      />
-      <span
-        aria-hidden
-        className={`absolute inset-0 inset-ring inset-ring-border ${posterTile.radius}`}
-      />
-      {children}
+      <PosterArt art={art} title={title} size={size} />
+      {badge && <TileBadge id={badgeId} badge={badge} />}
     </Link>
   );
 }

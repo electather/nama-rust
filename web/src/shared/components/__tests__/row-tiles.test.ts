@@ -2,7 +2,7 @@ import { create, fromJson } from "@bufbuild/protobuf";
 import { expect, test } from "vite-plus/test";
 
 import { MovieHitSchema, RequestSchema, RequestState } from "@/gen/nama/v1/request_pb";
-import { rowTile } from "@/shared/components/row-poster/row-tiles";
+import { rowTile } from "@/shared/components/poster/row-tiles";
 
 /** Arrival, missing from the Server, with `more` as given. */
 const arrival = (more: { request?: { state: RequestState }; libraryId?: bigint } = {}) =>
