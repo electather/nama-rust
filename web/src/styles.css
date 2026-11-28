@@ -122,9 +122,48 @@
   }
 }
 
-/* What a lifting tile animates (`tileMotion`): its scale and shadow, never its size. */
+/*
+ * A tile leaning toward a fine pointer (`followPointer` sets `--tilt-x`, `--tilt-y`). It is
+ * `transform`, which composes with the lift's `scale` and, like it, moves no neighbour.
+ */
+@utility tile-tilt {
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    &:hover {
+      transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    }
+  }
+}
+
+/*
+ * A tilting tile's art drifting against the lean (`--shift-x`, `--shift-y`), as Apple TV's layered
+ * posters do, scaled up just enough that its edge never shows. It lists every property its art
+ * animates, `transition-settle`'s included, since one `transition-property` replaces another.
+ */
+@utility tile-parallax {
+  transition-property: opacity, scale, translate, transform;
+  transition-duration: 500ms, 500ms, 300ms, 300ms;
+  transition-timing-function: var(--ease-out-expo);
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    :where(.group\/tile:hover) & {
+      translate: var(--shift-x, 0px) var(--shift-y, 0px);
+      transform: scale(1.05);
+    }
+  }
+}
+
+/* A tilting card's caption drifting with the lean, against its art, a little less far. */
+@utility tile-parallax-front {
+  transition: translate 300ms var(--ease-out-expo);
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    :where(.group\/tile:hover) & {
+      translate: calc(var(--shift-x, 0px) * -0.6) calc(var(--shift-y, 0px) * -0.6);
+    }
+  }
+}
+
+/* What a lifting tile animates (`tileMotion`): its scale, lean and shadow, never its size. */
 @utility transition-lift {
-  transition-property: scale, box-shadow;
+  transition-property: scale, transform, box-shadow;
   transition-timing-function: var(--ease-out-expo);
   transition-duration: 300ms;
 }

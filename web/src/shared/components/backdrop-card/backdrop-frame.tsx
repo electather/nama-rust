@@ -5,7 +5,7 @@ import { CardCaption } from "@/shared/components/backdrop-card/card-caption";
 import { ServerImg } from "@/shared/components/server-img";
 import { followPointer } from "@/shared/lib/follow-pointer";
 import type { ServerImage } from "@/shared/lib/server-image";
-import { backdropTile, tileMotion, tileRing } from "@/shared/lib/tile-shapes";
+import { backdropTile, tileArt, tileMotion, tileRing } from "@/shared/lib/tile-shapes";
 
 /**
  * A card's box: its art, the first of `art.images` that loads, 4:3, or square when `tall`, with
@@ -36,7 +36,7 @@ export function BackdropFrame({
           />
         }
       >
-        <ServerImg {...art} fades className="absolute inset-0 size-full object-cover" />
+        <ServerImg {...art} fades className={tileArt} />
         <span aria-hidden className={`${tileRing} ${backdropTile.radius}`} />
         {children}
         <CardCaption caption={caption} menu={menu} />

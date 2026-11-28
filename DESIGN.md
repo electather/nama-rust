@@ -157,13 +157,14 @@ Flat by default. Depth comes from tonal layering plus a hairline: each surface s
 ### Named Rules
 **The Flat-By-Default Rule.** Surfaces are flat at rest. If a poster grid needs shadows to separate its items, the spacing is wrong.
 
-**Card motion.** Every Poster and backdrop card (Continue Watching, Episodes) answers the pointer, all on ease-out-expo and in `scale`, `box-shadow` and `opacity` only, so no card's size, margin or padding changes and no neighbour moves (`tileMotion` in `shared/lib/tile-shapes.ts`; `tile-sheen` in `styles.css`).
+**Card motion.** Every Poster and backdrop card (Continue Watching, Episodes) answers the pointer, all on ease-out-expo and in `scale`, `transform`, `translate`, `box-shadow` and `opacity` only, so no card's size, margin or padding changes and no neighbour moves (`tileMotion` in `shared/lib/tile-shapes.ts`; `tile-sheen` in `styles.css`).
 - **Lift.** On hover and keyboard focus the card scales to 1.02 over 300ms, takes `shadow-lg`, rises above its neighbours (`z-index`), and its inner hairline fades out. The focus ring stays. A shelf's scroller and the Library's grid give a lifted card and its shadow room with padding that a negative margin takes back (`shelfLift`), so nothing clips and nothing shifts.
 - **Press.** `:active` scales to 0.97 over 100ms, and the card settles back on release.
+- **Tilt.** Where a hover is a fine pointer's, the card leans toward it, at most 3° at its edge, in perspective (`tile-tilt`), and eases back flat when the pointer leaves. Its art drifts up to 3px against the lean, scaled to 1.05 so its edge never shows (`tile-parallax`), and a backdrop card's caption drifts with the lean (`tile-parallax-front`), as Apple TV's layered art does. Keyboard focus lifts without leaning.
 - **Sheen.** Where a hover is a fine pointer's, a white-at-8% radial light follows it, placed by `--mx` and `--my` that one handler sets on pointer move (`followPointer`), with no render.
 - **Art.** A full image fades from 0 to 1 and settles from 1.03 to 1 over its thumbhash once it loads.
 - **Progress.** A Continue Watching bar grows from 0 to its value over 900ms the first time its card is in view, once per mount.
-- **Reduced motion.** No scale and no growth: the ring and shadow change at once, and the art crossfades.
+- **Reduced motion.** No scale, tilt, drift or growth: the ring and shadow change at once, and the art crossfades.
 
 ## 5. Components
 
